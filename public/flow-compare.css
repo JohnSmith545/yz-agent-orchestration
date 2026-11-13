@@ -1,0 +1,62 @@
+/* The before and after of a flow's Picture block (flow-compare.js): the change strip,
+   a before and after pair, the Compare slider, and the diagram of how it worked before.
+   Tokens only, so dark mode follows; nothing moves unless you move it. */
+
+/* Before / Now: two plain lines over whichever view shows */
+.cmp-strip { display: grid; gap: 4px; margin: 0 0 14px; padding: 10px 14px; border-radius: var(--radius); background: var(--surface-2); }
+/* a hanging indent: a wrapped line starts under the text, not under Before / Now */
+.cmp-strip p { margin: 0; padding-left: 56px; text-indent: -56px; font-size: 14.5px; line-height: 1.5; color: var(--ink); overflow-wrap: anywhere; }
+.cmp-strip .cmp-was { color: var(--ink-2); }
+.cmp-k { display: inline-block; min-width: 52px; margin-right: 4px; text-indent: 0; font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--muted); }
+.cmp-now .cmp-k { color: var(--ok); }
+
+/* a pair: the before and the after side by side, the same size, each labelled */
+.cmp-pair { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); justify-items: center; gap: 16px; }
+/* as wide as its picture, so the label starts where the picture starts */
+.cmp-side { margin: 0; display: grid; justify-items: center; align-content: start; gap: 6px; width: fit-content; max-width: 100%; min-width: 0; }
+.cmp-label { justify-self: start; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.cmp-after .cmp-label { color: var(--ok); }
+/* the same height as the one big image (flow-output.css .pv-hero), so How to test stays as close */
+.cmp-side .fl-shot { max-width: 100%; max-height: min(280px, 36vh); cursor: zoom-in; }
+.cmp-cap { margin: 0; font-size: 12.5px; color: var(--muted); text-align: center; overflow-wrap: anywhere; }
+
+/* ‹ 1/3 › */
+.cmp-step { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; }
+.cmp-step button { min-width: 32px; padding: 2px 8px; font-size: 15px; line-height: 1.2; }
+.cmp-count { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* shots with no partner, under their own label */
+.cmp-lone-h { justify-self: start; margin: 16px 0 0; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.cmp-lone-h + .pv-film { justify-self: start; justify-content: flex-start; margin-top: 6px; }
+
+/* Compare: the after, the before laid over it up to the handle */
+.cmp-slider { --pos: 50%; position: relative; max-width: 100%; line-height: 0; overflow: hidden; border: 1px solid var(--line);
+  border-radius: var(--radius); cursor: ew-resize; touch-action: none; user-select: none; -webkit-user-select: none; }
+.cmp-slider > .cmp-img { display: block; max-width: 100%; max-height: min(420px, 52vh); }
+.cmp-clip { position: absolute; inset: 0; clip-path: inset(0 calc(100% - var(--pos)) 0 0); transition: clip-path 80ms linear; }
+.cmp-clip .cmp-img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top left; }
+.cmp-handle { position: absolute; top: 0; bottom: 0; left: var(--pos); width: 2px; margin-left: -1px; background: var(--surface);
+  box-shadow: 0 0 0 1px var(--line-strong); transition: left 80ms linear; }
+.cmp-handle::after { content: ""; position: absolute; top: 50%; left: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px;
+  border-radius: 50%; background: var(--surface); border: 2px solid var(--accent); }
+.cmp-handle:focus-visible { outline: none; }
+.cmp-handle:focus-visible::after { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); }
+.cmp-tag { position: absolute; top: 8px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 600; line-height: 1.8;
+  color: var(--ink); background: color-mix(in srgb, var(--surface) 88%, transparent); pointer-events: none; }
+.cmp-tag-before { left: 8px; }
+.cmp-tag-after { right: 8px; }
+
+/* the diagram of how it worked before and the one of now: side by side on a wide stage, stacked under it */
+.cmp-how { width: 100%; display: grid; gap: 18px; }
+.cmp-how-side { margin: 0; display: grid; gap: 6px; min-width: 0; }
+@container (min-width: 1100px) {
+  .cmp-how { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+}
+/* side by side down to a narrow stage (the Ask drawer open still reads both), stacked on a phone */
+@container (max-width: 420px) {
+  .cmp-pair { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cmp-clip, .cmp-handle { transition: none; }
+}

@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Yz Agent Orchestration</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='3' y='3' width='10' height='10' rx='2' fill='%234a4ed4'/%3E%3C/svg%3E">
+<script src="theme.js"></script>
+<link rel="preload" href="fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/jetbrains-mono-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="card-stack.css">
+<link rel="stylesheet" href="agent-cards.css">
+<link rel="stylesheet" href="factory.css">
+<link rel="stylesheet" href="chat.css">
+<link rel="stylesheet" href="orchestration.css">
+<link rel="stylesheet" href="flows.css">
+<link rel="stylesheet" href="diagram.css">
+<link rel="stylesheet" href="flow-output.css">
+<link rel="stylesheet" href="flow-compare.css">
+<link rel="stylesheet" href="glossary.css">
+<link rel="stylesheet" href="settings.css">
+<link rel="stylesheet" href="shell.css">
+<link rel="stylesheet" href="palette.css">
+<link rel="stylesheet" href="explain.css">
+</head>
+<body>
+<aside id="rail" aria-label="Navigation"></aside>
+<header id="pageHead">
+  <h1 id="pageTitle">Home</h1>
+  <div id="pageStatus"><span id="pageStatusText" aria-live="polite">Loading…</span><button type="button" class="help" id="pageHelp" aria-label="More about this page" hidden>?</button></div>
+  <button type="button" id="pageWaiting" hidden></button>
+  <div id="pageActions"><button type="button" id="refresh" title="Rebuild now">Refresh</button></div>
+</header>
+
+<main>
+  <div class="banners" id="banners" role="status"></div>
+
+  <section id="home" aria-label="Overview">
+    <div id="homeSince" hidden></div>
+    <div id="homeWaiting"></div>
+
+    <div class="home-zone">
+      <div class="section-head"><h2>Agents <span class="faint">· <span class="num" id="agentsCount">–</span></span></h2></div>
+      <div class="agent-cards ac-grid ac-chat-slot" id="chatCardHome" hidden></div>
+      <div class="agent-cards ac-grid" id="agentCards"></div>
+    </div>
+
+    <div class="home-zone">
+      <div class="section-head"><h2>Messages <span class="faint">· <span class="num" id="talkCount">–</span></span></h2></div>
+      <div class="card talk scroll" id="talk" data-fade="tb"></div>
+    </div>
+  </section>
+
+  <section id="flowView" aria-label="Timeline" hidden></section>
+  <section id="agentView" aria-label="One agent" hidden></section>
+  <section id="factoryView" aria-label="Tickets" hidden></section>
+  <section id="flowsView" aria-label="Flows" hidden></section>
+  <section id="agentsView" aria-label="Agents" hidden></section>
+  <section id="glossaryView" aria-label="Glossary" hidden></section>
+  <section id="settingsView" aria-label="Settings" hidden></section>
+</main>
+
+<aside id="drawer" aria-label="Ask" hidden></aside>
+
+<script src="motion.js"></script>
+<script src="help.js"></script>
+<script src="terms.js"></script>
+<script src="glossary-store.js"></script>
+<script src="shell.js"></script>
+<script src="app.js"></script>
+<script src="card-stack.js"></script>
+<script src="agent-cards.js"></script>
+<script src="agents-page.js"></script>
+<script src="worktrees.js"></script>
+<script src="diff.js"></script>
+<script src="agent.js"></script>
+<script src="flow-zoom.js"></script>
+<script src="flow.js"></script>
+<script src="factory-chat.js"></script>
+<script src="orchestration.js"></script>
+<script src="flow-chart.js"></script>
+<script src="flow-drawer.js"></script>
+<script src="lightbox.js"></script>
+<script src="flow-tabs.js"></script>
+<script src="flow-status.js"></script>
+<script src="diagram-fit.js"></script>
+<script src="diagram-route.js"></script>
+<script src="diagram.js"></script>
+<script src="flow-picture.js"></script>
+<script src="flow-story.js"></script>
+<script src="flow-compare.js"></script>
+<script src="flow-visual.js"></script>
+<script src="flow-steps.js"></script>
+<script src="flow-send.js"></script>
+<script src="flow-output.js"></script>
+<script src="flow-head.js"></script>
+<script src="flow-board.js"></script>
+<script src="flows.js"></script>
+<script src="flows-page.js"></script>
+<script src="glossary-page.js"></script>
+<script src="settings-page.js"></script>
+<script src="since.js"></script>
+<script src="factory.js"></script>
+<!-- palette.js BEFORE notify.js: both take Escape on window capture, and the palette (on top) must hear it first. -->
+<script src="palette.js"></script>
+<script src="notify.js"></script>
+<script src="reminders.js"></script>
+<script src="spend.js"></script>
+<script src="explain.js"></script>
+<script src="term-card.js"></script>
+</body>
+</html>

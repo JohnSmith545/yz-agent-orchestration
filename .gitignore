@@ -1,0 +1,20 @@
+# Machine settings: local paths and session names.
+config.json
+
+# Everything the dashboard writes (flows, evidence, ticket snapshots, the chat,
+# spend, marks). It is local state and may hold private tracker data: never commit.
+data/*
+!data/.gitkeep
+
+node_modules/
+.DS_Store
+*.log
+
+# Screenshots taken while checking the page.
+.screens/
+
+# Git worktrees for feature branches.
+.worktrees/
+
+# Notes and reports from agent skills (superpowers).
+.superpowers/

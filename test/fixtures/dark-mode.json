@@ -1,0 +1,63 @@
+{
+  "id": "dark-mode",
+  "title": "Add a dark mode toggle",
+  "agent": "Agent 3",
+  "tickets": ["ABC-101"],
+  "env": "dev",
+  "status": "open",
+  "why": "The page was too bright to read at night, so it gets a dark theme that remembers your choice.",
+  "createdAt": "2026-11-12T08:00:00Z",
+  "updatedAt": "2026-11-12T08:40:00Z",
+  "output": {
+    "story": [
+      { "id": "s1", "who": "Agent 3", "did": "Turned every colour on the page into a [theme token]", "why": "So one switch changes the whole page at once", "at": "2026-11-12T08:12:00Z" },
+      { "id": "s2", "who": "Agent 3", "did": "Saved the choice in [local storage]", "why": "So it survives a reload", "at": "2026-11-12T08:26:00Z" },
+      { "id": "s3", "who": "Agent 3", "did": "Checked the toggle in the browser with screenshots", "at": "2026-11-12T08:37:00Z" }
+    ],
+    "result": [
+      { "ref": "dark-mode/out-before.png", "caption": "Settings before: always light", "when": "before", "at": "2026-11-12T08:05:00Z" },
+      { "ref": "dark-mode/out-after.png", "caption": "Settings in dark mode, the moon switch on", "at": "2026-11-12T08:35:00Z" }
+    ],
+    "change": { "before": "The page was always light, even late at night", "after": "One switch turns the whole page dark, and it stays dark after a reload", "at": "2026-11-12T08:36:00Z" },
+    "summary": "Every colour on the page is now a **theme token**, so one switch in Settings changes the whole page at once. The choice is saved in the browser, so it survives a reload.",
+    "changes": [{ "kind": "commit", "ref": "ab12cd3", "label": "web: theme tokens" }],
+    "testing": [
+      { "id": "t1", "do": "Open Settings and click the moon next to Theme.", "expect": "The page turns dark at once.", "shot": "dark-mode/out-t1-moon.png", "at": "2026-11-12T08:36:00Z" },
+      { "id": "t2", "do": "Reload the page.", "expect": "It is still dark, even with [prefers-color-scheme] set to light.", "shot": "dark-mode/out-t2-reload.png", "at": "2026-11-12T08:37:00Z" }
+    ],
+    "diagram": {
+      "nodes": [
+        { "id": "user", "label": "User", "kind": "actor" },
+        { "id": "settings-page", "label": "Settings page", "kind": "box" },
+        { "id": "theme-tokens", "label": "Theme tokens", "kind": "box" },
+        { "id": "browser-storage", "label": "Browser storage", "kind": "store" },
+        { "id": "system-prefers-dark", "label": "System prefers dark?", "kind": "decision" }
+      ],
+      "edges": [
+        { "from": "user", "to": "settings-page", "label": "clicks the moon" },
+        { "from": "settings-page", "to": "theme-tokens", "label": "switches" },
+        { "from": "settings-page", "to": "browser-storage", "label": "saves the choice" },
+        { "from": "system-prefers-dark", "to": "theme-tokens", "label": "first visit" }
+      ],
+      "at": "2026-11-12T08:38:00Z"
+    },
+    "requestedAt": null
+  },
+  "nodes": [
+    { "id": "n1", "type": "step", "title": "Add the theme tokens",
+      "why": "Every colour becomes a token, so one switch changes the whole page.",
+      "env": "dev", "status": "done", "after": [],
+      "evidence": [{ "kind": "commit", "ref": "ab12cd3", "label": "web: theme tokens", "at": "2026-11-12T08:10:00Z" }],
+      "verified": null },
+    { "id": "n2", "type": "check", "title": "The toggle remembers the choice",
+      "env": "dev", "status": "done", "after": ["n1"],
+      "evidence": [{ "kind": "shot", "ref": "dark-mode/toggle.png", "label": "toggle ok", "at": "2026-11-12T08:25:00Z" }],
+      "verified": { "by": "you", "at": "2026-11-12T08:30:00Z" } },
+    { "id": "n3", "type": "ask", "title": "Ship dark mode to dev now?",
+      "why": "The team has used it for a day.",
+      "after": ["n2"], "yes": "Turn it on for everyone on dev.", "no": "Keep it behind the toggle one more week.",
+      "kind": "yesno", "answer": null, "answeredAt": null, "note": "", "sentAt": null },
+    { "id": "n4", "type": "step", "title": "Make dark mode the default when the system asks for it",
+      "env": "dev", "status": "todo", "after": ["n3"], "evidence": [], "verified": null }
+  ]
+}

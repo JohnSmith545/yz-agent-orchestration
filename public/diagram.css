@@ -1,0 +1,31 @@
+/* The Output view's charts (diagram.js): an agent's diagram and the summary drawn from a flow.
+   Tokens only, so dark mode follows; nothing moves, so there is nothing to calm under reduced motion.
+   It should read like a slide: big type, thick lines, plenty of room. */
+.dg-host { max-width: 100%; overflow-x: auto; }
+/* centred in its block with equal margins; wider than the block, it scrolls rather than shrink its text */
+svg.dg { display: block; max-width: none; margin: 0 auto; font-family: var(--font); }
+
+svg.dg .dg-shape { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1.5; }
+svg.dg .dg-actor .dg-shape { fill: color-mix(in srgb, var(--accent) 8%, var(--surface)); stroke: color-mix(in srgb, var(--accent) 50%, var(--line-strong)); }
+svg.dg .dg-store .dg-shape { fill: var(--surface-2); }
+svg.dg .dg-lid { fill: none; stroke: var(--line-strong); stroke-width: 1.5; }
+svg.dg .dg-decision .dg-shape { fill: color-mix(in srgb, var(--accent) 7%, var(--surface)); stroke: color-mix(in srgb, var(--accent) 55%, var(--line-strong)); }
+svg.dg .dg-label { font-size: 14px; font-weight: 600; fill: var(--ink); }
+svg.dg .dg-sub { font-size: 12px; font-weight: 500; fill: var(--muted); }
+
+svg.dg .dg-edge { fill: none; stroke: var(--muted); stroke-width: 1.5; }
+svg.dg .dg-back { stroke-dasharray: 5 4; }
+svg.dg .dg-head { fill: var(--muted); }
+svg.dg .dg-elabel rect { fill: var(--surface); stroke: var(--line); stroke-width: 1; }
+svg.dg .dg-elabel text { font-size: 12px; font-weight: 600; fill: var(--ink-2); }
+
+/* the summary drawn from a flow (flow-picture.js): solid done, dashed left, warn when blocked or waiting on you */
+svg.dg .dg-done .dg-shape { fill: color-mix(in srgb, var(--ok) 6%, var(--surface)); stroke: color-mix(in srgb, var(--ok) 55%, var(--line-strong)); }
+svg.dg .dg-left .dg-shape { fill: var(--surface); stroke-dasharray: 6 4; }
+svg.dg .dg-blocked .dg-shape { fill: color-mix(in srgb, var(--warn) 7%, var(--surface)); stroke: var(--warn); }
+svg.dg .dg-blocked .dg-sub { fill: var(--warn); }
+svg.dg .dg-open .dg-shape { fill: color-mix(in srgb, var(--warn) 10%, var(--surface)); stroke: var(--warn); }
+svg.dg .dg-merged .dg-label { font-weight: 500; }
+svg.dg [data-goto] { cursor: pointer; outline: none; }
+svg.dg [data-goto]:hover .dg-shape, svg.dg [data-goto]:focus-visible .dg-shape { stroke: var(--accent); stroke-width: 2.5; }
+

@@ -1,0 +1,275 @@
+/* Flows on the Factory page (flows.js, flow-drawer.js, flow-chart.js): the
+   Waiting on you strip, the board, the opened flow and its node drawer.
+   Only the tokens in styles.css, so dark mode follows them. */
+
+/* ─── shared pills ─── */
+.fl-env { display: inline-block; font-size: 11.5px; font-weight: 550; padding: 0 7px; border-radius: 999px; line-height: 1.6;
+  background: var(--surface-3); color: var(--ink-2); }
+.fl-env.env-local { background: color-mix(in srgb, var(--idle) 22%, transparent); color: var(--muted); }
+.fl-env.env-dev { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+.fl-env.env-stage { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+.fl-env.env-prod { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+.fl-status { display: inline-block; font-size: 11.5px; font-weight: 550; padding: 0 7px; border-radius: 999px; line-height: 1.6;
+  border: 1px solid var(--line-strong); color: var(--muted); }
+.fl-status.fs-blocked { border-color: var(--bad); color: var(--bad); }
+.fl-status.fs-done { border-color: var(--ok); color: var(--ok); }
+.fl-tk { border: 0; background: none; padding: 0; cursor: pointer; font-size: 12px; }
+.fl-tk:hover { color: var(--accent); }
+/* the rest of a long ticket list, one quiet chip (flow-head.js) */
+.fl-tk-more { border: 1px solid var(--line); border-radius: 999px; background: var(--surface-2); padding: 0 7px;
+  font-size: 11.5px; font-weight: 550; line-height: 1.6; color: var(--muted); cursor: pointer; }
+.fl-tk-more:hover { color: var(--ink); border-color: var(--line-strong); }
+.fl-sent { font-size: 12px; color: var(--ok); font-weight: 550; }
+.fl-undelivered { font-size: 12px; color: var(--bad); font-weight: 550; }
+.fl-undelivered .link { color: var(--bad); font-size: 12px; }
+.fl-sending { font-size: 12px; color: var(--muted); font-weight: 550; }
+
+/* ─── Waiting on you ─── */
+.fl-wait { margin-bottom: 18px; border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+.fl-wait .card-head h3 .faint { font-weight: 400; }
+.fl-wait-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 16px; padding: 9px 18px; border-bottom: 1px solid var(--line); }
+.fl-wait-row:last-child { border-bottom: 0; }
+.fl-wait-q { flex: 1 1 320px; min-width: 0; font-size: 13.5px; color: var(--muted); }
+.fl-wait-q b { color: var(--ink-2); font-weight: 600; }
+.fl-wait-ask { color: var(--ink); font-weight: 500; }
+.fl-wait-acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.fl-yes, .fl-no { min-width: 52px; font-weight: 600; }
+.fl-yes:hover { border-color: var(--ok); color: var(--ok); background: color-mix(in srgb, var(--ok) 8%, var(--surface)); }
+.fl-no:hover { border-color: var(--bad); color: var(--bad); background: color-mix(in srgb, var(--bad) 7%, var(--surface)); }
+.fl-answered-word { font-size: 12px; font-weight: 600; padding: 1px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+.fl-text { display: flex; gap: 6px; flex-wrap: wrap; }
+.fl-text input, .fl-yn input { font: inherit; font-size: 13px; padding: 4px 10px; min-width: 0; flex: 1 1 200px;
+  border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); color: var(--ink); }
+
+/* ─── the board ─── */
+.fl-board { margin-bottom: 22px; }
+.fl-board-head { justify-content: flex-end; }
+.fl-group { margin-bottom: 14px; }
+.fl-group-h { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--faint); margin: 0 0 8px; }
+.fl-group-h .faint { font-weight: 400; margin-left: 4px; }
+.fl-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.fl-card { display: grid; gap: 8px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); cursor: pointer; min-width: 0; }
+.fl-card:hover, .fl-card:focus-visible, .fl-small:hover, .fl-small:focus-visible { border-color: var(--accent); outline: none; }
+.fl-card.is-waiting { border-left: 3px solid var(--warn); }
+.fl-card-top { display: flex; align-items: flex-start; gap: 8px; }
+.fl-card-title { flex: 1; min-width: 0; font-weight: 600; color: var(--ink); line-height: 1.35; }
+.fl-prog { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.fl-bar { flex: 1; height: 4px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
+.fl-bar i { display: block; height: 100%; background: var(--ok); border-radius: 3px; }
+/* one line of story: flow-board.js cuts it at a word; the ellipsis here only catches a narrow card */
+.fl-card-story { margin: 0; font-size: 13px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fl-card-agent { font-size: 12px; color: var(--faint); }
+/* the card's ONE state chip */
+.fl-chip { flex: none; font-size: 11.5px; font-weight: 600; padding: 0 8px; border-radius: 999px; line-height: 1.7; white-space: nowrap; }
+.fl-chip.warn { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+.fl-chip.bad { background: color-mix(in srgb, var(--bad) 13%, transparent); color: var(--bad); }
+.fl-chip.ok { background: color-mix(in srgb, var(--ok) 14%, transparent); color: var(--ok); }
+.fl-chip.accent { background: var(--accent-soft); color: var(--accent); }
+.fl-chip.neutral { background: var(--surface-2); color: var(--ink-2); }
+.fl-smalls { display: flex; flex-wrap: wrap; gap: 8px; }
+.fl-small { display: grid; gap: 1px; max-width: 280px; padding: 7px 11px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); cursor: pointer; }
+.fl-small .fl-card-title { font-size: 13px; font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fl-none { margin: 0 0 14px; }
+
+/* ─── the opened flow (flow-head.js): the head on the left, the view tabs on its title row ─── */
+#flowsView { container: flows / inline-size; }
+.fl-open { margin-bottom: 22px; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+.fl-open > * { grid-column: 1 / -1; }
+.fl-open > .fl-open-head { grid-column: 1; grid-row: 1; padding: 16px 24px 0; }
+.fl-open > .fl-tools { grid-column: 2; grid-row: 1; align-self: end; padding: 0 24px 0 12px; }
+.fl-open > .fl-open-sub { padding: 6px 24px 14px; border-bottom: 1px solid var(--line); }
+.fl-open-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 8px; font-size: 12.5px; }
+.fl-title { margin: 0; font-size: 20px; font-weight: 600; line-height: 1.3; color: var(--ink); overflow-wrap: anywhere; }
+.fl-open-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-height: 26px; margin-top: 6px; font-size: 12.5px; color: var(--muted); }
+.fl-open-meta b { color: var(--ink-2); font-weight: 600; }
+.fl-sep { color: var(--faint); }
+.fl-more { position: relative; margin-left: auto; }
+.fl-more > summary { list-style: none; cursor: pointer; padding: 0 9px; border-radius: var(--radius); font-size: 16px; line-height: 24px; color: var(--muted); }
+.fl-more > summary::-webkit-details-marker { display: none; }
+.fl-more > summary:hover, .fl-more[open] > summary { background: var(--surface-2); color: var(--ink); }
+.fl-more-menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; display: grid; gap: 10px; min-width: 190px; padding: 10px 12px;
+  background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius); box-shadow: var(--shadow); }
+.fl-more-menu select { font-size: 12.5px; padding: 2px 6px; margin-left: 6px; }
+.fl-more-menu [data-drop] { justify-self: start; color: var(--bad); }
+.fl-why { margin-top: 10px; max-width: 80ch; font-size: 15px; color: var(--ink-2); line-height: 1.55; overflow-wrap: anywhere; }
+.fl-why-more { font-size: 13px; }
+.fl-open-sub > .fl-why { margin-top: 2px; }
+@container flows (max-width: 760px) {
+  .fl-open > .fl-open-head, .fl-open > .fl-tools { grid-column: 1 / -1; grid-row: auto; }
+  .fl-open > .fl-tools { padding: 12px 24px 0; }
+}
+.fl-why p { margin: 0 0 6px; } .fl-why p:last-child { margin-bottom: 0; }
+.fl-why ul, .fl-why ol { margin: 4px 0 6px; padding-left: 20px; }
+.fl-why code { font: 12px var(--mono); background: var(--surface-3); padding: 0 4px; border-radius: 3px; }
+.fl-why pre { background: var(--surface-3); padding: 8px 10px; border-radius: 6px; overflow-x: auto; font-size: 12px; }
+.fl-tools { margin-bottom: 0; gap: 10px 14px; }
+.fl-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 8px 0; }
+.fl-legend b { font-weight: 700; }
+.fl-legend .dim { opacity: .55; }
+.fl-scroll { overflow: auto; max-height: min(70vh, 760px); padding: 20px 24px; }
+.fl-scroll.panning { cursor: grabbing; }
+
+/* the chart: text sizes are LOAD-BEARING (flow-chart.js fits titles assuming
+   .fc-title 13px/500, .fc-answer 12px/600, .fc-env 11px/500) */
+svg.fc { display: block; font-family: var(--font); overflow: visible; }
+svg.fc .fc-edge { fill: none; stroke: var(--line-strong); stroke-width: 1.25; }
+svg.fc .fc-rail { fill: var(--idle); }
+svg.fc .fc-rail.env-dev { fill: var(--accent); }
+svg.fc .fc-rail.env-stage { fill: var(--warn); }
+svg.fc .fc-rail.env-prod { fill: var(--ok); }
+svg.fc .fc-node { cursor: pointer; outline: none; }
+/* opaque, so an edge passing behind a node is hidden */
+svg.fc .fc-shape { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1; }
+svg.fc .fc-node:hover .fc-shape, svg.fc .fc-node:focus-visible .fc-shape { stroke: var(--accent); }
+svg.fc .fc-node.sel .fc-shape { stroke: var(--accent); stroke-width: 2; }
+svg.fc .type-check .fc-shape { fill: color-mix(in srgb, var(--ok) 5%, var(--surface)); }
+svg.fc .type-note .fc-shape { fill: var(--surface-2); stroke-dasharray: 3 3; }
+/* the diamond's tips may sit under its own text, so a soft fill and a thin line */
+svg.fc .type-ask .fc-shape { fill: color-mix(in srgb, var(--accent) 7%, var(--surface)); stroke: color-mix(in srgb, var(--accent) 55%, var(--line-strong)); stroke-width: 1; }
+svg.fc .type-ask.waiting .fc-shape { fill: color-mix(in srgb, var(--warn) 10%, var(--surface)); stroke: var(--warn); }
+svg.fc .st-doing .fc-shape { stroke: var(--accent); }
+svg.fc .st-blocked .fc-shape { stroke: var(--bad); }
+svg.fc .pending { opacity: .42; }
+svg.fc .fc-glyph { font-size: 12px; fill: var(--muted); }
+svg.fc .st-done .fc-glyph { fill: var(--ok); }
+svg.fc .st-doing .fc-glyph { fill: var(--accent); }
+svg.fc .st-blocked .fc-glyph { fill: var(--bad); }
+svg.fc .proof-claimed .fc-glyph { fill: var(--accent); }
+svg.fc .proof-unproven .fc-glyph { fill: var(--warn); }
+svg.fc .proof-verified .fc-glyph { fill: var(--ok); font-weight: 700; font-size: 13px; }
+svg.fc .type-ask .fc-glyph { fill: var(--accent); font-weight: 700; }
+svg.fc .fc-title { font-size: 13px; font-weight: 500; fill: var(--ink); }
+svg.fc .st-skipped .fc-title { fill: var(--faint); text-decoration: line-through; }
+svg.fc .type-note .fc-title { fill: var(--muted); }
+svg.fc .fc-env { font-size: 11px; font-weight: 500; fill: var(--muted); }
+svg.fc .fc-ev { font: 500 11px var(--mono); fill: var(--faint); }
+svg.fc .fc-answer { font-size: 12px; font-weight: 600; fill: var(--accent); }
+svg.fc .fc-ans rect { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1; }
+svg.fc .fc-ans text { font-size: 11px; font-weight: 600; fill: var(--ink-2); }
+svg.fc .fc-ans[data-answer="yes"]:hover rect { stroke: var(--ok); fill: color-mix(in srgb, var(--ok) 12%, var(--surface)); }
+svg.fc .fc-ans[data-answer="no"]:hover rect { stroke: var(--bad); fill: color-mix(in srgb, var(--bad) 10%, var(--surface)); }
+svg.fc .fc-sent, svg.fc .fc-undelivered, svg.fc .fc-sending { font-size: 11px; font-weight: 550; }
+svg.fc .fc-sending { fill: var(--muted); }
+svg.fc .fc-sent { fill: var(--ok); }
+svg.fc .fc-undelivered { fill: var(--bad); }
+svg.fc .fc-retry { cursor: pointer; text-decoration: underline; }
+
+/* ─── the node drawer ─── */
+.fl-drawer { border-top: 1px solid var(--line); padding: 16px 24px 20px; background: var(--surface-2); font-size: 14.5px; }
+.fl-drawer-head { display: flex; align-items: baseline; gap: 10px; }
+.fl-dtitle { flex: 1; color: var(--ink); font-weight: 600; font-size: 15px; }
+.fl-dtype { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--faint); }
+.fl-pending-note { margin: 6px 0 0; font-size: 13px; color: var(--warn); }
+.fl-drawer h4 { margin: 18px 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+.fl-dctl { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; margin-top: 10px; }
+.fl-dctl select { font-size: 12.5px; padding: 2px 6px; margin-left: 4px; }
+.fl-proof { font-size: 12px; font-weight: 600; }
+.fl-proof.proof-claimed { color: var(--accent); }
+.fl-proof.proof-unproven { color: var(--warn); }
+.fl-evlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.fl-ev { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 10px; min-width: 0; }
+.fl-ev-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 13px; color: var(--ink-2); }
+.fl-ev-kind { font: 600 11px var(--mono); text-transform: uppercase; color: var(--accent); }
+.fl-ev-head .faint { margin-left: auto; font-size: 12px; }
+.fl-ev-body { margin-top: 6px; display: grid; gap: 6px; min-width: 0; }
+.fl-ref, .fl-testline { font: 12px var(--mono); color: var(--ink-2); overflow-wrap: anywhere; }
+.fl-commit { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.fl-commit b { color: var(--ink); font-weight: 600; }
+.fl-output { margin: 0; max-height: 320px; overflow: auto; padding: 8px 10px; font: 11.5px/1.5 var(--mono); white-space: pre-wrap;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); color: var(--ink-2); }
+.fl-shot { display: block; max-width: 100%; max-height: 420px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface-3); }
+.fl-evnote { margin: 0; font-size: 13px; color: var(--ink-2); white-space: pre-wrap; }
+.fl-means { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 10px 0 0; font-size: 13px; }
+.fl-means dt { font-weight: 600; color: var(--ink); }
+.fl-means dd { margin: 0; color: var(--ink-2); }
+.fl-yn { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.fl-drawer .fl-text { margin-top: 10px; }
+.fl-answered { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; margin-top: 10px; font-size: 13px; }
+.fl-answered b { padding: 1px 9px; border-radius: 999px; font-size: 12px; background: var(--accent-soft); color: var(--accent); }
+.fl-answered.ans-yes b { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+.fl-answered.ans-no b { background: color-mix(in srgb, var(--bad) 14%, transparent); color: var(--bad); }
+.fl-answered > span:not(.faint):not(.fl-sent):not(.fl-undelivered):not(.fl-sending) { color: var(--ink-2); }
+.fl-drawer-foot { margin-top: 14px; }
+
+/* ─── the opened flow's three views (flow-tabs.js): Output (flow-output.js), the default; Status (flow-status.js); Process (the chart) ─── */
+.fl-tabs { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); }
+.fl-tabs [role="tab"] { border: 1px solid transparent; background: none; padding: 3px 14px; font-size: 13px; font-weight: 550; color: var(--muted); }
+.fl-tabs [role="tab"]:hover { color: var(--ink); }
+.fl-tabs [role="tab"][aria-selected="true"] { background: var(--surface); border-color: var(--line-strong); color: var(--ink); }
+.fl-zoom[hidden] { display: none; }
+
+/* Status: the rows of built, missing, decisions, notes and proof */
+.fl-stat { padding: 16px 24px 24px; }
+.sv-summary { margin: 0 0 4px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.sv-sec { margin-top: 24px; }
+.sv-h { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 10px; }
+.sv-h .faint { font-weight: 400; margin-left: 4px; }
+.sv-empty { margin: 0; }
+.sv-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.sv-row { padding: 12px 16px; border-bottom: 1px solid var(--line); min-width: 0; }
+.sv-row:last-child { border-bottom: 0; }
+.sv-row-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; min-width: 0; }
+/* a built row with proof: the whole row opens it; a small caret says so */
+.sv-fold > summary { list-style: none; cursor: pointer; }
+.sv-fold > summary::-webkit-details-marker { display: none; }
+.sv-fold > summary::after { content: ""; align-self: center; order: 9; width: 0; height: 0; border: 4px solid transparent; border-top: 5px solid var(--faint);
+  margin-top: 4px; transition: transform .15s; }
+.sv-fold[open] > summary::after { transform: rotate(180deg); margin-top: -4px; }
+/* a built row with no proof keeps the caret's room, so the verified ticks line up */
+.sv-row > .sv-row-head:has(.sv-verify)::after { content: ""; order: 9; width: 8px; }
+.sv-title { font-weight: 600; font-size: 15px; color: var(--ink); text-align: left; overflow-wrap: anywhere; min-width: 0; }
+.sv-title:hover { color: var(--accent); }
+/* the tick at the row's end: (0,2,0) so it outranks styles.css input[type="checkbox"] { margin: 0 } */
+.sv-row-head > .sv-verify { margin-left: auto; }
+/* said once, in the Built head: the tick is yours */
+.sv-hint { margin-left: 6px; font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--faint); }
+/* a folded proof's kind is a label here, not a word to look up */
+.sv-ev .fl-ev-kind dfn { border-bottom: 0; text-decoration: none; cursor: inherit; }
+.sv-mark { font-weight: 700; width: 1em; text-align: center; }
+.fl-legend .ok, .sv-mark.ok { color: var(--ok); }
+.fl-legend .cl, .sv-mark.cl { color: var(--accent); }
+.fl-legend .un, .sv-mark.un { color: var(--warn); }
+.sv-sub { margin: 4px 0 0; font-size: 14px; color: var(--ink-2); white-space: pre-wrap; overflow-wrap: anywhere; }
+.sv-row.is-pending { opacity: .7; }
+.sv-reason { color: var(--warn); }
+.sv-q { color: var(--accent); width: 1em; text-align: center; }
+.sv-ask.is-open { border-left: 3px solid var(--warn); }
+.sv-ask .fl-means, .sv-ask .fl-yn, .sv-ask .fl-answered { margin-top: 6px; }
+.sv-ask .fl-text { margin-top: 8px; }
+.sv-note b { font-weight: 600; color: var(--ink-2); }
+.sv-evlist { list-style: none; margin: 8px 0 0; padding: 0 0 0 22px; display: grid; gap: 6px; }
+.sv-ev { background: var(--surface-2); }
+.sv-ev details > summary { display: flex; align-items: baseline; gap: 4px 10px; cursor: pointer; list-style-position: inside; }
+.sv-ev details > summary .fl-ev-head { flex: 1; min-width: 0; }
+.sv-ev details > summary .fl-ref { flex: none; }
+.sv-ev details[open] > summary { margin-bottom: 6px; }
+/* Built shows a small thumbnail; Proof is the one large rendering of each screenshot */
+.sv-ev .fl-shot { max-width: min(120px, 100%); max-height: 120px; cursor: zoom-in; }
+.sv-shot .fl-shot { max-width: min(220px, 100%); max-height: 220px; cursor: zoom-in; }
+.sv-md { margin-top: 4px; font-size: 13px; }
+/* a link to a node (show in flow, a toast) lands on its row: a brief outline that fades */
+.sv-row.sv-flash { animation: sv-flash 1.6s ease-out; }
+@keyframes sv-flash {
+  from { outline: 2px solid var(--accent); outline-offset: -2px; }
+  to { outline: 2px solid transparent; outline-offset: -2px; }
+}
+@media (prefers-reduced-motion: reduce) { .sv-row.sv-flash { animation: none; } .sv-fold > summary::after { transition: none; } }
+.sv-shots { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 12px; }
+.sv-shot { max-width: 220px; min-width: 0; }
+.sv-shot figure { margin: 0; display: grid; gap: 4px; }
+.sv-shot figcaption { font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+.sv-shot figcaption .sv-title { font-weight: 500; font-size: 12.5px; color: var(--ink-2); }
+
+/* the screenshot lightbox (lightbox.js), for Output and Status: Escape, a click outside the image or Close shuts it */
+.lb-gone { margin: 0; }
+.lb-box { position: fixed; inset: 0; z-index: 70; background: var(--overlay); display: grid; grid-template-rows: auto 1fr; gap: 8px; padding: 16px; }
+.lb-box[hidden] { display: none; }
+.lb-bar { justify-self: end; display: flex; align-items: center; gap: 14px; padding: 6px 8px 6px 12px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.lb-box img { justify-self: center; align-self: center; max-width: 100%; max-height: calc(100vh - 80px); object-fit: contain;
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+
+@media (max-width: 640px) {
+  .sv-row-head > .sv-verify { margin-left: 0; }
+  .sv-evlist { padding-left: 0; }
+}

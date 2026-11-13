@@ -1,0 +1,81 @@
+/* Orchestration grid (Tickets page), hover details, report modal, and the notifier. Tokens from styles.css. */
+
+.ox { margin-bottom: 18px; }
+.ox .card-head h3 .faint { font-weight: 400; }
+
+.ox-grid { table-layout: fixed; min-width: 760px; }
+.ox-grid th, .ox-grid td { border-right: 1px solid var(--line); }
+.ox-grid th:last-child, .ox-grid td:last-child { border-right: 0; }
+.ox-corner { width: 96px; }
+.ox-col { vertical-align: top; white-space: normal !important; font-weight: 400; color: var(--ink-2); padding: 12px 14px; }
+.ox-name { font-size: 14px; font-weight: 650; color: var(--ink); margin-bottom: 4px; }
+.ox-state { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 550; }
+.ox-state i { width: 8px; height: 8px; border-radius: 50%; background: var(--idle); flex: none; }
+.ox-state.on { color: var(--ok); } .ox-state.on i { background: var(--ok); animation: breathe 1.6s ease-in-out infinite; }
+.ox-state.wait { color: var(--warn); } .ox-state.wait i { background: var(--warn); }
+.ox-state.idle { color: var(--muted); }
+.ox-state.off { color: var(--faint); } .ox-state.off i { background: transparent; border: 1.5px solid var(--line-strong); }
+.ox-state .faint { font-weight: 400; }
+.ox-doing { font-size: 12px; color: var(--muted); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); }
+.ox-links { display: flex; gap: 12px; margin-top: 6px; font-size: 12.5px; }
+.ox-planned { margin-top: 6px; font-size: 12px; color: var(--faint); }
+
+.ox-level { vertical-align: top; font-size: 13px; font-weight: 650; color: var(--ink); background: var(--surface-2); }
+.ox-level span { display: block; font-size: 12px; font-weight: 400; color: var(--faint); margin-top: 2px; }
+.ox-cell { vertical-align: top; padding: 10px 12px; }
+.ox-cell.lv-prod { background: color-mix(in srgb, var(--ok) 5%, transparent); }
+.ox-empty { color: var(--line-strong); }
+.ox-chip { position: relative; font: 550 12px var(--mono); padding: 2px 7px; margin: 0 4px 5px 0; border-radius: var(--radius); line-height: 1.5;
+  border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink-2); cursor: pointer; }
+.ox-chip:hover, .ox-chip:focus-visible { border-color: var(--accent); color: var(--ink); }
+.ox-chip.rv-reviewed { background: color-mix(in srgb, var(--ok) 14%, var(--surface)); border-color: color-mix(in srgb, var(--ok) 45%, transparent); color: var(--ok); }
+.ox-chip.rv-needs-review { background: color-mix(in srgb, var(--warn) 15%, var(--surface)); border-color: color-mix(in srgb, var(--warn) 45%, transparent); color: var(--warn); }
+.ox-chip.accepted { text-decoration: line-through; opacity: .7; }
+.ox-chip.outside { border-style: dashed; }
+.ox-more { position: absolute; top: -3px; right: -3px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); border: 1.5px solid var(--surface); }
+
+.ox-where { font-size: 12px; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: var(--surface-3); color: var(--ink-2); cursor: default; }
+.ox-where.lv-dev { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+.ox-where.lv-stage { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+.ox-where.lv-prod { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+
+/* hover card */
+.ox-tip { position: absolute; z-index: 60; width: 380px; max-width: calc(100vw - 16px); padding: 12px 14px; border-radius: var(--radius);
+  background: var(--surface); border: 1px solid var(--line-strong); box-shadow: var(--shadow); font-size: 13px; color: var(--ink-2); }
+.ox-tip-flows .link { font-weight: 550; color: var(--ink); text-align: left; }
+.ox-tip-head { display: flex; align-items: center; gap: 8px; }
+.ox-tip-title { font-weight: 600; color: var(--ink); margin: 4px 0 8px; line-height: 1.4; }
+.ox-tip-row { display: grid; grid-template-columns: 64px 1fr; gap: 8px; margin-bottom: 3px; }
+.ox-tip-row > span { color: var(--faint); font-size: 12px; }
+.ox-tip-note { margin: 6px 0; padding: 6px 8px; background: var(--surface-2); border-radius: 6px; font-size: 12.5px; }
+.ox-tip-levels { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 3px; font-size: 12px; }
+.ox-tip-levels li { padding-left: 14px; position: relative; overflow-wrap: anywhere; }
+.ox-tip-levels li::before { content: ""; position: absolute; left: 0; top: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--line-strong); }
+.ox-tip-levels li.yes::before { background: var(--ok); }
+.ox-tip-levels li.no { color: var(--faint); }
+.ox-tip-levels b { color: var(--ink); font-weight: 600; margin-right: 4px; }
+.ox-tip-levels code { font: 11.5px var(--mono); }
+.ox-tip-foot { margin-top: 8px; font-size: 11.5px; color: var(--faint); }
+
+/* progress report */
+.ox-modal { position: fixed; inset: 0; z-index: 70; background: var(--overlay); display: grid; place-items: center; padding: 16px; }
+.ox-modal-box { width: min(760px, 100%); max-height: 86vh; display: flex; flex-direction: column; box-shadow: var(--shadow); }
+.ox-modal-body { margin: 0; border: 0; border-radius: 0 0 var(--radius) var(--radius); overflow-y: auto; padding: 16px 20px; background: var(--surface); }
+
+/* notifier */
+.nt-bell { position: relative; border: 1px solid var(--line-strong); background: var(--surface); width: 34px; height: 30px; padding: 0; display: grid; place-items: center; color: var(--muted); }
+.nt-bell svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.nt-bell.on { color: var(--accent); }
+.nt-count { position: absolute; top: -6px; right: -6px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 999px; background: var(--bad); color: #fff;
+  font-size: 10.5px; font-weight: 700; line-height: 17px; text-align: center; }
+.nt-stack { position: fixed; right: 16px; bottom: 16px; z-index: 80; display: grid; gap: 8px; width: min(380px, calc(100vw - 32px)); }
+.nt-toast { display: flex; gap: 10px; align-items: flex-start; justify-content: space-between; padding: 10px 12px; border-radius: var(--radius);
+  background: var(--surface); border: 1px solid var(--line-strong); border-left: 3px solid var(--accent); box-shadow: var(--shadow); font-size: 13px; color: var(--ink-2);
+  animation: ntIn .2s ease-out; }
+.nt-toast.decision { border-left-color: var(--bad); }
+.nt-toast.agent { border-left-color: var(--ok); }
+.nt-toast.reminder { border-left-color: var(--warn); }
+.nt-toast b { color: var(--ink); }
+.nt-actions { display: flex; gap: 10px; flex: none; }
+@keyframes ntIn { from { transform: translateY(8px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .nt-toast { animation: none; } }

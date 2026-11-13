@@ -1,0 +1,304 @@
+/* The app shell (shell.js, spec 5 and 8): a 56 px icon rail on the left, a
+   one-row page header, and the chat drawer frame on the right. Colours come
+   from the styles.css tokens only, so dark mode needs nothing here. Motion is
+   transform and opacity only: the rail's width snaps (it never animates
+   layout); its labels fade in. The motion helpers' classes (motion.js), the ?
+   popover (help.js) and the Dock hover live here too, and all of it stands
+   down under prefers-reduced-motion (the last block). */
+
+/* ─── layout ───────────────────────────────────────────────────────────────── */
+
+body { padding-left: var(--rail-w); }
+.rail-pinned body { padding-left: var(--rail-w-open); }
+body.drawer-open { padding-right: var(--drawer-w); }
+
+/* ─── the rail ─────────────────────────────────────────────────────────────── */
+
+#rail {
+  position: fixed; top: 0; bottom: 0; left: 0; z-index: 30;
+  width: var(--rail-w);
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 8px 0;
+  background: var(--bg);
+  border-right: 1px solid var(--line);
+  overflow: hidden;
+}
+/* Open on a 300 ms hover (.open), when pinned, or while the keyboard is in the rail
+   (:has(:focus-visible), not :focus-within, so a mouse click on an item does not
+   leave the rail open). */
+#rail.open, #rail:has(:focus-visible), .rail-pinned #rail { width: var(--rail-w-open); }
+.rail-top { position: relative; margin-bottom: 8px; }
+.rail-nav, .rail-bottom { display: flex; flex-direction: column; gap: 2px; }
+.rail-bottom { margin-top: auto; }
+
+.rail-item {
+  position: relative; display: flex; align-items: center; gap: 4px;
+  width: 100%; height: 40px; padding: 0; border: 0; border-radius: 0; background: none;
+  color: var(--muted); text-decoration: none; font: inherit; font-size: 13.5px; font-weight: 500;
+  cursor: pointer; white-space: nowrap;
+}
+.rail-item:hover { color: var(--ink); background: none; }
+.rail-item:hover .rail-icon { background: var(--surface-2); }
+.rail-item[aria-current="page"] { color: var(--ink); }
+.rail-item[aria-current="page"] .rail-icon { background: var(--surface-3); }
+.rail-item[aria-current="page"]::before {
+  content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 2px; border-radius: 0 2px 2px 0; background: var(--accent);
+}
+.rail-icon {
+  position: relative; flex: none; display: grid; place-items: center;
+  width: 36px; height: 36px; margin-left: 10px; border-radius: var(--radius);
+  transition: background-color .15s ease, transform .12s ease;
+}
+/* The Dock (spec 8): the hovered icon at 1.1, its neighbours at 1.03. Transform
+   only, so nothing around it moves. Neighbours are within one group of the rail. */
+.rail-item:hover .rail-icon, #railAlerts:hover .nt-bell svg { transform: scale(1.1); }
+.rail-item:has(+ .rail-item:hover) .rail-icon, .rail-item:hover + .rail-item .rail-icon,
+#railAlerts:has(+ .rail-item:hover) .nt-bell svg, .rail-item:hover + #railAlerts .nt-bell svg { transform: scale(1.03); }
+.rail-item svg, #railAlerts .nt-bell svg, .rail-pin svg, .drawer-x svg {
+  width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round;
+}
+/* The rail clips its overflow, so focus rings sit inside the item. */
+.rail-item:focus-visible, #railAlerts .nt-bell:focus-visible, .rail-pin:focus-visible { outline-offset: -2px; }
+.rail-label { opacity: 0; transform: translateX(-4px); transition: opacity .15s ease, transform .15s ease; pointer-events: none; }
+#rail.open .rail-label, #rail:has(:focus-visible) .rail-label, .rail-pinned #rail .rail-label { opacity: 1; transform: none; pointer-events: auto; }
+
+/* The brand: an accent square with the Home mark in it. */
+.rail-brand .rail-icon, .rail-brand:hover .rail-icon, .rail-brand[aria-current="page"] .rail-icon { background: none; }
+.rail-brand[aria-current="page"]::before { display: none; }
+.rail-mark { position: relative; overflow: hidden; display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--radius); background: var(--accent); color: var(--accent-ink); }
+/* The one thing on the page that shines (spec 8): a slow sheen across the brand on hover. */
+.rail-mark::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(105deg, transparent 30%, rgb(255 255 255 / .42) 50%, transparent 70%);
+  transform: translateX(-130%);
+}
+.rail-brand:hover .rail-mark::after { transform: translateX(130%); transition: transform .9s ease; }
+.rail-mark svg { width: 17px; height: 17px; stroke-width: 2; }
+.rail-brand .rail-label { color: var(--ink); font-weight: 650; }
+
+/* The pin: only reachable once the rail is open. */
+.rail-pin {
+  position: absolute; right: 8px; top: 4px; width: 32px; height: 32px; padding: 0; border: 0; border-radius: var(--radius);
+  display: grid; place-items: center; background: none; color: var(--faint);
+  opacity: 0; pointer-events: none; transition: opacity .15s ease;
+}
+.rail-pin svg { width: 16px; height: 16px; }
+.rail-pin:hover { color: var(--ink); background: var(--surface-2); }
+.rail-pin[aria-pressed="true"] { color: var(--accent); }
+#rail.open .rail-pin, #rail:has(:focus-visible) .rail-pin, .rail-pinned #rail .rail-pin { opacity: 1; pointer-events: auto; }
+.rail-pin:focus-visible { opacity: 1; } /* never an invisible focused control */
+
+/* Alerts: notify.js puts its bell in this slot; the bell opens the alert panel below. */
+#railAlerts { cursor: default; }
+#railAlerts .nt-bell {
+  display: flex; align-items: center; gap: 4px; width: 100%; height: 40px; padding: 0 0 0 10px;
+  border: 0; border-radius: 0; background: none; color: var(--muted); font-size: 13.5px; font-weight: 500;
+}
+#railAlerts .nt-bell svg { flex: none; box-sizing: content-box; padding: 8px; border-radius: var(--radius); transition: background-color .15s ease, transform .12s ease; }
+#railAlerts .nt-bell:hover { color: var(--ink); }
+#railAlerts .nt-bell:hover svg { background: var(--surface-2); }
+#railAlerts .nt-bell.on { color: var(--accent); }
+#railAlerts .nt-bell::after { content: "Alerts"; opacity: 0; transform: translateX(-4px); transition: opacity .15s ease, transform .15s ease; }
+#rail.open #railAlerts .nt-bell::after, #rail:has(:focus-visible) #railAlerts .nt-bell::after, .rail-pinned #rail #railAlerts .nt-bell::after { opacity: 1; transform: none; }
+#railAlerts .nt-count { top: 2px; left: 34px; right: auto; }
+
+/* Spend today (spend.js, spec F4): the short amount in the icon box, `$12.40 today` as the
+   label. The slot is a .rail-item, so the Dock hover and the label fade come from above;
+   the button fills it and resets the global button look. Its ? popover is help.js's. */
+#railSpend { cursor: default; }
+#railSpend .sp-chip {
+  display: flex; align-items: center; gap: 4px; width: 100%; height: 100%; padding: 0;
+  border: 0; border-radius: 0; background: none; color: var(--muted);
+  font: inherit; font-size: 13.5px; font-weight: 500; white-space: nowrap; cursor: pointer;
+}
+#railSpend .sp-chip:hover, #railSpend .sp-chip[aria-expanded="true"] { color: var(--ink); }
+#railSpend .sp-chip:focus-visible { outline-offset: -2px; }
+#railSpend .sp-amt { font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.help-pop .sp-list { margin: 6px 0 0; padding: 0; list-style: none; }
+.help-pop .sp-list li { display: flex; align-items: baseline; gap: 10px; padding: 2px 0; }
+.help-pop .sp-list li > span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.help-pop .sp-list .num { font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; color: var(--ink); }
+.help-pop .sp-list .faint .num { color: inherit; }
+.help-pop .sp-list time { min-width: 3ch; text-align: right; font-size: 12px; font-variant-numeric: tabular-nums; }
+.help-pop .sp-recent { max-height: 220px; overflow-y: auto; }
+.help-pop .sp-sub { margin-top: 10px; font-size: 12px; }
+
+/* The alert panel (notify.js): the last 50 alerts beside the rail, its bottom level with
+   the bell (--nt-bottom, measured on open), above the chat drawer (35) and under modals (50). */
+.nt-panel {
+  position: fixed; left: calc(var(--rail-w) + 8px); bottom: var(--nt-bottom, 48px); z-index: 45;
+  width: min(360px, calc(100vw - var(--rail-w) - 16px)); max-height: min(70vh, 560px);
+  display: flex; flex-direction: column;
+  background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius); box-shadow: var(--shadow);
+  font-size: 13px; color: var(--ink-2);
+  animation: nt-panel-in .15s ease-out;
+}
+.nt-panel[hidden] { display: none; }
+.nt-panel:focus { outline: none; }
+.rail-pinned .nt-panel { left: calc(var(--rail-w-open) + 8px); width: min(360px, calc(100vw - var(--rail-w-open) - 16px)); }
+@keyframes nt-panel-in { from { transform: translateX(-6px); opacity: 0; } }
+.nt-panel-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.nt-panel-head h2 { margin: 0; font-size: 14px; }
+.nt-list { flex: 1; min-height: 0; overflow-y: auto; margin: 0; padding: 0; list-style: none; }
+.nt-row { padding: 9px 14px; border-bottom: 1px solid var(--line); }
+.nt-row:last-child { border-bottom: 0; }
+.nt-row b { color: var(--ink); }
+.nt-row-foot { display: flex; align-items: center; gap: 10px; margin-top: 3px; font-size: 12px; }
+.nt-row-foot time { font-variant-numeric: tabular-nums; }
+.nt-empty { padding: 14px; }
+.nt-panel-foot { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 14px; border-top: 1px solid var(--line); font-size: 12.5px; }
+.nt-panel-foot label { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.nt-panel-foot label:has(input:disabled) { cursor: default; opacity: .7; }
+
+/* Theme: a sun in dark mode, a moon in light mode, a dot while following the system. */
+.theme-sun, .theme-moon { display: grid; place-items: center; }
+.theme-sun, :root[data-theme="dark"] .theme-moon { display: none; }
+:root[data-theme="dark"] .theme-sun { display: grid; }
+.theme-dot {
+  position: absolute; left: 50%; bottom: 2px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%;
+  background: currentColor; opacity: 0; transition: opacity .15s ease;
+}
+#themeToggle[data-choice="system"] .theme-dot { opacity: 1; }
+
+/* ─── the page header ──────────────────────────────────────────────────────── */
+
+#pageHead {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; gap: 16px;
+  height: var(--header-h); padding: 0 32px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+#pageTitle { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: -0.01em; white-space: nowrap; }
+#pageStatus {
+  margin-left: auto; min-width: 0; display: flex; align-items: center; gap: 8px;
+  color: var(--muted); font-size: 12.5px; white-space: nowrap;
+}
+#pageStatusText { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+#pageStatus b { color: var(--ink-2); font-weight: 600; }
+#pageTitle .num { font-weight: 400; }
+#pageWaiting {
+  flex: none; display: inline-flex; align-items: center; gap: 7px;
+  border: 0; background: none; padding: 4px 0; color: var(--ink-2); font-size: 12.5px; font-weight: 550;
+}
+#pageWaiting:hover { color: var(--ink); }
+.wait-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }
+#pageActions { flex: none; display: flex; gap: 8px; }
+
+/* ─── the chat drawer: the chat mounts its head line in #drawerHead and its
+   log and form in #drawerBody (factory-chat.js, styled in chat.css) ───────── */
+
+#drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 35;
+  width: var(--drawer-w);
+  display: flex; flex-direction: column;
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  animation: drawer-in .18s ease-out;
+}
+@keyframes drawer-in { from { transform: translateX(24px); opacity: 0; } }
+.drawer-head {
+  flex: none; display: flex; align-items: center; justify-content: space-between;
+  height: var(--header-h); padding: 0 8px 0 18px; border-bottom: 1px solid var(--line);
+}
+.drawer-head h2 { font-size: 14px; }
+.drawer-title { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-right: 6px; }
+.drawer-x { width: 32px; height: 32px; padding: 0; border: 0; border-radius: var(--radius); display: grid; place-items: center; background: none; color: var(--muted); }
+.drawer-x:hover { color: var(--ink); background: var(--surface-2); }
+.drawer-body { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Ask shows Independent's state (shell.js chatState): a breathing green dot while it works, a still amber one while it waits on you. */
+#railAsk .rail-icon::after {
+  content: ""; position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--ok); box-shadow: 0 0 0 2px var(--bg); opacity: 0; transition: opacity .15s ease;
+}
+#railAsk.busy .rail-icon::after { opacity: 1; animation: breathe 1.6s ease-in-out infinite; }
+#railAsk.waiting .rail-icon::after { opacity: 1; background: var(--warn); }
+
+/* ─── the ? popover (help.js): a legend, the meta behind a chip, an empty state's how-to ─── */
+
+.help {
+  flex: none; display: inline-grid; place-items: center; width: 20px; height: 20px; padding: 0; vertical-align: middle;
+  border: 1px solid var(--line-strong); border-radius: 50%; background: none;
+  color: var(--muted); font-size: 11.5px; font-weight: 600; line-height: 1; cursor: help;
+}
+.help:hover, .help[aria-expanded="true"] { color: var(--ink); border-color: var(--accent); }
+/* Above the chat drawer (35), level with the alerts panel and the explain popover, under modals (50) and toasts (80). */
+.help-pop {
+  position: fixed; z-index: 45; width: min(320px, calc(100vw - 16px));
+  padding: 10px 14px; background: var(--surface); color: var(--ink-2);
+  border: 1px solid var(--line-strong); border-radius: var(--radius); box-shadow: var(--shadow);
+  font-size: 13px; line-height: 1.5; white-space: normal;
+  animation: help-in .12s ease-out;
+}
+.help-pop[hidden] { display: none; }
+.help-pop p { margin: 0; }
+.help-pop p + p { margin-top: 6px; }
+.help-pop b { color: var(--ink); font-weight: 600; }
+.help-pop .flow-legend, .help-pop .fl-legend { margin: 8px 0; }
+@keyframes help-in { from { opacity: 0; transform: translateY(-3px); } }
+
+/* ─── motion (motion.js, spec 8) ───────────────────────────────────────────── */
+
+/* Spotlight: a radial highlight on the card's edge where the pointer is, in a
+   1 px ring just inside the hairline (a mask cuts out the middle). Opacity on
+   the pseudo-element only: the card itself never moves or resizes. */
+.card, .fl-card, .ac-tile { position: relative; }
+.spot::after {
+  content: ""; position: absolute; inset: 0; z-index: 1; padding: 1px; border-radius: inherit; pointer-events: none;
+  background: radial-gradient(160px circle at var(--mx, 50%) var(--my, 50%), var(--accent), transparent 72%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  opacity: 0; transition: opacity .16s ease;
+}
+.spot:hover::after { opacity: 1; }
+
+/* A list's first render: each item fades and rises in, 30 ms after the one before. */
+.enter { animation: list-in .12s ease-out both; animation-delay: calc(var(--i, 0) * 30ms); }
+@keyframes list-in { from { opacity: 0; transform: translateY(4px); } }
+
+/* ─── breakpoints ──────────────────────────────────────────────────────────── */
+
+/* Under 900 px the drawer covers the page instead of pushing it, but never the
+   rail, so Ask can still close it. */
+@media (max-width: 900px) {
+  #drawer { left: var(--rail-w); width: auto; }
+  .rail-pinned #drawer { left: var(--rail-w-open); }
+  body.drawer-open { padding-right: 0; }
+}
+
+/* Under 720 px the rail is a 56 px bar along the bottom: icons only, no hover
+   opening, no pin. */
+@media (max-width: 720px) {
+  body, .rail-pinned body { padding-left: 0; padding-bottom: var(--rail-w); }
+  #rail, #rail.open, #rail:has(:focus-visible), .rail-pinned #rail {
+    top: auto; right: 0; width: auto; height: var(--rail-w);
+    flex-direction: row; align-items: center; justify-content: space-around; gap: 0;
+    padding: 0 4px; border-right: 0; border-top: 1px solid var(--line);
+  }
+  .rail-top, .rail-nav, .rail-bottom { display: contents; }
+  .rail-item, #railAlerts .nt-bell { width: auto; height: var(--rail-w); padding: 0; }
+  .rail-icon { margin: 0 2px; }
+  #railAlerts .nt-bell svg { margin: 0 2px; }
+  .rail-label, #railAlerts .nt-bell::after, .rail-pin { display: none; }
+  .rail-item[aria-current="page"]::before { left: 10px; right: 10px; top: auto; bottom: 0; width: auto; height: 2px; border-radius: 2px 2px 0 0; }
+  #railAlerts .nt-count { left: 26px; }
+  #pageHead { padding: 0 16px; gap: 12px; }
+  #drawer, .rail-pinned #drawer { left: 0; bottom: var(--rail-w); }
+  .nt-panel, .rail-pinned .nt-panel { left: 8px; right: 8px; bottom: calc(var(--rail-w) + 8px); width: auto; max-height: min(70vh, calc(100vh - var(--rail-w) - 16px)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #drawer, #railAsk.busy .rail-icon::after, .nt-panel, .help-pop { animation: none; }
+  #railAsk .rail-icon::after { transition: none; }
+  .rail-label, .rail-pin, .theme-dot, #railAlerts .nt-bell::after { transition: none; }
+  /* no Dock, no sheen, no spotlight, lists appear at once */
+  .rail-item:hover .rail-icon, .rail-item:has(+ .rail-item:hover) .rail-icon, .rail-item:hover + .rail-item .rail-icon,
+  #railAlerts .nt-bell svg, #railAlerts:hover .nt-bell svg, #railAlerts:has(+ .rail-item:hover) .nt-bell svg,
+  .rail-item:hover + #railAlerts .nt-bell svg { transform: none; transition: none; }
+  .rail-mark::after { display: none; }
+  .spot::after { display: none; }
+  .enter { animation: none; }
+}

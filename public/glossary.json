@@ -1,0 +1,259 @@
+{
+  "home": {
+    "short": "The start page: what waits on you, which agents are working, and what they said to each other.",
+    "more": "It refreshes itself every minute. Click an agent card to watch that agent live."
+  },
+  "flows": {
+    "short": "The page of every flow: the plan each agent writes as it works, with the questions that wait on you at the top."
+  },
+  "flow": {
+    "short": "One piece of work an agent plans out as a small chart: steps, checks, asks and notes, joined in the order they happen.",
+    "more": "Agents write flows with the factory command line. You answer the asks and tick what you have checked; the rest is the agent's to update."
+  },
+  "tickets": {
+    "short": "The page for a ticket collection: the grid of who built what and how far it got, and the tables of every ticket below it."
+  },
+  "timeline": {
+    "short": "A chart of what every agent did over time, one lane per agent, so you can see who worked on what and when."
+  },
+  "agents": {
+    "short": "The page that lists every Claude Code session the dashboard found, with its subagents underneath."
+  },
+  "agent": {
+    "short": "A Claude Code session working in the repo. The coding agents usually work in their own worktree.",
+    "more": "One agent page shows its live transcript: each tool it ran, what it read and wrote, and its messages."
+  },
+  "ask": {
+    "short": "A question an agent puts to you inside a flow. The agent stops at it until you answer Yes, No or a short text.",
+    "more": "In the rail, Ask opens the chat drawer, where you can talk to Independent about anything on the page."
+  },
+  "alerts": {
+    "short": "Small pop-up notes when something needs you: a new ask, an agent that stopped, an answer that was not delivered. The bell keeps the last fifty."
+  },
+  "theme": {
+    "short": "Light, dark, or follow the system. The choice is kept in this browser only."
+  },
+  "independent": {
+    "short": "The chat agent in the Ask drawer. It is a separate Claude session that can read the dashboard and the repo to answer your questions."
+  },
+  "idle": {
+    "short": "The agent is not doing anything right now. It finished its last step or is waiting for a message.",
+    "more": "Idle is normal between tasks. If an agent stays idle while a flow says it is working, it may be waiting on you or it may have stopped."
+  },
+  "working": {
+    "short": "The agent ran a tool in the last few minutes, so it is busy on something now."
+  },
+  "active": {
+    "short": "Same as working: the agent is busy right now, reading, writing or running commands."
+  },
+  "testing": {
+    "short": "The agent is running tests or checks, for example a test suite, a linter or a type check."
+  },
+  "waiting": {
+    "short": "Someone has to act before the work goes on. On a flow it means an ask waits for your answer; on an agent it means the agent waits for input."
+  },
+  "blocked": {
+    "short": "The work cannot go on until something outside it changes, such as a missing access, a broken build or a decision.",
+    "more": "An agent sets a step to blocked and should say why in the step. Often an ask follows that tells you what it needs."
+  },
+  "done": {
+    "short": "Finished. For a flow step it means the agent says the step is complete; whether that is proven is a separate question (see claimed and verified)."
+  },
+  "pending": {
+    "short": "This step cannot start yet because it comes after an ask that is still open, or after an ask you answered No.",
+    "more": "Pending steps are dimmed in the chart. They wake up when you answer the ask, or when the agent changes the plan."
+  },
+  "output": {
+    "short": "The view of a flow that tells its result visually: a picture first (a screenshot, the agent's diagram, or a chart drawn from the flow), what was built, and how to test it by hand, step by step.",
+    "more": "It is where an opened flow lands. The agent fills it when a piece of work is finished; until then it shows what the flow's own proof has, marked auto. Request test steps asks the agent for the steps, and Request visuals for a picture too."
+  },
+  "visual": {
+    "short": "The picture an opened flow leads with on Output. Every flow has one: the agent's screenshots, else its diagram of how it works, else a summary chart the dashboard draws from the flow's steps.",
+    "more": "The summary chart has at most 7 shapes: a solid box for done work, a dashed box for work left (orange when blocked), a diamond for each question with your answer on its arrow."
+  },
+  "diagram": {
+    "short": "A small boxes and arrows picture of how a piece of work works, drawn by the agent with flow diagram when there is nothing to screenshot (an API, a job, a deploy).",
+    "more": "It is the big picture only: at most 8 boxes with short names. A pill is a person or outside system, a box with a double top line is stored data, a diamond is a decision."
+  },
+  "status": {
+    "short": "The view of a flow that lists where it stands: what is built and how well it is proven, what is still missing, and the questions that wait on you.",
+    "more": "Click a step's title to see where it sits in the Process chart. A link that opens a flow at one step lands here."
+  },
+  "test step": {
+    "short": "One thing to do by hand to check the work, with what you should see and a screenshot of it, written by the agent with flow test-step.",
+    "more": "The I saw this box beside each step is your own checklist: it is kept in this browser only and never changes the flow."
+  },
+  "process": {
+    "short": "The view of a flow that shows how the work was done: the chart of every step, check and ask in order, with their links.",
+    "more": "Click a step in the chart to open its drawer with the full evidence. The page remembers which view you used last."
+  },
+  "unproven": {
+    "short": "The agent marked the step done but attached no evidence, so nothing shows it really happened."
+  },
+  "claimed": {
+    "short": "The step is done and has evidence attached, such as a commit or a test line, but you have not checked it yet."
+  },
+  "verified": {
+    "short": "You looked at the evidence and ticked the step. Only you can tick it; no agent or command can.",
+    "more": "This is the strongest proof state. Untick it if you change your mind."
+  },
+  "sent": {
+    "short": "Your answer to an ask reached the agent that asked, through a short relay turn."
+  },
+  "not delivered": {
+    "short": "Your answer is saved, but the relay could not hand it to the agent, usually because the agent is not running or its name did not match. Use retry.",
+    "more": "Hover the words to see the reason. The answer is never lost: it stays on the flow, and the agent reads it the next time it looks at the flow."
+  },
+  "local": {
+    "short": "The code exists only on this machine, in a worktree or on the followup branch, and is not pushed to dev yet."
+  },
+  "dev": {
+    "short": "The code is merged into origin/dev, the shared branch that deploys to the dev site for testing."
+  },
+  "stage": {
+    "short": "The code is on origin/stage, the branch that deploys to the stage site, the last check before real users."
+  },
+  "prod": {
+    "short": "Short for production. The code is on origin/main and is live for real users.",
+    "more": "Prod deploys are started by hand. A change there reaches real people, so it gets the most care."
+  },
+  "step": {
+    "short": "A piece of work in a flow, such as writing a fix or running a migration. It has a status and can carry evidence."
+  },
+  "check": {
+    "short": "A step whose whole job is to test something, such as a test run or a look at the dev site. It also carries evidence."
+  },
+  "note": {
+    "short": "Plain text. In a flow chart it is a remark with no status; as evidence it is a written observation from the agent."
+  },
+  "evidence": {
+    "short": "What an agent attaches to a step to show it was really done: a commit, a diff, a test line, a screenshot, a link or a note."
+  },
+  "commit": {
+    "short": "A saved snapshot of changes in git, with a message saying what changed. As evidence it opens the commit and its diff."
+  },
+  "diff": {
+    "short": "The lines that changed: red for removed, green for added. As evidence it shows the uncommitted changes in a worktree."
+  },
+  "test": {
+    "short": "A test result as evidence: the line that says how many tests passed or failed, and sometimes the full output."
+  },
+  "shot": {
+    "short": "A screenshot or short screen recording an agent took, often of the app in a browser, as evidence."
+  },
+  "url": {
+    "short": "A web link as evidence, for example to a deployed page or a pull request."
+  },
+  "worktree": {
+    "short": "A second working folder for the same git repo, on its own branch. Agents use one each so they can work at the same time without touching each other.",
+    "more": "All worktrees share one history, so a commit made in one is visible from the others once it is on a shared branch."
+  },
+  "branch": {
+    "short": "A named line of commits in git. Work happens on a branch and is merged into a shared one like dev when it is ready."
+  },
+  "fast-forward": {
+    "short": "A merge where git only moves the branch pointer ahead, because the target has no commits of its own. No merge commit is made.",
+    "more": "If both sides have new commits, a fast-forward is impossible and git needs a real merge instead."
+  },
+  "merge base": {
+    "short": "The last commit two branches have in common. Git compares both sides against it to work out what each one changed."
+  },
+  "origin": {
+    "short": "The usual name for the shared copy of the repo on GitHub. origin/dev means the dev branch as it is there, not on this machine."
+  },
+  "followup": {
+    "short": "The branch the main checkout sits on in this repo. Work there counts as local until it is merged into dev."
+  },
+  "headless turn": {
+    "short": "One run of Claude with no chat window: the dashboard gives it a prompt, waits for the answer and closes it.",
+    "more": "The dashboard uses short headless turns for the answer relay and for explaining text, each with only the tools it needs."
+  },
+  "relay": {
+    "short": "The small helper that passes your answer to an ask on to the agent that asked, by a short headless turn that sends it a message.",
+    "more": "Answers to the same agent within 30 seconds go as one message, to save turns."
+  },
+  "subagent": {
+    "short": "A helper session an agent starts for one task, such as a review. It reports back to the agent that started it and then stops."
+  },
+  "master": {
+    "short": "The coordinating session that hands out work and merges everyone's branches into dev."
+  },
+  "pr": {
+    "short": "Pull request: a request on GitHub to merge one branch into another, where others review the changes first."
+  },
+  "code review": {
+    "short": "Someone reads the changes before they are merged, to catch bugs and unclear code. On the Tickets page a chip shows whether a ticket was reviewed."
+  },
+  "idempotent": {
+    "short": "Safe to run more than once: doing it twice ends the same as doing it once, so a retry cannot create duplicates."
+  },
+  "sse": {
+    "short": "Server-Sent Events: a connection where the server keeps pushing updates to the page, as the chat does while Independent answers."
+  },
+  "token": {
+    "short": "Either a secret string that proves who you are to a service, or a small piece of text a language model reads and writes. The context tells which."
+  },
+  "mcp": {
+    "short": "Model Context Protocol: a standard way to give Claude extra tools, such as a browser or a ticket tracker."
+  },
+  "playwright": {
+    "short": "A tool that drives a real web browser from code. Agents use it to click through the app and take screenshots as evidence."
+  },
+  "switchboard": {
+    "short": "A ticket tracker the dashboard can read through an MCP tool. It reads the tickets and never changes them."
+  },
+  "tracker": {
+    "short": "Any system that holds tickets and their status, such as Switchboard, Linear or Jira."
+  },
+  "collection": {
+    "short": "One set of tickets the Tickets page can show, read from one source and optionally filtered to a range of ids."
+  },
+  "source": {
+    "short": "Where a collection's tickets come from: a tracker read by an MCP tool, or an agent that reads a board in the browser."
+  },
+  "verdict": {
+    "short": "Your call on a reviewed ticket: deliver now, after a dev check, after a doc fix, or not yet."
+  },
+  "snapshot": {
+    "short": "A copy of the data as it was at one moment, kept so the page can show something at once while fresh data loads."
+  },
+  "orchestration": {
+    "short": "The grid on the Tickets page: agents across, levels down, and each ticket in the cell for who built it and how far it got."
+  },
+  "progress report": {
+    "short": "A short summary of what one agent did, built from its own transcript."
+  },
+  "deploy": {
+    "short": "Putting a version of the code onto a running site, such as dev, stage or prod, so people can use it."
+  },
+  "transcript": {
+    "short": "The full record of a Claude session: every message, tool call and result, saved by Claude Code on this machine."
+  },
+  "waiting on you": {
+    "short": "The list of asks across all flows that have no answer yet. Each one holds up an agent until you answer it."
+  },
+  "glossary": {
+    "short": "The page of every word the dashboard can explain: built in, learned from flows, saved by an agent, or written by you.",
+    "more": "Hover a tinted word anywhere to read it. Your own wording always wins over the others."
+  },
+  "story": {
+    "short": "The first block of a flow Output: a few plain lines of who did what, and why.",
+    "more": "The agent writes them with flow say. When it wrote none, the dashboard makes a short one from the steps and marks it auto."
+  },
+  "picture": {
+    "short": "The one visual a flow Output always shows: the result screenshots, the agent diagram of how it works, or a chart drawn from the steps."
+  },
+  "how to test": {
+    "short": "The steps to try the work yourself, each with what you should see. Tick I saw this as you go; the ticks stay in this browser."
+  },
+  "details": {
+    "short": "The folded-away part of a flow Output: the agent summary in full and the commits it made."
+  },
+  "marked word": {
+    "short": "A technical word an agent wrote in square brackets. The page shows it tinted, and hovering it explains it.",
+    "more": "Unknown marked words are looked up once, the first time their flow opens, and saved in the Glossary."
+  },
+  "learned": {
+    "short": "A Glossary word the dashboard looked up by itself, in one small model turn, the first time a flow used it."
+  }
+}

@@ -1,0 +1,37 @@
+/* The Glossary page (glossary-page.js, #/glossary): a search bar, a filter, an
+   Add form and clean rows. Tokens only, so dark mode follows; row actions
+   appear on hover or focus by opacity only, so nothing moves. */
+
+.gl { padding: 20px 24px 8px; margin-bottom: 22px; }
+.gl-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-bottom: 16px; }
+.gl-search { flex: 1 1 260px; min-width: 0; font: inherit; font-size: 14.5px; padding: 6px 12px;
+  border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); color: var(--ink); }
+.gl-bar .ob-seg { margin-left: 0; }
+.gl-add-btn { margin-left: auto; }
+.gl-add { display: grid; gap: 8px; max-width: 640px; margin: 0 0 18px; padding: 14px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); }
+.gl-add[hidden] { display: none; }
+.gl-add input, .gl-add textarea, .gl-edit { font: inherit; font-size: 14px; padding: 6px 10px; min-width: 0;
+  border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); color: var(--ink); }
+.gl-add textarea, .gl-edit { resize: vertical; width: 100%; }
+.gl-edit-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 6px; }
+.gl-error[hidden] { display: none; }
+
+.gl-list { list-style: none; margin: 0; padding: 0; }
+.gl-row { display: flex; align-items: flex-start; gap: 16px; padding: 14px 4px; border-top: 1px solid var(--line); }
+.gl-row:first-child { border-top: 0; }
+.gl-main { flex: 1; min-width: 0; }
+.gl-term { font-size: 15px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.gl-short { margin: 2px 0 0; font-size: 14.5px; line-height: 1.5; color: var(--ink-2); overflow-wrap: anywhere; }
+.gl-meta { margin: 4px 0 0; font-size: 12.5px; color: var(--muted); }
+.gl-meta .link { font-size: 12.5px; }
+.gl-acts { display: flex; gap: 14px; flex: none; padding-top: 2px; opacity: 0; transition: opacity .12s; }
+.gl-row:hover .gl-acts, .gl-row:focus-within .gl-acts, .gl-acts.is-confirming { opacity: 1; }
+.gl-acts [data-gl-remove] { color: var(--bad); }
+.gl-acts [data-confirm] { font-weight: 600; }
+.gl-more { margin-top: 4px; font-size: 13.5px; color: var(--ink-2); }
+.gl-more summary { cursor: pointer; color: var(--muted); font-size: 12.5px; }
+.gl-more p { margin: 4px 0 0; }
+.gl-empty, .gl-limit { margin: 4px 0 16px; }
+
+@media (hover: none) { .gl-acts { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .gl-acts { transition: none; } }

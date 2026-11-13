@@ -1,0 +1,290 @@
+/* Agent cards as a tree (agent-cards.js), drawn on CardStack (card-stack.css).
+   Master's card is the root; a trunk runs down from it and each agent's card
+   hangs off it on a rounded branch. A branch is coloured while its agent
+   works. Uses the tokens from styles.css. */
+
+.agent-cards {
+  --branch: color-mix(in srgb, var(--muted) 45%, var(--line-strong));
+  --branch-w: 1.5px;
+  --trunk-x: 22px; /* the trunk's distance from the root card's left edge */
+  --indent: 40px; /* where the agent cards start */
+  --elbow-y: 27px; /* where a branch meets its card: level with the name */
+  --ac-gap: 12px;
+}
+
+/* ─── cards ────────────────────────────────────────────────────────────────── */
+
+/* Independent's card (agent-cards.js chatCard) sits in its own slot above the agents. */
+.ac-chat-slot { margin-bottom: 12px; }
+
+.ac-root,
+.ac-tile,
+.agent-cards .cs-item {
+  --cs-radius: var(--radius);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.ac-root {
+  position: relative;
+  margin-bottom: var(--ac-gap);
+  cursor: pointer;
+  transition: border-color 0.16s ease;
+}
+
+.ac-root:hover,
+.ac-tile:hover,
+.agent-cards .cs-item:hover {
+  border-color: var(--line-strong);
+}
+
+.ac-root.ac-missing {
+  cursor: default;
+  border-style: dashed;
+}
+
+.ac {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  min-width: 0;
+}
+
+.ac-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.ac-name {
+  font-weight: 650;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ac-root .ac-name {
+  font-size: 16px;
+}
+
+.ac-role {
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.ac-state {
+  margin-left: auto;
+}
+
+.ac-now,
+.ac-talk {
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ac[data-state='active'] .ac-now,
+.ac[data-state='testing'] .ac-now {
+  color: var(--ink-2);
+}
+
+.ac-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 6px;
+  margin-top: 2px;
+}
+
+/* A ticket on a card: its muted monospace id in a hairline box. */
+.ac-foot .chip {
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  line-height: 1.6;
+}
+
+.ac-more {
+  color: var(--faint);
+  font-size: 12.5px;
+}
+
+.ac-links {
+  margin-top: 2px;
+}
+
+/* ─── compact (Home): a plain grid, no tree ───────────────────────────────── */
+
+.ac-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--ac-gap);
+}
+
+.ac-tile {
+  cursor: pointer;
+  transition: border-color 0.16s ease;
+}
+
+.ac-compact {
+  gap: 4px;
+  padding: 12px 14px;
+}
+
+.ac-compact .ac-name {
+  font-size: 14px;
+}
+
+/* Sessions outside the coding team: name, role, state and one line. */
+.ac-quiet .ac-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.ac-quiet .ac-talk,
+.ac-quiet .ac-foot {
+  display: none;
+}
+
+/* ─── branches: Master -> agents ───────────────────────────────────────────── */
+
+.ac-branches {
+  padding-left: var(--indent);
+}
+
+.ac-branches .cs-slot::before,
+.ac-branches .cs-slot::after {
+  content: '';
+  position: absolute;
+  left: calc(var(--trunk-x) - var(--indent));
+  pointer-events: none;
+}
+
+/* The trunk, running on past this card to the next one. */
+.ac-branches .cs-slot::before {
+  top: 0;
+  bottom: calc(-1 * var(--ac-gap));
+  border-left: var(--branch-w) solid var(--branch);
+}
+
+.ac-branches .cs-slot:last-child::before {
+  display: none;
+}
+
+/* The branch: from the card above down to this card's name, with a round corner. */
+.ac-branches .cs-slot::after {
+  top: calc(-1 * var(--ac-gap));
+  width: calc(var(--indent) - var(--trunk-x) - 2px);
+  height: calc(var(--ac-gap) + var(--elbow-y));
+  border-left: var(--branch-w) solid var(--branch);
+  border-bottom: var(--branch-w) solid var(--branch);
+  border-bottom-left-radius: 12px;
+}
+
+/* A working agent's branch lights up. */
+.ac-branches .cs-slot:has(.ac[data-state='active'])::after {
+  border-color: var(--ok);
+}
+
+.ac-branches .cs-slot:has(.ac[data-state='testing'])::after {
+  border-color: var(--accent);
+}
+
+/* A held card has left its branch. */
+.ac-branches .cs-slot[data-active]::before,
+.ac-branches .cs-slot[data-active]::after {
+  display: none;
+}
+
+/* ─── branches: an agent -> its subagents ──────────────────────────────────── */
+
+.ac-subs {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.ac-subs li {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 30px;
+  padding: 3px 8px 3px 30px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.ac-subs li:hover {
+  background: var(--surface-2);
+}
+
+/* Each subagent on its own little branch off the card. */
+.ac-subs li::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: -6px;
+  width: 14px;
+  height: calc(50% + 6px);
+  border-left: var(--branch-w) solid var(--branch);
+  border-bottom: var(--branch-w) solid var(--branch);
+  border-bottom-left-radius: 8px;
+  pointer-events: none;
+}
+
+.ac-subs li:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  bottom: -2px;
+  border-left: var(--branch-w) solid var(--branch);
+  pointer-events: none;
+}
+
+.ac-subs li[data-state='active']::before {
+  border-color: var(--ok);
+}
+
+.ac-subs li[data-state='testing']::before {
+  border-color: var(--accent);
+}
+
+.ac-sub-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.ac-subs .small {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+/* ─── other sessions ───────────────────────────────────────────────────────── */
+
+.ac-others {
+  margin-top: 28px;
+}
+
+.ac-group {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}

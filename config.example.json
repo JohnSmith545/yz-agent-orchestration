@@ -1,0 +1,62 @@
+{
+  "repo": "C:/path/to/your-repo",
+  "port": 4317,
+  "sessionCwdMatch": "your-repo",
+  "coordinator": "Master",
+  "codingAgents": {
+    "Master": "Master",
+    "Agent 1": "Agent 1",
+    "Agent 2": "Agent 2",
+    "my-session-name": "Agent 3"
+  },
+  "aliases": {
+    "some-session": "A friendlier name"
+  },
+  "stopHour": null,
+  "ticketPrefixes": ["ABC"],
+  "reminders": [
+    { "at": "17:55", "days": "weekdays", "text": "Wrap up: commit or park your work." }
+  ],
+  "factory": {
+    "collections": [
+      {
+        "id": "main",
+        "name": "Main board",
+        "kind": "switchboard",
+        "project": "YOUR_PROJECT_ID",
+        "tools": ["mcp__switchboard-claude__list_stories"],
+        "filter": {
+          "prefix": "ABC",
+          "range": [100, 199],
+          "extras": []
+        },
+        "plan": "C:/path/to/your-repo/docs/plan.md",
+        "refreshMinutes": 0
+      },
+      {
+        "id": "beta",
+        "name": "A board only a browser can read",
+        "kind": "agent",
+        "ask": "Open https://example.com/board in the browser and read every card (id, title, column, owner).",
+        "tools": ["mcp__playwright__*"],
+        "refreshMinutes": 0
+      }
+    ],
+    "me": "your-tracker-user-id",
+    "chat": {
+      "name": "Independent",
+      "forkFrom": "",
+      "model": "claude-opus-5-5",
+      "mode": "brief"
+    },
+    "relayModel": "claude-sonnet-5-5",
+    "explainModel": "claude-haiku-5-5"
+  },
+  "claudeDirs": [],
+  "pr": {
+    "enabled": false,
+    "remote": "origin",
+    "bases": ["dev"],
+    "gh": "gh"
+  }
+}

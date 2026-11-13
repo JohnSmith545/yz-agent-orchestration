@@ -1,0 +1,468 @@
+# User guide
+
+This guide is for someone who has never seen Yz Agent Orchestration. It covers what the dashboard is, how to
+start it, what each page shows, and what to do when something looks wrong. The README has the full
+reference.
+
+## 1. What it is, and what it is not
+
+Yz Agent Orchestration is a local web page about the Claude Code sessions that work in **one** git repo on your
+machine. It shows which agent is doing what, on which ticket and worktree, how far each piece of work has
+got (your machine, dev, stage, prod), and the questions agents are waiting on you to answer.
+
+- **It reads; it does not write to your repo.** It reads Claude Code's session files (`~/.claude`) and runs
+  read-only git commands. The only git command that changes anything is `git fetch`, which updates
+  remote-tracking refs. It never commits, checks out, stashes or edits a file in your repo.
+- **One exception, and only when you turn it on and type your PIN:** **Send** (below, under Flows) pushes a
+  branch that an agent says is ready and opens a pull request for it with the GitHub CLI. It never forces a
+  push, never merges, and is off until you set `pr.enabled` in `config.json` and a send PIN (section 9).
+- **It is for one person on one machine.** The server listens on 127.0.0.1 only. There are no accounts and no
+  sharing.
+- **It is not a tracker.** It can read tickets from one, but it never changes a ticket by itself.
+
+## 2. What you need
+
+- **Node 20 or newer.** There are no npm dependencies, so there is nothing to install.
+- **git**, and the repo your Claude Code sessions work in.
+- **Claude Code**, installed and logged in. The dashboard finds sessions in `~/.claude`. The chat, the answer
+  relay, the explainer and ticket refreshes run headless Claude Code turns; by default they use the newest
+  Claude Code binary bundled with an IDE extension (set `claudeBin` to use another).
+- Optional: an **MCP server for your tracker** (the built-in converter is for Switchboard), and the
+  **Playwright MCP server** if you want the chat agent to check things in a browser.
+
+## 3. Install and first run
+
+```
+git clone https://github.com/Yz31LL/yz-agent-orchestration.git
+cd yz-agent-orchestration
+cp config.example.json config.json
+```
+
+Edit `config.json`. Only `repo` is required; anything you leave out uses its default.
+
+| Setting | What it means | A sensible value |
+| --- | --- | --- |
+| `repo` | Absolute path of the git repo your sessions work in | `"C:/code/my-app"` or `"/home/me/my-app"` |
+| `port` | The port on 127.0.0.1 (the `PORT` environment variable overrides it) | `4317` |
+| `sessionCwdMatch` | A session counts when its working folder contains this text | Left out: the repo folder name |
+| `coordinator` | The session that hands out work and merges it | `"Master"` |
+| `codingAgents` | Session name -> the label shown, for the sessions that write code | `{ "Master": "Master", "my-session": "Agent 1" }` |
+| `aliases` | Session name -> label, for any other session | `{}` |
+| `stopHour` | Local hour (0 to 23) at which the server stops itself, or `null` | `null` |
+| `ticketPrefixes` | Your ticket id prefixes, in the order the ticket list ranks them | `["ABC"]` |
+| `reminders` | Daily reminders: `{ "at": "HH:MM", "days": "weekdays" or "daily", "text": "..." }` | `[]` (none) |
+| `claudeDirs` | More Claude config folders to read sessions from (a second account) | `[]` |
+| `claudeBin` | Path of the Claude Code binary for headless turns | `""` (find it) |
+| `factory.collections` | Your ticket collections (section 6) | `[]` until you connect a tracker |
+| `factory.me` | Your user id in the tracker, for "mine" | `""` |
+| `factory.chat` | The chat agent: `name`, `model`, `mode` (`"brief"` or `"fork"`), `forkFrom` (a session id to fork) | the defaults |
+| `factory.relayModel` | Model for the short turn that delivers your answers | `"claude-sonnet-5-5"` |
+| `factory.explainModel` | Model for the one-off explanations | `"claude-haiku-5-5"` |
+
+Then:
+
+```
+npm start
+```
+
+and open http://127.0.0.1:4317.
+
+**What you see when nothing is running yet:** Home says "No agents running." and "No messages yet.", Flows
+says "No open flows.", and Tickets says "No collection" until you add one. Start a Claude Code session in your
+repo and it appears within a minute.
+
+## 4. A tour of the pages
+
+The rail on the left holds the pages. Hover it (or press Tab) to see the labels; the pin keeps it open.
+
+### Home
+
+- **Since** (only when something happened since you last pressed **Mark read**): flows that changed status,
+  answers delivered, tickets that reached a new level or changed in the tracker, and commits per agent.
+- **Waiting on you** (only while an agent has asked something): answer it right there.
+- **Agents**: one compact card per agent with its state, last action and tickets. Click a card to watch it live.
+- **Messages**: who is talking to whom: your prompts, messages between sessions, and subagents being started.
+
+### Flows
+
+A flow is an agent's account of one piece of work: steps, checks, questions for you, and notes, each with
+an environment and proof (section 5).
+
+- **Waiting on you** at the top lists every open question across all flows, with Yes and No (or a text box).
+  The questions of the flow you have open leave the list while it is open (the flow itself asks them), and
+  the list disappears when it is empty.
+- **The board** has a card per open flow, grouped by agent. A card is short on purpose: the title, one line
+  of what happened last, one word for where it stands (**waiting on you**, **blocked**, **ready to send**,
+  **PR open**, **merged** or **done**), the agent and a thin progress bar. Click one to open it.
+- An opened flow shows its title with three view tabs beside it, then the why (shortened to its first
+  sentence with **more** when it is long), then one quiet line: agent, tickets, env, status, when it changed.
+  The flow's status and **Drop** are in the `⋯` menu at the end of that line.
+- The three views:
+  - **Output** (the default) is one column, made to be read in ten seconds, like a story:
+    - **Story**, first and largest: who did what, and why, one plain line each (*Agent 1 · Did Playwright
+      testing.*), with *Why?* under a line that has a reason. A small `auto` in its corner means the agent
+      wrote none and the dashboard made it from the steps.
+    - **Before → Now**: how it was and how it is now, one line each, when the agent said so.
+    - **Picture**: one visual, always (below).
+    - **How to test**: cards in a row joined by arrows, each with a picture (the step's screenshot, or a
+      quiet numbered placeholder), what to do, what you should **Expect**, and **I saw this**.
+    - **Details**, folded away: the agent's full summary and its commits under **Changes**. It stays open
+      once you open it.
+    - **Send**, last, when the agent says the work is ready for the base branch (below).
+    The `?` beside the view tabs says what each block is. Until the agent records its output, the page shows
+    what the flow's own proof has, tagged `auto`.
+  - There is always a picture, full width and centred. The agent's screenshots of the result; with no
+    screenshot, **How it works**, the agent's diagram (boxes and arrows, a pill for a person or outside
+    system, a box with a double top line for stored data, a diamond for a decision); with neither, a summary
+    chart the dashboard draws from the flow, tagged `auto`: a solid box for done work (its first step,
+    `+3 more` under it), a dashed box for the work left (`3 left`, orange with `1 blocked` when something is
+    stuck), a diamond for each question with your answer on its arrow (orange and unlabelled while it waits on
+    you), never more than 7 shapes, and one line of counts under it. With both screenshots and a diagram, a
+    small **Screens | How it works** switch picks one. Charts read left to right, wrap to a second row joined
+    by one continuous line, and never cut a word in half. Click a box of the summary chart to see that step on
+    Status.
+  - Tick **I saw this** on a test step as you try it. It is your own checklist: it stays in this browser
+    only and never changes the flow. Steps the agent records again start unchecked.
+  - **Request visuals** sits in the Picture's corner while the flow has no screenshot and no diagram: it asks the
+    agent for one (a screenshot if there is something to see, else a diagram), then the test steps.
+  - **Request test steps** (or **Ask again**) asks the flow's agent to drive the app and record each step
+    with a screenshot. Add a note if you like, then **Send**. It costs one relay turn (section 7). The head
+    then says `requested 3m`, or `not sent` (hover it for why) if the agent could not be reached; press
+    **Ask again** then. If the flow belongs to Independent, the request goes into the Ask drawer instead,
+    and you send it yourself.
+  - **Status** lists what was **Built** (one line each with its proof mark; click a row to see its proof),
+    what is **Left** and why, the **Decisions**, notes, and every screenshot. A link that opens a flow at one
+    step lands here.
+  - **Process** shows the chart of steps.
+- **Send** (off until you turn it on and set a send PIN on the **Settings** page): when an agent has finished and recorded the pull
+  request its work becomes, the last line of Output reads like `feature/dark-mode → dev · 8 commits · ready`
+  with a **Send to dev** button. Read the Output above it first: that is the review. The button opens the pull
+  request's title, text and commits right there, with what it will do: *This pushes the branch and opens a
+  pull request into dev. It does not merge anything.* Type your **Send PIN** and **Open pull request** does it
+  (if the branch or its text changed since you opened the review, it asks you to review again); the line then says
+  `PR #12 open · checks passing` (a link to it). If something is wrong (the branch would not merge cleanly, a
+  commit credits an AI tool, the GitHub CLI is not signed in, a pull request is already open), the line says
+  **blocked** with each reason, and the button stays off. A refused push shows why, with **Try again**; it is
+  never forced.
+- **Proof states** of a finished step: **unproven** (no evidence), **claimed** (evidence, not checked by you),
+  **verified** (you ticked it). Only you can tick a step; no command can.
+- **Answering:** click Yes or No (or type an answer). The answer is sent to the agent that asked (section 7
+  has the cost). The step then shows **sent**, or **not delivered · retry** if that agent is not running.
+
+### Tickets
+
+The page for a ticket collection from your tracker (section 6). The chip says when it was last read;
+**Refresh** reads it now.
+
+- **Orchestration grid:** agents across, levels down (Local, Dev, Stage, Prod). Each cell holds the tickets
+  that agent built which got that far and no further. Hover a ticket for its commits and flows.
+- **Tickets** (folded): the table, with the board state, the owner, and a **code review mark** (Code reviewed,
+  Needs review, No code yet, Not from codebase). Filters are checkbox dropdowns.
+- **Worktrees** (folded): every worktree with its branch, agent, uncommitted files and how far it got.
+
+### Timeline
+
+What each agent did on each task, as a flowchart built from the transcripts and git: prompts, reads, edits,
+tests, messages, commits and merges. Pick a window (2, 8 or 24 hours, or everything), zoom with Ctrl and the
+scroll wheel, and click a node for details.
+
+### Agents
+
+The agents as a tree of cards: the coordinator at the root, each coding agent on a branch, subagents under
+their parent. Drag cards to reorder them. Click one for its **live view**: its activity as it happens, each
+edit as a diff, the uncommitted changes in its worktree, and **Draft report**, a Markdown summary of a time
+window built from the transcript and git (no model writes it).
+
+### Settings
+
+The gear above Theme opens **Settings**. It has two parts:
+
+- **Sending**: the switch `Send to dev`, the branches it may open pull requests into, and your **send PIN**.
+  With no PIN yet, type one twice and press **Set PIN**. Once one is set you can **Change PIN** (the current
+  one, then the new one twice) or, if you forgot it, **Forgot it? Reset**.
+- **Your setup**: what the dashboard watches and what your sessions are called, read-only. Change these in
+  config.json, then restart the dashboard.
+
+**Why a system window asks you to confirm.** The PIN keeps anything that drives the page (an agent's
+browser, a website, a tab left open) from sending. So the changes that could let such a thing send (setting
+the first PIN, resetting it, turning sending on, changing the branches) are confirmed in a Yes/No window from
+your operating system, outside the browser, which a page cannot click. The page says *Waiting for you to
+confirm in the window that just opened…* until you answer. If no such window can open on that machine, the
+page tells you to use the terminal instead (`node tools/factory.mjs pr-pin`).
+
+Each person sets their own PIN on their own machine; it is kept there (only as a hash) and never shared.
+Type it only in your own browser, never in a window an agent is driving.
+
+### Glossary
+
+Every word the dashboard can explain, searchable, with your own wording when you write one. Section 5 has the
+details ("Plain story, marked words, and the glossary").
+
+### The Ask drawer
+
+**Ask** in the rail opens a chat with a Claude Code session (by default called "Independent"). It can read
+the code, read your tracker, message other agents, write flows and drive a browser.
+
+- **New chat** starts a **light** chat: a fresh session with a short brief. Cheap.
+- **Start from my session (costs more)** forks the session named in `factory.chat.forkFrom`, so the chat
+  starts with all of that session's context. The first message is expensive.
+- When a reply wrote a flow, an **Open flow** button under it opens that flow.
+- Its state shows as a dot and a word: **Working** while it answers, **Waiting** when it asked you something,
+  **Idle** otherwise.
+
+### Alerts, help and the rest
+
+- **Alerts** (the bell): toasts and, if you switch them on, desktop notifications for new questions, flows that
+  are blocked or done, new proof, an agent that stopped, and answers that could not be delivered (with
+  **Retry**). The bell keeps the last 50.
+- **The `?` buttons** explain a card: what its number counts, a legend, how it fills up.
+- **Click to explain:** click any underlined term for a short explanation, or select any text and press
+  **Explain**. Terms in the built-in glossary cost nothing; anything else is one small paid turn.
+- **Ctrl+K** (Cmd+K on a Mac) opens the command palette: jump to a page, flow, ticket or agent, or run an action.
+- **Spend today** (above Theme in the rail) shows what the dashboard's own headless turns cost today. Click it
+  for the breakdown.
+- **Reminders** pop up at the times in `reminders`, once a day.
+
+## 5. Getting agents to narrate their work
+
+Agents write flows with the dashboard's CLI. Paste this paragraph into the brief of every agent that works in
+the repo, with `C:/path/to/yz-agent-orchestration` replaced by the absolute path of your copy:
+
+> Narrate your work on the dashboard as a flow: `node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow …`.
+> Start with `flow new` or `flow write` before you change anything, keep statuses current with
+> `flow status`, attach proof with `flow evidence` (the commit sha, a test line, a screenshot), and put any
+> choice that is the user's as `flow ask` instead of asking in prose, then stop at that step: the answer
+> arrives as a message. Never act on another system (a tracker, a live site, a deploy) before the ask is
+> answered Yes. When a piece of work is finished, record its output: a result screenshot (`flow result`), a
+> short summary with the commits (`flow summary`), and manual test steps with a screenshot each
+> (`flow test-step`). Every flow needs a visual: a screenshot for UI work, else a diagram of how it works
+> (`flow diagram`), the big picture in at most 8 boxes, never file names. Show what changed as a before and
+> after: a screenshot before you change anything visible (`flow result --before`), and one plain line each
+> for how it was and how it is now (`flow change`). When the work is ready for the base branch, record the
+> pull request with `flow pr` (the branch, the base, a plain-English title, and a body file that follows the
+> repo's own pull request template); never push or open it yourself: the user reviews the Output and sends
+> it. The pull request text must not credit an AI tool. Pass `--by "<your dashboard label>"` (or set FACTORY_BY) on `flow new` and the output
+> commands: the answers are sent to that name.
+
+**`--by` must be the agent's label on the dashboard** (as in `codingAgents`, for example `Agent 1`): that is
+where answers are delivered. `flow new`, `flow write`, `decide` and the output commands (`flow result`,
+`flow summary`, `flow test-step`, `flow test-clear`) refuse to run without one.
+
+A worked example (from any shell; `CLI` stands for `node C:/path/to/yz-agent-orchestration/tools/factory.mjs`):
+
+```
+CLI flow new dark-mode "Add a dark mode toggle" --tickets ABC-101 --env dev --by "Agent 1"
+CLI flow step dark-mode "Add the theme tokens" --status doing --by "Agent 1"
+CLI flow status dark-mode n1 done
+CLI flow evidence dark-mode n1 --commit ab12cd3
+CLI flow check dark-mode "The toggle remembers the choice" --env dev --by "Agent 1"
+CLI flow evidence dark-mode n2 --shot C:/temp/toggle.png
+CLI flow ask dark-mode "Ship dark mode to dev now?" --yes "Turn it on for everyone" --no "Keep it behind the toggle" --by "Agent 1"
+```
+
+Each command prints one line, such as `dark-mode n3: waiting on the user`. On the page, the question appears
+under **Waiting on you** on Home and Flows. Click **Yes**: the dashboard sends "Agent 1" a message with the
+question and your answer, and the agent carries on. It can read everything back with `CLI flow show dark-mode`.
+
+When the work is done, the agent records its **output**, which is what you see first when you open the flow
+(the screenshots are files it saved, for example with the Playwright screenshot tool):
+
+```
+CLI flow result dark-mode --shot C:/temp/after.png --caption "Settings in dark mode" --by "Agent 1"
+CLI flow summary dark-mode "Every colour is now a theme token, so one switch changes the whole page." --commit ab12cd3 --by "Agent 1"
+CLI flow test-step dark-mode "Open Settings and click the moon." --expect "The page turns dark at once." --shot C:/temp/t1.png --by "Agent 1"
+CLI flow test-step dark-mode "Reload the page." --expect "It is still dark." --shot C:/temp/t2.png --by "Agent 1"
+```
+
+Work with nothing to screenshot (an API, a job, a deploy, an investigation) gets a diagram instead, written
+as one line of arrows; `[actor]`, `[store]` and `[decision]` set a box's shape, and `: label` names the arrow:
+
+```
+CLI flow diagram acme-report "[actor] Scheduler -> Report job: every night; Report job -> [store] Reports: saves" --by "Agent 1"
+```
+
+Keep it to the big picture: at most 8 boxes and 10 arrows with short names; a bigger one is refused and the
+command says why. Each call replaces the diagram, and `--clear` removes it.
+
+`flow summary` replaces the list of changes each time (repeat `--commit`, or comma-separate the shas).
+`flow test-step --id t2 --replace` rewrites one step, and `flow test-clear` empties the steps to record them
+again; record steps one command at a time, never in parallel. A `flow write` file with no `output` keeps the
+stored storyboard (`"output": {}` clears it). If the steps are missing, press **Request test steps** on the
+Output view and the agent gets a message asking for them (**Request visuals** when there is no picture yet).
+
+When the work is ready to go to the base branch, the agent records the pull request; you send it from the
+Output (section 4, Send):
+
+```
+CLI flow pr dark-mode --head feature/dark-mode --base dev --title "Add a dark mode to Settings" --body-file C:/temp/pr.md --by "Agent 1"
+```
+
+The body file follows your repo's pull request template. A title or body that credits an AI tool (a
+Co-Authored-By line, Generated with, or naming one) is refused. `flow pr dark-mode --clear` removes it.
+
+The other commands: `flow note`, `flow set` (status, title, why, tickets), `flow write <file.json>` (a whole
+flow at once) and `flow list`. The README lists every option under "Agents writing flows".
+
+### Plain story, marked words, and the glossary
+
+**What agents write.** Each flow can open with a short story: a few plain lines of who did what, and why,
+for a reader who was not there. For example *Agent 1: Ran the checkout with [Playwright]* and *Agent 1: Made
+the payment call [idempotent]. Why? A double click could charge twice.* Agents add a line with
+`flow say <flow> "<what was done>" --why "<the reason>"` (at most 8 lines, 140 characters each and 160 for a
+why; a longer line is refused with *say it shorter*), rewrite one with `--id s2 --replace`, and start again
+with `flow say-clear`. It is not a commit message: no file names, flags or ticket ids. A flow with no story
+still gets one, at most 3 lines made from its own steps without any model: what is finished, what is being
+worked on, and the decision waiting on you, which is credited to **You** (*You · To decide: Turn off the old
+scheduler now?*). A dropped flow says *Dropped this work*. The name You is kept for what you did: an agent
+cannot write a line as You.
+
+**How words get explained.** An agent puts a technical word in square brackets the first time it uses it, in a
+story line, the summary, a test step, a step title or the flow's why: `[idempotency]`. A word is letters,
+digits, spaces and `. - _ + # /` only, 2 to 40 characters, never starting with a dash; anything else in brackets
+stays plain text.
+The page shows it without the brackets,
+on a soft tinted background. **Hover it** (or Tab to it) and a small card shows what it means, where the
+explanation came from (`built-in`, `learned`, `from the agent`, `yours`), and two buttons:
+
+- **Ask the agent** sends the word and its sentence to the agent that wrote the flow, as one message (about
+  $0.30), and the card says `sent to <agent>`. For Independent's own flows, and for words outside a flow, the
+  question goes into the Ask drawer for you to send.
+- **Edit** lets you write the explanation your way; **Save** keeps it, Escape cancels.
+
+A click keeps the card open until you press Escape or click elsewhere. Words get their explanation in one of
+four ways:
+
+- the agent defines it itself, for free: `node tools/factory.mjs term "<word>" "<1 or 2 plain sentences>"`;
+- the dashboard learns it **by itself**: the first time you open a flow with words the glossary does not know,
+  the page asks once, and those words go to ONE small headless turn (`factory.explainModel`, Haiku by default,
+  no tools at all), which is given the sentences the words came up in and the 5 nearest entries the glossary
+  already has, so new explanations match the old ones. Meanwhile the word's underline breathes and its card
+  says *Looking this up…*. If it fails, the card offers **Explain it** and **Ask the agent**. It asks at most
+  once per flow every 10 minutes, and a word that failed is not asked again the same day;
+- **Ask the agent** gets the agent to define it with `term`; the page picks the answer up on its next poll;
+- you select 1 to 4 words anywhere and press **Explain**; that answer is kept too when it holds a real word
+  (one of 4 or more letters that is not a common word like *ready* or *there*).
+
+The dashboard's own words (*verified*, *claimed*, *unproven* and the rest of the built-in list) cannot be
+redefined by an agent or by learning; only you can put one your way.
+
+**The Glossary page** (the book in the rail, `#/glossary`) lists every word: search as you type (press `/`),
+filter by **All**, **Learned**, **From agents**, **Yours** or **Built-in**, **Add a word**, and **Edit** or
+**Remove** one (it asks *Remove?* first; built-in words cannot be removed). Each row says where it came from,
+opens its **More** paragraph when it has one, and links to the first flow it came up in.
+
+**What is saved, and where.** The built-in words stay in `public/glossary.json`. Everything learned or written
+since lives in `data/glossary.json` (git-ignored, never committed), one entry per word with its explanation,
+where it came from (`learned`, `agent` or `you`) and the last 20 flows it came up in. `GET /api/glossary` lists
+both, merged.
+
+**What it costs.** Learning a flow's words is one turn for up to 12 words, a fraction of a cent. At most 200
+words and 100 turns a day; past that, learning stops until tomorrow (words already known still show). A word
+the glossary knows costs nothing to show.
+
+**Correcting an explanation.** Your own wording wins over everything: save it with **Edit**, on a card or on
+the Glossary page (`POST /api/glossary/term`), and no agent or learning turn will overwrite it. Editing the short
+explanation keeps its **More** paragraph. Removing a saved word
+(`POST /api/glossary/remove`) brings back the built-in one if there was one; built-in words cannot be removed.
+
+## 6. Connecting a ticket tracker
+
+Add a collection under `factory.collections` in `config.json`. Each one ends up as
+`data/sources/<id>.json` in one shape, and the Tickets page reads only that file. The dashboard cannot call
+a tracker itself: **Refresh** runs one short headless Claude turn per collection.
+
+- `"kind": "switchboard"`: the turn calls the one MCP tool listed in `tools`, and a converter in this repo
+  builds the file, so the model never writes ticket data. Needs `project`.
+- `"kind": "agent"`: for any other tracker. The turn gets your `ask` (for example "Open the board in the
+  browser and read every card") and the tools you list, and writes the file itself.
+- `filter` (optional): a `prefix`, a `range` of numbers and `extras`, to show only part of a tracker.
+- `refreshMinutes`: `0` refreshes only when you press the button. A timer is allowed only when every tool in
+  `tools` only reads (names like `list_*`, `get_*`, `search_*`, `read_*`); browser tools are button only.
+  Every refresh is a paid turn.
+
+Set **`ticketPrefixes`** to your id prefixes (for example `["ABC"]`). Then `ABC-123` and `abc-123` in commits,
+commands and branch names count as tickets, and nothing else does. Without it the dashboard uses the prefixes
+of your collections and sources, and failing those, a generic guess that can miss or invent a ticket now and
+then (the README lists its limits).
+
+## 7. What costs money
+
+Reading git and transcripts is free. These run headless Claude Code turns, billed like any other session.
+The sizes below were measured on one setup; yours will differ.
+
+| What | When | About |
+| --- | --- | --- |
+| The chat | Every message you send in the Ask drawer, and the per-ticket actions on Tickets that go through it | $0.46 for a light chat first message, then a few cents; about $7 for the first message of a chat started from your session |
+| The answer relay | Every answer delivered to an agent (and every Retry), and every Request test steps | $0.30 |
+| Explain | A selection the glossary does not know | $0.001 |
+| Learning words | A flow's marked words the glossary does not know, up to 12 per turn, at most 200 words a day | a fraction of a cent |
+| Ticket refresh | Every press of Refresh, and every timer tick | one short turn per collection |
+
+**Spend today** in the rail adds up these turns. Your own terminal sessions are not counted.
+
+## 8. Keeping it running
+
+On Windows, run `tools\keep-alive.cmd` instead of `npm start`. It starts the server and starts it again 5
+seconds after it stops. Its log is `%LOCALAPPDATA%\yz-agent-orchestration\server.log`; close its window to stop it.
+To start it at login, press Win+R, type `shell:startup`, and put a shortcut to `tools\keep-alive.cmd` in the
+folder that opens. Leave `stopHour` at `null` when you use it, or it restarts after every stop.
+
+On macOS or Linux, use your own service manager (launchd, systemd, or a terminal multiplexer) to run
+`npm start` in this folder.
+
+## 9. Security notes
+
+- The server listens on 127.0.0.1, and only same-origin POSTs are accepted, so another website cannot answer
+  your questions or drive the agents.
+- A request with no Origin header (not from a browser) is accepted, so any local process on this machine can
+  call the dashboard's routes as you. Only run agents and tools you trust here.
+- The server answers only requests addressed to `127.0.0.1:<port>` or `localhost:<port>`, so a website that
+  points its own name at your machine is refused.
+- **Send** is the only thing that writes outside your machine, and it is off by default. Turn it on and set
+  your send PIN on the **Settings** page (section 4). Without a browser, the terminal does the same:
+  `node tools/factory.mjs pr-pin` (at least 6 characters, asked twice, nothing shown) and `"enabled": true`
+  in the `pr` block of config.json. No restart is needed either way. What protects what:
+  - **Your send PIN** stops anything that drives the page for you: the chat agent's browser, a website that
+    points its own name at 127.0.0.1, a tab you left open. Each send needs it typed; five wrong tries lock
+    Send for ten minutes. Only its scrypt hash is kept (`pr.pinHash`); the PIN is never stored, logged or shown.
+    Type it only in your own browser, never in a window an agent is driving.
+  - **A system window confirms** the changes that would let a page driver send: setting the first PIN,
+    resetting a forgotten one, turning sending on, and changing the branches. That Yes/No window comes from
+    the operating system, outside the browser, where a page cannot click.
+  - **The Host and Origin checks** stop ordinary websites: the server answers only `127.0.0.1:<port>` and
+    `localhost:<port>`, and the send route needs that page's own Origin.
+  - **The review is bound to what you saw**: the click carries the commit and a digest of the title and text;
+    if either changed since, the send is refused (`Changed since you reviewed it. Review again.`), and the push
+    is exactly that commit (`<sha>:refs/heads/<branch>`). A base, `HEAD` or a `pr.protect` branch is never sent.
+  - **A process with a shell on this machine** (a coding agent) could always run `git push` and `gh` itself,
+    or edit config.json: Send gives it nothing new, and the PIN does not stop it. `pr-pin` refuses a PIN piped
+    in only so a script cannot set one by accident; it is not a wall against an agent with a shell. Run only
+    agents you trust.
+  It runs a plain `git push` (never forced) and `gh pr create`, nothing else, and never reads or shows gh's token.
+- The chat agent is limited to a listed set of tools: Read, Grep, Glob, a few read-only git commands, the
+  dashboard CLI, messaging other sessions, your tracker read tools and the browser. It has no edit or commit
+  tool. Treat it as trusted but constrained, not sandboxed: `git diff`, `log` and `show` can still write a
+  file with `--output=<file>`. Every tool call it makes is shown in the drawer.
+- Its Playwright browser can open the dashboard itself, so a chat agent misled by a web page could tick
+  **verified** or answer a question. Add `--blocked-origins 127.0.0.1:4317` to the Playwright MCP server's
+  arguments in your user-level MCP config.
+- `config.json` and everything under `data/` (flows, screenshots, ticket snapshots, the chat transcript,
+  spend) are git-ignored. They may hold private tracker data, so do not commit or share them.
+
+## 10. Troubleshooting
+
+- **No agents show up.** Check that the sessions run in your repo (or a worktree of it): a session counts when
+  its working folder contains `sessionCwdMatch` (by default the repo folder name). Sessions run under another
+  Claude account need that account's folder in `claudeDirs`. Sessions show under their own names unless
+  `codingAgents` or `aliases` gives them a label, and only sessions in `codingAgents` get a branch on the
+  agent tree and a column in the grid (the rest sit under Other sessions).
+- **A banner says the repo folder does not exist.** Fix `repo` in `config.json` and restart.
+- **The chat says "No conversation found".** The stored chat session is gone from Claude's files. The
+  dashboard runs the same message once as a new light chat, so the next message works.
+- **The port is in use** (`EADDRINUSE`). Another dashboard, or another program, is on that port. Stop it, or
+  set another `port` (or `PORT`).
+- **An answer shows "not delivered".** The agent that asked is not running, or its `--by` label does not match
+  a live session. Start it again and press **retry** on the step (or **Retry** on the toast).
+- **The tests fail with "config.json is missing".** The tests read `config.json`. Copy
+  `config.example.json` to `config.json` first.
+- **The dashboard stops by itself at a set hour.** That is `stopHour`. Set it to `null` to keep it running.
