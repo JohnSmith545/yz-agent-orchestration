@@ -45,8 +45,9 @@ Edit `config.json`. Only `repo` is required; anything you leave out uses its def
 | `repo` | Absolute path of the git repo your sessions work in | `"C:/code/my-app"` or `"/home/me/my-app"` |
 | `port` | The port on 127.0.0.1 (the `PORT` environment variable overrides it) | `4317` |
 | `sessionCwdMatch` | A session counts when its working folder contains this text | Left out: the repo folder name |
-| `coordinator` | The session that hands out work and merges it | `"Master"` |
-| `codingAgents` | Session name -> the label shown, for the sessions that write code | `{ "Master": "Master", "my-session": "Agent 1" }` |
+| `coordinator` | The session name of the session that hands out work and merges it | `"Coordinator"` |
+| `coordinatorLabel` | What the pages call that session; left out, the label `codingAgents` gives it, else Coordinator | `"Coordinator"` |
+| `codingAgents` | Session name -> the label shown, for the sessions that write code | `{ "Coordinator": "Coordinator", "my-session": "Agent 1" }` |
 | `aliases` | Session name -> label, for any other session | `{}` |
 | `stopHour` | Local hour (0 to 23) at which the server stops itself, or `null` | `null` |
 | `ticketPrefixes` | Your ticket id prefixes, in the order the ticket list ranks them | `["ABC"]` |

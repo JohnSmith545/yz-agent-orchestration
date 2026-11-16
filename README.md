@@ -10,7 +10,7 @@ the repo, with one opt-in exception you turn on yourself: **Send**, which pushes
 branch and opens a pull request when you click it (see Send to the base branch). Agents can also narrate their work as **flows** (steps, checks,
 questions for you, and proof), which the page draws and lets you answer.
 
-It was built for one person running a coordinating session ("Master") and
+It was built for one person running a coordinating session ("Coordinator") and
 several coding agents in git worktrees.
 
 ## What you need
@@ -146,7 +146,8 @@ refresh themselves; the Refresh button in the page header rebuilds at once.
 | `repo` | Absolute path of the git repo the sessions work in (required) |
 | `port` | Port on 127.0.0.1 (default 4317, or `PORT`) |
 | `sessionCwdMatch` | A session counts when its working folder contains this (default: the repo folder name) |
-| `coordinator` | The session that merges everyone's work (default "Master") |
+| `coordinator` | The SESSION NAME of the session that hands out work and merges it (default "Coordinator"; any name works, so an older config that says "Master" keeps working) |
+| `coordinatorLabel` | What the pages call that session. Left out: the label `codingAgents` or `aliases` gives it, else "Coordinator" |
 | `codingAgents` | Session name -> label, for sessions that write code |
 | `aliases` | Session name -> label, for any other session |
 | `stopHour` | Local hour to stop at, or null |
@@ -506,11 +507,11 @@ The page for a ticket collection (`factory.collections` in config.json, below). 
 collection's name (a picker shows when there are several); the chip says when Switchboard was last read, with
 the range, the count and any failure behind its `?`, and Refresh reads it now.
 
-- **Orchestration · N:** agents across (Master, Agent 1, 2, 3), levels down (Local, Dev, Stage, Prod), and in
+- **Orchestration · N:** agents across (Coordinator, Agent 1, 2, 3), levels down (Local, Dev, Stage, Prod), and in
   each cell the tickets that agent built which got that far and no further. Prod is origin/main (squash bodies
   included), Stage and Dev are their origin branches, Local is committed work on followup or any worktree
   (detached included) that dev does not have. The builder is the agent on the worktree, else the plan's wave
-  column (A1, A2, A3), else Master. A ticket a **subagent** built (it is in the branch name, a commit subject or the
+  column (A1, A2, A3), else Coordinator. A ticket a **subagent** built (it is in the branch name, a commit subject or the
   task name of a builder from the last 7 days, the newest one winning) is credited to that subagent, not to the
   session that started it: its chip carries the subagent's short name after the number, it sits in that
   session's column, and its hover says `Built by <the subagent's task name> · subagent of <session>` with a link to
@@ -818,7 +819,6 @@ overrides it).
 Still fixed in code, and next on the list to move into `config.json`:
 
 - The only ticket converter is for Switchboard (`sources/switchboard.mjs`); any other tracker is an `agent` collection until it has one.
-- The page names the coordinator "Master" (public/app.js).
 
 ## Where the data comes from
 
@@ -839,7 +839,7 @@ written inside the repo or any worktree.
 ## Agents (#/agents): the tree and states
 
 The Agents page draws the agents as a tree of cards (Home shows the same cards
-in a compact grid, in the same order): Master's card at the root,
+in a compact grid, in the same order): Coordinator's card at the root,
 a trunk running down from it, and each coding agent's card on its own rounded
 branch. An agent's subagents branch off its card the same way. A branch turns
 green while its agent works and accent blue while it tests. Sessions outside
@@ -856,7 +856,7 @@ same report the grid's column head opens). A state is a dot and one word
 
 - **Drag** an agent's card to reorder the branches (or the other sessions).
   The card lifts and tilts as it follows the pointer and the others spring
-  aside. The order is saved in this browser (localStorage). Master stays at
+  aside. The order is saved in this browser (localStorage). Coordinator stays at
   the root.
 - **Click** a card to watch that agent live, or a subagent row to watch the
   subagent. A press only becomes a drag after 4 px of movement.
@@ -968,7 +968,7 @@ the file held before.
 - **no**: nothing there names the ticket.
 
 "Agent" on a ticket is the coding agent (Agent 1, 2 or 3) that most recently
-touched its worktree, or Master if only Master did. It is inferred from
+touched its worktree, or Coordinator if only Coordinator did. It is inferred from
 transcripts, so treat it as a strong hint, not a record.
 
 ## Refresh the tickets

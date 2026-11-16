@@ -65,7 +65,7 @@ const document = { ...el(), body: el(), createElement: el }
 const window = {}
 vm.runInNewContext(fs.readFileSync(path.join(HERE, '..', 'public', 'orchestration.js'), 'utf8'), { window, document })
 const G = window.OrchestrationGrid
-const ticket = (over = {}) => ({ id: 'ABC-9001', title: 'Dark mode', state: 'Started', agents: ['Master'], mark: null, moreLocal: false, outside: false, subagent: null, ...over })
+const ticket = (over = {}) => ({ id: 'ABC-9001', title: 'Dark mode', state: 'Started', agents: ['Coordinator'], mark: null, moreLocal: false, outside: false, subagent: null, ...over })
 const text = h => h.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
 
 test('a chip of a ticket a subagent built shows the subagent short label beside the number', () => {
@@ -82,9 +82,9 @@ test('a chip of any other ticket is the number alone, as before', () => {
 })
 
 test('the hover says Built by the subagent, by its full task name, with a link to watch it, and whose subagent it is', () => {
-  const h = G.builtBy(ticket({ subagent: { ...SUBAGENT, parent: 'Master' } }))
+  const h = G.builtBy(ticket({ subagent: { ...SUBAGENT, parent: 'Coordinator' } }))
   assert.match(h, /<a class="link" href="#\/agent\/sess-live\/b1">Build ABC-9001 dark mode toggle<\/a>/)
-  assert.equal(text(h), 'Build ABC-9001 dark mode toggle · subagent of Master')
+  assert.equal(text(h), 'Build ABC-9001 dark mode toggle · subagent of Coordinator')
   assert.equal(text(G.builtBy(ticket({ subagent: SUBAGENT }))), 'Build ABC-9001 dark mode toggle · subagent of an ended session')
 })
 

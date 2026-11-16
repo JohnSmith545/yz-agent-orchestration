@@ -1,4 +1,4 @@
-// The orchestration grid on the Factory page: one column per agent (Master,
+// The orchestration grid on the Factory page: one column per agent (Coordinator,
 // Agent 1, 2, 3), one row per level (Local, Dev, Stage, Prod), and in each cell
 // the tickets that agent built which have reached that level and no further.
 //
@@ -14,7 +14,7 @@
 //
 // Who built it, in order: the agent on the worktree that holds it (from the
 // status build), the agent the plan's wave column names (A1, A2, A3), else
-// Master when it has reached any level (Master merges and ships everything).
+// Coordinator when it has reached any level (Coordinator merges and ships everything).
 // A ticket a SUBAGENT built (subagents.mjs ticketBuilders) is credited
 // to that subagent: the ticket carries `subagent`, the chip shows its short label,
 // and it sits in the column of the session that started the subagent.
@@ -37,10 +37,11 @@ import { idsInBranch, idsInText } from './transcripts.mjs'
 const LEVELS = ['local', 'dev', 'stage', 'prod']
 const CACHE_MS = 45_000
 
-/** The grid columns: the coding agents in config order, Master first. */
+/** The grid columns: the coding agents in config order, the coordinator (config coordinatorLabel) first. */
 function columns() {
-  const labels = [...new Set(Object.values(CONFIG.codingAgents))] // two session names can share a label
-  const coord = CONFIG.codingAgents[CONFIG.coordinator] || CONFIG.coordinator
+  const coord = CONFIG.coordinatorLabel
+  // two session names can share a label; the coordinator goes by its configured label
+  const labels = [...new Set(Object.entries(CONFIG.codingAgents).map(([name, label]) => (name === CONFIG.coordinator ? coord : label)))]
   return [coord, ...labels.filter(l => l !== coord)]
 }
 

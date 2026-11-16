@@ -26,7 +26,7 @@ const agent = (extra = {}) => ({
   recentWorktrees: ['wt-a'],
   recentTickets: ['ABC-1', 'ABC-2', 'ABC-3', 'ABC-4', 'ABC-5', 'ABC-6'],
   subagents: [{ id: 'sub-1', description: 'Review Task 1', state: 'active', updatedAt: new Date().toISOString() }],
-  talkingWith: { with: 'Master', direction: 'to', t: new Date().toISOString(), via: 'message' },
+  talkingWith: { with: 'Coordinator', direction: 'to', t: new Date().toISOString(), via: 'message' },
   ...extra,
 })
 const worktrees = [{ name: 'wt-a', branch: 'feat/a', dirty: 2 }]
@@ -118,4 +118,36 @@ test('a pulse draws the Independent card into each slot, and a click on it opens
   assert.match(slot.innerHTML, /data-term="working"/)
   slot.on.click({ target: { closest: sel => (sel === '[data-chat]' ? {} : null) } })
   assert.equal(opened.length, 1)
+})
+
+// ═══ the coordinator is whoever the config says, under the label it gives ═══
+
+test('the root of the tree is the session the server marks as the coordinator, whatever it is named', () => {
+  const { groups } = ctx.window.AgentCards
+  const agents = [
+    { name: 'Master', label: 'Lead', coding: true, coordinator: true, updatedAt: '2026-11-12T10:00:00Z' },
+    { name: 'Coordinator', label: 'Agent 1', coding: true, coordinator: false, updatedAt: '2026-11-12T10:00:00Z' },
+    { name: 'other', label: 'Other', coding: false, coordinator: false, updatedAt: '2026-11-12T10:00:00Z' },
+  ]
+  const g = groups(agents)
+  assert.equal(g.coordinator.name, 'Master')
+  assert.equal(Array.from(g.workers, a => a.name).join(), 'Coordinator', 'a session merely NAMED Coordinator is an ordinary agent')
+  assert.equal(groups(agents.map(a => ({ ...a, coordinator: false }))).coordinator, null)
+})
+
+test('a coordinator that is not running shows under its configured label, Coordinator when none is known, escaped', () => {
+  const { missingRoot } = ctx.window.AgentCards
+  assert.match(missingRoot('Lead'), /<span class="ac-name">Lead<\/span><span class="ac-role">not running<\/span>/)
+  assert.match(missingRoot(undefined), /<span class="ac-name">Coordinator<\/span>/)
+  assert.ok(!missingRoot('<b>x</b>').includes('<b>'))
+})
+
+test('no page decides who coordinates by a hard-coded session name', () => {
+  for (const f of ['agent-cards.js', 'agent.js', 'app.js', 'flow.js', 'orchestration.js']) {
+    const src = fs.readFileSync(path.join(HERE, '..', 'public', f), 'utf8')
+    assert.doesNotMatch(src, /name\s*[!=]==\s*'(Master|Coordinator)'/, f)
+  }
+  const server = fs.readFileSync(path.join(HERE, '..', 'server.mjs'), 'utf8')
+  assert.doesNotMatch(server, /name\s*[!=]==\s*'(Master|Coordinator)'/)
+  assert.match(server, /coordinator: s\.name === CONFIG\.coordinator/)
 })

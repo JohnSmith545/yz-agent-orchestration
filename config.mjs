@@ -145,6 +145,34 @@ export function levelSettings(raw, warn = console.warn) {
   return out
 }
 
+/** The coordinating session: its default session name, and what the pages call it when the config gives no label. */
+export const DEFAULT_COORDINATOR = 'Coordinator'
+const LABEL_MAX = 40 // a label fits a card head and a grid column
+
+/**
+ * The coordinator from the config value `raw`: `coordinator` is the SESSION NAME of the session that
+ * hands out work and merges it (any name: an older config that says "Coordinator" keeps working), and
+ * `coordinatorLabel` is what the pages call it. The label, in order: `coordinatorLabel` when given,
+ * the label the config already gives that session (`codingAgents`, then `aliases`), else
+ * "Coordinator". A bad value falls back with a warning (`warn`), never a failed startup.
+ */
+export function coordinatorSettings(raw, warn = console.warn) {
+  const r = raw && typeof raw === 'object' ? raw : {}
+  let coordinator = DEFAULT_COORDINATOR
+  if (r.coordinator !== undefined) {
+    if (typeof r.coordinator === 'string' && r.coordinator.trim()) coordinator = r.coordinator.trim()
+    else warn(`config.json: "coordinator" needs the name of a session; ${DEFAULT_COORDINATOR} is used.`)
+  }
+  const mapped = [r.codingAgents?.[coordinator], r.aliases?.[coordinator]].find(l => typeof l === 'string' && l.trim())
+  let coordinatorLabel = mapped ? mapped.trim() : DEFAULT_COORDINATOR
+  if (r.coordinatorLabel !== undefined) {
+    const given = typeof r.coordinatorLabel === 'string' ? r.coordinatorLabel.trim() : ''
+    if (given && given.length <= LABEL_MAX) coordinatorLabel = given
+    else warn(`config.json: "coordinatorLabel" needs a name of 1 to ${LABEL_MAX} characters; ${coordinatorLabel} is used.`)
+  }
+  return { coordinator, coordinatorLabel }
+}
+
 const DEFAULTS = {
   /** Absolute path of the git repo the sessions work in. Required. */
   repo: '',
@@ -158,10 +186,12 @@ const DEFAULTS = {
   port: 4317,
   /** A session counts when its working directory contains this text. Defaults to the repo's folder name. */
   sessionCwdMatch: '',
-  /** The coordinating session that merges everyone's work. */
-  coordinator: 'Master',
+  /** The coordinating session that merges everyone's work: its session name. */
+  coordinator: DEFAULT_COORDINATOR,
+  /** What the pages call that session; left out, the label it already has below, else "Coordinator" (coordinatorSettings). */
+  coordinatorLabel: undefined,
   /** Session name -> the name shown on the page, for the sessions that write code. */
-  codingAgents: { Master: 'Master' },
+  codingAgents: { [DEFAULT_COORDINATOR]: DEFAULT_COORDINATOR },
   /** Session name -> a nicer label, for any other session. */
   aliases: {},
   /** Local hour (0-23) at which the server stops itself, or null to keep running. */
@@ -221,6 +251,9 @@ function load() {
   const config = { ...DEFAULTS, ...raw }
   config.factory = { ...DEFAULTS.factory, ...(raw.factory || {}) }
   config.factory.chat = { ...DEFAULTS.factory.chat, ...(raw.factory?.chat || {}) }
+  Object.assign(config, coordinatorSettings(raw))
+  // A config with no session map still has its coordinator as a session that writes code.
+  if (raw.codingAgents === undefined) config.codingAgents = { [config.coordinator]: config.coordinatorLabel }
   config.reminders = reminderList(raw.reminders)
   config.ticketPrefixes = ticketPrefixList(raw.ticketPrefixes)
   config.pr = prSettings(raw.pr)

@@ -103,7 +103,7 @@
       '<p>The activity reads the transcript every few seconds; the changes are the uncommitted diff of the worktree picked above them.</p>',
     ].join(''))
     const options = [...new Set([...(d.worktrees || []), 'main'])]
-    if (!view.picked) view.worktree = a.name === 'Master' && !d.sub ? 'main' : options[0]
+    if (!view.picked) view.worktree = a.coordinator && !d.sub ? 'main' : options[0]
     document.getElementById('wtpick').innerHTML = options
       .map(w => `<button class="link" data-wt="${esc(w)}" aria-pressed="${w === view.worktree}">${w === 'main' ? 'main checkout' : esc(w)}</button>`)
       .join('')

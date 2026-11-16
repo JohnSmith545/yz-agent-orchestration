@@ -63,7 +63,8 @@ const CURFEW_HOUR = CONFIG.stopHour
 const CODING_AGENTS = CONFIG.codingAgents
 /** Names the user gave sessions whose registry name says otherwise. */
 const ALIASES = CONFIG.aliases
-const labelOf = name => CODING_AGENTS[name] ?? ALIASES[name] ?? name
+/** The label a session shows under: the coordinator by its configured label (config coordinatorLabel), any other by the session maps. */
+const labelOf = name => (name === CONFIG.coordinator ? CONFIG.coordinatorLabel : CODING_AGENTS[name] ?? ALIASES[name] ?? name)
 /** The branches the levels compare (config levels): the coordinator's working branch, remote dev and stage. */
 const LEVELS = CONFIG.levels
 
@@ -267,6 +268,7 @@ async function describeAgent(s, knownTrees) {
     name: s.name,
     label: labelOf(s.name),
     coding: s.name in CODING_AGENTS,
+    coordinator: s.name === CONFIG.coordinator,
     status: s.status,
     state,
     lastTool,
@@ -351,8 +353,8 @@ function processAlive(pid) {
 }
 
 /**
- * Which agent is on a worktree: the coding agent (not Master, who merges
- * everything) that touched it most recently; Master if only Master did.
+ * Which agent is on a worktree: the coding agent (not the coordinator, who merges
+ * everything) that touched it most recently; the coordinator if only it did.
  * Positions are per transcript, so "most recent" compares how close to the end
  * of each transcript the last touch was.
  */
@@ -362,7 +364,7 @@ function ownerOf(worktreeName, agents) {
     const p = a._worktreePos[worktreeName]
     if (p == null) continue
     const recency = a._lines - p
-    const rank = a.coding && a.name !== 'Master' ? 0 : a.name === 'Master' ? 1 : 2
+    const rank = a.coding && !a.coordinator ? 0 : a.coordinator ? 1 : 2
     if (!best || rank < best.rank || (rank === best.rank && recency < best.recency)) best = { label: a.label, rank, recency }
   }
   return best?.label ?? ''
@@ -432,7 +434,7 @@ async function buildStatus() {
     6,
     w => describeWorktree(w, idx)
   )
-  for (const t of trees) t.agent = t.isAgentTree ? ownerOf(t.name, agents) : t.branch === LEVELS.work ? 'Master' : ''
+  for (const t of trees) t.agent = t.isAgentTree ? ownerOf(t.name, agents) : t.branch === LEVELS.work ? CONFIG.coordinatorLabel : ''
 
   // Tickets in flight: every id on an agent worktree, plus every id followup
   // holds that dev does not have yet.
@@ -496,6 +498,8 @@ async function buildStatus() {
     buildMs: Date.now() - started,
     repo: REPO,
     repoOk: existsSync(REPO),
+    // who coordinates: its session name and the label every page shows (config coordinator, coordinatorLabel)
+    coordinator: { name: CONFIG.coordinator, label: CONFIG.coordinatorLabel },
     fetch: fetchState,
     ticketSnapshotAt: sources.fetchedAt,
     followup: { vsDev: followupVsDev, unpushedTickets: [...followupOnly.index.keys()].sort() },

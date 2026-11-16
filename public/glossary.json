@@ -179,7 +179,7 @@
   "subagent": {
     "short": "A helper session an agent starts for one task, such as a review. It reports back to the agent that started it and then stops."
   },
-  "master": {
+  "coordinator": {
     "short": "The coordinating session that hands out work and merges everyone's branches into dev."
   },
   "pr": {

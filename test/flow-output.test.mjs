@@ -153,7 +153,7 @@ test('Story: one line per story line, the name chip once per run of lines by the
 test('Story: the same name always gets the same colour, and different names spread over the tints', () => {
   const S = window.FlowStory
   assert.equal(S.tint('Agent 3'), S.tint('Agent 3'))
-  assert.ok(new Set(['Agent 1', 'Agent 2', 'Agent 3', 'Master', 'Independent'].map(S.tint)).size >= 3)
+  assert.ok(new Set(['Agent 1', 'Agent 2', 'Agent 3', 'Coordinator', 'Independent'].map(S.tint)).size >= 3)
   assert.equal(S.tint('You'), 'st-you')
 })
 

@@ -1,4 +1,4 @@
-// The orchestration grid on the Tickets page: agents across (Master, Agent 1,
+// The orchestration grid on the Tickets page: agents across (Coordinator, Agent 1,
 // 2, 3), levels down (Local, Dev, Stage, Prod), tickets in the cells. Hover a
 // ticket for its details and the flows that name it (a flow title opens that
 // flow); click it to open its row in the table below. A ticket a subagent built

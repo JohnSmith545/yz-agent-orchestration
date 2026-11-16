@@ -30,7 +30,7 @@
   }
 
   const POLL_MS = 15_000
-  const COLUMNS = ['Master', 'Agent 1', 'Agent 2', 'Agent 3', 'Independent'] // when the grid has not loaded yet
+  const COLUMNS = ['Coordinator', 'Agent 1', 'Agent 2', 'Agent 3', 'Independent'] // when the grid has not loaded yet
   const FLOW_STATUS = ['open', 'blocked', 'done', 'dropped'] // MUST CHANGE IN LOCKSTEP with flows.mjs FLOW_STATUS
   const PAD = 16 // the chart scroller's padding, unscaled by the zoom
   // The opened flow's ONE ?: each Output block, the views and the proof marks (flow-head.js; spec 6: legends are never a row on the page).

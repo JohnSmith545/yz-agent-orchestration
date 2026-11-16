@@ -25,7 +25,7 @@ const window = {}
 vm.runInNewContext(read('settings-page.js'), { window, fetch: fetchStub })
 const P = window.SettingsPage
 
-const SETUP = { repo: 'C:/path/to/your-repo', configPath: 'C:/path/to/yz-agent-orchestration/config.json', coordinator: 'Master', codingAgents: ['Master', 'Agent 1'],
+const SETUP = { repo: 'C:/path/to/your-repo', configPath: 'C:/path/to/yz-agent-orchestration/config.json', coordinator: 'Coordinator', codingAgents: ['Coordinator', 'Agent 1'],
   chat: { name: 'Independent', model: 'claude-opus-5-5', mode: 'brief' }, ticketPrefixes: ['ABC'], reminders: [{ at: '17:55', days: 'weekdays', text: 'Wrap up.' }] }
 const PR = { enabled: false, wanted: false, bases: ['dev'], remote: 'origin', hasPin: false }
 const view = (over = {}) => ({ setup: SETUP, pr: { ...PR, ...(over.pr || {}) }, status: { send: '', pin: '', ...(over.status || {}) }, pinMode: over.pinMode || null })
@@ -67,7 +67,7 @@ test('a PIN set: Change PIN with the current one and the new one twice, and Forg
 test('Your setup is read-only, says where to change it, and shows no secret', () => {
   const h = P.html(view({ pr: { hasPin: true } }))
   const setupBlock = h.slice(h.indexOf('Your setup'))
-  for (const s of ['C:/path/to/your-repo', 'C:/path/to/yz-agent-orchestration/config.json', 'Master', 'Agent 1', 'Independent', 'claude-opus-5-5', 'ABC', '17:55']) assert.ok(setupBlock.includes(s), s)
+  for (const s of ['C:/path/to/your-repo', 'C:/path/to/yz-agent-orchestration/config.json', 'Coordinator', 'Agent 1', 'Independent', 'claude-opus-5-5', 'ABC', '17:55']) assert.ok(setupBlock.includes(s), s)
   assert.match(text(h), /Change these in config\.json, then restart the dashboard\./)
   assert.doesNotMatch(setupBlock, /<input|<button/)
   assert.doesNotMatch(h, /scrypt|pinHash/)

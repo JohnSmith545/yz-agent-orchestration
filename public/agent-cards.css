@@ -1,5 +1,5 @@
 /* Agent cards as a tree (agent-cards.js), drawn on CardStack (card-stack.css).
-   Master's card is the root; a trunk runs down from it and each agent's card
+   Coordinator's card is the root; a trunk runs down from it and each agent's card
    hangs off it on a rounded branch. A branch is coloured while its agent
    works. Uses the tokens from styles.css. */
 
@@ -154,7 +154,7 @@
   display: none;
 }
 
-/* ─── branches: Master -> agents ───────────────────────────────────────────── */
+/* ─── branches: Coordinator -> agents ───────────────────────────────────────────── */
 
 .ac-branches {
   padding-left: var(--indent);
