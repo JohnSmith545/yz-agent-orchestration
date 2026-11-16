@@ -81,6 +81,8 @@ The rail on the left holds the pages. Hover it (or press Tab) to see the labels;
   answers delivered, tickets that reached a new level or changed in the tracker, and commits per agent.
 - **Waiting on you** (only while an agent has asked something): answer it right there.
 - **Agents**: one compact card per agent with its state, last action and tickets. Click a card to watch it live.
+- **Subagents** (only when a subagent ran today): the subagents still running and the latest finished, each a link
+  to its live view; **All subagents** opens the page.
 - **Messages**: who is talking to whom: your prompts, messages between sessions, and subagents being started.
 
 ### Flows
@@ -172,6 +174,18 @@ The agents as a tree of cards: the coordinator at the root, each coding agent on
 their parent. Drag cards to reorder them. Click one for its **live view**: its activity as it happens, each
 edit as a diff, the uncommitted changes in its worktree, and **Draft report**, a Markdown summary of a time
 window built from the transcript and git (no model writes it).
+
+### Subagents
+
+Every subagent a session started to do one task, from sessions that still run and ones that have
+ended, for today or up to the last 7 days. **Builders** worked in a worktree or made a commit; **Lookups**
+only read or searched. Each card shows the task, its state (**Working**, **Stuck** after 15 quiet minutes,
+**Done**, **Stopped** when it ended without a final report and may need resuming, or **Failed** when its
+last reply was an error), its worktree, branch, tickets and pull
+requests with their state from GitHub. **Report** unfolds a finished subagent's final report with **Copy**,
+**Flow** opens the flow that tells its work, and a quiet **no story** marks a builder that recorded none.
+Click a card to watch that subagent in the live view. Home shows the subagents still running and the latest
+finished in a small strip, and the Tickets grid names the subagent that built a ticket on its chip.
 
 ### Settings
 

@@ -245,6 +245,11 @@
     const scroller = $('.fl-scroll', board)
     if (!f || !scroller) return
     const lay = window.FlowChart.layout(f)
+    if (!lay.nodes.length) {
+      // nothing to chart: say so, and where the flow's content is
+      scroller.innerHTML = window.FlowChart.empty()
+      return
+    }
     const before = z
     const avail = scroller.clientWidth - 2 * PAD
     z = window.FlowZoom.clamp(zoom === 'fit' ? Math.min(1, avail / Math.max(1, lay.width)) : Number(zoom) || 1)

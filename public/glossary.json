@@ -19,6 +19,10 @@
   "agents": {
     "short": "The page that lists every Claude Code session the dashboard found, with its subagents underneath."
   },
+  "subagents": {
+    "short": "The page that lists every subagent a session started to do one task: what it is working on, how it went, and its final report.",
+    "more": "A builder worked in a worktree or made a commit; a lookup only read or searched. A subagent is stuck when it has not finished and has written nothing for 15 minutes, and stopped when it ended without a final report."
+  },
   "agent": {
     "short": "A Claude Code session working in the repo. The coding agents usually work in their own worktree.",
     "more": "One agent page shows its live transcript: each tool it ran, what it read and wrote, and its messages."

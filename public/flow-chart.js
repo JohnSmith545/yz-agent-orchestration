@@ -270,5 +270,8 @@
   }
 
   // textW and fit measure text for diagram.js too, so the Output's charts fit their labels the same way.
-  if (typeof window !== 'undefined') window.FlowChart = { layout, svg, pendingReasons, pendingReason, textW, fit, NODE_W, NODE_H, GAP_X, GAP_Y }
+  /** What the Process tab shows for a flow with no steps: the app's one-line empty state, pointing at where its content is. */
+  const empty = () => '<p class="empty">No steps recorded. The story and test steps are under Output.</p>'
+
+  if (typeof window !== 'undefined') window.FlowChart = { layout, svg, empty, pendingReasons, pendingReason, textW, fit, NODE_W, NODE_H, GAP_X, GAP_Y }
 })()

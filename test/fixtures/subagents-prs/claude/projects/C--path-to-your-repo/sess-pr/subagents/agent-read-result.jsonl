@@ -1,0 +1,3 @@
+{"type":"user","isSidechain":true,"timestamp":"2026-11-12T09:27:00.000Z","cwd":"C:/path/to/your-repo","message":{"role":"user","content":"Do the task."}}
+{"type":"assistant","timestamp":"2026-11-12T09:00:00.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"t1","name":"Read","input":{"file_path":"C:/path/to/your-repo/test/sample.test.mjs"}}]}}
+{"type":"user","timestamp":"2026-11-12T09:01:00.000Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"1  const link = \"https://github.com/acme/your-repo/pull/12\""}]}}

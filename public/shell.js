@@ -3,7 +3,7 @@
 // window.X object; the shell shows exactly one section and calls that page's
 // open/close, the way app.js route() did before.
 //
-// Routes: #/ Home, #/flows, #/tickets, #/timeline, #/agents, #/glossary,
+// Routes: #/ Home, #/flows, #/tickets, #/timeline, #/agents, #/subagents, #/glossary,
 // #/agent/<id>[/<sub>]. Old links redirect (#/factory → #/tickets,
 // #/flow → #/timeline) and anything unknown goes Home.
 //
@@ -11,7 +11,7 @@
 // early when there is no document, so test/shell.test.mjs can load this file
 // in a vm with a bare window.
 ;(() => {
-  const VIEWS = ['home', 'flows', 'tickets', 'timeline', 'agents', 'glossary', 'settings', 'agent']
+  const VIEWS = ['home', 'flows', 'tickets', 'timeline', 'agents', 'subagents', 'glossary', 'settings', 'agent']
   const OLD = { factory: 'tickets', flow: 'timeline' }
   const route = (view, params = {}, redirect = null) => ({ view, params, redirect })
   const decode = s => {
@@ -86,8 +86,12 @@
   const listeners = []
   // go, setStatus, setTitle, setWaiting, the drawer, collapseRail and onRoute are
   // function declarations further down (hoisted), so the object can name them here.
+  /** Pure: the rail entry a route lights. The live view lights Subagents for a subagent and Agents for a session. */
+  const railFor = r => (r.view === 'agent' ? (r.params?.sub ? 'subagents' : 'agents') : r.view)
+
   window.Shell = {
     resolve,
+    railFor,
     whenReady,
     ago,
     chatState,
@@ -117,12 +121,10 @@
   const $ = id => doc.getElementById(id)
   const PIN_KEY = 'shell.railPinned'
   const HOVER_MS = 300
-  const TITLE = { home: 'Home', flows: 'Flows', tickets: 'Tickets', timeline: 'Timeline', agents: 'Agents', glossary: 'Glossary', settings: 'Settings', agent: 'Agent' }
+  const TITLE = { home: 'Home', flows: 'Flows', tickets: 'Tickets', timeline: 'Timeline', agents: 'Agents', subagents: 'Subagents', glossary: 'Glossary', settings: 'Settings', agent: 'Agent' }
   // Which section each view shows, and which page object it opens and closes.
-  const SECTION = { home: 'home', flows: 'flowsView', tickets: 'factoryView', timeline: 'flowView', agents: 'agentsView', glossary: 'glossaryView', settings: 'settingsView', agent: 'agentView' }
-  const PAGE = { flows: 'FlowsPage', tickets: 'FactoryView', timeline: 'FlowView', agents: 'AgentsPage', glossary: 'GlossaryPage', settings: 'SettingsPage', agent: 'AgentView' }
-  // The rail item lit for each view; one agent belongs under Agents.
-  const RAIL = { agent: 'agents' }
+  const SECTION = { home: 'home', flows: 'flowsView', tickets: 'factoryView', timeline: 'flowView', agents: 'agentsView', subagents: 'subagentsView', glossary: 'glossaryView', settings: 'settingsView', agent: 'agentView' }
+  const PAGE = { flows: 'FlowsPage', tickets: 'FactoryView', timeline: 'FlowView', agents: 'AgentsPage', subagents: 'SubagentsPage', glossary: 'GlossaryPage', settings: 'SettingsPage', agent: 'AgentView' }
 
   // ─── icons: 24-unit boxes drawn at 20 px, 1.75 stroke (shell.css) ───
   const svg = d => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`
@@ -132,6 +134,8 @@
     tickets: svg('<path d="M3 7h18v3a2 2 0 0 0 0 4v3H3v-3a2 2 0 0 0 0-4Z"/><path d="M14.5 8v1.5M14.5 11.25v1.5M14.5 14.5V16"/>'),
     timeline: svg('<path d="M3 12h4l3-7 4 14 3-7h4"/>'),
     agents: svg('<circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8"/><path d="M18 14.8c1.8.6 3 2.5 3 5.2"/>'),
+    // a subagent: one small figure with a spark beside it (work handed to it)
+    subagents: svg('<circle cx="10" cy="8" r="3.5"/><path d="M4 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M18.5 3v4M16.5 5h4"/><path d="M19.5 10.5v2M18.5 11.5h2"/>'),
     glossary: svg('<path d="M5 5a2 2 0 0 1 2-2h12v14H7a2 2 0 0 0-2 2Z"/><path d="M5 19a2 2 0 0 0 2 2h12v-4"/><path d="M9 7.5h6M9 11h4"/>'),
     // a gear: a ring with eight short teeth around a small hub
     settings: svg('<circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2.2"/><path d="M12 3.5v2.5M12 18v2.5M3.5 12H6M18 12h2.5M6 6l1.8 1.8M16.2 16.2 18 18M6 18l1.8-1.8M16.2 7.8 18 6"/>'),
@@ -155,7 +159,7 @@
       <button type="button" class="rail-pin" id="railPin" aria-pressed="false" title="Keep the rail open">${ICON.pin}</button>
     </div>
     <nav class="rail-nav" aria-label="Pages">
-      ${link('flows', '#/flows', 'Flows')}${link('tickets', '#/tickets', 'Tickets')}${link('timeline', '#/timeline', 'Timeline')}${link('agents', '#/agents', 'Agents')}${link('glossary', '#/glossary', 'Glossary')}
+      ${link('flows', '#/flows', 'Flows')}${link('tickets', '#/tickets', 'Tickets')}${link('timeline', '#/timeline', 'Timeline')}${link('agents', '#/agents', 'Agents')}${link('subagents', '#/subagents', 'Subagents')}${link('glossary', '#/glossary', 'Glossary')}
     </nav>
     <div class="rail-bottom">
       <button type="button" class="rail-item" id="railAsk" aria-controls="drawer" aria-expanded="false" title="${ASK_TIP}"><span class="rail-icon">${ICON.ask}</span><span class="rail-label">Ask</span></button>
@@ -340,7 +344,7 @@
     const page = window[PAGE[r.view]]
     if (r.view === 'agent') page?.open?.(r.params.id, r.params.sub)
     else page?.open?.()
-    const lit = RAIL[r.view] || r.view
+    const lit = railFor(r)
     rail.querySelectorAll('a.rail-item').forEach(a => (a.dataset.view === lit ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')))
     for (const fn of listeners) fn(r)
   }

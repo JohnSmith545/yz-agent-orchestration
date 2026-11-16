@@ -1,0 +1,2 @@
+{"type":"user","isSidechain":true,"timestamp":"2026-11-12T09:11:30.000Z","cwd":"C:\\path\\to\\your-repo","message":{"role":"user","content":"Seed a fresh test order."}}
+{"type":"assistant","timestamp":"2026-11-12T09:12:00.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"node scripts/seed.mjs"}}]}}

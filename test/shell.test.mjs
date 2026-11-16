@@ -29,7 +29,7 @@ test('no hash at all, or a bare #, is Home without a redirect', () => {
 })
 
 test('each page route resolves to its own view without a redirect', () => {
-  for (const view of ['flows', 'tickets', 'timeline', 'agents', 'glossary']) {
+  for (const view of ['flows', 'tickets', 'timeline', 'agents', 'subagents', 'glossary']) {
     assert.deepEqual(r(`#/${view}`), { view, params: {}, redirect: null })
   }
 })
@@ -85,4 +85,15 @@ test('the rail labels are plain text: a click there follows the link, so no iner
   // The page title (a dfn) explains the page; explain.js never opens a rail term.
   const src = fs.readFileSync(path.join(HERE, '..', 'public', 'shell.js'), 'utf8')
   assert.doesNotMatch(src, /rail-label"><dfn/)
+})
+
+// ═══ which rail entry is lit ═══
+
+test('a subagent in the live view lights Subagents, a session lights Agents, and a page lights itself', () => {
+  const { railFor } = window.Shell
+  assert.equal(railFor(resolve('#/agent/sess-1/sub-1')), 'subagents')
+  assert.equal(railFor(resolve('#/agent/sess-1')), 'agents')
+  assert.equal(railFor(resolve('#/subagents')), 'subagents')
+  assert.equal(railFor(resolve('#/flows')), 'flows')
+  assert.equal(railFor(resolve('#/')), 'home')
 })

@@ -15,6 +15,9 @@
 // Who built it, in order: the agent on the worktree that holds it (from the
 // status build), the agent the plan's wave column names (A1, A2, A3), else
 // Master when it has reached any level (Master merges and ships everything).
+// A ticket a SUBAGENT built (subagents.mjs ticketBuilders) is credited
+// to that subagent: the ticket carries `subagent`, the chip shows its short label,
+// and it sits in the column of the session that started the subagent.
 //
 // A ticket can sit in two columns when the plan splits it (e.g. "A3 web, A2 API").
 //
@@ -62,7 +65,7 @@ export function ticketFlows(flows) {
   return byTicket
 }
 
-export function makeOrchestration({ git, getStatus, listWorktrees }) {
+export function makeOrchestration({ git, getStatus, listWorktrees, subagentBuilds }) {
   let cache = null
 
   /**
@@ -111,14 +114,25 @@ export function makeOrchestration({ git, getStatus, listWorktrees }) {
     return { ok, where, trees }
   }
 
+  /** ticket id -> the subagent that built it (subagents.mjs ticketBuilders); empty when there is no source or it fails. */
+  async function builtBySubagents() {
+    try {
+      const map = await subagentBuilds?.()
+      return map instanceof Map ? map : new Map()
+    } catch {
+      return new Map()
+    }
+  }
+
   async function build(collectionId) {
-    const [factory, status, mainIdx, stageIdx, devIdx, local] = await Promise.all([
+    const [factory, status, mainIdx, stageIdx, devIdx, local, subagents] = await Promise.all([
       buildFactory(collectionId),
       getStatus(false),
       idIndex([CONFIG.levels.prod, '--since=9.months'], true),
       idIndex([CONFIG.levels.stage, '--since=9.months']),
       idIndex([CONFIG.levels.dev, '--since=9.months']),
       localWork(),
+      builtBySubagents(),
     ])
     const [main, stage, dev] = [mainIdx.index, stageIdx.index, devIdx.index]
     const cols = columns()
@@ -154,6 +168,10 @@ export function makeOrchestration({ git, getStatus, listWorktrees }) {
         local: local.where.get(t.id) || null,
       }
       const level = [...LEVELS].reverse().find(l => levels[l]) || null
+      // A subagent's ticket sits under the session that started it (the first column when that session
+      // is not one of the columns, or has ended), whatever the worktree or the plan would say.
+      const subagent = subagents.get(t.id) || null
+      if (subagent) agents = [cols.includes(subagent.parent) ? subagent.parent : cols[0]]
       if (!agents.length && level) agents = [cols[0]]
 
       tickets[t.id] = {
@@ -168,6 +186,7 @@ export function makeOrchestration({ git, getStatus, listWorktrees }) {
         levels,
         moreLocal: Boolean(level && level !== 'local' && levels.local),
         agents,
+        subagent,
         flows: flowsOf.get(t.id) || [],
       }
       for (const a of agents) {

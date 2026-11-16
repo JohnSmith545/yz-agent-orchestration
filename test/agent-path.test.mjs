@@ -44,3 +44,10 @@ test('grid chip: the collection prefix is dropped, any other prefix is kept', ()
   assert.equal(chipLabel('OPS-7', 'OPS'), '7')
   assert.equal(chipLabel('ABC-101', ''), 'ABC-101')
 })
+
+test('the way back from the live view: All subagents for a subagent, All agents for a session', () => {
+  const { backLink } = ctx.window.AgentView
+  assert.deepEqual({ ...backLink('sub-1') }, { href: '#/subagents', text: '← All subagents' })
+  assert.deepEqual({ ...backLink(null) }, { href: '#/agents', text: '← All agents' })
+  assert.deepEqual({ ...backLink('') }, { href: '#/agents', text: '← All agents' })
+})
