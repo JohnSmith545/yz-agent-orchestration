@@ -710,6 +710,50 @@ node tools/factory.mjs show ABC-123
 
 `decide` is the old command, kept so older briefs still work: it becomes a `flow ask` on a new one-ask flow.
 
+### The stop check
+
+`tools/flow-gate.mjs` is a small script for a Claude Code **Stop** or **SubagentStop** hook: an agent that
+made a git commit is not let go until its work is told. The hook hands it its JSON on stdin
+(`transcript_path`, `stop_hook_active`, and `agent_id` for a subagent). When the agent committed in that
+transcript and no flow of its own has both a story (`flow say`) and a visual (`flow result` or
+`flow diagram`), it prints
+
+```
+{"decision":"block","reason":"Record your flow before finishing: flow say, flow diagram or flow result, flow test-step (node <abs path>/tools/factory.mjs flow ... --by \"<its name>\")."}
+```
+
+and Claude Code gives the agent that reason instead of stopping. The name is the one its card goes by, so the
+flow links to it: a subagent's task name, a session's name from the harness's session list, else a name it
+already signed a flow with; with none of those the line ends at `flow ...).` A flow is the agent's own when its agent is
+a name the agent passed as `--by` (or `FACTORY_BY`), for a subagent also its task name, or when the agent ran
+a flow command on it. A dropped flow does not count, nor one last written before the work in the transcript
+began.
+
+It never blocks when `stop_hook_active` is true (the agent was already sent back once, so one reminder is
+all it gets), when nothing was committed, or on any error: bad input, a transcript it cannot read, a missing
+`config.json`. It always exits 0 and prints nothing else, so a broken check never traps an agent. It only
+reads (the tail of the transcript, a subagent's meta file and `data/flows`), runs no model and costs nothing.
+
+**This repo does not install it.** To turn it on, add it yourself to the settings file of the repo your
+agents work in (`.claude/settings.json` there, or your user settings), with the absolute path of this
+dashboard:
+
+```json
+{
+  "hooks": {
+    "Stop": [
+      { "hooks": [{ "type": "command", "command": "node C:/path/to/yz-agent-orchestration/tools/flow-gate.mjs" }] }
+    ],
+    "SubagentStop": [
+      { "hooks": [{ "type": "command", "command": "node C:/path/to/yz-agent-orchestration/tools/flow-gate.mjs" }] }
+    ]
+  }
+}
+```
+
+Use only `SubagentStop` to hold subagents to it and leave your own sessions alone. To try it without a hook:
+`echo '{"transcript_path":"<a session .jsonl>","stop_hook_active":false}' | node tools/flow-gate.mjs`.
+
 ### Collections by kind
 
 A collection is any list of tickets, from any tracker or none. Every collection ends up as
