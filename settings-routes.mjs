@@ -38,6 +38,7 @@ function setup(configFile) {
     repo: CONFIG.repo,
     configPath: configFile,
     coordinator: CONFIG.coordinator,
+    coordinatorLabel: CONFIG.coordinatorLabel,
     codingAgents: [...new Set(Object.values(CONFIG.codingAgents || {}))],
     chat: { name: chat.name || '', model: chat.model || '', mode: chat.mode || 'brief' },
     ticketPrefixes: CONFIG.ticketPrefixes ?? null,

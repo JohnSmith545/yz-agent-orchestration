@@ -274,3 +274,10 @@ test('an answered ask shows its own env beside a short answer', () => {
   const g = groupOf(FC.svg(flow, FC.layout(flow)), 'n3')
   assert.match(g, /<text class="fc-env"[^>]*>stage<\/text>/)
 })
+
+test('a flow with no steps says so in one line that points to Output, and the Process tab draws it instead of a blank chart', () => {
+  assert.equal(FC.empty(), '<p class="empty">No steps recorded. The story and test steps are under Output.</p>')
+  const flows = fs.readFileSync(path.join(HERE, '..', 'public', 'flows.js'), 'utf8')
+  assert.ok(flows.includes('if (!lay.nodes.length) {'), 'the chart is not drawn for a flow with no steps')
+  assert.ok(flows.includes('scroller.innerHTML = window.FlowChart.empty()'))
+})

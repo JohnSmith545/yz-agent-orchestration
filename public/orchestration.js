@@ -1,7 +1,8 @@
-// The orchestration grid on the Tickets page: agents across (Master, Agent 1,
+// The orchestration grid on the Tickets page: agents across (Coordinator, Agent 1,
 // 2, 3), levels down (Local, Dev, Stage, Prod), tickets in the cells. Hover a
 // ticket for its details and the flows that name it (a flow title opens that
-// flow); click it to open its row in the table below. Each
+// flow); click it to open its row in the table below. A ticket a subagent built
+// shows that subagent's short label on its chip, and its hover names the subagent. Each
 // column head says whether that agent is working now, and opens its progress
 // report (built from its transcript by /api/report).
 (() => {
@@ -20,6 +21,7 @@
   // legend live behind the ? popover (help.js).
   const HELP = '<p>The number counts the tickets that have code. Columns are the agents that built them; rows are how far the code got (Local, Dev, Stage, Prod).</p>' +
     '<p>Chip colours: green is reviewed, amber needs review, grey is anything else. A small dot on a chip means more work is still local.</p>' +
+    '<p>A name after a number is the subagent that built that ticket, under the session that started it.</p>' +
     '<p>Hover a chip for its details; click it to open its row in the Tickets table. A column head says whether that agent works now.</p>'
 
   let box = null
@@ -62,10 +64,20 @@
   /** A chip shows the number alone for the collection's own prefix (data.prefix); any other id stays whole. */
   const chipLabel = (id, prefix) => (prefix && id.startsWith(`${prefix}-`) ? id.slice(prefix.length + 1) : id)
 
-  function chip(id) {
-    const t = data.tickets[id]
+  /** Pure: one ticket's chip. A ticket a subagent built carries that subagent's short label after its number. */
+  function chipHtml(t, prefix) {
     const r = t.mark?.review || 'none'
-    return `<button type="button" class="ox-chip rv-${r} ${t.state === 'Accepted' ? 'accepted' : ''} ${t.outside ? 'outside' : ''}" data-tid="${esc(id)}">${esc(chipLabel(id, data.prefix))}${t.moreLocal ? '<i class="ox-more" title="More work still local"></i>' : ''}</button>`
+    const subagent = t.subagent ? `<span class="ox-subagent">${esc(t.subagent.label)}</span>` : ''
+    return `<button type="button" class="ox-chip rv-${r} ${t.state === 'Accepted' ? 'accepted' : ''} ${t.outside ? 'outside' : ''}" data-tid="${esc(t.id)}">${esc(chipLabel(t.id, prefix))}${subagent}${t.moreLocal ? '<i class="ox-more" title="More work still local"></i>' : ''}</button>`
+  }
+  const chip = id => chipHtml(data.tickets[id], data.prefix)
+
+  /** Pure: who built a ticket, for the hover: the subagent (a link to watch it, and whose subagent it is), else the agents. */
+  function builtBy(t) {
+    const h = t.subagent
+    if (!h) return esc((t.agents || []).join(', ') || '–')
+    const href = `#/agent/${encodeURIComponent(h.sessionId)}/${encodeURIComponent(h.id)}`
+    return `<a class="link" href="${esc(href)}">${esc(h.description)}</a> · subagent of ${esc(h.parent || 'an ended session')}`
   }
 
   function render() {
@@ -109,7 +121,7 @@
     const m = t.mark
     return `<div class="ox-tip-head"><span class="id">${esc(t.id)}</span>${t.state ? `<span class="fx-pill st-${esc(String(t.state).toLowerCase())}">${esc(t.state)}</span>` : ''}</div>
       <div class="ox-tip-title">${esc(t.title)}</div>
-      <div class="ox-tip-row"><span>Built by</span><div>${esc(t.agents.join(', ') || '—')}</div></div>
+      <div class="ox-tip-row"><span>Built by</span><div>${builtBy(t)}</div></div>
       ${m ? `<div class="ox-tip-row"><span>Review</span><div>${esc(REVIEW[m.review] || m.review)}${m.verdict ? ` · <b>${esc(VERDICT[m.verdict])}</b>` : ''}</div></div>` : ''}
       ${m?.note ? `<p class="ox-tip-note">${esc(m.note)}</p>` : ''}
       ${t.plan ? `<div class="ox-tip-row"><span>Plan</span><div>${esc(t.plan.verdict)} · wave ${esc(t.plan.wave || '—')} · launch ${esc(t.plan.must || '—')}</div></div>` : ''}
@@ -234,5 +246,7 @@
     LEVEL,
     tipSpot,
     chipLabel,
+    chipHtml,
+    builtBy,
   }
 })()

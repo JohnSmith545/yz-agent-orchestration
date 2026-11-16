@@ -165,7 +165,7 @@ function commitLines(commits, after) {
 /**
  * Every commit after `since` that each worktree an agent owns ADDED (the
  * /api/status build's `worktrees`, with their `agent` label): agent worktrees
- * first, so a commit Master merged onto followup counts for the agent that
+ * first, so a commit Coordinator merged onto followup counts for the agent that
  * wrote it. Merges are left out. `git(args)` resolves { ok, out } like server.mjs's.
  * ⚠️ `origin/dev..<branch>`, never the bare branch (as localWork in
  * orchestration.mjs): every branch starts from dev and followup merges dev in,

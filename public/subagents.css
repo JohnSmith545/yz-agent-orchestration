@@ -1,0 +1,57 @@
+/* The Subagents page (subagents-page.js) and Home's Subagents strip: flat cards on a grid.
+   Tokens only, so dark mode follows; one radius, hairline borders, no shadow. */
+
+.hp-page { display: grid; gap: 16px; }
+.hp-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.hp-bar .ob-seg { margin-left: 0; }
+.hp-days { display: inline-flex; align-items: center; gap: 8px; }
+.hp-days select { font: inherit; font-size: 13px; color: var(--ink); background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 3px 6px; }
+
+.hp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; align-items: start; }
+/* one column that may shrink: a long branch, ticket list or report line wraps or is cut inside the card, and never widens it */
+.hp-card { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 14px 16px; min-width: 0; cursor: pointer; }
+.hp-card:hover { border-color: var(--line-strong); }
+.hp-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hp-card p { margin: 0; }
+
+.hp-top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.hp-name { margin: 0; min-width: 0; font-size: 14.5px; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hp-meta { font-size: 12.5px; color: var(--muted); }
+.hp-where { display: flex; flex-wrap: wrap; gap: 4px 12px; font: 12.5px var(--mono); color: var(--ink-2); overflow-wrap: anywhere; }
+.hp-where > * { min-width: 0; overflow-wrap: anywhere; }
+.hp-tree { color: var(--muted); }
+.hp-ids { display: flex; flex-wrap: wrap; gap: 2px 8px; }
+.hp-ids .id + .id { margin-left: 0; }
+.hp-prs { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; }
+.hp-pr-state { color: var(--muted); font-size: 12.5px; }
+.hp-pr.is-failing .hp-pr-state { color: var(--bad); }
+.hp-line { font-size: 13px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hp-line.is-last { color: var(--muted); }
+.hp-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin-top: 2px; font-size: 13px; }
+
+/* the unfolded report: selectable text, so the card's pointer and click stop here */
+.hp-report { margin-top: 6px; padding-top: 10px; border-top: 1px solid var(--line); cursor: auto; min-width: 0; }
+.hp-report-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.hp-md { max-height: 420px; overflow: auto; font-size: 13.5px; overflow-wrap: anywhere; }
+.hp-md pre { white-space: pre-wrap; }
+
+@media (max-width: 640px) {
+  .hp-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Home's strip: one quiet row per subagent, each a link to its live view */
+.hp-strip { display: grid; padding: 4px 0; }
+.hp-row { display: flex; align-items: baseline; gap: 12px; padding: 8px 16px; color: inherit; text-decoration: none; min-width: 0; }
+.hp-row + .hp-row { border-top: 1px solid var(--line); }
+.hp-row:hover { background: var(--surface-2); }
+.hp-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.hp-row .dot { flex: none; min-width: 76px; }
+.hp-row-name { flex: 1; min-width: 0; font-size: 13.5px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hp-row-pr, .hp-row-meta { flex: none; font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.hp-row-more { margin: 0; padding: 8px 16px; border-top: 1px solid var(--line); }
+@media (max-width: 640px) {
+  .hp-row-pr { display: none; }
+}
+
+/* a builder that recorded no flow, or a flow with no story or picture: a quiet tag, never an alarm */
+.hp-nostory { font-size: 12px; color: var(--muted); border: 1px dashed var(--line-strong); border-radius: var(--radius); padding: 0 6px; line-height: 1.6; cursor: help; }

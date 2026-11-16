@@ -12,6 +12,9 @@
 
   // ─── rendering one event ────────────────────────────────────────────────────
 
+  /** Pure: where the live view's back link goes: the Subagents page for a subagent, the Agents page for a session. */
+  const backLink = sub => (sub ? { href: '#/subagents', text: '← All subagents' } : { href: '#/agents', text: '← All agents' })
+
   /**
    * A path as the repo sees it: a worktree path keeps its worktree folder,
    * any other loses everything up to the watched repo's folder, `repoName`
@@ -100,7 +103,7 @@
       '<p>The activity reads the transcript every few seconds; the changes are the uncommitted diff of the worktree picked above them.</p>',
     ].join(''))
     const options = [...new Set([...(d.worktrees || []), 'main'])]
-    if (!view.picked) view.worktree = a.name === 'Master' && !d.sub ? 'main' : options[0]
+    if (!view.picked) view.worktree = a.coordinator && !d.sub ? 'main' : options[0]
     document.getElementById('wtpick').innerHTML = options
       .map(w => `<button class="link" data-wt="${esc(w)}" aria-pressed="${w === view.worktree}">${w === 'main' ? 'main checkout' : esc(w)}</button>`)
       .join('')
@@ -236,9 +239,10 @@
     close()
     view = { sid, sub, cursor: 0, events: new Map(), timers: [], worktree: null, picked: false, scrolled: false, info: null }
     const root = document.getElementById('agentView')
+    const back = backLink(sub)
     root.innerHTML = `
       <div class="agent-head">
-        <a href="#/agents" class="link">← All agents</a>
+        <a href="${back.href}" class="link">${back.text}</a>
         <span id="agentTitle"><span class="nm">Loading…</span></span>
         <button id="draftReport" class="primary" style="margin-left:auto">Draft report</button>
       </div>
@@ -266,5 +270,5 @@
     view.timers.push(setInterval(pollFeed, FEED_MS), setInterval(pollDiff, DIFF_MS))
   }
 
-  window.AgentView = { open, close, shortPath }
+  window.AgentView = { open, close, shortPath, backLink }
 })()

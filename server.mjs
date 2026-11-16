@@ -24,6 +24,10 @@ import { CONFIG, prNow } from './config.mjs'
 import { chatStatus } from './chat.mjs'
 import { collections, readSource, startAutoRefresh } from './factory.mjs'
 import { factoryRoute } from './factory-routes.mjs'
+import { makePrStates } from './subagent-prs.mjs'
+import { makeSubagentRoutes } from './subagent-routes.mjs'
+import { listRepoSubagents, oneSubagent, sessionFile, ticketBuilders, windowStart } from './subagents.mjs'
+import { listFlows } from './flows.mjs'
 import { hostAllowed } from './local-origin.mjs'
 import { pushEnv } from './pr-routes.mjs'
 import { makeOrchestration, pulse } from './orchestration.mjs'
@@ -59,7 +63,8 @@ const CURFEW_HOUR = CONFIG.stopHour
 const CODING_AGENTS = CONFIG.codingAgents
 /** Names the user gave sessions whose registry name says otherwise. */
 const ALIASES = CONFIG.aliases
-const labelOf = name => CODING_AGENTS[name] ?? ALIASES[name] ?? name
+/** The label a session shows under: the coordinator by its configured label (config coordinatorLabel), any other by the session maps. */
+const labelOf = name => (name === CONFIG.coordinator ? CONFIG.coordinatorLabel : CODING_AGENTS[name] ?? ALIASES[name] ?? name)
 /** The branches the levels compare (config levels): the coordinator's working branch, remote dev and stage. */
 const LEVELS = CONFIG.levels
 
@@ -94,13 +99,14 @@ async function push(args) {
 }
 
 /**
- * The GitHub CLI in the repo (config pr.gh), for Send only (pr-routes.mjs). Its token is never read: gh keeps it.
+ * The GitHub CLI in the repo (config pr.gh), for Send (pr-routes.mjs) and, read only, for the state of the
+ * subagents' pull requests (subagent-prs.mjs: gh pr view, with its own short `timeout`). Its token is never read: gh keeps it.
  * FACTORY_TEST_GH (an environment variable, for an end-to-end check against a throwaway repo only) names a
  * Node script that stands in for gh; it is not a setting and is not documented anywhere else.
  */
-function gh(args) {
+function gh(args, timeout = 60_000) {
   const stub = process.env.FACTORY_TEST_GH
-  return stub ? run(process.execPath, [stub, ...args], REPO) : run(prNow().gh, args, REPO, { GH_PROMPT_DISABLED: '1' })
+  return stub ? run(process.execPath, [stub, ...args], REPO, {}, timeout) : run(prNow().gh, args, REPO, { GH_PROMPT_DISABLED: '1' }, timeout)
 }
 
 /** Runs async jobs with at most `n` in flight, so a refresh is not 200 processes at once. */
@@ -262,6 +268,7 @@ async function describeAgent(s, knownTrees) {
     name: s.name,
     label: labelOf(s.name),
     coding: s.name in CODING_AGENTS,
+    coordinator: s.name === CONFIG.coordinator,
     status: s.status,
     state,
     lastTool,
@@ -346,8 +353,8 @@ function processAlive(pid) {
 }
 
 /**
- * Which agent is on a worktree: the coding agent (not Master, who merges
- * everything) that touched it most recently; Master if only Master did.
+ * Which agent is on a worktree: the coding agent (not the coordinator, who merges
+ * everything) that touched it most recently; the coordinator if only it did.
  * Positions are per transcript, so "most recent" compares how close to the end
  * of each transcript the last touch was.
  */
@@ -357,7 +364,7 @@ function ownerOf(worktreeName, agents) {
     const p = a._worktreePos[worktreeName]
     if (p == null) continue
     const recency = a._lines - p
-    const rank = a.coding && a.name !== 'Master' ? 0 : a.name === 'Master' ? 1 : 2
+    const rank = a.coding && !a.coordinator ? 0 : a.coordinator ? 1 : 2
     if (!best || rank < best.rank || (rank === best.rank && recency < best.recency)) best = { label: a.label, rank, recency }
   }
   return best?.label ?? ''
@@ -427,7 +434,7 @@ async function buildStatus() {
     6,
     w => describeWorktree(w, idx)
   )
-  for (const t of trees) t.agent = t.isAgentTree ? ownerOf(t.name, agents) : t.branch === LEVELS.work ? 'Master' : ''
+  for (const t of trees) t.agent = t.isAgentTree ? ownerOf(t.name, agents) : t.branch === LEVELS.work ? CONFIG.coordinatorLabel : ''
 
   // Tickets in flight: every id on an agent worktree, plus every id followup
   // holds that dev does not have yet.
@@ -491,6 +498,8 @@ async function buildStatus() {
     buildMs: Date.now() - started,
     repo: REPO,
     repoOk: existsSync(REPO),
+    // who coordinates: its session name and the label every page shows (config coordinator, coordinatorLabel)
+    coordinator: { name: CONFIG.coordinator, label: CONFIG.coordinatorLabel },
     fetch: fetchState,
     ticketSnapshotAt: sources.fetchedAt,
     followup: { vsDev: followupVsDev, unpushedTickets: [...followupOnly.index.keys()].sort() },
@@ -563,13 +572,43 @@ function withNames(page, nameOf) {
   }
 }
 
-async function agentDetail(sessionId, subId, since) {
+const ENDED_LABEL = 'Ended session' // what a session that is no longer running is called
+const SUBAGENT_STATE = { working: 'active', done: 'done' } // a subagent's state as the live view's chip says it; anything else is idle
+
+/**
+ * A session by its id: the live one, or one that has ended, found by its transcript among the repo's
+ * project folders (subagents.mjs sessionFile), so a subagent of an ended coordinator can still be opened.
+ * null when there is no such session.
+ */
+async function sessionFor(sessionId) {
   const sessions = await liveSessions()
-  const s = sessions.find(x => x.sessionId === sessionId)
-  if (!s) return null
-  const file = await transcriptFile(s)
-  if (!file) return null
-  const known = new Set((await listWorktrees()).map(w => path.basename(w.path)))
+  const live = sessions.find(x => x.sessionId === sessionId)
+  if (live) return { s: live, file: await transcriptFile(live), sessions, ended: false }
+  const file = await sessionFile({ claudeDirs: CLAUDE_DIRS, match: CONFIG.sessionCwdMatch, sessionId })
+  return file ? { s: { sessionId, name: ENDED_LABEL, cwd: REPO, status: 'ended' }, file, sessions, ended: true } : null
+}
+
+/** The agent block of an ended session: what the live view reads, with nothing running. */
+function endedAgent(s, scan) {
+  return {
+    sessionId: s.sessionId, name: s.name, label: ENDED_LABEL, coding: false, status: 'ended', state: 'idle', ended: true, lastTool: null,
+    cwd: s.cwd, updatedAt: null, transcriptAt: scan?.mtime ?? null,
+    recentWorktrees: scan ? newestKeys(scan.worktrees, 4) : [], recentTickets: scan ? newestKeys(scan.tickets, 6) : [], subagents: [],
+  }
+}
+
+/** One subagent for the live view, from the Subagents listing: found by id whatever its age or its parent's state. */
+async function repoSub(sessionId, subId, trees) {
+  const h = await oneSubagent({ claudeDirs: CLAUDE_DIRS, match: CONFIG.sessionCwdMatch, sessionId, id: subId, trees })
+  return h && { id: h.id, description: h.description, agentType: h.agentType, model: h.model, finished: h.finished, state: SUBAGENT_STATE[h.state] || 'idle', updatedAt: h.updatedAt, worktree: h.worktree, tickets: h.tickets }
+}
+
+async function agentDetail(sessionId, subId, since) {
+  const found = await sessionFor(sessionId)
+  if (!found?.file) return null
+  const { s, file, sessions, ended } = found
+  const trees = await listWorktrees()
+  const known = new Set(trees.map(w => path.basename(w.path)))
   const target = subId ? subagentFile(file, subId) : file
   let scan
   try {
@@ -577,8 +616,15 @@ async function agentDetail(sessionId, subId, since) {
   } catch {
     return null
   }
-  const agent = await describeAgent(s, known)
-  const sub = subId ? agent.subagents.find(x => x.id === subId) || { id: subId, description: 'subagent', state: 'idle' } : null
+  const agent = ended ? endedAgent(s, subId ? null : scan) : await describeAgent(s, known)
+  let sub = null
+  if (subId) {
+    // The agent's own list drops a subagent 30 minutes after it finishes and only knows worktrees under
+    // .claude/worktrees: the Subagents listing finds any of them, and the worktree it really worked in.
+    const listed = agent.subagents.find(x => x.id === subId)
+    const subagent = await repoSub(sessionId, subId, trees)
+    sub = listed ? { ...listed, worktree: listed.worktree || subagent?.worktree || '' } : subagent || { id: subId, description: 'subagent', state: 'idle' }
+  }
   stripInternal(agent)
   return {
     agent,
@@ -591,18 +637,21 @@ async function agentDetail(sessionId, subId, since) {
 }
 
 async function agentReport(sessionId, subId, hours) {
-  const sessions = await liveSessions()
-  const s = sessions.find(x => x.sessionId === sessionId)
-  if (!s) return null
-  const file = await transcriptFile(s)
-  if (!file) return null
+  const found = await sessionFor(sessionId)
+  if (!found?.file) return null
+  const { s, file, sessions, ended } = found
   const trees = await listWorktrees()
   const known = new Set(trees.map(w => path.basename(w.path)))
-  const scan = await scanTranscript(subId ? subagentFile(file, subId) : file, subId ? '' : s.cwd.toLowerCase(), known)
-  const label = labelOf(s.name)
+  let scan
+  try {
+    scan = await scanTranscript(subId ? subagentFile(file, subId) : file, subId ? '' : s.cwd.toLowerCase(), known)
+  } catch {
+    return null // an ended session whose transcript is gone
+  }
+  const label = ended ? ENDED_LABEL : labelOf(s.name)
   let subLabel = ''
   if (subId) {
-    const sub = (await listSubagents(file, known)).find(x => x.id === subId)
+    const sub = (await listSubagents(file, known)).find(x => x.id === subId) || (await repoSub(sessionId, subId, trees))
     subLabel = ` › subagent: ${sub?.description || subId}`
   }
   return buildReport({
@@ -741,12 +790,34 @@ async function buildFlowData(hours) {
 
 // ─── http ─────────────────────────────────────────────────────────────────────
 
-const orchestration = makeOrchestration({ git, getStatus, listWorktrees })
+const SUBAGENT_CREDIT_DAYS = 7 // how far back the Tickets grid looks for the subagent that built a ticket
+
+/** ticket id -> the subagent that built it, for the Tickets grid (subagents.mjs ticketBuilders), labelled by the session that started it. */
+async function subagentBuilds() {
+  const [trees, sessions] = await Promise.all([listWorktrees(), liveSessions()])
+  const labels = new Map(sessions.map(s => [s.sessionId, labelOf(s.name)]))
+  const subagents = await listRepoSubagents({ claudeDirs: CLAUDE_DIRS, match: CONFIG.sessionCwdMatch, sinceMs: windowStart(SUBAGENT_CREDIT_DAYS), trees })
+  return ticketBuilders(subagents, id => labels.get(id) || '')
+}
+
+const orchestration = makeOrchestration({ git, getStatus, listWorktrees, subagentBuilds })
 /** Pushes the user's flow answers to the agent that asked, with a headless Claude turn (relay.mjs). */
 const relay = makeRelay({ run: claudeRun })
 // Answers a previous run queued but never delivered get a retry on the page, not silence (relay.mjs sweep).
 const lostAnswers = relay.sweep()
 if (lostAnswers.length) console.log(`relay: ${lostAnswers.length} answer(s) not sent before the last stop are marked for retry`)
+/**
+ * The Subagents page (subagent-routes.mjs): every subagent of the repo's sessions, live or ended, read
+ * from the transcripts, with the state of its pull requests from `gh pr view` (read only).
+ */
+const subagentRoute = makeSubagentRoutes({
+  claudeDirs: CLAUDE_DIRS,
+  match: CONFIG.sessionCwdMatch,
+  listWorktrees,
+  sessions: async () => new Map((await liveSessions()).map(s => [s.sessionId, { label: labelOf(s.name) }])),
+  flows: () => listFlows().flows,
+  prStates: makePrStates({ gh }),
+})
 /** The paths factory-routes.mjs answers. */
 const FACTORY_PREFIXES = ['/api/factory', '/api/chat', '/api/flows', '/api/commit', '/api/explain', '/api/glossary', '/api/since', '/api/spend', '/api/settings', '/evidence/']
 
@@ -760,6 +831,7 @@ const server = createServer(async (req, res) => {
       const fetched = remote => (remote === 'origin' && fetchState.ok ? fetchState.at : null)
       if (await factoryRoute(req, res, url, { git, gh, push, port: PORT, fetched, relay, getStatus })) return
     }
+    if (await subagentRoute(req, res, url)) return
     if (url.pathname === '/api/orchestration') {
       const data = await orchestration(url.searchParams.get('c'), url.searchParams.has('refresh'))
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' })

@@ -6,12 +6,12 @@
 // none), and one row per subagent, placed under the task it was spawned for.
 // A row is that agent's events on that task, in time order, as nodes:
 //
-//   your prompt, or a message from the coordinator     brief    "Briefed by Master"
+//   your prompt, or a message from the coordinator     brief    "Briefed by Coordinator"
 //   a message from anyone else (an agent reporting)    heard    "From Agent 1"
 //   Read, Grep, Glob, web, browser, other commands     explore  "Explored"
 //   Edit, MultiEdit, Write, NotebookEdit, sed -i, ...  edit     "Edited 6 files"
 //   a test, lint or typecheck command                  test     pass / fail from its output
-//   SendMessage, SubagentHandback                      message  "Messaged Master"
+//   SendMessage, SubagentHandback                      message  "Messaged Coordinator"
 //   Agent / Task                                       spawn    "Spawned subagent"
 //   git commit, git cherry-pick                        commit
 //   git merge                                          merge

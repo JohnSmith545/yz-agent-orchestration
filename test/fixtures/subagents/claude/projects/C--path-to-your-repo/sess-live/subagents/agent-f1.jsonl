@@ -1,0 +1,6 @@
+{"type":"user","isSidechain":true,"timestamp":"2026-11-12T09:12:30.000Z","cwd":"C:\\path\\to\\your-repo","message":{"role":"user","content":"Build the export button."}}
+{"type":"assistant","timestamp":"2026-11-12T09:13:00.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"cd C:/path/to/your-repo/.claude/worktrees/export && git status"}}]}}
+{"type":"user","timestamp":"2026-11-12T09:13:30.000Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"On branch fix/abc-200-export"}]}}
+{"type":"assistant","timestamp":"2026-11-12T09:14:00.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"t2","name":"Bash","input":{"command":"cd C:/path/to/your-repo/.claude/worktrees/export && git commit -m \"ABC-200 export\""}}]}}
+{"type":"user","timestamp":"2026-11-12T09:14:30.000Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t2","content":"error: nothing to commit","is_error":true}]}}
+{"type":"assistant","timestamp":"2026-11-12T09:15:00.000Z","isApiErrorMessage":true,"message":{"role":"assistant","content":[{"type":"text","text":"API Error: 529 overloaded"}]}}

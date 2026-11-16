@@ -30,7 +30,7 @@
   }
 
   const POLL_MS = 15_000
-  const COLUMNS = ['Master', 'Agent 1', 'Agent 2', 'Agent 3', 'Independent'] // when the grid has not loaded yet
+  const COLUMNS = ['Coordinator', 'Agent 1', 'Agent 2', 'Agent 3', 'Independent'] // when the grid has not loaded yet
   const FLOW_STATUS = ['open', 'blocked', 'done', 'dropped'] // MUST CHANGE IN LOCKSTEP with flows.mjs FLOW_STATUS
   const PAD = 16 // the chart scroller's padding, unscaled by the zoom
   // The opened flow's ONE ?: each Output block, the views and the proof marks (flow-head.js; spec 6: legends are never a row on the page).
@@ -245,6 +245,11 @@
     const scroller = $('.fl-scroll', board)
     if (!f || !scroller) return
     const lay = window.FlowChart.layout(f)
+    if (!lay.nodes.length) {
+      // nothing to chart: say so, and where the flow's content is
+      scroller.innerHTML = window.FlowChart.empty()
+      return
+    }
     const before = z
     const avail = scroller.clientWidth - 2 * PAD
     z = window.FlowZoom.clamp(zoom === 'fit' ? Math.min(1, avail / Math.max(1, lay.width)) : Number(zoom) || 1)

@@ -1,0 +1,3 @@
+{"type":"user","isSidechain":true,"timestamp":"2026-11-12T09:34:00.000Z","cwd":"C:/path/to/your-repo","message":{"role":"user","content":"Do the task."}}
+{"type":"assistant","timestamp":"2026-11-12T09:14:00.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"echo \"then run: gh pr view 19\" && cat docs/links.md"}}]}}
+{"type":"user","timestamp":"2026-11-12T09:15:00.000Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"then run: gh pr view 19\nhttps://github.com/acme/your-repo/pull/19"}]}}
