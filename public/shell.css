@@ -279,9 +279,10 @@ body.drawer-open { padding-right: var(--drawer-w); }
     padding: 0 4px; border-right: 0; border-top: 1px solid var(--line);
   }
   .rail-top, .rail-nav, .rail-bottom { display: contents; }
-  .rail-item, #railAlerts .nt-bell { width: auto; height: var(--rail-w); padding: 0; }
-  .rail-icon { margin: 0 2px; }
-  #railAlerts .nt-bell svg { margin: 0 2px; }
+  /* every entry takes an equal share and may shrink, so the bar fits a phone however many entries it has */
+  .rail-item, #railAlerts, #railAlerts .nt-bell { flex: 1 1 0; min-width: 0; width: auto; height: var(--rail-w); padding: 0; justify-content: center; }
+  .rail-icon { flex: 0 1 36px; min-width: 0; margin: 0; }
+  #railAlerts .nt-bell svg { margin: 0; }
   .rail-label, #railAlerts .nt-bell::after, .rail-pin { display: none; }
   .rail-item[aria-current="page"]::before { left: 10px; right: 10px; top: auto; bottom: 0; width: auto; height: 2px; border-radius: 2px 2px 0 0; }
   #railAlerts .nt-count { left: 26px; }

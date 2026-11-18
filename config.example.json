@@ -2,9 +2,9 @@
   "repo": "C:/path/to/your-repo",
   "port": 4317,
   "sessionCwdMatch": "your-repo",
-  "coordinator": "Master",
+  "coordinator": "Coordinator",
   "codingAgents": {
-    "Master": "Master",
+    "Coordinator": "Coordinator",
     "Agent 1": "Agent 1",
     "Agent 2": "Agent 2",
     "my-session-name": "Agent 3"

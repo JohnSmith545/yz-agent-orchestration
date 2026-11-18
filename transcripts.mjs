@@ -266,7 +266,7 @@ function toolEvent(c, t) {
 }
 
 // A message from another session arrives inside the harness's own wording:
-// <cross-session-message from="<socket>" from-name="Master" ...>body</...>.
+// <cross-session-message from="<socket>" from-name="Coordinator" ...>body</...>.
 const PEER_MESSAGE = /<cross-session-message\b([^>]*)>([\s\S]*?)<\/cross-session-message>/g
 const SUBAGENT_HANDBACK = /<agent-message\b[^>]*>([\s\S]*?)<\/agent-message>/g
 const HARNESS_WRAPPER = [

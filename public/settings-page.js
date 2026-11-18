@@ -43,7 +43,7 @@
     return '<dl class="set-dl">' +
       row('Repo', `<code>${esc(setup.repo)}</code>`) +
       row('Settings file', `<code>${esc(setup.configPath)}</code>`) +
-      row('Coordinator', esc(setup.coordinator)) +
+      row('Coordinator', esc(setup.coordinatorLabel && setup.coordinatorLabel !== setup.coordinator ? `${setup.coordinatorLabel} (session ${setup.coordinator})` : setup.coordinator)) +
       row('Coding agents', list(setup.codingAgents)) +
       row('Chat', `${esc(chat.name)} · ${esc(chat.model)} · ${esc(chat.mode)}`) +
       row('Ticket prefixes', setup.ticketPrefixes == null ? '<span class="set-faint">from the ticket sources</span>' : list(setup.ticketPrefixes)) +

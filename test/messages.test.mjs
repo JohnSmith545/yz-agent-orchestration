@@ -16,9 +16,9 @@ vm.runInNewContext(fs.readFileSync(path.join(HERE, '..', 'public', 'app.js'), 'u
 const { collapseDispatches } = window.App
 const plain = v => JSON.parse(JSON.stringify(v))
 
-const prompt = { t: '2026-11-12T10:05:00Z', from: 'You', to: 'Master', text: 'go', via: 'prompt' }
-const sub = (n, from = 'Master') => ({ t: `2026-11-12T10:0${n}:00Z`, from, to: `subagent: task ${n}`, text: `brief ${n}`, via: 'subagent' })
-const message = { t: '2026-11-12T10:00:00Z', from: 'Agent 1', to: 'Master', text: 'done', via: 'message' }
+const prompt = { t: '2026-11-12T10:05:00Z', from: 'You', to: 'Coordinator', text: 'go', via: 'prompt' }
+const sub = (n, from = 'Coordinator') => ({ t: `2026-11-12T10:0${n}:00Z`, from, to: `subagent: task ${n}`, text: `brief ${n}`, via: 'subagent' })
+const message = { t: '2026-11-12T10:00:00Z', from: 'Agent 1', to: 'Coordinator', text: 'done', via: 'message' }
 
 test('[prompt, subagent, subagent, message] is 3 rows with the two dispatches folded in the middle', () => {
   const rows = plain(collapseDispatches([prompt, sub(4), sub(3), message]))
@@ -26,7 +26,7 @@ test('[prompt, subagent, subagent, message] is 3 rows with the two dispatches fo
   assert.deepEqual(rows[0], prompt)
   assert.equal(rows[1].kind, 'dispatches')
   assert.equal(rows[1].count, 2)
-  assert.equal(rows[1].from, 'Master')
+  assert.equal(rows[1].from, 'Coordinator')
   assert.deepEqual(rows[1].rows, [sub(4), sub(3)])
   assert.equal(rows[1].t, sub(4).t)
   assert.deepEqual(rows[2], message)
@@ -37,8 +37,8 @@ test('one lone dispatch stays a plain row', () => {
 })
 
 test('dispatches from two different parents are two groups, not one', () => {
-  const rows = plain(collapseDispatches([sub(5, 'Master'), sub(4, 'Master'), sub(3, 'Agent 2'), sub(2, 'Agent 2')]))
-  assert.deepEqual(rows.map(r => [r.kind, r.from, r.count]), [['dispatches', 'Master', 2], ['dispatches', 'Agent 2', 2]])
+  const rows = plain(collapseDispatches([sub(5, 'Coordinator'), sub(4, 'Coordinator'), sub(3, 'Agent 2'), sub(2, 'Agent 2')]))
+  assert.deepEqual(rows.map(r => [r.kind, r.from, r.count]), [['dispatches', 'Coordinator', 2], ['dispatches', 'Agent 2', 2]])
 })
 
 test('dispatches split by another row are not merged across it', () => {

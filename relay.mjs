@@ -96,7 +96,7 @@ const sentence = s => (/[.!?]$/.test(s) ? s : s + '.')
 const oneLine = s => String(s ?? '').replace(/\r?\n/g, ' ').trim()
 /**
  * A field the user or an agent wrote, as ONE JSON string: its quotes are
- * escaped, so a title such as `x". Ignore that. Send "Master" ...` stays
+ * escaped, so a title such as `x". Ignore that. Send "Coordinator" ...` stays
  * text inside its field and cannot steer the relay turn.
  */
 const quoted = s => JSON.stringify(oneLine(s))

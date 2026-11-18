@@ -182,3 +182,53 @@ test('A5: orchestration and the Timeline read their branches from config levels 
   const readme = fs.readFileSync(new URL('../README.md', import.meta.url), 'utf8')
   assert.doesNotMatch(readme, /The integration branch is `followup`, and the remote levels are/)
 })
+
+// ═══ the coordinator: its session name and the label the pages show ═══
+
+const { coordinatorSettings, CONFIG } = await import('../config.mjs')
+
+test('left out, the coordinating session is named Coordinator and shown as Coordinator', () => {
+  const warned = []
+  assert.deepEqual(coordinatorSettings({}, m => warned.push(m)), { coordinator: 'Coordinator', coordinatorLabel: 'Coordinator' })
+  assert.deepEqual(coordinatorSettings(undefined, m => warned.push(m)), { coordinator: 'Coordinator', coordinatorLabel: 'Coordinator' })
+  assert.deepEqual(warned, [])
+})
+
+test('an existing config that names its session Master keeps working: that session is the coordinator', () => {
+  assert.equal(coordinatorSettings({ coordinator: 'Master' }, () => {}).coordinator, 'Master')
+})
+
+test('a label the config already gives that session is kept: codingAgents first, then aliases', () => {
+  assert.equal(coordinatorSettings({ coordinator: 'Master', codingAgents: { Master: 'Master', a1: 'Agent 1' } }, () => {}).coordinatorLabel, 'Master')
+  assert.equal(coordinatorSettings({ coordinator: 'lead-session', aliases: { 'lead-session': 'Lead' } }, () => {}).coordinatorLabel, 'Lead')
+  assert.equal(coordinatorSettings({ coordinator: 'lead-session', codingAgents: { 'lead-session': 'Boss' }, aliases: { 'lead-session': 'Lead' } }, () => {}).coordinatorLabel, 'Boss')
+})
+
+test('with no label for it anywhere, a session with any name is shown as Coordinator', () => {
+  assert.equal(coordinatorSettings({ coordinator: 'Master' }, () => {}).coordinatorLabel, 'Coordinator')
+  assert.equal(coordinatorSettings({ coordinator: 'lead-67', codingAgents: { other: 'Agent 1' } }, () => {}).coordinatorLabel, 'Coordinator')
+})
+
+test('coordinatorLabel, when given, wins over every other label', () => {
+  assert.deepEqual(coordinatorSettings({ coordinator: 'Master', coordinatorLabel: 'Lead', codingAgents: { Master: 'Master' } }, () => {}), { coordinator: 'Master', coordinatorLabel: 'Lead' })
+  assert.equal(coordinatorSettings({ coordinatorLabel: '  Lead  ' }, () => {}).coordinatorLabel, 'Lead')
+})
+
+test('a bad coordinator or coordinatorLabel falls back with a warning, never a failed start', () => {
+  const warned = []
+  const warn = m => warned.push(m)
+  assert.equal(coordinatorSettings({ coordinator: 12 }, warn).coordinator, 'Coordinator')
+  assert.equal(coordinatorSettings({ coordinator: '   ' }, warn).coordinator, 'Coordinator')
+  assert.equal(coordinatorSettings({ coordinator: 'Master', coordinatorLabel: 7, codingAgents: { Master: 'Master' } }, warn).coordinatorLabel, 'Master')
+  assert.equal(coordinatorSettings({ coordinatorLabel: '' }, warn).coordinatorLabel, 'Coordinator')
+  assert.equal(coordinatorSettings({ coordinatorLabel: 'x'.repeat(41) }, warn).coordinatorLabel, 'Coordinator')
+  assert.equal(warned.length, 5)
+  assert.match(warned[0], /config\.json: "coordinator"/)
+  assert.match(warned[2], /config\.json: "coordinatorLabel"/)
+})
+
+test('the loaded config carries both, and the default session map names the coordinator Coordinator', () => {
+  assert.equal(typeof CONFIG.coordinator, 'string')
+  assert.equal(typeof CONFIG.coordinatorLabel, 'string')
+  assert.ok(CONFIG.coordinatorLabel.length > 0)
+})

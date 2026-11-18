@@ -1,0 +1,7 @@
+{"type":"user","isSidechain":true,"timestamp":"2026-11-12T09:28:00.000Z","cwd":"C:\\path\\to\\your-repo","message":{"role":"user","content":"Add the export button."}}
+{"type":"assistant","timestamp":"2026-11-12T09:28:30.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow new gate-flow \"Add the export button\" --by \"Agent 9\""}}]}}
+{"type":"user","timestamp":"2026-11-12T09:29:00.000Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"gate-flow created"}]}}
+{"type":"assistant","timestamp":"2026-11-12T09:29:30.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"t2","name":"Bash","input":{"command":"git commit -am \"Add the export button\""}}]}}
+{"type":"user","timestamp":"2026-11-12T09:30:00.000Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t2","content":"[feat/export 7a8b9c0] Add the export button\n 1 file changed"}]}}
+{"type":"assistant","timestamp":"2026-11-12T09:30:30.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"t3","name":"Bash","input":{"command":"FACTORY_BY='Agent 9' node tools/factory.mjs flow say gate-flow \"Agent 9 added an export button.\""}}]}}
+{"type":"user","timestamp":"2026-11-12T09:31:00.000Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t3","content":"gate-flow: s1"}]}}

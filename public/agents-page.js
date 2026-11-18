@@ -10,7 +10,7 @@
   let showing = false
   // The legend behind the header chip's ? (spec 6): what the tree and the words on it mean.
   const AGENTS_HELP = '<p>Every Claude Code session the dashboard found, built from the session transcripts and read again every minute.</p>' +
-    '<p>Master is the root; the coding agents hang off it (drag a card to reorder), and each agent lists its subagents. ' +
+    '<p>Coordinator is the root; the coding agents hang off it (drag a card to reorder), and each agent lists its subagents. ' +
     'A state is a dot and one word: Idle, Working, Waiting, Blocked or Done. Click a card to watch it live.</p>'
 
   function mount() {

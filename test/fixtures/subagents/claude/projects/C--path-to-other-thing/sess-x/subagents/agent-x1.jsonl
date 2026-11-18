@@ -1,0 +1,2 @@
+{"type":"user","isSidechain":true,"timestamp":"2026-11-12T09:21:00.000Z","cwd":"C:\\path\\to\\your-repo","message":{"role":"user","content":"Elsewhere."}}
+{"type":"attachment","timestamp":"2026-11-12T09:21:30.000Z","attachment":{"type":"hook_success","hookName":"PostToolUse:SubagentHandback","hookEvent":"PostToolUse","content":"","stdout":"{\"session_id\":\"s\",\"tool_name\":\"SubagentHandback\",\"tool_input\":{\"message\":\"Elsewhere report.\"}}","stderr":"","exitCode":0}}

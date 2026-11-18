@@ -1,0 +1,2 @@
+{"type":"user","isSidechain":true,"timestamp":"2026-11-12T09:40:00.000Z","cwd":"C:/path/to/your-repo","message":{"role":"user","content":"Do the task."}}
+{"type":"assistant","timestamp":"2026-11-12T09:26:00.000Z","message":{"role":"assistant","content":[{"type":"text","text":"I opened https://github.com/acme/your-repo/pull/35 for review."}]}}

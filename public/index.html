@@ -19,6 +19,7 @@
 <link rel="stylesheet" href="diagram.css">
 <link rel="stylesheet" href="flow-output.css">
 <link rel="stylesheet" href="flow-compare.css">
+<link rel="stylesheet" href="subagents.css">
 <link rel="stylesheet" href="glossary.css">
 <link rel="stylesheet" href="settings.css">
 <link rel="stylesheet" href="shell.css">
@@ -47,6 +48,11 @@
       <div class="agent-cards ac-grid" id="agentCards"></div>
     </div>
 
+    <div class="home-zone" id="homeSubagentsZone" hidden>
+      <div class="section-head"><h2>Subagents <span class="faint">· <span class="num" id="subagentsCount">0</span> running</span></h2><a class="link" href="#/subagents">All subagents</a></div>
+      <div class="card hp-strip" id="homeSubagents"></div>
+    </div>
+
     <div class="home-zone">
       <div class="section-head"><h2>Messages <span class="faint">· <span class="num" id="talkCount">–</span></span></h2></div>
       <div class="card talk scroll" id="talk" data-fade="tb"></div>
@@ -58,6 +64,7 @@
   <section id="factoryView" aria-label="Tickets" hidden></section>
   <section id="flowsView" aria-label="Flows" hidden></section>
   <section id="agentsView" aria-label="Agents" hidden></section>
+  <section id="subagentsView" aria-label="Subagents" hidden></section>
   <section id="glossaryView" aria-label="Glossary" hidden></section>
   <section id="settingsView" aria-label="Settings" hidden></section>
 </main>
@@ -73,6 +80,7 @@
 <script src="card-stack.js"></script>
 <script src="agent-cards.js"></script>
 <script src="agents-page.js"></script>
+<script src="subagents-page.js"></script>
 <script src="worktrees.js"></script>
 <script src="diff.js"></script>
 <script src="agent.js"></script>

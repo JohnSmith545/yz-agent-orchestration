@@ -41,7 +41,7 @@ test('commits after the baseline group by agent and ticket', () => {
       commit('a3', 'test(web): ABC-102 three'),
       commit('a0', 'fix(web): ABC-102 old', 'Agent 1', BEFORE),
       commit('b1', 'feat(api): ABC-12 thing', 'Agent 2'),
-      commit('c1', 'chore: no ticket here', 'Master'),
+      commit('c1', 'chore: no ticket here', 'Coordinator'),
     ],
   })
   assert.deepEqual(texts(d.commits), ['Agent 1 committed 3 times on ABC-102', 'Agent 2 committed once on ABC-12'])
@@ -54,7 +54,7 @@ test('a commit on two tickets is listed once', () => {
   const d = digest({
     commits: [
       commit('a1', 'fix: ABC-1 and ABC-2 together'),
-      commit('a1', 'fix: ABC-1 and ABC-2 together', 'Master'), // the same sha merged onto followup
+      commit('a1', 'fix: ABC-1 and ABC-2 together', 'Coordinator'), // the same sha merged onto followup
     ],
   })
   assert.deepEqual(texts(d.commits), ['Agent 1 committed once on ABC-1'])
@@ -210,7 +210,7 @@ function fakeGit() {
 }
 const TREES = {
   worktrees: [
-    { name: 'acme-app', path: 'C:/r', branch: 'followup', isAgentTree: false, agent: 'Master' },
+    { name: 'acme-app', path: 'C:/r', branch: 'followup', isAgentTree: false, agent: 'Coordinator' },
     { name: 'a1', path: 'C:/r/.claude/worktrees/a1', branch: 'abc-102-x', isAgentTree: true, agent: 'Agent 1' },
     { name: 'loose', path: 'C:/r/.worktrees/loose', branch: 'loose', isAgentTree: false, agent: '' },
   ],
@@ -226,7 +226,7 @@ test('gatherCommits reads what each agent branch added since the baseline, agent
     assert.equal(a.at(-1), '--', 'a branch name is never read as a path')
   }
   const d = digest({ commits })
-  assert.deepEqual(texts(d.commits), ['Agent 1 committed once on ABC-102', 'Master committed once on ABC-2'])
+  assert.deepEqual(texts(d.commits), ['Agent 1 committed once on ABC-102', 'Coordinator committed once on ABC-2'])
 })
 
 test('a base commit someone else landed on dev is never credited to an agent', async () => {

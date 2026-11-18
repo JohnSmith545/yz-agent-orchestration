@@ -10,7 +10,7 @@ the repo, with one opt-in exception you turn on yourself: **Send**, which pushes
 branch and opens a pull request when you click it (see Send to the base branch). Agents can also narrate their work as **flows** (steps, checks,
 questions for you, and proof), which the page draws and lets you answer.
 
-It was built for one person running a coordinating session ("Master") and
+It was built for one person running a coordinating session ("Coordinator") and
 several coding agents in git worktrees.
 
 ## What you need
@@ -56,6 +56,8 @@ example first.
   from the transcripts and git.
 - **Agents**: the agents as a tree of cards, with a live view of one agent (its
   feed, its edits as diffs, its uncommitted changes) and a draft progress report.
+- **Subagents**: every subagent the sessions started, live or ended: what each one is working on, how it
+  went, its pull request and its final report, with builders apart from quick lookups.
 - **The Ask drawer**: a chat with a Claude Code session ("Independent") that can
   read the code, write flows, message agents and drive a browser.
 - **Alerts and reminders**: toasts and desktop notifications for new questions,
@@ -72,7 +74,8 @@ Each of these is described in detail below.
 
 ## What costs money
 
-Reading git and transcripts is free. These features run headless Claude Code
+Reading git and transcripts is free, and so are the Subagents page and the stop check (they read transcripts
+and ask `gh` for pull request states). These features run headless Claude Code
 turns, billed to your Claude account like any other session:
 
 - **The chat** (the Ask drawer, and the per-ticket review, explain and task
@@ -115,6 +118,8 @@ rail adds up what these turns cost.
     `pr-pin` refuses a PIN piped in only so that a script cannot set one by accident.
   The dashboard never reads gh's token, and any credential in what git or gh print is removed before it is
   shown or stored. Keep the `--blocked-origins` advice below as an extra layer.
+- The Subagents page asks GitHub for the state of the subagents' pull requests with `gh pr view --json` (the `pr.gh`
+  command): read only, at most once a minute per pull request. It never runs a gh command that writes.
 - A request with no Origin header (not from a browser) is accepted, so any local process on this
   machine can call the dashboard's routes as you: only run agents and tools you trust here.
 - The chat agent is limited to a listed set of commands: reading git (log, show, diff, status and a few
@@ -130,8 +135,8 @@ rail adds up what these turns cost.
 
 ## Configuration
 
-Five pages sit in a rail on the left: **Home**, **Flows**, **Tickets**,
-**Timeline** and **Agents** (one agent's live view opens from Agents). Pages
+Six pages sit in a rail on the left: **Home**, **Flows**, **Tickets**,
+**Timeline**, **Agents** and **Subagents** (one agent's live view opens from Agents or Subagents). Pages
 refresh themselves; the Refresh button in the page header rebuilds at once.
 
 `config.json` stays on your machine (it is in `.gitignore`):
@@ -141,7 +146,8 @@ refresh themselves; the Refresh button in the page header rebuilds at once.
 | `repo` | Absolute path of the git repo the sessions work in (required) |
 | `port` | Port on 127.0.0.1 (default 4317, or `PORT`) |
 | `sessionCwdMatch` | A session counts when its working folder contains this (default: the repo folder name) |
-| `coordinator` | The session that merges everyone's work (default "Master") |
+| `coordinator` | The SESSION NAME of the session that hands out work and merges it (default "Coordinator"; any name works, so an older config that says "Master" keeps working) |
+| `coordinatorLabel` | What the pages call that session. Left out: the label `codingAgents` or `aliases` gives it, else "Coordinator" |
 | `codingAgents` | Session name -> label, for sessions that write code |
 | `aliases` | Session name -> label, for any other session |
 | `stopHour` | Local hour to stop at, or null |
@@ -185,7 +191,7 @@ mode is `:root[data-theme="dark"]`.
 `public/shell.js` and `shell.css` draw the frame every page shares.
 
 - **The rail** (56 px, icons only): the brand mark (Home), Flows, Tickets,
-  Timeline, Agents, Glossary, and at the foot Ask, Alerts, Spend and Theme. Hover it for 300 ms,
+  Timeline, Agents, Subagents, Glossary, and at the foot Ask, Alerts, Spend and Theme. Hover it for 300 ms,
   or Tab into it, and it opens to 200 px with labels; the pin at the top keeps
   it open (remembered). Under 720 px wide the rail is a bar along the bottom.
   Old links still work: `#/factory` goes to `#/tickets` and opens the Ask
@@ -351,7 +357,10 @@ tickets that reached a new level or changed on their source, commits per agent;
 at most eight lines, no model involved; it stays across reloads until marked
 read, and a new browser starts from its first visit; see `since.mjs`),
 **Waiting on you** (only while an ask is open: answer it inline), **Agents · N** (the agent cards in a compact form: name,
-state, last action, up to four tickets; click one to watch it live) and
+state, last action, up to four tickets; click one to watch it live), **Subagents · N running** (only when a subagent ran
+today: N is how many have not finished; the rows are the subagents still running, six at most, then the latest
+four finished, each a link to its live view with its state, model, time and pull request; **All subagents** opens
+the page; read from `GET /api/subagents` every 30 seconds while Home shows) and
 **Messages · N** (who is talking to whom, below). The status chip says when git
 last fetched; its `?` holds how far followup is ahead of dev and how old the
 ticket snapshot is.
@@ -511,11 +520,15 @@ The page for a ticket collection (`factory.collections` in config.json, below). 
 collection's name (a picker shows when there are several); the chip says when Switchboard was last read, with
 the range, the count and any failure behind its `?`, and Refresh reads it now.
 
-- **Orchestration · N:** agents across (Master, Agent 1, 2, 3), levels down (Local, Dev, Stage, Prod), and in
+- **Orchestration · N:** agents across (Coordinator, Agent 1, 2, 3), levels down (Local, Dev, Stage, Prod), and in
   each cell the tickets that agent built which got that far and no further. Prod is origin/main (squash bodies
   included), Stage and Dev are their origin branches, Local is committed work on followup or any worktree
   (detached included) that dev does not have. The builder is the agent on the worktree, else the plan's wave
-  column (A1, A2, A3), else Master. Hover a ticket for its review, plan, the commit at each level and the open
+  column (A1, A2, A3), else Coordinator. A ticket a **subagent** built (it is in the branch name, a commit subject or the
+  task name of a builder from the last 7 days, the newest one winning) is credited to that subagent, not to the
+  session that started it: its chip carries the subagent's short name after the number, it sits in that
+  session's column, and its hover says `Built by <the subagent's task name> · subagent of <session>` with a link to
+  watch it. Hover a ticket for its review, plan, the commit at each level and the open
   flows it is in; click it to open its row. Each column head says whether the agent is working, idle or
   waiting, its last action, and opens its **progress report** (from its transcript) and its live view. The
   legend is behind the card's `?`.
@@ -527,6 +540,52 @@ the range, the count and any failure behind its `?`, and Refresh reads it now.
   or pass a task to a live agent. Select several rows to do it in bulk.
 - **Worktrees · N** (folded, remembered): every worktree with its branch, agent, uncommitted files, how far it
   is from its remote and from dev, whether followup, dev and stage have it, and its last commit.
+
+### Subagents (#/subagents)
+
+A subagent is one Agent tool call of a session, usually the coordinator handing a task to a fresh
+context. The page lists every subagent of the watched repo's sessions (those whose working folder matches
+`sessionCwdMatch`, in every folder of `claudeDirs`), whether the session that started it still runs or has
+ended, for a window you pick: **Today** (the default), 2, 3 or 7 days. It reads Claude Code's own files and
+nothing else: each subagent's small `agent-<id>.meta.json` and the last 4 MB of its transcript, once per change
+of that file. It runs no model and costs nothing.
+
+- **Builders | Lookups**, with a count each. A **builder** worked in a worktree or made a git commit that ran
+  without an error; a **lookup** only read, searched or asked (a sweep, a triage). Builders show first, and
+  the choice is remembered in this browser. A worktree is a path under `.claude/worktrees/` in a tool call,
+  a folder the subagent made with `git worktree add`, or a folder it moved into (`cd`, `git -C`) that git lists
+  as a worktree of the repo; the main checkout never counts.
+- **A card per subagent**, newest first: its task name, its state, then its model, the session that started it
+  (or `ended session`) and when it last wrote; its worktree and branch; its tickets (the ones in its branch
+  name, its commit subjects or its task name; for a lookup, the last four it looked at); and its pull
+  requests: the links in its final report, in what a `gh pr create`, `view`, `merge`, `checks` or `status`
+  command it ran printed, and in its own words. A link in a file it read, wrote or searched, or in any other
+  output (a test run, a file body), is never its pull request.
+- **State**, a dot and one word: **Working** (not finished, and its transcript was written in the last
+  15 minutes), **Stuck** (not finished, and nothing written for 15 minutes or more), **Done** (it handed back
+  a final report with SubagentHandback), **Stopped** (amber: it ended without a handback and without an
+  error, so it may need resuming) and **Failed** (its last reply was an API error). A stopped or failed
+  card shows its last words.
+- **Pull request state**: `PR #12 merged`, `open · checks passing`, `open · checks failing`, `closed`. It
+  comes from `gh pr view <n> --repo=<owner/name> --json=state,isDraft,statusCheckRollup` with the `pr.gh`
+  command, read only, at most once a minute per pull request and never again once merged, a few at a time,
+  each call given 8 seconds. The list never waits more than 2.5 seconds for gh: a state that is late shows
+  on the next poll, and when gh is missing, signed out or fails, the card shows the plain link.
+- **Report** unfolds a finished subagent's final report in full, drawn as Markdown with everything escaped,
+  with **Copy**. It is read on demand (`GET /api/subagents/report`), so the list stays small.
+- **Flow** opens the flow that tells the subagent's work: a flow it wrote (its `--by` is the subagent's task
+  name, or it ran its flow commands on that flow, whatever name it signed with), else one whose recorded pull request starts from its branch, else one that names a ticket it built.
+  A quiet **no story** marks a builder that is done, failed, stopped or stuck (never one still working) with no flow, or whose flow has no story (`flow say` lines) or no
+  picture (a result screenshot or a diagram); the hover says which.
+- **Click a card** to watch that subagent in the live view (below), also when its session has ended. A click on
+  a link, a button or inside an open report stays on the page.
+
+The routes are `GET /api/subagents?days=1..7` (anything else reads as the nearest allowed value) and
+`GET /api/subagents/report?session=<id>&sub=<id>`; the page polls the first every 15 seconds while it shows.
+The code is `subagents.mjs` (the listing), `subagent-prs.mjs` (gh), `subagent-routes.mjs` and
+`public/subagents-page.js`. Limits: only the last 4 MB of a transcript is read, so a very long subagent's early
+work (a worktree it left, a first commit) can be missed; a subagent whose session was killed stays **Stuck**;
+and ticket and flow matching are heuristics, a strong hint and not a record.
 
 ### Agents writing flows
 
@@ -673,6 +732,50 @@ node tools/factory.mjs show ABC-123
 
 `decide` is the old command, kept so older briefs still work: it becomes a `flow ask` on a new one-ask flow.
 
+### The stop check
+
+`tools/flow-gate.mjs` is a small script for a Claude Code **Stop** or **SubagentStop** hook: an agent that
+made a git commit is not let go until its work is told. The hook hands it its JSON on stdin
+(`transcript_path`, `stop_hook_active`, and `agent_id` for a subagent). When the agent committed in that
+transcript and no flow of its own has both a story (`flow say`) and a visual (`flow result` or
+`flow diagram`), it prints
+
+```
+{"decision":"block","reason":"Record your flow before finishing: flow say, flow diagram or flow result, flow test-step (node <abs path>/tools/factory.mjs flow ... --by \"<its name>\")."}
+```
+
+and Claude Code gives the agent that reason instead of stopping. The name is the one its card goes by, so the
+flow links to it: a subagent's task name, a session's name from the harness's session list, else a name it
+already signed a flow with; with none of those the line ends at `flow ...).` A flow is the agent's own when its agent is
+a name the agent passed as `--by` (or `FACTORY_BY`), for a subagent also its task name, or when the agent ran
+a flow command on it. A dropped flow does not count, nor one last written before the work in the transcript
+began.
+
+It never blocks when `stop_hook_active` is true (the agent was already sent back once, so one reminder is
+all it gets), when nothing was committed, or on any error: bad input, a transcript it cannot read, a missing
+`config.json`. It always exits 0 and prints nothing else, so a broken check never traps an agent. It only
+reads (the tail of the transcript, a subagent's meta file and `data/flows`), runs no model and costs nothing.
+
+**This repo does not install it.** To turn it on, add it yourself to the settings file of the repo your
+agents work in (`.claude/settings.json` there, or your user settings), with the absolute path of this
+dashboard:
+
+```json
+{
+  "hooks": {
+    "Stop": [
+      { "hooks": [{ "type": "command", "command": "node C:/path/to/yz-agent-orchestration/tools/flow-gate.mjs" }] }
+    ],
+    "SubagentStop": [
+      { "hooks": [{ "type": "command", "command": "node C:/path/to/yz-agent-orchestration/tools/flow-gate.mjs" }] }
+    ]
+  }
+}
+```
+
+Use only `SubagentStop` to hold subagents to it and leave your own sessions alone. To try it without a hook:
+`echo '{"transcript_path":"<a session .jsonl>","stop_hook_active":false}' | node tools/flow-gate.mjs`.
+
 ### Collections by kind
 
 A collection is any list of tickets, from any tracker or none. Every collection ends up as
@@ -737,7 +840,6 @@ overrides it).
 Still fixed in code, and next on the list to move into `config.json`:
 
 - The only ticket converter is for Switchboard (`sources/switchboard.mjs`); any other tracker is an `agent` collection until it has one.
-- The page names the coordinator "Master" (public/app.js).
 
 ## Where the data comes from
 
@@ -747,6 +849,8 @@ Still fixed in code, and next on the list to move into `config.json`:
 | On dev / on stage | `git fetch origin` every 5 minutes, then ancestry and ticket ids in commit subjects | 5 minutes |
 | Agents and what they last touched | `~/.claude/sessions/*.json` (name, status) and each session transcript: worktree paths and ticket ids in its tool calls only, not tool output | every build; transcripts are read once, then only new bytes |
 | Ticket title, state, owner | `data/sources/<id>.json` of every collection, merged (see Collections by kind) | when refreshed (below) |
+| Subagents, their state, worktree, tickets and final report | `~/.claude/projects/<folder>/<session>/subagents/agent-<id>.meta.json` and the last 4 MB of `agent-<id>.jsonl`, for live and ended sessions | every poll (15 s on the page, 30 s on Home), each file read once per change |
+| Pull request state on a subagent card | `gh pr view --json` (read only) | at most once a minute per pull request |
 | Flows, asks, evidence | `data/flows/<id>.json`, written by agents with `tools/factory.mjs flow …` | every poll (15 s) |
 
 Read only: the only command that writes anything is `git fetch origin`
@@ -756,7 +860,7 @@ written inside the repo or any worktree.
 ## Agents (#/agents): the tree and states
 
 The Agents page draws the agents as a tree of cards (Home shows the same cards
-in a compact grid, in the same order): Master's card at the root,
+in a compact grid, in the same order): Coordinator's card at the root,
 a trunk running down from it, and each coding agent's card on its own rounded
 branch. An agent's subagents branch off its card the same way. A branch turns
 green while its agent works and accent blue while it tests. Sessions outside
@@ -773,7 +877,7 @@ same report the grid's column head opens). A state is a dot and one word
 
 - **Drag** an agent's card to reorder the branches (or the other sessions).
   The card lifts and tilts as it follows the pointer and the others spring
-  aside. The order is saved in this browser (localStorage). Master stays at
+  aside. The order is saved in this browser (localStorage). Coordinator stays at
   the root.
 - **Click** a card to watch that agent live, or a subagent row to watch the
   subagent. A press only becomes a drag after 4 px of movement.
@@ -793,7 +897,9 @@ subagent dispatches from one parent folds into one row with its count.
 
 ## One agent, live
 
-Click an agent or subagent in the tree. The left panel is its activity as it
+Click an agent or subagent in the tree, or a card on the Subagents page. A subagent opens whatever its age, and also
+when the session that started it has ended (the title then reads `Ended session › <task>`): the session is
+found by its id among the repo's project folders. The left panel is its activity as it
 happens (polled every 2.5 s): your prompts, its replies, each edit as a red and
 green diff, files it wrote, commands with their output, messages and subagents.
 The right panel is the uncommitted `git diff` of the worktree it works in
@@ -883,7 +989,7 @@ the file held before.
 - **no**: nothing there names the ticket.
 
 "Agent" on a ticket is the coding agent (Agent 1, 2 or 3) that most recently
-touched its worktree, or Master if only Master did. It is inferred from
+touched its worktree, or Coordinator if only Coordinator did. It is inferred from
 transcripts, so treat it as a strong hint, not a record.
 
 ## Refresh the tickets

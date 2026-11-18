@@ -32,6 +32,8 @@
 .ox-chip.rv-needs-review { background: color-mix(in srgb, var(--warn) 15%, var(--surface)); border-color: color-mix(in srgb, var(--warn) 45%, transparent); color: var(--warn); }
 .ox-chip.accepted { text-decoration: line-through; opacity: .7; }
 .ox-chip.outside { border-style: dashed; }
+/* the subagent that built the ticket, after its number: quieter than the number, and never wider than the cell */
+.ox-subagent { margin-left: 6px; font: 400 11.5px var(--font); color: var(--muted); max-width: 150px; display: inline-block; vertical-align: bottom; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ox-more { position: absolute; top: -3px; right: -3px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); border: 1.5px solid var(--surface); }
 
 .ox-where { font-size: 12px; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: var(--surface-3); color: var(--ink-2); cursor: default; }

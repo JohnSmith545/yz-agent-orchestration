@@ -1,6 +1,6 @@
 # Agent brief: narrate your work as a flow
 
-Paste this into the brief of every agent that works in the repo (Master and the coding agents).
+Paste this into the brief of every agent that works in the repo (Coordinator and the coding agents).
 
 Replace `C:/path/to/yz-agent-orchestration` below with the absolute path of your copy of this
 dashboard: agents run from the watched repo (and may run under another Claude account),
@@ -46,26 +46,26 @@ so a relative path would not resolve.
 For example (`--by` names the agent; `FACTORY_BY` does the same):
 
 ```
-node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow new abc-123-login "Fix the login redirect" --tickets ABC-123 --env dev --by Master
-node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow step abc-123-login "Write the failing test" --status doing --by Master
-node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow ask abc-123-login "Deploy the fix to dev?" --why "The test passes on the branch; dev is where QA can try it" --yes "Deploy it" --no "Leave it on the branch" --by Master
+node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow new abc-123-login "Fix the login redirect" --tickets ABC-123 --env dev --by Coordinator
+node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow step abc-123-login "Write the failing test" --status doing --by Coordinator
+node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow ask abc-123-login "Deploy the fix to dev?" --why "The test passes on the branch; dev is where QA can try it" --yes "Deploy it" --no "Leave it on the branch" --by Coordinator
 ```
 
 And once the fix works, its output (the screenshots are files the agent saved, for example with the Playwright screenshot tool):
 
 ```
-node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow result abc-123-login --shot after.png --caption "Signed in, back on the page I came from" --by Master
-node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow summary abc-123-login "The redirect now keeps the page you asked for." --commit ab12cd3 --by Master
-node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow test-step abc-123-login "Open a deep link while signed out." --expect "The sign-in page." --shot t1.png --by Master
-node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow test-step abc-123-login "Sign in." --expect "You land on the deep link, not Home." --shot t2.png --by Master
+node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow result abc-123-login --shot after.png --caption "Signed in, back on the page I came from" --by Coordinator
+node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow summary abc-123-login "The redirect now keeps the page you asked for." --commit ab12cd3 --by Coordinator
+node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow test-step abc-123-login "Open a deep link while signed out." --expect "The sign-in page." --shot t1.png --by Coordinator
+node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow test-step abc-123-login "Sign in." --expect "You land on the deep link, not Home." --shot t2.png --by Coordinator
 ```
 
 The story, a few plain lines the user reads first (the words in square brackets get explained on hover;
 `--id s2 --replace` rewrites a line and `flow say-clear` starts again):
 
 ```
-node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow say abc-123-login "Reproduced the bug with [Playwright]" --by Master
-node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow say abc-123-login "Kept the page you asked for in the [redirect URL]" --why "Signing in used to drop it and send you Home" --by Master
+node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow say abc-123-login "Reproduced the bug with [Playwright]" --by Coordinator
+node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow say abc-123-login "Kept the page you asked for in the [redirect URL]" --why "Signing in used to drop it and send you Home" --by Coordinator
 node C:/path/to/yz-agent-orchestration/tools/factory.mjs term "redirect URL" "The address the sign-in page sends you back to once you are in." --flow abc-123-login
 ```
 
@@ -73,14 +73,14 @@ When the branch is ready for the base branch, record the pull request (the body 
 pull request template); the user sends it from the Output:
 
 ```
-node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow pr abc-123-login --head feature/login-redirect --base dev --title "Keep the page you asked for after signing in" --body-file pr.md --by Master
+node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow pr abc-123-login --head feature/login-redirect --base dev --title "Keep the page you asked for after signing in" --body-file pr.md --by Coordinator
 ```
 
 Work with nothing to screenshot gets a diagram instead, in one line of arrows (`[actor]`, `[store]` and `[decision]`
 set a box's shape; `: label` names the arrow into a box):
 
 ```
-node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow diagram acme-report "[actor] Scheduler -> Report job: every night; Report job -> [store] Reports: saves; Report job -> [actor] Team: emails" --by Master
+node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow diagram acme-report "[actor] Scheduler -> Report job: every night; Report job -> [store] Reports: saves; Report job -> [actor] Team: emails" --by Coordinator
 ```
 
 What the user sees: the flow as a card on the Flows page (`#/flows`), and each `flow ask` in **Waiting on you** with your `--why` under the question and Yes and No; the answer is sent back to the agent as a message. An opened flow lands on **Output**: the result screenshot (or your diagram, or with neither a summary chart the dashboard draws from your steps), the summary with its commits, and the numbered test steps. If the user presses **Request test steps**, a message arrives asking for those steps: drive the app, then record each step with `flow test-step`. **Request visuals** (a flow with no screenshot and no diagram) asks for a screenshot or a diagram first.

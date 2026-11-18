@@ -1,0 +1,4 @@
+{"type":"user","isSidechain":true,"timestamp":"2026-11-12T09:18:00.000Z","cwd":"C:\\path\\to\\your-repo","message":{"role":"user","content":"Fix the footer link."}}
+{"type":"assistant","timestamp":"2026-11-12T09:18:30.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"t1","name":"PowerShell","input":{"command":"git -c user.name=x commit -am \"Fix the footer link\""}}]}}
+{"type":"user","timestamp":"2026-11-12T09:19:00.000Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":[{"type":"text","text":"[detached HEAD 9f8e7d6] Fix the footer link\n 1 file changed"}]}]}}
+{"type":"assistant","timestamp":"2026-11-12T09:19:30.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"t2","name":"SubagentHandback","input":{"message":"The footer link is fixed. No pull request yet."}}]}}

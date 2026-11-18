@@ -1,6 +1,6 @@
 // The agents as cards, from ONE renderer in two modes (spec 5).
 //
-//   full (the Agents page): a tree. Master's card is the root; the coding
+//   full (the Agents page): a tree. Coordinator's card is the root; the coding
 //   agents hang off it on branch lines and can be dragged to reorder
 //   (card-stack.js); each agent's subagents branch off its own card, and each
 //   card has a Progress report button. Sessions outside the team sit in their
@@ -41,7 +41,7 @@
 
   // ─── one card ──────────────────────────────────────────────────────────────
 
-  const roleOf = a => (a.name === 'Master' ? 'Coordinator' : a.coding ? 'Coding agent' : 'Session')
+  const roleOf = a => (a.coordinator ? 'Coordinator' : a.coding ? 'Coding agent' : 'Session')
 
   // A talking partner can be a subagent id; show its brief instead.
   const partner = a => {
@@ -117,13 +117,13 @@
     location.hash = target?.closest?.('[data-href]')?.dataset.href || `#/agent/${encodeURIComponent(a.sessionId)}`
   }
 
-  // Master, the coding agents by name, then everyone else most recently
+  // Coordinator, the coding agents by name, then everyone else most recently
   // active first; a saved drag order wins inside each group.
   function groups(agents) {
     const byName = (x, y) => x.label.localeCompare(y.label)
     return {
-      master: agents.find(a => a.name === 'Master') || null,
-      workers: agents.filter(a => a.coding && a.name !== 'Master').sort(byName),
+      coordinator: agents.find(a => a.coordinator) || null,
+      workers: agents.filter(a => a.coding && !a.coordinator).sort(byName),
       others: agents.filter(a => !a.coding).sort((x, y) => String(y.transcriptAt || '').localeCompare(String(x.transcriptAt || ''))),
     }
   }
@@ -137,7 +137,7 @@
 
   function renderCompact(box, data) {
     const g = groups(data.agents)
-    const list = [...(g.master ? [g.master] : []), ...saved(g.workers, ORDER.workers), ...saved(g.others, ORDER.others)]
+    const list = [...(g.coordinator ? [g.coordinator] : []), ...saved(g.workers, ORDER.workers), ...saved(g.others, ORDER.others)]
     if (!box._wired) {
       box._wired = true
       const pick = e => box._agents?.get(e.target.closest('[data-session]')?.dataset.session)
@@ -199,22 +199,25 @@
     return t
   }
 
-  function renderRoot(box, master, worktrees) {
+  /** Pure: the root card while the coordinating session is not running, under the label the config gives it. */
+  const missingRoot = label => `<div class="ac"><div class="ac-head"><span class="ac-name">${window.UI.esc(label || 'Coordinator')}</span><span class="ac-role">not running</span></div></div>`
+
+  function renderRoot(box, coordinator, worktrees, label = 'Coordinator') {
     const root = box.querySelector('.ac-root')
-    root._agent = master
-    if (!master) {
+    root._agent = coordinator
+    if (!coordinator) {
       root.removeAttribute('tabindex')
       root.removeAttribute('role')
       root.className = 'ac-root ac-missing'
-      root.innerHTML = '<div class="ac"><div class="ac-head"><span class="ac-name">Master</span><span class="ac-role">not running</span></div></div>'
+      root.innerHTML = missingRoot(label)
       root._html = null
       return
     }
     root.className = 'ac-root'
     root.tabIndex = 0
     root.setAttribute('role', 'button')
-    root.setAttribute('aria-label', `${master.label}. Open to watch it work.`)
-    const html = card(master, { worktrees })
+    root.setAttribute('aria-label', `${coordinator.label}. Open to watch it work.`)
+    const html = card(coordinator, { worktrees })
     if (root._html !== html) {
       root.innerHTML = html
       root._html = html
@@ -225,7 +228,7 @@
     const t = trees.get(box) || setup(box)
     t.worktrees = data.worktrees || []
     const g = groups(data.agents)
-    renderRoot(box, g.master, t.worktrees)
+    renderRoot(box, g.coordinator, t.worktrees, t.coordinator?.label)
     t.workers.update(g.workers)
     t.others.update(g.others)
     box.querySelector('.ac-others').hidden = !g.others.length
@@ -284,6 +287,8 @@
   if (typeof document !== 'undefined') document.addEventListener('pulse', e => renderChat(e.detail?.chat))
 
   window.AgentCards = {
+    groups,
+    missingRoot,
     card,
     chatCard,
     renderChat,
