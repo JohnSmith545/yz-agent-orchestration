@@ -137,6 +137,32 @@ test('the flows returned are the next baseline, by id', () => {
   assert.deepEqual(types(next), ['done', 'proof'])
 })
 
+test('a flow that leaves the list (archived or deleted) and comes back unchanged raises nothing', () => {
+  const opts = { seen: [], first: false, onFlows: false }
+  const done = line('a', { status: 'done', evidence: 4 })
+  const r1 = alerts(prevOf(done, line('b')), pulse({ flows: [line('b')] }), opts) // a archived or in the Trash
+  assert.equal(r1.flows.get('a').evidence, 4, 'the baseline keeps what it last saw of a')
+  const r2 = alerts(r1.flows, pulse({ flows: [line('b')] }), opts)
+  const back = plain(alerts(r2.flows, pulse({ flows: [done, line('b')] }), opts)) // Undo, Restore or Unarchive
+  assert.deepEqual(back.alerts, [], 'no is done, no added proof: nothing changed')
+})
+
+test('a flow that comes back with a real change raises that one alert; a truly new flow still alerts as before', () => {
+  const opts = { seen: [], first: false, onFlows: false }
+  const gone = alerts(prevOf(line('a', { evidence: 1 })), pulse({ flows: [] }), opts)
+  const back = plain(alerts(gone.flows, pulse({ flows: [line('a', { evidence: 1, status: 'blocked' })] }), opts))
+  assert.deepEqual(types(back), ['blocked'])
+  assert.deepEqual(types(plain(alerts(gone.flows, pulse({ flows: [line('new-one', { status: 'blocked' })] }), opts))), ['blocked'])
+})
+
+test('the baseline stays bounded: past 500 lines the oldest vanished flows go, the live ones stay', () => {
+  const many = new Map(Array.from({ length: 600 }, (_, i) => [`old-${i}`, line(`old-${i}`)]))
+  const r = alerts(many, pulse({ flows: [line('live')] }), { seen: [], first: false, onFlows: false })
+  assert.equal(r.flows.size, 500)
+  assert.ok(r.flows.has('live'))
+  assert.ok(!r.flows.has('old-0') && r.flows.has('old-599'), 'the oldest go first')
+})
+
 test('waiting asks come before flow alerts', () => {
   const r = run(prevOf(line('a')), pulse({ waiting: [ask('a', 'n1')], flows: [line('a', { status: 'blocked' })] }))
   assert.deepEqual(types(r), ['waiting', 'blocked'])

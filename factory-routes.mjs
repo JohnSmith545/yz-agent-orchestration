@@ -9,8 +9,12 @@
 //   POST /api/chat/send                { text }
 //   POST /api/chat/stop
 //   POST /api/chat/new                 { fork?: true }: true starts the next chat from forkFrom, once
-//   GET  /api/flows[?open=1&waiting=1&agent=X&ticket=T]   { flows, invalid }
-//   GET  /api/flows/<id>               the flow with `derived`
+//   GET  /api/flows[?open=1&waiting=1&agent=X&ticket=T&archived=1]   { flows, invalid, counts: { archived, trash } }:
+//                                      archived flows left out, or with archived=1 only them
+//   GET  /api/flows/<id>               the flow with `derived` (an archived one too: a direct link keeps working)
+//   POST /api/flows/<id>/archive       { archived }; POST /api/flows/<id>/delete { confirm? }: trash-routes.mjs
+//   GET  /api/trash; POST /api/trash/<id>/restore; POST /api/trash/<id>/purge: the Trash (trash-routes.mjs)
+//   Any flow route on an id in the Trash: 404 { error: '<id> is in the Trash.' }
 //   POST /api/flows/<id>/answer        { node, answer, note? }, then relay.queue
 //   POST /api/flows/<id>/verify        { node, verified }, the user's tick
 //   POST /api/flows/<id>/status        { node, status } (after an ask: then relay.queueStatus), or { status } for the flow
@@ -66,8 +70,12 @@ import { applyAnswer, applyVerify, derive, EVIDENCE_DIR, FLOW_STATUS, followsAnA
 import { requestText } from './relay.mjs'
 import { sinceRoute } from './since.mjs'
 import { readSpend } from './spend.mjs'
+import { listTrash } from './trash.mjs'
+import { archiveRoute, deleteRoute, purgeRoute, restoreRoute, trashedFlow, trashList } from './trash-routes.mjs'
 
 const SLUG = /^[a-z0-9-]+$/
+/** /api/trash/<id>/restore and /api/trash/<id>/purge; the id is checked against SLUG before any disk access. */
+const TRASH_PATH = /^\/api\/trash\/([^/]+)\/(restore|purge)$/
 const SHA = /^[0-9a-f]{7,40}$/
 /** /api/flows/<id> and /api/flows/<id>/<action> (`pr/refresh` has two parts); the id is checked against SLUG before any disk access. */
 const FLOW_PATH = /^\/api\/flows\/([^/]+)(?:\/([a-z-]+(?:\/[a-z-]+)?))?$/
@@ -130,8 +138,17 @@ export async function factoryRoute(req, res, url, { git, gh, push, pr, port = CO
     if (p === '/api/chat/stop' && post) return json(res, 200, chatStop()), true
     if (p === '/api/chat/new' && post) return json(res, 200, chatNew({ fork: (await body(req))?.fork === true })), true
 
-    if (p === '/api/flows' && !post) return json(res, 200, listFlows(filterOf(q))), true
+    if (p === '/api/flows' && !post) return json(res, 200, flowList(q)), true
     if (flowPath && !SLUG.test(id)) return json(res, 400, { error: 'Flow id must match /^[a-z0-9-]+$/.' }), true
+    const trashed = flowPath && trashedFlow(id)
+    if (trashed) return send(res, trashed), true
+    if (action === 'archive' && post) return send(res, archiveRoute(id, await body(req))), true
+    if (action === 'delete' && post) return send(res, deleteRoute(id, await body(req), relay)), true
+    if (p === '/api/trash' && !post) return send(res, trashList()), true
+    const [, trashId, trashAction] = TRASH_PATH.exec(p) || []
+    if (trashId && !SLUG.test(trashId)) return json(res, 400, { error: 'Flow id must match /^[a-z0-9-]+$/.' }), true
+    if (trashAction === 'restore' && post) return send(res, restoreRoute(trashId, relay)), true
+    if (trashAction === 'purge' && post) return send(res, purgeRoute(trashId)), true
     if (flowPath && !action && !post) return showFlow(res, id), true
     if (action === 'answer' && post) return answer(res, id, await body(req), relay), true
     if (action === 'verify' && post) return verify(res, id, await body(req)), true
@@ -164,7 +181,23 @@ export async function factoryRoute(req, res, url, { git, gh, push, pr, port = CO
 // ═══ Flow handlers ═══
 
 function filterOf(q) {
-  return { open: q.get('open') === '1', waiting: q.get('waiting') === '1', agent: q.get('agent') || undefined, ticket: q.get('ticket') || undefined }
+  return { open: q.get('open') === '1', waiting: q.get('waiting') === '1', agent: q.get('agent') || undefined, ticket: q.get('ticket') || undefined, archived: q.get('archived') === '1' }
+}
+
+/**
+ * The list, plus the counts behind the page's `Archived · N` and `Trash · N` links, so it needs no second request.
+ * ⚠️ The Trash count never turns the list into an error: a Trash that cannot be read leaves `trash` out.
+ */
+function flowList(q) {
+  const tally = {}
+  const { flows, invalid } = listFlows(filterOf(q), tally)
+  const counts = { archived: tally.archived }
+  try {
+    counts.trash = listTrash().length
+  } catch (err) {
+    console.error(`trash: could not count the Trash: ${err?.message || err}`)
+  }
+  return { flows, invalid, counts }
 }
 
 const noFlow = (res, id) => json(res, 404, { error: `No flow ${id}.` })

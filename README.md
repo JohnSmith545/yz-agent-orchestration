@@ -478,6 +478,16 @@ file per flow in `data/flows/`, written with the `flow` commands below. Top to b
   **Request test steps** from the Output view (one line per flow, with your note). Each delivery
   costs roughly $0.30 and ten seconds.
 
+### Archive and Trash
+
+Flows are the one thing the dashboard keeps of its own, so they are the one thing you can put away. In an opened
+flow's `⋯` menu, **Archive** hides it from the board, Waiting on you, Home, the palette and the alerts without deleting
+it; a direct link still opens it, and a new question from its agent brings it back. **Delete** moves it to the Trash
+(`data/trash/<id>.json`); a flow its agent may still be working on asks first, and that agent is told to stop. A flow
+24 hours in the Trash is removed for good with its evidence files, decided from its stored time at startup and every
+10 minutes. **Archived · N** and **Trash · N** under the board list them, with Unarchive, Restore and Delete forever.
+Only you archive or delete: agents have no command for either, and any command on a trashed flow is refused.
+
 ### Settings (#/settings)
 
 The gear above Theme in the rail. Two sections:

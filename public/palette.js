@@ -9,7 +9,8 @@
 //            opened with FactoryView.gotoTicket
 //   agents   App.agents() (the last /api/status build), opened at #/agent/<sessionId>
 //   actions  Ask, Refresh, Theme: light / dark / system, Mark read (only
-//            while the Since card shows on Home)
+//            while the Since card shows on Home), Archived and Trash (the
+//            Flows page lists, FlowsView.showList)
 //
 // Keys: ONE keydown listener on window, CAPTURE, added before notify.js adds
 // its own (index.html loads this file first, pinned by test/palette.test.mjs;
@@ -82,7 +83,8 @@
     const byId = id => doc?.getElementById?.(id) || null
     const items = PAGES.map(([label, hash]) => ({ kind: 'page', label, hint: hash, run: () => w.Shell?.go(hash) }))
 
-    const flows = safe(() => w.FlowsView?.data?.flows).filter(f => f && f.id)
+    // an archived flow is only in the page's data while it is open by link: not a palette item (the Archived action lists them)
+    const flows = safe(() => w.FlowsView?.data?.flows).filter(f => f && f.id && !f.archivedAt)
     flows.sort((a, b) => (FLOW_RANK[a.status] ?? 1) - (FLOW_RANK[b.status] ?? 1))
     for (const f of flows) {
       items.push({ kind: 'flow', label: f.title || f.id, hint: [f.status, f.agent].filter(Boolean).join(' · '), run: () => w.FlowsView?.gotoFlow(f.id) })
@@ -125,6 +127,9 @@
     }
     const since = byId('homeSince')
     if (since && !since.hidden) items.push({ kind: 'action', label: 'Mark read', hint: 'Clear Since you were away', run: () => w.Since?.markRead() })
+    // last, so the empty query's twelve stay as they were: typing finds them (flow-trash.js draws the lists)
+    items.push({ kind: 'action', label: 'Archived', hint: 'Flows put away', run: () => w.FlowsView?.showList('archived') })
+    items.push({ kind: 'action', label: 'Trash', hint: 'Deleted flows, kept 24 hours', run: () => w.FlowsView?.showList('trash') })
     return items
   }
 

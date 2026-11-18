@@ -8,6 +8,11 @@
 //
 // Only the user sets `verified` or answers an ask: there is no verify command,
 // and `write` merges the user's ticks and answers back in (mergeKeepingAnswers).
+// Only the user archives or deletes a flow, too: no command sets `archivedAt`,
+// and any command on a flow in the Trash (trash.mjs) fails with one line telling
+// the agent to stop (TRASHED), so nothing writes into a flow the user deleted,
+// and `write` or `new` can never bring one back under the same id. In the Trash
+// means what the server means (trash.mjs isTrashed): an entry and no live file.
 //
 // Agents run on two Claude accounts with different working folders, so any
 // path printed here is absolute.
@@ -19,12 +24,13 @@ import {
   addEvidence, addNode, createFlow, derive, EVIDENCE_DIR, EVIDENCE_KINDS, listFlows,
   mergeKeepingAnswers, readFlow, setNodeStatus, validateFlow, visualOf, writeFlow,
 } from '../flows.mjs'
+import { isTrashed } from '../trash.mjs'
 import { changeBlock, changeCommands } from './change-cli.mjs'
 import { prBlock, prCommands } from './pr-cli.mjs'
 import { sayCommands, storyBlock } from './story-cli.mjs'
 
 /** Flags that take no value. Every other `--x` takes the next argument. */
-const BOOLEAN = new Set(['text', 'open', 'waiting', 'replace', 'clear'])
+const BOOLEAN = new Set(['text', 'open', 'waiting', 'replace', 'clear', 'archived'])
 /** `result` and `diagram` take `--before` alone (a before shot, the diagram before); `change --before` takes a line. */
 const BEFORE_BOOLEAN = new Set([...BOOLEAN, 'before'])
 /**
@@ -72,7 +78,8 @@ export const USAGE = `usage: flow <command>
   set <flow> [--status open|done|blocked|dropped] [--title "..."] [--why "..."] [--tickets ABC-1,ABC-2]
   write <path.json>     whole flow in one go; keeps the answers and ticks the user gave, and the stored output when the file has none
   show <flow>           the JSON with derived, to read back answers (stdout); what its Output holds (stderr)
-  list [--open] [--waiting] [--agent X] [--ticket ABC-1]
+  list [--open] [--waiting] [--agent X] [--ticket ABC-1] [--archived]   archived flows only with --archived
+  Only the user archives or deletes a flow. A command refused with "in the Trash" means stop work on that flow.
 The Output, what the user sees first: when a piece of work is finished, record
   say <flow> "<what was done>" [--why "<the reason>"] [--who "<label>"] [--id s2 --replace]   one story line
   say-clear <flow>      empties the story, to tell it again
@@ -110,6 +117,11 @@ export const NO_NAME = 'say who you are with --by <your dashboard label> (or set
 const fail = (out) => ({ out, code: 1 })
 const ok = (out) => ({ out, code: 0 })
 
+/** What every command on a flow in the Trash answers: one line, so the agent stops (trash.mjs). */
+export const TRASHED = id => `Flow ${id} is in the Trash: the user deleted it. Stop work on it; it can be restored from the Trash for 24 hours.`
+/** `flow new` on an id in the Trash: the deleted flow keeps its id for its 24 hours. */
+const TRASHED_NEW = id => `Flow ${id} is in the Trash. Pick another id.`
+
 /**
  * The dashboard shows why the user is asked under every question (flows.mjs askReason). An ask with no
  * why still goes in (older briefs and `decide` callers must keep working), but the agent is told on
@@ -138,6 +150,7 @@ function load(id) {
 function cmdNew(f, { by }) {
   if (!by) return fail(NO_NAME)
   const [id, title] = f._
+  if (isTrashed(id)) return fail(TRASHED_NEW(id))
   createFlow({ id, title, agent: by, tickets: tickets(f.tickets), env: f.env, why: f.why })
   return ok(`Flow ${id} created`)
 }
@@ -241,6 +254,7 @@ function cmdWrite(f, { by, cwd }) {
     return fail(`Cannot read ${file}: ${err.message}`)
   }
   if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) return fail('flow must be a JSON object')
+  if (isTrashed(incoming.id)) return fail(TRASHED(incoming.id)) // a write would bring the deleted flow back
   if (incoming.agent === undefined) {
     if (!by) return fail(NO_NAME)
     incoming.agent = by
@@ -400,7 +414,7 @@ function cmdTestClear(f, { by }) {
 }
 
 function cmdList(f) {
-  const { flows } = listFlows({ open: f.open, waiting: f.waiting, agent: f.agent, ticket: f.ticket })
+  const { flows } = listFlows({ open: f.open, waiting: f.waiting, agent: f.agent, ticket: f.ticket, archived: f.archived })
   return ok(flows.map(fl => {
     const { done, total } = fl.derived.progress
     return [fl.id, fl.status, fl.agent, `${done}/${total}`, fl.derived.waiting.length ? 'WAITING' : '', fl.title].join('  ')
@@ -439,7 +453,10 @@ export function runFlow(argv, { by, cwd }) {
   if (!command) return fail(USAGE)
   try {
     const booleans = cmd === 'result' || cmd === 'diagram' ? BEFORE_BOOLEAN : BOOLEAN
-    return command(flags(rest, cmd === 'summary' ? SUMMARY_REPEAT : undefined, booleans), { by, cwd })
+    const f = flags(rest, cmd === 'summary' ? SUMMARY_REPEAT : undefined, booleans)
+    // Every command but new, write and list names its flow first (say, change and pr too): one guard for them all.
+    if (!['new', 'write', 'list'].includes(cmd) && isTrashed(f._[0])) return fail(TRASHED(f._[0]))
+    return command(f, { by, cwd })
   } catch (err) {
     return fail(err.message)
   }

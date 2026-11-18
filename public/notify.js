@@ -22,6 +22,8 @@
 
   /** A flow first seen after the baseline counts from here. */
   const FRESH_FLOW = { status: 'open', evidence: 0, undelivered: 0 }
+  /** How many flow lines the baseline keeps, the vanished ones included (see alerts). */
+  const FLOWS_KEPT = 500
   const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`
 
   /**
@@ -34,7 +36,8 @@
    *   first      the first poll since the page loaded: several new asks become one summary.
    *   onFlows    the user is on the Flows page, where new proof and the waiting asks are already in view.
    * Returns { open, seen, flows, alerts }: `seen` is every open ask's key, to add to the
-   * kept set; `flows` is the next baseline. Each alert has a `type` and a plain `text`.
+   * kept set; `flows` is the next baseline (a flow gone from the pulse stays in it, see below).
+   * Each alert has a `type` and a plain `text`.
    */
   function alerts(prevFlows, p, { seen = [], first = false, onFlows = false } = {}) {
     const waiting = p.waiting || []
@@ -53,7 +56,16 @@
       }
     }
 
-    const flows = new Map(lines.map(f => [f.id, f]))
+    // The next baseline carries a flow that left the list (archived, in the Trash) forward: when it comes back
+    // (Undo, Restore, Unarchive) it is compared with what it was, never as a fresh flow (a false is done or added
+    // proof). One small line per flow id; past FLOWS_KEPT the oldest of the vanished ones go.
+    const flows = new Map(prevFlows || [])
+    for (const f of lines) flows.set(f.id, f)
+    const live = new Set(lines.map(f => f.id))
+    for (const id of [...flows.keys()]) {
+      if (flows.size <= FLOWS_KEPT) break
+      if (!live.has(id)) flows.delete(id)
+    }
     if (prevFlows) {
       for (const f of lines) {
         const before = prevFlows.get(f.id) || FRESH_FLOW
@@ -290,7 +302,8 @@
   // Every toast action is plain data, { label, kind, flowId, nodeId } (a Retry also names the
   // agent and the flow title for its result toasts), so the history keeps it and runAction
   // re-creates what it does: ONE place for the toast and the panel.
-  const KINDS = ['answer', 'open', 'retry', 'tickets', 'drawer']
+  // restore and unarchive are the Undo on the Flows page's own toasts (flow-trash.js), never an alert from a poll
+  const KINDS = ['answer', 'open', 'retry', 'tickets', 'drawer', 'restore', 'unarchive']
   const act = (label, kind, flowId, nodeId) => ({ label, kind, flowId, nodeId })
   function runAction(a) {
     switch (a.kind) {
@@ -301,6 +314,8 @@
       case 'retry': return retry(a)
       case 'tickets': return window.Shell?.go('#/tickets')
       case 'drawer': return window.Shell?.drawer.open()
+      case 'restore': return window.FlowTrash?.restore(a.flowId)
+      case 'unarchive': return window.FlowTrash?.unarchive(a.flowId)
     }
   }
   const go = a => () => runAction(a)

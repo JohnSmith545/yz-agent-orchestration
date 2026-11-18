@@ -358,10 +358,14 @@ export function turnPlan() {
 // The drawer draws an "Open flow: <title>" button for each (factory-chat.js);
 // it NEVER navigates by itself, even for one flow: the user may be typing.
 
-/** Every flow as { id, title, updatedAt }, for changedFlows. Never throws: a broken flows folder is no flows. */
-function flowSnapshot() {
+/**
+ * Every live flow as { id, title, updatedAt }, for changedFlows: the archived ones too (listFlows leaves them out by
+ * default), so a turn that writes into an archived flow still hands the drawer its Open flow button. Never throws:
+ * a broken flows folder is no flows.
+ */
+export function flowSnapshot() {
   try {
-    return listFlows().flows.map(f => ({ id: f.id, title: f.title || '', updatedAt: f.updatedAt || '' }))
+    return [...listFlows().flows, ...listFlows({ archived: true }).flows].map(f => ({ id: f.id, title: f.title || '', updatedAt: f.updatedAt || '' }))
   } catch {
     return []
   }

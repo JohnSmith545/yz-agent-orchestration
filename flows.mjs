@@ -22,6 +22,10 @@
 //   is the server's, written only when the user clicks Send (flow-merge.mjs, pr-routes.mjs).
 // - `derived` (progress, current, waiting, pending, proof, output, story, reasons, terms) is computed on
 //   read; listFlows attaches it and mergeKeepingAnswers drops it again.
+// - `archivedAt` (optional, a time) is the USER'S, like `verified`: only the page's Archive sets or
+//   clears it (trash-routes.mjs), mergeKeepingAnswers takes it from the stored file only, and listFlows
+//   leaves an archived flow out unless asked. A NEW open ask clears it (writeFlow), so archiving never
+//   hides a later question. Deleting is the Trash (trash.mjs), not a field.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -65,6 +69,12 @@ const WORK = new Set(['step', 'check'])
 const now = () => new Date().toISOString()
 const oneOf = (list) => `must be one of ${list.join(', ')}`
 const isText = (v) => typeof v === 'string' && v.trim() !== ''
+/**
+ * A real ISO 8601 time as toISOString writes it (seconds and fraction optional, Z or an offset) that is a real
+ * date: never a bare `1` or `2026`, which Date.parse accepts. For archivedAt; the older time fields keep isText.
+ */
+const ISO_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:\d{2})$/
+const isIsoTime = (v) => typeof v === 'string' && ISO_TIME.test(v) && !Number.isNaN(Date.parse(v))
 const flowFile = (id) => path.join(FLOWS_DIR, id + '.json')
 
 // ═══ Validation ═══
@@ -83,6 +93,7 @@ export function validateFlow(flow) {
   if (flow.env !== undefined && !ENVS.includes(flow.env)) problems.push(`env ${oneOf(ENVS)}`)
   if (!FLOW_STATUS.includes(flow.status)) problems.push(`status ${oneOf(FLOW_STATUS)}`)
   if (flow.why !== undefined && typeof flow.why !== 'string') problems.push('why must be text')
+  if (flow.archivedAt !== undefined && !isIsoTime(flow.archivedAt)) problems.push('archivedAt must be a time')
   if (!Array.isArray(flow.nodes)) return [...problems, 'nodes must be a list']
 
   const allIds = new Set(flow.nodes.map(n => n?.id))
@@ -288,15 +299,21 @@ export function listFlowIds() {
  * Every valid flow with `derived` attached, newest first, filtered; and every
  * file that failed to parse or validate, with its problems, so one bad file
  * shows as a banner instead of breaking the list.
+ * Archived flows are left out; `{ archived: true }` lists ONLY them. `tally`, when
+ * given, gets `archived`: how many valid flows are archived, whatever the filter
+ * (the page's `Archived · N` link), counted in the same pass and before `derive`.
  */
-export function listFlows({ open, waiting, agent, ticket } = {}) {
+export function listFlows({ open, waiting, agent, ticket, archived } = {}, tally = null) {
   const flows = []
   const invalid = []
+  if (tally) tally.archived = 0
   for (const id of listFlowIds()) {
     let flow
     try { flow = readFlow(id) } catch (err) { invalid.push({ id, problems: [`not valid JSON: ${err.message}`] }); continue }
     const problems = validateFlow(flow)
     if (problems.length) { invalid.push({ id, problems }); continue }
+    if (tally && flow.archivedAt) tally.archived++
+    if (Boolean(archived) !== Boolean(flow.archivedAt)) continue
     flow.derived = derive(flow)
     if (open && flow.status !== 'open') continue
     if (waiting && !flow.derived.waiting.length) continue
@@ -316,24 +333,47 @@ export function listFlows({ open, waiting, agent, ticket } = {}) {
  * The one writer of flow files, so it is also where a status change is noted
  * for Home's Since you were away card (since-store.mjs flows-prev.json): the
  * stored status is read before the write and noted when it differs.
+ * And where an archived flow comes back: when this write has an open ask the
+ * stored copy did not have, `archivedAt` goes, so a question asked after the
+ * user archived the flow is never hidden. "Had" is by identity (askKey), never a
+ * count: a reworded or replaced ask is a new question even when the number of
+ * open asks stays the same. An ask already in the stored copy, open or answered,
+ * is not new: the user saw it (archiving with an ask open holds, and so does
+ * the user reopening an answer). With no stored copy there is nothing to
+ * compare, and the trusted caller's archivedAt stands.
  */
 export function writeFlow(flow) {
   const problems = validateFlow(flow)
   if (problems.length) throw new Error(problems.join('\n'))
-  const before = storedStatus(flow.id)
+  const stored = storedFlow(flow.id)
+  const before = stored?.status ?? null
+  if (flow.archivedAt && stored && hasNewOpenAsk(flow, stored)) delete flow.archivedAt
   flow.updatedAt = now()
   writeAtomic(flowFile(flow.id), JSON.stringify(flow, null, 1))
   if (before && before !== flow.status) recordFlowStatus(flow.id, before, flow.status)
   return flow
 }
 
-/** The status in the flow's file now, or null (no file, or not readable). */
-function storedStatus(id) {
+/** The flow's file now, parsed, or null (no file, or not readable). */
+function storedFlow(id) {
   try {
-    return readFlow(id)?.status ?? null
+    return readFlow(id)
   } catch {
     return null
   }
+}
+
+/**
+ * Which question an ask is: its id and the fields mergeKeepingAnswers matches before it keeps an answer (kind,
+ * title, yes, no). So an agent edit that resets an answer always makes a new key. MUST CHANGE IN LOCKSTEP with
+ * mergeKeepingAnswers' askKept.
+ */
+const askKey = n => JSON.stringify([n.id, ...['kind', 'title', 'yes', 'no'].map(k => n[k] ?? '')])
+const asksOf = flow => (Array.isArray(flow?.nodes) ? flow.nodes.filter(n => n?.type === 'ask') : [])
+/** True when `flow` has an ask waiting on the user (`== null`, like derive's `waiting`) that `stored` does not have at all. */
+function hasNewOpenAsk(flow, stored) {
+  const known = new Set(asksOf(stored).map(askKey))
+  return asksOf(flow).some(n => n.answer == null && !known.has(askKey(n)))
 }
 
 export function createFlow({ id, title, agent, tickets, env, why }) {
@@ -449,6 +489,7 @@ export function mergeKeepingAnswers(incoming, existing) {
         (old.evidence || []).every(e => (n.evidence || []).some(x => x?.kind === e?.kind && x?.ref === e?.ref))
       n.verified = proofKept ? old.verified ?? null : null
     } else if (n.type === 'ask') {
+      // MUST CHANGE IN LOCKSTEP with askKey (writeFlow): a reset answer must be a new question there too
       const askKept = old?.type === 'ask' && ['kind', 'title', 'yes', 'no'].every(k => same(old, n, k))
       const kept = askKept ? old : {}
       for (const key of ['answer', 'answeredAt', 'sentAt', 'deliveryError']) n[key] = kept[key] ?? null
@@ -467,6 +508,9 @@ export function mergeKeepingAnswers(incoming, existing) {
       else delete incoming.output[key]
     }
   }
+  // Archive is the user's, like a tick: only ever from the stored file, never set or cleared by an agent.
+  if (existing?.archivedAt) incoming.archivedAt = existing.archivedAt
+  else delete incoming.archivedAt
   if (existing?.createdAt) incoming.createdAt = existing.createdAt
   delete incoming.derived
   return incoming

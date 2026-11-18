@@ -31,6 +31,7 @@ import { buildFlow } from './flow.mjs'
 import { buildReport } from './report.mjs'
 import { compareTickets } from './ticket-ids.mjs'
 import { claudeRun, makeRelay } from './relay.mjs'
+import { purgeExpired } from './trash.mjs'
 import {
   CLAUDE_DIRS,
   conversationsOf,
@@ -747,8 +748,22 @@ const relay = makeRelay({ run: claudeRun })
 // Answers a previous run queued but never delivered get a retry on the page, not silence (relay.mjs sweep).
 const lostAnswers = relay.sweep()
 if (lostAnswers.length) console.log(`relay: ${lostAnswers.length} answer(s) not sent before the last stop are marked for retry`)
+/**
+ * A flow 24 hours in the Trash is gone for good (trash.mjs). Decided from each entry's STORED time, so a
+ * restart loses nothing: once now, then every 10 minutes. A failure is logged and never stops the server.
+ */
+function sweepTrash() {
+  try {
+    const gone = purgeExpired()
+    if (gone.length) console.log(`trash: ${gone.length} flow(s) 24 hours in the Trash removed for good: ${gone.join(', ')}`)
+  } catch (err) {
+    console.error(`trash: the sweep failed: ${err?.message || err}`)
+  }
+}
+sweepTrash()
+setInterval(sweepTrash, 10 * 60_000).unref()
 /** The paths factory-routes.mjs answers. */
-const FACTORY_PREFIXES = ['/api/factory', '/api/chat', '/api/flows', '/api/commit', '/api/explain', '/api/glossary', '/api/since', '/api/spend', '/api/settings', '/evidence/']
+const FACTORY_PREFIXES = ['/api/factory', '/api/chat', '/api/flows', '/api/trash', '/api/commit', '/api/explain', '/api/glossary', '/api/since', '/api/spend', '/api/settings', '/evidence/']
 
 const server = createServer(async (req, res) => {
   // a website that rebinds its name to 127.0.0.1 sends its own Host: only requests addressed to us are answered (local-origin.mjs)

@@ -20,6 +20,10 @@
 // question about a marked word (`queueQuestion`, the page's ask-term): one line
 // per flow and word, asking the agent to answer it with `factory.mjs term`;
 // nothing is stamped on the flow, and like the rest it lives only in memory.
+// So does the user's delete of a flow (`queueDeleted`, trash-routes.mjs): one line telling the agent
+// to stop. ⚠️ It is the one item that needs NO flow file, at queue time or when the batch goes: the
+// flow is in the Trash by then, so the item carries the agent and the title itself. `drop` forgets
+// everything else queued for that flow at delete time.
 //
 // Rules this file keeps:
 // - `queue` runs AFTER the answer route has sent its 200, so it never throws
@@ -168,11 +172,19 @@ export function questionLine(flow, term, sentence = '') {
   )
 }
 
-/** The relay turn's prompt for `agent`; `entries` is [{ flow, node?, status?, request?, note?, question?, term?, sentence? }], one line each in the message. */
+/**
+ * One line for a flow the user deleted (queueDeleted): stop, and do not write to it again. `flow` is
+ * only { id, title } (the file is in the Trash); the title goes in as one JSON string like every field.
+ */
+function deletedLine(flow) {
+  return `The user deleted the flow ${quoted(flow.title)} (${flow.id}). Stop work on it and do not write to it again. It can be restored from the Trash for 24 hours.`
+}
+
+/** The relay turn's prompt for `agent`; `entries` is [{ flow, node?, status?, request?, note?, question?, term?, sentence?, deleted? }], one line each in the message. */
 export function buildPrompt(agent, entries) {
   return [
     `Send the session named ${JSON.stringify(String(agent))} ONE message with SendMessage (use ListAgents first to resolve the exact name; if two match, pick the one whose cwd is in ${CONFIG.repo}). The message, verbatim:`,
-    ...entries.map(e => (e.question ? questionLine(e.flow, e.term, e.sentence) : e.request ? requestText(e.flow, e.note) : e.status ? statusLine(e.flow, e.node) : askLine(e.flow, e.node))),
+    ...entries.map(e => (e.deleted ? deletedLine(e.flow) : e.question ? questionLine(e.flow, e.term, e.sentence) : e.request ? requestText(e.flow, e.note) : e.status ? statusLine(e.flow, e.node) : askLine(e.flow, e.node))),
     'Reply with only SENT or FAILED: <reason>.',
   ].join('\n')
 }
@@ -239,9 +251,13 @@ function lookupQuestion(flowId, term, sentence) {
   return { flow, question: true, term, sentence }
 }
 
-/** The item's entry, read fresh: an answered ask, a node whose status the user set, a request for test steps, or a question. */
-const lookupItem = ({ flowId, nodeId, kind, note, term, sentence }) =>
-  kind === 'status' ? lookupStatus(flowId, nodeId)
+/**
+ * The item's entry, read fresh: an answered ask, a node whose status the user set, a request for test steps, or a
+ * question. A deleted flow is NOT read (its file is in the Trash): its entry is built from what the item carries.
+ */
+const lookupItem = ({ flowId, nodeId, kind, note, term, sentence, title }) =>
+  kind === 'deleted' ? { flow: { id: flowId, title }, deleted: true }
+    : kind === 'status' ? lookupStatus(flowId, nodeId)
     : kind === 'request' ? lookupRequest(flowId, note)
     : kind === 'question' ? lookupQuestion(flowId, term, sentence)
     : lookup(flowId, nodeId)
@@ -264,8 +280,8 @@ function stamp(entries, outcome, at) {
       const flow = readFlow(flowId)
       if (!flow) continue
       let changed = false
-      for (const { node: sent, status, request, question, requestedAt } of list) {
-        if (status || question) continue // a status line or a question has no delivery record on the flow
+      for (const { node: sent, status, request, question, deleted, requestedAt } of list) {
+        if (status || question || deleted) continue // a status line, a question or a delete has no delivery record on the flow
         if (request) {
           const out = flow.output
           if (!out || !requestedAt || out.requestedAt !== requestedAt) continue
@@ -293,11 +309,11 @@ function stamp(entries, outcome, at) {
 // ═══ The queue ═══
 
 /**
- * makeRelay({ run, now?, delayMs? }) -> { queue, queueStatus, queueRequest, queueQuestion, deliverNow, status, sweep }.
+ * makeRelay({ run, now?, delayMs? }) -> { queue, queueStatus, queueRequest, queueQuestion, queueDeleted, drop, deliverNow, status, sweep }.
  * `run(prompt)` resolves { ok, out, err }; it may reject, which counts as a failure.
  */
 export function makeRelay({ run, now = () => new Date().toISOString(), delayMs = DEFAULT_DELAY_MS }) {
-  /** agent -> { items: [{ flowId, nodeId, kind: 'answer' | 'status' | 'request' | 'question', note?, term?, sentence? }], timer } */
+  /** agent -> { items: [{ flowId, nodeId, kind: 'answer' | 'status' | 'request' | 'question' | 'deleted', note?, term?, sentence?, title? }], timer } */
   const batches = new Map()
   let running = 0
   let last = null
@@ -343,17 +359,24 @@ export function makeRelay({ run, now = () => new Date().toISOString(), delayMs =
     }
   }
 
-  /** Add an item to its agent's batch and restart the wait; never throws (the route has already replied). */
-  function enqueue(flowId, nodeId, kind, note, term, sentence) {
+  /**
+   * Add an item to its agent's batch and restart the wait; never throws (the route has already replied).
+   * The agent is the flow's, read fresh; a deleted flow's item names its own (`agent`), since there is no file.
+   */
+  function enqueue(flowId, nodeId, kind, note, term, sentence, gone = null) {
     try {
-      const { flow } = lookupItem({ flowId, nodeId, kind, note, term, sentence })
-      const agent = flow.agent
+      const agent = gone ? gone.agent : lookupItem({ flowId, nodeId, kind, note, term, sentence }).flow.agent
       let batch = batches.get(agent)
       if (!batch) batches.set(agent, (batch = { items: [], timer: null }))
       const same = batch.items.find(i => i.flowId === flowId && i.nodeId === nodeId && i.kind === kind && (kind !== 'question' || i.term === term))
-      if (!same) batch.items.push(kind === 'request' ? { flowId, nodeId, kind, note } : kind === 'question' ? { flowId, nodeId, kind, term, sentence } : { flowId, nodeId, kind })
-      else if (kind === 'request') same.note = note // one request per flow: the latest note wins
+      if (!same) {
+        batch.items.push(kind === 'request' ? { flowId, nodeId, kind, note }
+          : kind === 'question' ? { flowId, nodeId, kind, term, sentence }
+          : kind === 'deleted' ? { flowId, nodeId, kind, title: gone.title }
+          : { flowId, nodeId, kind })
+      } else if (kind === 'request') same.note = note // one request per flow: the latest note wins
       else if (kind === 'question') same.sentence = sentence // one question per flow and word: the latest sentence wins
+      else if (kind === 'deleted') same.title = gone.title // one stop line per flow, however often it is deleted
       clearTimeout(batch.timer)
       batch.timer = setTimeout(() => {
         batches.delete(agent)
@@ -373,6 +396,22 @@ export function makeRelay({ run, now = () => new Date().toISOString(), delayMs =
   const queueRequest = (flowId, note = '') => enqueue(flowId, null, 'request', String(note ?? ''))
   /** Queue the user's question about a word the agent marked, with the sentence it came up in; it batches like the rest. */
   const queueQuestion = (flowId, term, sentence = '') => enqueue(flowId, null, 'question', undefined, String(term ?? ''), String(sentence ?? ''))
+  /**
+   * Tell `agent` the user deleted flow `flowId` titled `title`: ONE line, batched like the rest, and needing no flow
+   * file. The route calls it only for an open or blocked flow whose agent is not the chat agent (trash-routes.mjs).
+   */
+  const queueDeleted = (flowId, title, agent) => enqueue(flowId, null, 'deleted', undefined, undefined, undefined, { title: String(title ?? ''), agent: String(agent ?? '') })
+
+  /** At delete time: forget every item still queued for `flowId` (answers, statuses, requests, questions, an earlier delete). */
+  function drop(flowId) {
+    for (const [agent, batch] of batches) {
+      batch.items = batch.items.filter(i => i.flowId !== flowId)
+      if (!batch.items.length) {
+        clearTimeout(batch.timer)
+        batches.delete(agent)
+      }
+    }
+  }
 
   /** The retry: deliver this one node now, dropping any queued copy so it is not sent twice. */
   async function deliverNow(flowId, nodeId) {
@@ -436,5 +475,5 @@ export function makeRelay({ run, now = () => new Date().toISOString(), delayMs =
     return marked
   }
 
-  return { queue, queueStatus, queueRequest, queueQuestion, deliverNow, status, sweep }
+  return { queue, queueStatus, queueRequest, queueQuestion, queueDeleted, drop, deliverNow, status, sweep }
 }

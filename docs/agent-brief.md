@@ -40,6 +40,8 @@ so a relative path would not resolve.
 > following the repo's own pull request template. Never push or open the pull request yourself: the user
 > reviews the Output and sends it. The pull request text must not credit an AI tool: no Co-Authored-By line,
 > no Generated with line, no tool named as an author.
+> Only the user archives or deletes a flow; never try to do either yourself.
+> A command refused with "in the Trash" means the user deleted that flow: stop work on it and do not write to it again.
 
 For example (`--by` names the agent; `FACTORY_BY` does the same):
 

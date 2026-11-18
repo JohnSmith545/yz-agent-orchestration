@@ -447,3 +447,17 @@ test('the chat brief and the agent brief carry the plain writing rule, the say c
   }
   assert.match(chatBrief(), /glossary\.json/)
 })
+
+test('the snapshot a turn is compared with sees every live flow, archived ones too, so writing into one still gives an Open flow button', async () => {
+  const { flowSnapshot, changedFlows } = await import('../chat.mjs')
+  const F = await import('../flows.mjs')
+  const flow = F.createFlow({ id: 'chat-archived', title: 'Put away', agent: 'Independent' })
+  F.writeFlow({ ...flow, archivedAt: '2026-11-14T09:00:00.000Z' })
+  const before = flowSnapshot()
+  assert.ok(before.some(f => f.id === 'chat-archived'), 'archived flows are in the snapshot')
+  await new Promise(r => setTimeout(r, 5)) // a later updatedAt
+  const again = F.readFlow('chat-archived')
+  F.addNode(again, { type: 'note', title: 'Looked again' })
+  F.writeFlow(again)
+  assert.deepEqual(changedFlows(before, flowSnapshot()), [{ id: 'chat-archived', title: 'Put away' }])
+})

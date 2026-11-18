@@ -149,6 +149,18 @@ an environment and proof (section 5).
 - **Answering:** click Yes or No (or type an answer). The answer is sent to the agent that asked (section 7
   has the cost). The step then shows **sent**, or **not delivered · retry** if that agent is not running.
 
+#### Archive and Trash
+
+- **Archive** (in a flow's `⋯` menu) puts a flow away without deleting it. It leaves the board, Waiting on you,
+  Home and the alerts, but a link to it still works. If its agent asks you something new, it comes back by itself.
+- **Delete** moves a flow to the **Trash**. If its agent may still be working on it, the menu asks first, and the
+  agent is told to stop. A toast offers **Undo**.
+- A flow stays in the Trash for **24 hours**, even if the dashboard restarts. Then it is gone for good, and its
+  screenshots and other evidence files go with it.
+- **Archived · N** and **Trash · N** under the board open those lists: **Unarchive**, **Restore**, and
+  **Delete forever** (it asks once more on the same button). The Trash shows how long each flow has left.
+- Only you archive or delete flows. Agents cannot.
+
 ### Tickets
 
 The page for a ticket collection from your tracker (section 6). The chip says when it was last read;

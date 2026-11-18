@@ -17,6 +17,12 @@
 // when its node changed, and text typed into an answer box survives a redraw.
 // gotoFlow opens a flow from anywhere: it goes to #/flows first when the board
 // is not mounted (notify.js toasts, the grid hover card, the strip on Home).
+// Archive and the Trash (flow-trash.js): under the board a quiet line links
+// to the Archived and Trash lists, each drawn IN PLACE of the board (showList,
+// also from the palette) with ← Flows back, like an opened flow. An archived
+// flow is left out of /api/flows, so one opened by link is fetched on its own
+// after each poll and kept (never on the board or in the strip: FlowBoard.shown);
+// one that went to the Trash says so, with Restore.
 ;(() => {
   const $ = (s, el = document) => el.querySelector(s)
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
@@ -47,6 +53,8 @@
   const recent = new Set()
   /** the opened flow: its id, the node in the drawer, and what was last drawn (to redraw only on change) */
   let opened = null
+  /** 'trash' or 'archived': that list in place of the board (flow-trash.js), or null */
+  let listing = null
   let zoom = store.get('zoom', 1) // a number, or 'fit'
   let view = window.FlowTabs?.view.get() || 'output' // or 'status' / 'process'; `?.`: the strip-only tests load no flow-tabs.js
   let z = 1 // the scale in effect
@@ -62,15 +70,36 @@
     const mine = ++gen
     try {
       const r = await fetch('/api/flows')
-      const j = await r.json()
+      let j = await r.json()
       if (!r.ok) throw new Error(j.error || r.status)
       if (mine !== gen || !mounted()) return
+      if (board && opened && !j.flows.some(f => f.id === opened.id)) {
+        const one = await fetchOpened() // archived (still open by link) or in the Trash (say so)
+        if (mine !== gen || !mounted()) return
+        if (one) j = { ...j, flows: [...j.flows, one] }
+      }
       if (fromPoll) recent.clear()
       data = j
       render()
       for (const fn of loaded) fn(data)
     } catch (e) {
-      if (mine === gen && board && !opened) board.innerHTML = `<div class="banner">Flows: ${esc(e.message)}</div>`
+      if (mine === gen && board && !opened && !listing) board.innerHTML = `<div class="banner">Flows: ${esc(e.message)}</div>`
+    }
+  }
+  /**
+   * The opened flow on its own, when the list left it out: the flow (an archived one), or null with
+   * `opened.gone` holding why (`<id> is in the Trash.`, which renderOpened turns into Restore).
+   */
+  async function fetchOpened() {
+    const id = opened.id
+    try {
+      const r = await fetch(`/api/flows/${enc(id)}`)
+      const j = await r.json().catch(() => ({}))
+      if (opened?.id !== id) return null
+      opened.gone = r.ok ? null : String(j.error || '')
+      return r.ok ? j : null
+    } catch {
+      return null
     }
   }
   async function post(flowId, action, body) {
@@ -118,6 +147,7 @@
 
   function renderStrip() {
     // the flow open on the board asks its own questions (its Story and Status): its rows leave the strip
+    // (and an archived flow's never show: FlowBoard.stripRows leaves them out)
     const rows = window.FlowBoard.stripRows(data.flows, recent, board && opened ? opened.id : null)
     const open = rows.filter(r => r.n.answer == null).length
     // the header dot on every page counts every open ask, the open flow's too (notify.js keeps it current elsewhere)
@@ -142,9 +172,10 @@
   const byNewest = (a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt))
 
   function renderBoard() {
-    const live = data.flows.filter(f => f.status === 'open' || f.status === 'blocked')
-    const done = data.flows.filter(f => f.status === 'done').sort(byNewest)
-    const dropped = data.flows.filter(f => f.status === 'dropped').sort(byNewest)
+    const flows = window.FlowBoard.shown(data.flows) // never an archived one
+    const live = flows.filter(f => f.status === 'open' || f.status === 'blocked')
+    const done = flows.filter(f => f.status === 'done').sort(byNewest)
+    const dropped = flows.filter(f => f.status === 'dropped').sort(byNewest)
     const groups = agentOrder(new Set(live.map(f => f.agent))).map(a => {
       const list = live.filter(f => f.agent === a).sort(byNewest)
       return `<div class="fl-group"><h3 class="fl-group-h">${esc(a)} <span class="faint">· ${list.length}</span></h3><div class="fl-cards">${list.map(card).join('')}</div></div>`
@@ -157,6 +188,7 @@
         ${done.length ? `<div class="fl-group"><h3 class="fl-group-h">Done <span class="faint">· ${done.length}</span></h3><div class="fl-smalls">${done.map(small).join('')}</div></div>` : ''}
         ${showDropped && dropped.length ? `<div class="fl-group"><h3 class="fl-group-h">Dropped <span class="faint">· ${dropped.length}</span></h3><div class="fl-smalls">${dropped.map(small).join('')}</div></div>` : ''}
         ${bad.length ? `<p class="small warn">Could not read ${bad.map(b => `${esc(b.id)} (${esc((b.problems || []).join('; '))})`).join(', ')}</p>` : ''}
+        ${window.FlowTrash.linksHtml(data.counts)}
       </section>`
     window.FlowBoard.fit(board) // each story line on one line, cut at a word
     window.Help.attach(board.querySelector('.fl-none .help'), NO_FLOWS_HELP)
@@ -214,7 +246,7 @@
 
   /** The head (flow-head.js), in two slots so the view tabs sit on the title row; each redrawn only when it changed. */
   function renderHead(f) {
-    const h = window.FlowHead.html(f, { tickets, envPill, statusPill, statuses: FLOW_STATUS })
+    const h = window.FlowHead.html(f, { tickets, envPill, statusPill, statuses: FLOW_STATUS, asking: opened.asking })
     $('.fl-open', board).dataset.flow = f.id // where a word card finds its flow (term-card.js)
     if (opened.head !== h.head) { $('.fl-open-head', board).innerHTML = h.head; opened.head = h.head }
     if (opened.sub !== h.sub) { $('.fl-open-sub', board).innerHTML = h.sub; opened.sub = h.sub }
@@ -293,8 +325,12 @@
   function renderOpened() {
     const f = flowOf(opened.id)
     if (!f) {
+      // deleted (here, in another tab, or a link to one): it can still come back, so say where it is and offer that
+      const gone = /is in the Trash/.test(opened.gone || '')
+        ? `<p class="small warn">This flow is in the Trash. <button type="button" class="link" data-trash-restore="${esc(opened.id)}">Restore</button></p>`
+        : `<p class="small warn">No flow ${esc(opened.id)}: it may have been removed.</p>`
       board.innerHTML = `<section class="card fl-open"><div class="fl-open-head"><button type="button" class="link" data-close>← Flows</button>
-        <p class="small warn">No flow ${esc(opened.id)}: it may have been removed.</p></div></section>`
+        ${gone}</div></section>`
       opened.built = false
       return
     }
@@ -333,7 +369,7 @@
 
   function render() {
     if (strip) renderStrip()
-    if (board) opened ? renderOpened() : renderBoard()
+    if (board) listing ? window.FlowTrash.fill(board, listing) : opened ? renderOpened() : renderBoard()
   }
 
   // ═══ events: one delegated listener per box, bound at mount ═══
@@ -360,15 +396,24 @@
     const t = e.target.closest('[data-ticket]')
     if (t) { e.stopPropagation(); return window.FactoryView?.gotoTicket(t.dataset.ticket) }
     if (e.target.closest('[data-dropped]')) { showDropped = !showDropped; return renderBoard() }
+    const list = e.target.closest('[data-list]') // Archived · N, Trash · N under the board
+    if (list) return showList(list.dataset.list)
+    if (listing && window.FlowTrash.click(e, board)) return // the lists' Restore, Delete forever, Unarchive, Delete
     if (e.target.closest('[data-close]')) return close()
     const card = e.target.closest('[data-open]')
     if (card) return open(card.dataset.open)
+    const back = e.target.closest('[data-trash-restore]')
+    if (back) return void window.FlowTrash.restore(back.dataset.trashRestore)
     const f = flowOf(opened?.id)
     if (!f) return
     if (e.target.closest('[data-drop]')) {
       if (confirm(`Drop the flow ${f.title}? It moves behind show dropped.`)) post(f.id, 'drop').then(r => r && load())
       return
     }
+    if (e.target.closest('[data-archive]')) return void window.FlowTrash.archive(f.id, !f.archivedAt)
+    if (e.target.closest('[data-delete-cancel]')) { opened.asking = null; return renderOpened() }
+    const del = e.target.closest('[data-delete]')
+    if (del) return void deleteOpened(f, del.hasAttribute('data-confirmed'))
     if (e.target.closest('[data-drawer-close]')) return selectNode(null)
     const tab = e.target.closest('.fl-tabs [data-view]')
     if (tab) return tab.dataset.view !== view && setView(tab.dataset.view)
@@ -419,18 +464,47 @@
 
   // ═══ api ═══
 
+  /**
+   * Delete from the ⋯ menu (flow-trash.js makes the call): a flow its agent may be working on gets the server's
+   * question back, shown in the menu (FlowHead `asking`) until Delete or Cancel; once deleted, the flow closes.
+   */
+  async function deleteOpened(f, confirmed) {
+    const r = await window.FlowTrash.remove(f.id, confirmed)
+    if (opened?.id !== f.id) return
+    opened.asking = r?.needsConfirm ? r.message : null
+    // out of the data first: close() draws the board at once, and the reload that drops the card is still in flight
+    if (r?.ok) { data = window.FlowTrash.without(data, f.id); return close() }
+    renderOpened()
+    if (opened.asking) $('.fl-open-sub [data-delete][data-confirmed]', board)?.focus() // the question's own Delete
+  }
+  /** The Archived or Trash list in place of the board, from anywhere (the links under it, the palette). */
+  function showList(kind) {
+    if (!board) {
+      window.Shell.go('#/flows')
+      return window.Shell.whenReady('#flowsView #fxFlows', () => board && showList(kind))
+    }
+    opened = null
+    listing = kind
+    render()
+    scrollTo(board)
+  }
+  /** Leaving a list (opening a flow from it, ← Flows, the page going away). */
+  function leaveList() {
+    listing = null
+    window.FlowTrash?.leave()
+  }
+
   async function open(flowId, nodeId) {
     if (!board) return
+    leaveList()
     opened = { id: flowId, node: nodeId || null, built: false, reveal: nodeId || null } // reveal: once, on Status
     view = window.FlowTabs.view.get()
     if (nodeId && view === 'output') view = 'status' // Output has no row per node: Status, for this open only (not remembered)
     if (!flowOf(flowId)) {
-      // not in the last list (just written): fetch it on its own, then merge it in
-      try {
-        const r = await fetch(`/api/flows/${enc(flowId)}`)
-        if (r.ok) { const f = await r.json(); data = { ...data, flows: [...data.flows.filter(x => x.id !== f.id), f] } }
-      } catch {}
+      // not in the last list (just written, archived, or in the Trash): fetch it on its own, then merge it in
+      const f = await fetchOpened()
       if (opened?.id !== flowId) return
+      if (f) data = { ...data, flows: [...data.flows.filter(x => x.id !== f.id), f] }
     }
     render()
     if (!opened?.revealed) scrollTo(board) // a revealed node row has been scrolled to already
@@ -442,6 +516,7 @@
   }
   function close() {
     opened = null
+    leaveList()
     if (strip) renderStrip() // the closed flow's asks come back to the strip
     if (board) renderBoard()
   }
@@ -511,6 +586,7 @@
       if (board) unbind(board, BOARD_ON)
       board = null
       opened = null
+      leaveList()
       stopPollingIfIdle()
     },
     /** Home: the strip alone, same handlers and the same poll. Idempotent. */
@@ -531,6 +607,7 @@
     open,
     close,
     gotoFlow,
+    showList,
     get data() { return data },
   }
 })()

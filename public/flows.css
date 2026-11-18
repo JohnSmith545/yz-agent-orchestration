@@ -78,6 +78,25 @@ svg.fc .fc-type text { font-size: 11px; font-weight: 600; fill: var(--muted); }
 .fl-small { display: grid; gap: 1px; max-width: 280px; padding: 7px 11px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); cursor: pointer; }
 .fl-small .fl-card-title { font-size: 13px; font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fl-none { margin: 0 0 14px; }
+/* the quiet line under the board: Archived · N, Trash · N (flow-trash.js) */
+.fl-lists { display: flex; flex-wrap: wrap; gap: 14px; margin: 4px 0 0; }
+
+/* ─── the Archived and Trash lists, in place of the board (flow-trash.js) ─── */
+.fl-list { margin-bottom: 22px; padding: 16px 24px; }
+.fl-list .fl-title:focus { outline: none; } /* it takes the focus when the list opens; a mouse user sees no ring */
+.fl-list .fl-title:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+.fl-list-line { margin: 4px 0 0; }
+.fl-list-empty { margin: 12px 0 0; }
+.fl-rows { list-style: none; margin: 12px 0 0; padding: 0; }
+.fl-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; padding: 9px 0; border-top: 1px solid var(--line); }
+/* two classes: they beat button.link's muted colour */
+.fl-rows .fl-row-title { flex: 1 1 260px; min-width: 0; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; text-align: left; }
+.fl-row-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; font-size: 12.5px; color: var(--muted); }
+.fl-row-acts { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; margin-left: auto; font-size: 13px; }
+.fl-row .fl-row-bad, .fl-more-menu [data-delete] { justify-self: start; color: var(--bad); }
+.fl-more-menu [data-archive] { justify-self: start; }
+.fl-ask-delete { margin: 0; max-width: 30ch; color: var(--ink-2); }
+.fl-ask-acts { display: flex; gap: 12px; }
 
 /* ─── the opened flow (flow-head.js): the head on the left, the view tabs on its title row ─── */
 #flowsView { container: flows / inline-size; }

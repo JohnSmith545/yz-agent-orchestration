@@ -8,6 +8,10 @@
 //
 // The flow's status select and Drop live in the ⋯ menu, so they stop competing
 // with the content; flows.js still handles them (data-flow-status, data-drop).
+// So do Archive (Unarchive on an archived flow) and Delete (data-archive,
+// data-delete; the calls are flow-trash.js's). Delete on a flow its agent may
+// be working on gets the server's question back: `parts.asking` puts it in the
+// menu, held open, with Delete (data-confirmed) and Cancel. No window.confirm.
 // A why longer than about 160 characters shows its first sentence and `more`.
 // Marked words in the why are term chips (FlowDrawer.md). At most three ticket
 // chips show, then `+N`, which shows them all for the life of the page.
@@ -16,7 +20,8 @@
 // text (`updated`), so the minute ticking over never redraws the sub, and an
 // expanded `more` or an open ⋯ menu stays as it is.
 //
-//   html(f, parts)  { head, sub, updated }; `parts` are flows.js's pills: { tickets, envPill, statusPill, statuses }
+//   html(f, parts)  { head, sub, updated }; `parts` are flows.js's pills: { tickets, envPill, statusPill, statuses },
+//                   and `asking`, the server's question while a Delete waits on Delete or Cancel
 //   HELP            the opened flow's ONE ?: a short paragraph per Output block, the views and the proof marks
 //   firstSentence(text, max?)  PURE: the first sentence, cut after a whole word with … past `max`
 //   expandTickets(flowId)      every ticket of that flow on show from now on (what `+N` does)
@@ -67,12 +72,16 @@
       `<button type="button" class="fl-tk-more" data-tk-more="${esc(f.id)}" aria-expanded="false" title="Show all ${all.length} tickets">+${rest}</button>`
   }
 
-  function html(f, { tickets, envPill, statusPill, statuses }) {
+  function html(f, { tickets, envPill, statusPill, statuses, asking = null }) {
     const sep = '<span class="fl-sep" aria-hidden="true">·</span>'
     const meta = [`<b>${esc(f.agent)}</b>`, ticketChips(f, tickets), envPill(f.env), statusPill(f.status), '<span class="fl-updated" data-updated></span>'].filter(Boolean).join(sep)
-    const menu = `<details class="fl-more"><summary aria-label="Flow actions" title="Flow actions">⋯</summary><div class="fl-more-menu">
+    const del = asking
+      ? `<p class="small fl-ask-delete">${esc(asking)}</p><span class="fl-ask-acts"><button type="button" class="link" data-delete data-confirmed>Delete</button><button type="button" class="link" data-delete-cancel>Cancel</button></span>`
+      : '<button type="button" class="link" data-delete>Delete</button>'
+    const menu = `<details class="fl-more"${asking ? ' open' : ''}><summary aria-label="Flow actions" title="Flow actions">⋯</summary><div class="fl-more-menu">
         <label class="small">Flow <select data-flow-status aria-label="Flow status">${statuses.map(s => `<option ${s === f.status ? 'selected' : ''}>${s}</option>`).join('')}</select></label>
-        ${f.status !== 'dropped' ? '<button type="button" class="link" data-drop>Drop</button>' : ''}</div></details>`
+        ${f.status !== 'dropped' ? '<button type="button" class="link" data-drop>Drop</button>' : ''}
+        <button type="button" class="link" data-archive>${f.archivedAt ? 'Unarchive' : 'Archive'}</button>${del}</div></details>`
     return {
       head: `<div class="fl-open-top"><button type="button" class="link" data-close>← Flows</button></div>
         <h2 class="fl-title">${esc(f.title)}</h2>`,

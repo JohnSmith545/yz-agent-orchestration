@@ -19,6 +19,8 @@
 //                                 without those of the flow that is open (its Story and
 //                                 Status already ask them)
 //   stripRow({ f, n })            one row of it: the question, why it is asked under it, the controls
+//   shown(flows)                  the flows the board draws: never an archived one (/api/flows leaves them
+//                                 out, but an archived flow opened by link is merged into the page's data)
 ;(() => {
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
   const chips = s => (window.Terms ? window.Terms.html(esc(s)) : esc(s))
@@ -94,9 +96,12 @@
   const small = f => `<article class="fl-small" data-open="${esc(f.id)}" tabindex="0"><span class="fl-card-title">${esc(f.title)}</span>` +
     `<span class="small">${esc(f.agent)} · ${esc(window.Shell.ago(f.updatedAt))}</span></article>`
 
+  /** Archived flows stay off the board and out of Waiting on you: they are reached by link and from the Archived list. */
+  const shown = flows => (flows || []).filter(f => !f.archivedAt)
+
   function stripRows(flows, recent, openId = null) {
     const rows = []
-    for (const f of flows) {
+    for (const f of shown(flows)) {
       if (f.status === 'dropped' || f.id === openId) continue
       f.nodes.forEach((n, i) => {
         if (n.type === 'ask' && (n.answer == null || recent.has(`${f.id}:${n.id}`))) rows.push({ f, n, i })
@@ -132,5 +137,5 @@
   /** The strip's head: one count per screen, so with a flow open (its own asks left out) it says Also waiting. */
   const stripHead = (count, openId) => (openId ? 'Also waiting' : 'Waiting on you')
 
-  window.FlowBoard = { card, small, storyLine, state, stripRows, stripRow, stripHead, clip, fit }
+  window.FlowBoard = { card, small, storyLine, state, stripRows, stripRow, stripHead, clip, fit, shown }
 })()
