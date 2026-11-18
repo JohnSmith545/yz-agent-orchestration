@@ -299,7 +299,8 @@ export function listFlowIds() {
  * Every valid flow with `derived` attached, newest first, filtered; and every
  * file that failed to parse or validate, with its problems, so one bad file
  * shows as a banner instead of breaking the list.
- * Archived flows are left out; `{ archived: true }` lists ONLY them. `tally`, when
+ * Archived flows are left out; `{ archived: true }` lists ONLY them, and
+ * `{ archived: 'any' }` lists both (for a caller that looks a flow up, never for a board). `tally`, when
  * given, gets `archived`: how many valid flows are archived, whatever the filter
  * (the page's `Archived · N` link), counted in the same pass and before `derive`.
  */
@@ -313,7 +314,7 @@ export function listFlows({ open, waiting, agent, ticket, archived } = {}, tally
     const problems = validateFlow(flow)
     if (problems.length) { invalid.push({ id, problems }); continue }
     if (tally && flow.archivedAt) tally.archived++
-    if (Boolean(archived) !== Boolean(flow.archivedAt)) continue
+    if (archived !== 'any' && Boolean(archived) !== Boolean(flow.archivedAt)) continue
     flow.derived = derive(flow)
     if (open && flow.status !== 'open') continue
     if (waiting && !flow.derived.waiting.length) continue

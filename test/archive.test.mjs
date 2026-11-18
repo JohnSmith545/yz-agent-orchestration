@@ -124,3 +124,10 @@ test('validation: archivedAt is a real ISO time or absent', () => {
     assert.deepEqual(F.validateFlow(fx('dark', f => { f.archivedAt = bad })), ['archivedAt must be a time'], String(bad))
   }
 })
+
+test('{ archived: "any" } lists every live flow, archived or not: for callers that look a flow up, not show a board', () => {
+  F.writeFlow(fx('seen'))
+  F.writeFlow(fx('put-away', f => (f.archivedAt = AT)))
+  assert.deepEqual(F.listFlows({ archived: 'any' }).flows.map(f => f.id).sort(), ['put-away', 'seen'])
+  assert.deepEqual(F.listFlows().flows.map(f => f.id), ['seen'], 'the default still leaves the archived one out')
+})

@@ -19,7 +19,7 @@
 // It FAILS OPEN: `stop_hook_active` (the agent was already sent back once), no
 // commit, a transcript it cannot read, bad input or any error at all ends with
 // exit code 0 and no output, so a broken check never traps an agent. It reads
-// only: the transcript's tail, a subagent's meta file and data/flows. It is not
+// only: the transcript's tail, a subagent's meta file, data/flows and data/trash. It is not
 // installed anywhere by this repo; see "The stop check" in README.md.
 
 import { readdirSync, readFileSync } from 'node:fs'
@@ -93,7 +93,11 @@ export async function decide(hook) {
   // The name its card goes by: a subagent's task name, a session's own name, else one it already signed with.
   const own = hook.agent_id ? taskName(file) : sessionName(hook.transcript_path, hook.session_id)
   const names = [...scan.flowBy, hook.agent_id ? own : ''].filter(Boolean)
-  const told = toldBy(listFlows().flows, { names, ids: [...scan.flowIds], since: scan.firstAt })
+  // A flow of its own that the USER deleted is not asked for again: the Trash is the user's answer (trash.mjs).
+  const { isTrashed } = await import('../trash.mjs')
+  if ([...scan.flowIds].some(isTrashed)) return null
+  // Archived flows count too: archiving hides a flow from the board, it does not undo the telling.
+  const told = toldBy(listFlows({ archived: 'any' }).flows, { names, ids: [...scan.flowIds], since: scan.firstAt })
   return told ? null : { decision: 'block', reason: reasonFor(own || [...scan.flowBy].pop()) }
 }
 

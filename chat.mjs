@@ -365,7 +365,7 @@ export function turnPlan() {
  */
 export function flowSnapshot() {
   try {
-    return [...listFlows().flows, ...listFlows({ archived: true }).flows].map(f => ({ id: f.id, title: f.title || '', updatedAt: f.updatedAt || '' }))
+    return listFlows({ archived: 'any' }).flows.map(f => ({ id: f.id, title: f.title || '', updatedAt: f.updatedAt || '' }))
   } catch {
     return []
   }

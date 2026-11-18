@@ -135,6 +135,24 @@ test('a session may stop on the flow its own flow commands wrote, even under ano
   passes(gate(session()))
 })
 
+test('a flow the user ARCHIVED still counts: archiving hides it from the board, it does not undo the telling', () => {
+  flow({ agent: 'Build ABC-101 dark mode toggle', archivedAt: '2026-11-14T09:00:00.000Z' })
+  passes(gate(subagent('b1')))
+})
+
+test('an agent whose own flow the user DELETED is not sent back to record it again: the flow is in the Trash', () => {
+  // the fixture session ran its flow commands on gate-flow; the user then deleted that flow
+  const trash = path.join(DATA, 'trash')
+  fs.mkdirSync(trash, { recursive: true })
+  fs.writeFileSync(path.join(trash, 'gate-flow.json'), JSON.stringify({ deletedAt: new Date().toISOString(), flow: { ...structuredClone(DARK), id: 'gate-flow' } }))
+  try {
+    passes(gate(session()))
+  } finally {
+    fs.rmSync(trash, { recursive: true, force: true })
+  }
+  assert.equal(gate(session()).decision?.decision, 'block', 'with no Trash entry the same session is sent back')
+})
+
 test('never when stop_hook_active is true: an agent already sent back once is let go', () => {
   passes(gate(subagent('b1', { stop_hook_active: true })))
   passes(gate(session({ stop_hook_active: true })))

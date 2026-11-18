@@ -830,7 +830,7 @@ const subagentRoute = makeSubagentRoutes({
   match: CONFIG.sessionCwdMatch,
   listWorktrees,
   sessions: async () => new Map((await liveSessions()).map(s => [s.sessionId, { label: labelOf(s.name) }])),
-  flows: () => listFlows().flows,
+  flows: () => listFlows({ archived: 'any' }).flows, // an archived flow is still its subagent's flow
   prStates: makePrStates({ gh }),
 })
 /** The paths factory-routes.mjs answers. */
