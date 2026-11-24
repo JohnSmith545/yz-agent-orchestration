@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const ctx = vm.createContext({ window: {} })
-for (const f of ['shell.js', 'app.js', 'agent-cards.js', 'pipeline-tickets.js', 'pipeline-details.js']) vm.runInContext(fs.readFileSync(path.join(HERE, '..', 'public', f), 'utf8'), ctx)
+for (const f of ['shell.js', 'app.js', 'agent-cards.js', 'pipeline-tickets.js', 'agent-rules-view.js', 'pipeline-details.js']) vm.runInContext(fs.readFileSync(path.join(HERE, '..', 'public', f), 'utf8'), ctx)
 const D = ctx.window.PipelineDetails
 
 const agent = (extra = {}) => ({
@@ -71,4 +71,39 @@ test('the default pane keeps the Independent chat slot and says how to use the p
 test('the pane escapes what it prints', () => {
   const html = D.html({ id: 'x', kind: 'agent', label: '<b>x</b>', role: 'producer' }, { agent: null, labels })
   assert.doesNotMatch(html, /<b>x<\/b>/)
+})
+
+// ═══ the user's specification and rules (agent-rules-view.js) ═══
+
+const AT = '2026-11-24T10:00:00.000Z'
+const saved = { spec: 'Builds the web pages.', rules: [{ id: 'a', text: 'Never touch the mobile app.', addedAt: AT }], updatedAt: AT }
+
+test('an agent node has Settings in its head, next to Watch live and Close, and shows its specification and rules', () => {
+  const html = D.html(node, { agent: agent(), labels, rules: { entry: saved } })
+  assert.match(html, /<div class="pl-det-head"><h2>Agent 1<\/h2><a [^>]*>Watch live<\/a><button [^>]*data-ar-act="settings"[^>]*>[\s\S]*?Settings<\/button><button [^>]*data-close>Close/)
+  assert.match(html, /data-ar-slot="Agent 1" data-ar-mode="view"/)
+  assert.match(html, /class="ar-spec">Builds the web pages\.</)
+  assert.match(html, /<li>Never touch the mobile app\.<\/li>/)
+  assert.doesNotMatch(html, /class="pl-desc">Writes the code/, 'the saved specification replaces the role line')
+})
+
+test('with nothing saved the role line stands in as the default specification', () => {
+  const html = D.html(node, { agent: null, labels })
+  assert.match(html, /Specification <span class="faint">· Default<\/span><\/h3><p class="pl-desc">Writes the code/)
+  assert.match(html, /No rules yet\./)
+})
+
+test('with a draft the sections are the editor, and Settings says it is open', () => {
+  const html = D.html(node, { agent: null, labels, rules: { entry: saved, draft: { spec: 'typed', rules: [], pending: '', error: '', saving: false } } })
+  assert.match(html, /data-ar-mode="edit"/)
+  assert.match(html, /aria-expanded="true"/)
+  assert.match(html, /<textarea[^>]*>\ntyped<\/textarea>/)
+})
+
+test('the chat agent, the coordinator and QA get Settings too; Request, Push and Output never do', () => {
+  for (const role of ['chat', 'coordinator', 'qa']) assert.match(D.html({ id: role, kind: 'agent', label: role, role }, { labels }), /data-ar-act="settings"/, role)
+  for (const [id, kind] of [['request', 'start'], ['push', 'step'], ['outcome', 'end']]) {
+    const html = D.html({ id, kind, label: id, role: id }, { labels })
+    assert.doesNotMatch(html, /Settings|data-ar-/, id)
+  }
 })

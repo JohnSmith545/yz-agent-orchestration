@@ -14,6 +14,8 @@
 //   click a panel row   select the ticket: its route lights up from its own progress (flow-route.js highlight):
 //                       done and current in the accent, the steps still ahead as a dashed accent outline; the
 //                       same row again, or Escape, clears it
+//   Settings (an agent's)  its specification and rules as an editor in the pane (agent-rules.js): kept as it is
+//                       through every redraw; Escape closes it before it clears anything else
 //   AgentsPage.showNode(nodeId, flowId)   from a flow's step line (flow-route.js go): this page with that node's
 //                       details open and that flow selected
 ;(() => {
@@ -56,6 +58,7 @@
     details = section.querySelector('#plDetails')
     view = window.PipelineView.create(section.querySelector('#plDiagram'), { onNode: pickNode, onChip: id => window.PipelineTickets.explain(id) })
     panel = window.PipelinePanel.create(section.querySelector('#plPanel'), { page: box, onSelect: pickTicket })
+    window.AgentRules?.bind(details, render)
     // Delegated: the agent card's Progress report (agent-cards.js leaves [data-report] to its page), a
     // subagent row (watch it live), the pane's Close, and the ticket rows of Here now.
     details.addEventListener('click', e => {
@@ -71,6 +74,7 @@
     // one a popover or the palette already took (they preventDefault, as shell.js expects).
     document.addEventListener('keydown', e => {
       if (!showing || e.key !== 'Escape' || e.defaultPrevented || e.target?.closest?.('#drawer')) return
+      if (window.AgentRules?.escape()) return e.preventDefault() // an open Settings editor first
       if (selTicket) selTicket = null
       else if (selNode) selNode = null
       else return
@@ -92,6 +96,7 @@
   async function loadPipeline() {
     if (loading) return
     loading = true
+    window.AgentRules?.load() // the saved specifications and rules, at the same cadence
     try {
       const r = await fetch('/api/pipeline')
       if (!r.ok) throw new Error(await r.text())
@@ -129,11 +134,10 @@
     const node = selNode && pipeline.graph.nodes.find(n => n.id === selNode)
     const agent = node?.kind === 'agent' ? (status?.agents || []).find(a => a.label === node.label) || null : null
     const html = node
-      ? window.PipelineDetails.html(node, { agent, worktrees: status?.worktrees || [], tickets: groups[node.id] || [], labels, selected: selTicket })
+      ? window.PipelineDetails.html(node, { agent, worktrees: status?.worktrees || [], tickets: groups[node.id] || [], labels, selected: selTicket, rules: node.kind === 'agent' ? window.AgentRules?.paneOpts(node) : null })
       : window.PipelineDetails.empty()
-    if (details._html === html) return
-    details.innerHTML = html
-    details._html = html
+    // AgentRules.paint keeps a Settings editor in use where it is and swaps only what is around it
+    if (!(window.AgentRules ? window.AgentRules.paint(details, html) : details._html !== html && ((details.innerHTML = details._html = html), true))) return
     if (!node || node.role === 'chat') window.AgentCards?.renderChat?.() // the default pane and the chat node hold its card
   }
 

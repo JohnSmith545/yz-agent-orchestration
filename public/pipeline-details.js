@@ -3,6 +3,8 @@
 //     (agent-cards.js card(): state, what it is doing, who it last talked to, recent tickets, branch,
 //     subagents and the Progress report button, which agents-page.js wires to OrchestrationGrid.report),
 //     what its role is, a line when it pushed outside QA, and the tickets standing on it;
+//     and the user's Specification and Rules for it, with a Settings button in the head that turns them into
+//     an editor (agent-rules-view.js draws them; agent-rules.js owns the editor; with neither loaded, the role line);
 //   - a step (Request, Push, Output): a short plain description and the tickets standing there.
 // With nothing clicked it holds the Independent chat card (agent-cards.js renderChat) and one line of help.
 // Pure: a node and what is known about it in, HTML out (test/pipeline-details.test.mjs).
@@ -33,12 +35,16 @@
   /**
    * One node's details. `agent` is its /api/status record (found by label; null when it is not running),
    * `worktrees` the /api/status rows (for the card's branch), `tickets` the ones on this node, `selected` the
-   * ticket whose path the diagram lights (its row shows pressed).
+   * ticket whose path the diagram lights (its row shows pressed). `rules` is { entry, draft, limits } for an
+   * agent (agent-rules.js paneOpts): its saved specification and rules, and the editor's draft while it is open.
    */
-  function html(node, { agent = null, worktrees = [], tickets = [], labels = {}, selected = null } = {}) {
+  function html(node, { agent = null, worktrees = [], tickets = [], labels = {}, selected = null, rules = null } = {}) {
     const role = ROLE[node.role] || ''
     const n = pushes(agent)
     const watch = agent ? `<a class="link" href="#/agent/${encodeURIComponent(agent.sessionId)}" title="Watch it work, live">Watch live</a>` : ''
+    const R = node.kind === 'agent' ? window.AgentRulesView : null
+    const settings = R ? R.settingsButton(node, !!rules?.draft) : ''
+    const about = R ? R.slotHtml(node, role, rules || {}) : role ? `<p class="pl-desc">${esc(role)}</p>` : ''
     let body = ''
     // the chat agent is no session to look up: its own card (state, cost, opens the drawer), drawn by AgentCards.renderChat
     if (node.role === 'chat') body = '<div class="agent-cards ac-grid ac-chat-slot" hidden></div>'
@@ -46,8 +52,8 @@
       body = agent ? `<div class="pl-card">${window.AgentCards.card(agent, { worktrees })}</div>` : `<div class="pl-card pl-missing">${window.AgentCards.missingRoot(node.label)}</div>`
     }
     return `<div class="pl-det" data-node="${esc(node.id)}">
-      <div class="pl-det-head"><h2>${esc(node.label)}</h2>${watch}<button type="button" class="link pl-det-x" data-close>Close</button></div>
-      ${role ? `<p class="pl-desc">${esc(role)}</p>` : ''}
+      <div class="pl-det-head"><h2>${esc(node.label)}</h2>${watch}${settings}<button type="button" class="link pl-det-x" data-close>Close</button></div>
+      ${about}
       ${n ? `<p class="pl-push-line"><i class="pl-push-dot" aria-hidden="true"></i>${pushLine(n)}</p>` : ''}
       ${body}
       ${here(tickets, labels, selected)}

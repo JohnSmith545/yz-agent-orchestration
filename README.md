@@ -835,6 +835,7 @@ flow set <flow> --status done|blocked|dropped|open | --title "..." | --why "..."
 flow write <path.json>            # whole flow in one go (create or replace; keeps answers, ticks, the route, and the output when the file has none)
 flow show <flow>                  # the JSON on stdout, for an agent to read back answers; an Output block on stderr
 flow list [--open] [--waiting] [--agent X] [--ticket ABC-1]
+flow rules                        # your specification and rules, set by the user on the Agents page; "No rules set for <label>." when none
 flow result <flow> --shot <path> [--caption "..."] [--before]
 flow diagram <flow> "[actor] User -> Page: clicks; Page -> [store] Storage" [--before] [--clear]
 flow change <flow> --before "<how it was>" --after "<how it is now>" | --clear
@@ -849,6 +850,10 @@ flow qa <flow> --status passed|failed --report <file.md> --commit <sha> [--summa
 flow qa-push <flow> [--branch <b>] [--remote origin] [--repo <path>]                              # QA only
 term "<word>" "<plain explanation, 1 or 2 sentences, at most 300 characters>" [--more "..."] [--flow <id>]   # not under flow
 ```
+
+`flow new` prints its `--by` agent's specification and rules after its usual line, and `flow qa-start` the QA
+label's, so every agent reads them at the start of every request (nothing extra when there are none; see Agents,
+Settings below).
 
 `say` and `say-clear` write the story (see "Plain story, marked words, and the glossary" above); `term`
 defines a word the agent marked, for free, in `data/glossary.json`.
@@ -1076,6 +1081,20 @@ Routes:
   `--repo`, else the watched repo when `git cat-file -e <sha>^{commit}` finds it there, else the dashboard's own
   folder (its origin), else no commit or branch link. Which repo holds a commit is remembered per sha.
 - `POST /api/flows/<id>/rework` sends a failure back again after it was not delivered.
+- `GET /api/agents/rules` returns `{ agents: { "<label>": { spec, rules: [{ id, text, addedAt }], updatedAt } }, changes:
+  { "<label>": [{ at, text }] }, limits: { spec: 2000, rule: 300, rules: 30 } }` for every agent of the graph now (the
+  coordinator, the producers, the chat agent, QA), with an empty spec and no rules when none are saved; `changes` is
+  each agent's last ten saved changes, newest first, each one plain sentence.
+- `PUT /api/agents/rules/<label>` (the label URL-encoded) with `{ spec?: string, rules?: [string] }` replaces what is
+  given and returns `{ ok, label, agent, changes }`. Only from the dashboard page (its own Origin, never a missing one); 404 for
+  a label that is not an agent of the graph; 400 `{ error: "<plain sentence>" }` for a limit problem. A rule whose
+  text did not change keeps its id. Stored in `data/agent-rules.json` (`agent-rules.mjs`); rules of a label that
+  left the graph stay in the file, unshown. Every save that changed something adds one line to
+  `data/agent-rules-log.jsonl` (`{ at, label, spec: set|changed|cleared|null, added: [text], removed: [text] }`,
+  append-only, written after the store, the newest 500 kept); a save that changed nothing writes no line and leaves
+  the store as it was. `agent-rules.mjs` also exports `rulesText(store, graph)` (every agent's specification and rules
+  as plain text), `readLog()` and `ruleEvents(lines, { now, days })` (the log as events, newest first:
+  `{ at, kind: 'rule', agent, flow: null, cell: null, text }`).
 
 Each agent on `/api/status` carries `pushesOutsideQa`: how many `git push` commands it ran in the last 24 hours,
 read from the same transcript scan (0 for QA), so a page can flag a push that did not go through QA.
@@ -1230,6 +1249,15 @@ read again with every status refresh without redrawing.
   tickets and branch, Progress report and its subagents. Request, Push and Output get a
   short description. An agent that ran `git push` outside QA in the last day gets a red
   dot and the line `Pushed N times outside QA today`.
+- **Specification and Rules**: an agent's details also show what it is for, in your words, and a numbered list of
+  rules. With no specification saved, its role line stands in, marked Default. **Settings** in the head (next to
+  Watch live and Close; agents only, never Request, Push or Output) turns both into an editor in place: the
+  specification with a character count (at most 2,000), each rule with Remove, an **Add a rule** field (Enter
+  adds; a rule is 1 to 300 characters, at most 30), Save and Cancel. Escape cancels the editor before it clears
+  anything else. A failed save says so in one line and keeps what you typed. Under Rules, a quiet **Changes**
+  disclosure lists the agent's last ten saved changes: when, and what changed in one sentence. The editor stays exactly as it is
+  through every refresh of the page, typing, focus and cursor included. Agents read these when they start a
+  request: `flow new` and `flow qa-start` print them, and `flow rules` shows them any time.
 - **The side panel** slides out from the right edge (the slim tab, remembered in this
   browser). **Tickets** lists every flow with its type, its current step (`build · QA`) and its
   status, the ones needing attention first. **Outputs** lists finished ones with **Explain** (Flows) and
@@ -1250,7 +1278,9 @@ Home still shows the agents as compact cards. A state is a dot and one word
 
 The diagram is `public/pipeline-layout.js` (layers from the graph), `pipeline-view.js`
 (boxes over one SVG of arrows, patched in place), `pipeline-tickets.js`,
-`pipeline-details.js` and `pipeline-panel.js`, styled by `pipeline.css`.
+`pipeline-details.js` and `pipeline-panel.js`, styled by `pipeline.css`. The Specification and Rules sections are
+`agent-rules-view.js` (pure HTML) and `agent-rules.js` (the editor, its requests, and the repaint that keeps it
+in place), styled by `agent-rules.css`.
 
 ## Messages (who is talking to whom)
 

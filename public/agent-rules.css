@@ -1,0 +1,52 @@
+/* The Specification and Rules sections of an agent's details pane on the Agents page, and the Settings editor
+   that replaces them in place (agent-rules-view.js, agent-rules.js). Colours come only from the tokens in
+   styles.css, so light and dark both work; one radius (--radius), hairline borders, no shadow. Nothing here
+   moves, so there is nothing for prefers-reduced-motion to calm. */
+
+/* the head: Settings sits on the right, next to Close */
+.pl-det-head .pl-det-set { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; }
+.pl-det-set + .pl-det-x { margin-left: 0; }
+.ar-icon { flex: none; }
+
+/* read */
+.ar { margin-bottom: 18px; }
+.ar > .pl-det-sub:first-child, .ar > .ar-field:first-child > .pl-det-sub { margin-top: 10px; }
+.ar .pl-desc { margin-bottom: 0; }
+.ar-spec { margin: 6px 0 0; color: var(--ink-2); font-size: 13px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ar-rules { margin: 4px 0 0; padding-left: 22px; color: var(--ink-2); font-size: 13px; line-height: 1.55; }
+.ar-rules li { overflow-wrap: anywhere; }
+.ar-rules li::marker { color: var(--faint); font-variant-numeric: tabular-nums; }
+
+/* edit */
+.ar-field .pl-det-sub { display: block; }
+.ar-hint { margin: 0 0 6px; color: var(--muted); font-size: 12.5px; }
+.ar textarea, .ar input[type="text"] {
+  display: block; width: 100%; box-sizing: border-box;
+  font: inherit; font-size: 13px; line-height: 1.5; color: var(--ink);
+  background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 7px 10px;
+}
+.ar textarea { min-height: 104px; resize: vertical; }
+.ar textarea:hover, .ar input[type="text"]:hover { border-color: var(--muted); }
+.ar textarea::placeholder, .ar input[type="text"]::placeholder { color: var(--faint); }
+.ar-count { margin: 4px 0 0; color: var(--faint); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+.ar-rules-edit li { padding: 4px 0; border-bottom: 1px solid var(--line); }
+.ar-rule { display: flex; align-items: baseline; gap: 12px; }
+.ar-rule-text { flex: 1; min-width: 0; }
+.ar-remove { flex: none; font-size: 12.5px; }
+.ar-add { margin-top: 14px; }
+.ar-add-label { display: block; margin-bottom: 6px; color: var(--ink-2); font-size: 13px; font-weight: 600; }
+.ar-add-row { display: flex; gap: 8px; }
+.ar-add-row input[type="text"] { flex: 1; min-width: 0; }
+.ar-add-row button { flex: none; }
+.ar-error { margin: 10px 0 0; color: var(--warn); font-size: 13px; }
+.ar-error:empty { display: none; }
+.ar-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.ar-how { margin: 8px 0 0; color: var(--muted); font-size: 12.5px; }
+
+/* Changes: the agent's last saved changes, a quiet disclosure under Rules */
+.ar-log { margin-top: 12px; color: var(--muted); font-size: 12.5px; }
+.ar-log > summary { width: fit-content; cursor: pointer; color: var(--muted); }
+.ar-log > summary:hover { color: var(--ink); }
+.ar-changes { margin: 6px 0 0; padding: 0; list-style: none; }
+.ar-changes li { display: flex; gap: 12px; padding: 3px 0; color: var(--ink-2); overflow-wrap: anywhere; }
+.ar-changes time { flex: none; min-width: 88px; color: var(--faint); font-variant-numeric: tabular-nums; }
