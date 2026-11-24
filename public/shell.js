@@ -3,9 +3,10 @@
 // window.X object; the shell shows exactly one section and calls that page's
 // open/close, the way app.js route() did before.
 //
-// Routes: #/ Home, #/flows, #/qa[/<flow id>], #/script, #/tickets, #/timeline, #/agents, #/subagents,
-// #/glossary, #/agent/<id>[/<sub>]. Old links redirect (#/factory → #/tickets,
-// #/flow → #/timeline) and anything unknown goes Home.
+// Routes: #/ Flows (the landing page: every request is a flow), #/flows (the same page, so old links
+// keep working), #/home Home, #/qa[/<flow id>], #/script, #/tickets, #/timeline, #/agents, #/subagents,
+// #/glossary, #/settings, #/agent/<id>[/<sub>]. Old links redirect (#/factory → #/tickets,
+// #/flow → #/timeline) and anything unknown goes to the landing page.
 //
 // Shell.resolve is pure and is attached BEFORE the DOM code, which returns
 // early when there is no document, so test/shell.test.mjs can load this file
@@ -25,16 +26,16 @@
   /** Pure: a location hash → { view, params, redirect }. `redirect` is the canonical hash for an old or unknown route, else null. */
   function resolve(hash) {
     const h = typeof hash === 'string' ? hash : ''
-    if (h === '' || h === '#' || h === '#/') return route('home')
+    if (h === '' || h === '#' || h === '#/') return route('flows')
     const agent = /^#\/agent\/([^/]+)(?:\/([^/]*))?/.exec(h)
     if (agent) return route('agent', { id: decode(agent[1]), sub: agent[2] ? decode(agent[2]) : null })
     const qa = /^#\/qa\/([^/]+)\/?$/.exec(h) // one ticket opened on the QA page
     if (qa) return route('qa', { id: decode(qa[1]) })
     const page = /^#\/([a-z]+)\/?$/.exec(h)?.[1]
-    if (page && page !== 'home' && page !== 'agent' && VIEWS.includes(page)) return route(page)
+    if (page && page !== 'agent' && VIEWS.includes(page)) return route(page)
     const old = /^#\/(factory|flow)\b/.exec(h)?.[1]
     if (old) return route(OLD[old], {}, `#/${OLD[old]}`)
-    return route('home', {}, '#/')
+    return route('flows', {}, '#/')
   }
 
   /**
@@ -161,7 +162,7 @@
   const rail = $('rail')
   rail.innerHTML = `
     <div class="rail-top">
-      <a class="rail-item rail-brand" href="#/" data-view="home" title="Home"><span class="rail-icon"><span class="rail-mark">${ICON.home}</span></span><span class="rail-label">Home</span></a>
+      <a class="rail-item rail-brand" href="#/home" data-view="home" title="Home"><span class="rail-icon"><span class="rail-mark">${ICON.home}</span></span><span class="rail-label">Home</span></a>
       <button type="button" class="rail-pin" id="railPin" aria-pressed="false" title="Keep the rail open">${ICON.pin}</button>
     </div>
     <nav class="rail-nav" aria-label="Pages">

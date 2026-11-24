@@ -49,6 +49,9 @@ svg.dg.xp-path .dg-edge { stroke: var(--accent); }
 svg.dg.xp-path .dg-head { fill: var(--accent); }
 svg.dg.xp-path .xp-now .dg-shape { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2.5; }
 svg.dg.xp-path .xp-now .dg-sub { fill: var(--accent); }
+/* the steps still ahead (flow-route.js chart): a dashed accent outline, unfilled */
+svg.dg.xp-path .xp-next .dg-shape { fill: none; stroke: var(--accent); stroke-dasharray: 5 4; }
+svg.dg.xp-path .dg-edge.xp-next { stroke-dasharray: 5 4; }
 
 @container (max-width: 640px) {
   .xp-slide { padding: 20px 18px 22px; min-height: 0; }

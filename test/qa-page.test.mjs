@@ -142,6 +142,19 @@ test('opened: the commit and branch link to GitHub in a new tab; Explain in Flow
   assert.match(text(h), /Passed · attempt 2/)
 })
 
+test('opened: it links to the flow itself (Open flow), and shows the flow route from its own progress under the meta line', () => {
+  window.FlowRoute = { line: f => `<nav class="rt-line" data-for="${f.id}"></nav>` }
+  try {
+    const h = V.detailHtml(qaFlow(), NOW)
+    assert.match(h, /<button type="button" class="link" data-qa-open="dark-mode">Open flow<\/button>/)
+    assert.match(h, /<\/p><nav class="rt-line" data-for="dark-mode"><\/nav>/)
+    assert.match(V.missingHtml('dark-mode', { id: 'dark-mode', title: 'T', status: 'open', nodes: [] }), /data-qa-open="dark-mode">Open flow</)
+  } finally {
+    delete window.FlowRoute
+  }
+  assert.match(read('qa-page.js'), /\[data-qa-open\][\s\S]{0,200}FlowsView\?\.gotoFlow\(/, 'a click opens the flow on Flows')
+})
+
 test('opened: no GitHub link makes the short sha and the branch plain text; a link that is not https is never used', () => {
   const h = V.detailHtml(qaFlow({ links: { repo: null, commit: null, branch: 'javascript:alert(1)' } }), NOW)
   assert.match(h, /<code>cd34ef5<\/code>/)

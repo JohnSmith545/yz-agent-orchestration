@@ -6,10 +6,12 @@
 //               #/qa/<flow id>: a green dot and the word Passed (colour is never the only
 //               signal), the title, the ticket ids, the agent, the tested commit's short
 //               sha, and when QA pushed it (or not pushed yet)
-//   one ticket  ← QA and Explain in Flows; the title; one meta line (the QA state, the
+//   one ticket  ← QA, Open flow (the flow itself, the source of truth for the ticket) and
+//               Explain in Flows; the title; one meta line (the QA state, the
 //               attempt, the agent, the tickets, the commit and the branch, linked to
 //               GitHub in a new tab when the remote is GitHub, else as plain text, and the
-//               push); the rework line when QA failed (flow-qa-line.js); QA's summary; the
+//               push); the flow's route from Request to Output (flow-route.js line, from the
+//               progress /api/qa sends with it); the rework line when QA failed (flow-qa-line.js); QA's summary; the
 //               report (through FlowDrawer.md, the one safe Markdown renderer: nothing in
 //               it is ever rendered as HTML); the screenshots as thumbnails that open in the
 //               lightbox; How to test, QA's steps as the same cards Output draws (flow-steps.js
@@ -62,6 +64,8 @@
   // ═══ one ticket ═══
 
   const picture = (ref, alt) => window.FlowDrawer.evidenceBody({ kind: 'shot', ref, label: alt })
+  /** The flow this ticket is: QA's record is one step of it. */
+  const openFlow = id => `<button type="button" class="link" data-qa-open="${esc(id)}">Open flow</button>`
   const block = (name, n, body) => `<section class="qa-block" aria-label="${name}"><h3 class="qa-h">${name}${n ? ` <span class="faint">· ${n}</span>` : ''}</h3>${body}</section>`
 
   /**
@@ -125,8 +129,8 @@
     const earlier = Array.isArray(qa.attempts) ? qa.attempts : []
     const attempt = a => `<li>Attempt ${esc(a.attempt)} · ${esc(a.status)}${a.commit ? ` · <code>${esc(short(a.commit))}</code>` : ''}${a.summary ? ` · ${esc(a.summary)}` : ''}</li>`
     return `<section class="card qa-open" data-qa-flow="${esc(f.id)}">` +
-      `<div class="qa-open-top"><a class="link" href="#/qa">← QA</a><button type="button" class="link" data-qa-explain="${esc(f.id)}">Explain in Flows</button></div>` +
-      `<h2 class="qa-title" tabindex="-1">${esc(f.title)}</h2><p class="qa-meta">${meta}</p>${window.FlowQa.reworkHtml(f)}` +
+      `<div class="qa-open-top"><a class="link" href="#/qa">← QA</a>${openFlow(f.id)}<button type="button" class="link" data-qa-explain="${esc(f.id)}">Explain in Flows</button></div>` +
+      `<h2 class="qa-title" tabindex="-1">${esc(f.title)}</h2><p class="qa-meta">${meta}</p>${window.FlowRoute?.line(f) || ''}${window.FlowQa.reworkHtml(f)}` +
       (qa.summary ? `<div class="qa-summary">${window.FlowDrawer.md(qa.summary)}</div>` : '') +
       report(f.report) +
       (shots.length ? block('Screenshots', shots.length, `<ul class="pv-film qa-shots">${shots.map(s => `<li>${picture(s.ref, 'QA screenshot')}</li>`).join('')}</ul>`) : '') +
@@ -156,10 +160,10 @@
     return `<section class="card qa-open qa-missing" data-qa-flow="${esc(id)}">` +
       '<div class="qa-open-top"><a class="link" href="#/qa">← QA</a></div>' +
       `<h2 class="qa-title" tabindex="-1">${esc(flow?.title || id)}</h2>` +
-      `<p class="qa-missing-why">This ticket has not been through QA. ${esc(missingWhy(flow))}</p>` +
+      `<p class="qa-missing-why">This ticket has not been through QA. ${esc(missingWhy(flow))}</p>` + (flow ? window.FlowRoute?.line(flow) || '' : '') +
       (steps ? '<p class="small qa-missing-next">Its flow has its own How to test, on the Output tab.</p>' : '') +
       '<p class="qa-missing-acts">' + (steps ? `<button type="button" class="link" data-qa-output="${esc(id)}">How to test in Flows</button>` : '') +
-      `<button type="button" class="link" data-qa-explain="${esc(id)}">Explain in Flows</button></p></section>`
+      `${openFlow(id)}<button type="button" class="link" data-qa-explain="${esc(id)}">Explain in Flows</button></p></section>`
   }
 
   window.QaView = { rows, listHtml, detailHtml, missingHtml, frontmatter }

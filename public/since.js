@@ -57,10 +57,10 @@
     if (!lines.length) return ''
     const row = l => {
       const data = l.ticket ? ` data-ticket="${esc(l.ticket)}"` : l.flow ? ` data-flow="${esc(l.flow)}"` : ''
-      return `<li><a class="since-line" href="${esc(l.href || '#/')}"${data}><span class="since-text">${esc(l.text)}</span><span class="since-at faint">${esc(window.Shell?.ago(l.at) ?? '')}</span></a></li>`
+      return `<li><a class="since-line" href="${esc(l.href || '#/home')}"${data}><span class="since-text">${esc(l.text)}</span><span class="since-at faint">${esc(window.Shell?.ago(l.at) ?? '')}</span></a></li>`
     }
     return `<section class="card since"><div class="card-head"><h3>${esc(head(since, now))}</h3>
-        <span class="since-acts"><button type="button" class="help" aria-label="About Since you were away">?</button><a href="#/" class="link" data-read>Mark read</a></span></div>
+        <span class="since-acts"><button type="button" class="help" aria-label="About Since you were away">?</button><a href="#/home" class="link" data-read>Mark read</a></span></div>
         <ul class="since-list">${lines.map(row).join('')}</ul></section>`
   }
 

@@ -4,6 +4,8 @@
 //   ┌─────────────────────────────────────────┐
 //   │ Add a dark mode toggle   [waiting on you]│   the title and ONE state chip
 //   │ Saved the choice in local storage…       │   one line of story
+//   │ build · at Agent 3                       │   its route (flow-route.js strip): the type, where it is now,
+//   │ Request Master Agent 3 QA Push Output    │   every step done, current or upcoming; `route not set` when guessed
 //   │ Agent 3  ━━━━━━━━━━━━━━━━━━━━━───  13/18 │   the agent, small and muted, and a thin progress bar
 //   └─────────────────────────────────────────┘
 //
@@ -89,6 +91,7 @@
     return `<article class="fl-card${f.derived?.waiting?.length ? ' is-waiting' : ''}" data-open="${esc(f.id)}" tabindex="0">` +
       `<div class="fl-card-top"><span class="fl-card-title">${esc(f.title)}</span>${s ? `<span class="fl-chip ${s.cls}">${esc(s.word)}</span>` : ''}</div>` +
       (line ? `<p class="fl-card-story" data-line="${esc(rawLine(f))}">${line}</p>` : '') +
+      (window.FlowRoute?.strip(f) || '') + // its route from Request to Output (flow-route.js)
       `<div class="fl-prog"><span class="fl-card-agent">${esc(f.agent)}</span>` +
       `<div class="fl-bar"><i style="width:${total ? Math.round((done / total) * 100) : 0}%"></i></div><span>${done}/${total}</span></div></article>`
   }

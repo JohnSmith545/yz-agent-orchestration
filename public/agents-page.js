@@ -1,5 +1,5 @@
 // The Agents page (#/agents): the orchestration diagram. Who hands work to whom, from the Request to the
-// Outcome, drawn from /api/pipeline's graph (pipeline-layout.js, pipeline-view.js), every ticket as a chip on
+// Output, drawn from /api/pipeline's graph (pipeline-layout.js, pipeline-view.js), every ticket as a chip on
 // the node it stands at now, a details pane below (pipeline-details.js: the clicked agent's card from
 // agent-cards.js, Progress report and all), and a pull-out panel on the right (pipeline-panel.js) whose
 // Tickets and Outputs lists select a ticket and light its path through the diagram.
@@ -11,7 +11,11 @@
 //
 //   click a node        its details below (again: back to the default pane)
 //   click a chip        that ticket's explanation on Flows (FlowsView.explain, else the flow)
-//   click a panel row   select the ticket: its stage.path lights up; the same row again, or Escape, clears it
+//   click a panel row   select the ticket: its route lights up from its own progress (flow-route.js highlight):
+//                       done and current in the accent, the steps still ahead as a dashed accent outline; the
+//                       same row again, or Escape, clears it
+//   AgentsPage.showNode(nodeId, flowId)   from a flow's step line (flow-route.js go): this page with that node's
+//                       details open and that flow selected
 ;(() => {
   let showing = false
   let box = null
@@ -32,9 +36,10 @@
 
   // The legend behind the header chip's ?.
   const AGENTS_HELP = '<p>Who hands work to whom: a request goes to the coordinator, who hands it to a producer; every code change goes to QA, ' +
-    'which pushes it on a pass or sends it back on a failure (the return arrows). Work with no code changes goes straight to the Outcome (dashed).</p>' +
+    'which pushes it on a pass or sends it back on a failure (the return arrows). Work with no code changes goes straight to the Output (dashed), ' +
+    'and so does the chat agent\'s: it answers, explains and reviews, and changes no code.</p>' +
     '<p>Each chip is a ticket where it stands now: green passed, red failed, grey anything else. Click a step for its details, a chip for its explanation, ' +
-    'and open Tickets on the right to light one ticket\'s path. A red mark on an agent means it pushed outside QA today.</p>'
+    'and open Tickets on the right to light one ticket\'s route: the steps it has taken in the accent, those still ahead dashed. A red mark on an agent means it pushed outside QA today.</p>'
 
   const reduced = () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
@@ -129,7 +134,7 @@
     if (details._html === html) return
     details.innerHTML = html
     details._html = html
-    if (!node) window.AgentCards?.renderChat?.()
+    if (!node || node.role === 'chat') window.AgentCards?.renderChat?.() // the default pane and the chat node hold its card
   }
 
   function renderStatus() {
@@ -150,7 +155,7 @@
     const ticket = selTicket ? tickets.find(t => t.id === selTicket) : null
     if (!ticket) selTicket = null
     view.update({ graph, tickets, agents: status?.agents || [] })
-    view.setPath(ticket ? window.PipelineLayout.highlight(graph, ticket.stage?.path) : null)
+    view.setPath(ticket ? window.FlowRoute.highlight(graph, ticket.progress) : null)
     view.setNode(selNode)
     panel.update(pipeline, selTicket, steps)
     renderDetails(window.PipelineTickets.byNode(tickets), window.PipelineTickets.labelsOf(graph))
@@ -180,5 +185,12 @@
       showing = false
     },
     update,
+    /** This page with node `id`'s details open and flow `flowId` selected (its route lit); from a flow's step line. */
+    showNode(id, flowId) {
+      selNode = id || null
+      selTicket = flowId || null
+      if (location.hash === '#/agents' && showing) render()
+      else location.hash = '#/agents'
+    },
   }
 })()

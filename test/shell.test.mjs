@@ -19,17 +19,23 @@ const r = h => JSON.parse(JSON.stringify(resolve(h)))
 
 // ═══ the pages ═══
 
-test('#/ is Home with no params and no redirect', () => {
-  assert.deepEqual(r('#/'), { view: 'home', params: {}, redirect: null })
+test('#/ is Flows, the landing page, with no params and no redirect', () => {
+  assert.deepEqual(r('#/'), { view: 'flows', params: {}, redirect: null })
 })
 
-test('no hash at all, or a bare #, is Home without a redirect', () => {
-  assert.deepEqual(r(''), { view: 'home', params: {}, redirect: null })
-  assert.deepEqual(r('#'), { view: 'home', params: {}, redirect: null })
+test('no hash at all, or a bare #, is Flows without a redirect', () => {
+  assert.deepEqual(r(''), { view: 'flows', params: {}, redirect: null })
+  assert.deepEqual(r('#'), { view: 'flows', params: {}, redirect: null })
+})
+
+test('Home moved to #/home; #/flows still opens Flows, so old links keep working', () => {
+  assert.deepEqual(r('#/home'), { view: 'home', params: {}, redirect: null })
+  assert.deepEqual(r('#/home/'), { view: 'home', params: {}, redirect: null })
+  assert.deepEqual(r('#/flows'), { view: 'flows', params: {}, redirect: null })
 })
 
 test('each page route resolves to its own view without a redirect', () => {
-  for (const view of ['flows', 'tickets', 'timeline', 'agents', 'subagents', 'glossary']) {
+  for (const view of ['flows', 'home', 'qa', 'script', 'tickets', 'timeline', 'agents', 'subagents', 'glossary', 'settings']) {
     assert.deepEqual(r(`#/${view}`), { view, params: {}, redirect: null })
   }
 })
@@ -59,18 +65,31 @@ test('a malformed percent escape in an agent id keeps the raw text instead of th
   assert.deepEqual(r('#/agent/a%E0b'), { view: 'agent', params: { id: 'a%E0b', sub: null }, redirect: null })
 })
 
-test('#/agent/ with no id is unknown and goes Home', () => {
-  assert.deepEqual(r('#/agent/'), { view: 'home', params: {}, redirect: '#/' })
+test('#/agent/ with no id is unknown and goes to the landing page', () => {
+  assert.deepEqual(r('#/agent/'), { view: 'flows', params: {}, redirect: '#/' })
 })
 
 // ═══ anything else ═══
 
-test('an unknown route goes Home with a redirect to #/', () => {
-  assert.deepEqual(r('#/nonsense'), { view: 'home', params: {}, redirect: '#/' })
+test('an unknown route goes to Flows with a redirect to #/', () => {
+  assert.deepEqual(r('#/nonsense'), { view: 'flows', params: {}, redirect: '#/' })
 })
 
 test('a non-string hash never throws', () => {
-  assert.deepEqual(r(undefined), { view: 'home', params: {}, redirect: null })
+  assert.deepEqual(r(undefined), { view: 'flows', params: {}, redirect: null })
+})
+
+test('the rail: the brand mark is Home at #/home, and Flows is the first page after it', () => {
+  const src = fs.readFileSync(path.join(HERE, '..', 'public', 'shell.js'), 'utf8')
+  assert.match(src, /<a class="rail-item rail-brand" href="#\/home" data-view="home" title="Home">/)
+  const nav = /<nav class="rail-nav"[^>]*>\s*\$\{([^}]*)\}/.exec(src)?.[1] || ''
+  assert.match(nav, /^link\('flows', '#\/flows', 'Flows'\)/, 'Flows first')
+})
+
+test('no link still sends a reader Home by #/ (that is Flows now): the palette and the Since card use #/home', () => {
+  const pub = f => fs.readFileSync(path.join(HERE, '..', 'public', f), 'utf8')
+  assert.match(pub('palette.js'), /\['Home', '#\/home'\]/)
+  assert.doesNotMatch(pub('since.js'), /'#\/'|"#\/"/)
 })
 
 // ═══ the rail, for a popover anchored to it (notify.js, the Alerts panel) ═══
@@ -95,5 +114,6 @@ test('a subagent in the live view lights Subagents, a session lights Agents, and
   assert.equal(railFor(resolve('#/agent/sess-1')), 'agents')
   assert.equal(railFor(resolve('#/subagents')), 'subagents')
   assert.equal(railFor(resolve('#/flows')), 'flows')
-  assert.equal(railFor(resolve('#/')), 'home')
+  assert.equal(railFor(resolve('#/')), 'flows')
+  assert.equal(railFor(resolve('#/home')), 'home')
 })

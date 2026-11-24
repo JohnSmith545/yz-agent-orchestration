@@ -30,7 +30,7 @@
 ;(() => {
   const MAX = 12
   const PAGES = [
-    ['Home', '#/'],
+    ['Home', '#/home'],
     ['Flows', '#/flows'],
     ['QA', '#/qa'],
     ['SCRIPT', '#/script'],

@@ -5,6 +5,8 @@
 //          Title of the flow                [Output | Explain | Status | Process] ?   (the tabs are flows.js's)
 //   sub    The why, its first sentence, more
 //          Agent 3 · ABC-1 · dev · open · ● QA failed · updated 2m               ⋯   (ONE muted meta line)
+//          build  Request › Master › Agent 3 › QA › Push › Output                    (the path, flow-route.js line;
+//                                                                                     a click on a step opens its detail)
 //          Sent back to Agent 3 · not delivered Retry                                (only when QA failed; flow-qa-line.js)
 //
 // The flow's status select and Drop live in the ⋯ menu, so they stop competing
@@ -87,7 +89,7 @@
     return {
       head: `<div class="fl-open-top"><button type="button" class="link" data-close>← Flows</button></div>
         <h2 class="fl-title">${esc(f.title)}</h2>`,
-      sub: `${why(f.why)}<div class="fl-open-meta">${meta}${menu}</div>${window.FlowQa?.reworkHtml(f) || ''}`,
+      sub: `${why(f.why)}<div class="fl-open-meta">${meta}${menu}</div>${window.FlowRoute?.line(f) || ''}${window.FlowQa?.reworkHtml(f) || ''}`,
       updated: `updated ${window.Shell.ago(f.updatedAt)}`,
     }
   }

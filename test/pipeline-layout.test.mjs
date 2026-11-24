@@ -227,23 +227,4 @@ test('no label sits on a box, both ways, for 1, 3 and 5 producers', () => {
   }
 })
 
-// ═══ a ticket's path ═══
-
-test('a path lights its nodes and the edges between them, a rework step by its rework edge', () => {
-  const path = ['request', 'master', 'agent-2', 'qa', 'agent-2', 'qa', 'push', 'outcome']
-  const h = plain(L.highlight(G3, path))
-  assert.deepEqual(h.nodes.sort(), ['agent-2', 'master', 'outcome', 'push', 'qa', 'request'])
-  const kinds = h.edges.map(i => `${G3.edges[i].from}>${G3.edges[i].to}:${G3.edges[i].kind}`).sort()
-  assert.deepEqual(kinds, ['agent-2>qa:main', 'master>agent-2:branch', 'push>outcome:main', 'qa>agent-2:rework', 'qa>push:main', 'request>master:main'])
-})
-
-test('a done flow with no code changes lights the skip edge into the Outcome', () => {
-  const h = L.highlight(G3, ['request', 'master', 'outcome'])
-  assert.deepEqual(plain(h.edges.map(i => G3.edges[i].kind)), ['main', 'skip'])
-})
-
-test('no path, or a pair the graph has no edge for, lights only what exists', () => {
-  assert.deepEqual(plain(L.highlight(G3, [])), { nodes: [], edges: [] })
-  assert.deepEqual(plain(L.highlight(G3, null)), { nodes: [], edges: [] })
-  assert.deepEqual(plain(L.highlight(G3, ['request', 'push'])), { nodes: ['request', 'push'], edges: [] })
-})
+// A ticket's lit route is flow-route.js highlight, over its progress (flow-route-ui.test.mjs).

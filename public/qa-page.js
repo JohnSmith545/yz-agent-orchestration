@@ -97,6 +97,8 @@
   }
 
   function onClick(e) {
+    const o = e.target.closest('[data-qa-open]') // the flow itself, on its last tab
+    if (o) return window.FlowsView?.gotoFlow(o.dataset.qaOpen)
     const x = e.target.closest('[data-qa-explain]')
     if (x) return window.FlowsView?.explain(x.dataset.qaExplain)
     const out = e.target.closest('[data-qa-output]') // a ticket QA never saw: its own How to test, on Output

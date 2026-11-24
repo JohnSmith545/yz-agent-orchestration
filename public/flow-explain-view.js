@@ -6,13 +6,14 @@
 //
 // The index row jumps to a slide; ‹ › and ArrowLeft / ArrowRight (while the stage
 // or anything in it has the focus) step through them. The place is kept in memory
-// per flow, by kind, so a poll that adds a slide (the pipeline loading) keeps the
+// per flow, by kind, so a poll that adds a slide (a QA result arriving) keeps the
 // one on show. It reuses what Output draws: the Story lines (flow-story.js), the
 // before and after pair and its slider (flow-compare.js), the diagrams
 // (diagram.js, each redrawn for its box's real width), and the QA words
-// (flow-qa-line.js). The path reads GET /api/pipeline, again at most every 15
-// seconds while the tab shows. Text is escaped, Markdown goes through
-// FlowDrawer.md (the one safe renderer), nothing here posts but Retry (flow-qa-line.js).
+// (flow-qa-line.js). The path is the flow's own route and progress, as /api/flows
+// sends them (flow-route.js), so it needs no request of its own. Text is escaped,
+// Markdown goes through FlowDrawer.md (the one safe renderer), nothing here posts
+// but Retry (flow-qa-line.js).
 //
 //   html(flow, slides, index, opts?)   the markup; opts.compare is 'screens' (default) or 'compare'
 //   moveTo(at, by, n)                  PURE: the slide `by` places from `at`, kept within n
@@ -21,7 +22,6 @@
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
   const X = () => window.FlowExplain
   const DRAW_W = 960 // the width a chart is drawn for before fill() measures its box
-  const PIPE_MS = 15_000
   const short = sha => String(sha || '').slice(0, 7)
 
   const moveTo = (at, by, n) => Math.max(0, Math.min(Number(at) + Number(by), n - 1))
@@ -45,9 +45,7 @@
 
   function path(s, c) {
     if (!s.chart) return `<p class="small faint xp-note">${esc(s.note)}</p>`
-    const back = s.reworks === 1 ? ' · sent back once' : s.reworks > 1 ? ` · sent back ${s.reworks} times` : ''
-    return c.chart('path', s.chart, 'Path through the agents', 'xp-path') +
-      `<p class="small xp-note">Now at <b>${esc(s.node)}</b> · ${esc(s.status)}${back}</p>`
+    return c.chart('path', s.chart, 'Path through the agents', 'xp-path') + (s.where ? `<p class="small xp-note">${esc(s.where)}</p>` : '')
   }
 
   function qa(s, flow) {
@@ -90,32 +88,7 @@
   }
   const html = (flow, slides, index, opts) => render(flow, slides, index, opts).html
 
-  // ═══ the pipeline, read while the tab shows ═══
-
-  const pipe = { at: 0, data: null, error: '', loading: null }
-  function freshen(root) {
-    if (pipe.loading || Date.now() - pipe.at < PIPE_MS) return
-    pipe.loading = fetch('/api/pipeline')
-      .then(async r => {
-        const j = await r.json().catch(() => ({}))
-        if (!r.ok) throw new Error(j.error || `Failed (${r.status})`)
-        pipe.data = j
-        pipe.error = ''
-      })
-      .catch(e => { pipe.error = String(e?.message || e) })
-      .finally(() => {
-        pipe.at = Date.now()
-        pipe.loading = null
-        const flow = shown.get(root)
-        if (flow && root.isConnected && !root.hidden) fill(root, flow)
-      })
-  }
-  function slidesFor(flow) {
-    const ticket = (pipe.data?.tickets || []).find(t => t.id === flow.id) || null
-    const slides = X().slidesOf(flow, ticket, pipe.data?.graph || null)
-    if (!pipe.data && pipe.error) for (const s of slides) if (s.kind === 'path') s.note = `Could not read the pipeline: ${pipe.error}`
-    return slides
-  }
+  const slidesFor = flow => X().slidesOf(flow)
 
   // ═══ fill: in place ═══
 
@@ -129,7 +102,6 @@
     if (!root || !flow) return
     bind(root)
     shown.set(root, flow)
-    freshen(root)
     const slides = slidesFor(flow)
     const place = places.get(flow.id)
     const at = place ? Math.max(0, slides.findIndex(s => s.kind === place.kind)) : 0

@@ -1,0 +1,38 @@
+/* A flow's route from the Request to the Output (flow-route.js): the compact strip on a board card and the
+   step line in an opened flow's head (and on the QA page). Colour is for meaning only: the current step in the
+   accent, done steps neutral filled, upcoming ones outlined, skipped ones faint and dashed; green and red only
+   on the QA step, for QA passed and failed. */
+
+.rt-card { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; min-width: 0; font-size: 12px; color: var(--muted); }
+.rt-type { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-2); }
+.rt-now { color: var(--ink-2); }
+.rt-unset { margin-left: 4px; padding: 0 5px; font-size: 11px; color: var(--faint); border: 1px dashed var(--line-strong); border-radius: var(--radius); }
+
+/* every step a state: one look per state, on the strip and the line alike */
+.rt-s { border: 1px solid transparent; border-radius: var(--radius); }
+.rt-s.s-done { background: var(--surface-3); color: var(--ink-2); }
+.rt-s.s-current { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.rt-s.s-upcoming { background: transparent; border: 1px solid var(--line-strong); color: var(--muted); }
+.rt-s.s-skipped { background: transparent; border: 1px dashed var(--line); color: var(--faint); }
+.rt-s.qa-ok { border-color: var(--ok); color: var(--ok); }
+.rt-s.s-done.qa-ok { background: color-mix(in srgb, var(--ok) 14%, var(--surface)); }
+.rt-s.qa-bad { border-color: var(--bad); color: var(--bad); }
+.rt-s.s-current.qa-bad { background: var(--bad); color: var(--accent-ink); }
+
+/* the board card: one row of small equal steps, each cut with … rather than wrapping */
+.rt-strip { display: flex; gap: 3px; margin: 0; padding: 0; list-style: none; min-width: 0; }
+.rt-strip .rt-s { flex: 1 1 0; min-width: 0; padding: 0 4px; overflow: hidden; font-size: 10.5px; line-height: 18px; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+
+/* an opened flow's head: the full path, a step a link to its detail */
+.rt-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0 0; font-size: 12.5px; }
+.rt-line ol { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; margin: 0; padding: 0; list-style: none; }
+.rt-line .rt-s { position: relative; display: inline-flex; }
+.rt-line .rt-s:not(:last-child)::after { content: '›'; position: absolute; right: -13px; top: 50%; transform: translateY(-52%); color: var(--faint); }
+.rt-line .rt-go { display: inline-flex; align-items: baseline; gap: 4px; padding: 2px 9px; font: inherit; color: inherit; background: none; border: 0; border-radius: var(--radius); }
+.rt-line button.rt-go { cursor: pointer; }
+.rt-line button.rt-go:hover { text-decoration: underline; text-underline-offset: 3px; }
+.rt-visits { font-size: 10.5px; font-variant-numeric: tabular-nums; opacity: .85; }
+.rt-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* the QA page's one ticket: the line sits under its meta line */
+.qa-open .rt-line { margin: 4px 0 10px; }

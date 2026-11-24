@@ -67,6 +67,12 @@
 .pl-edge.on .pl-line { stroke: var(--accent); stroke-width: 2.25; }
 .pl-edge.on .pl-head { fill: var(--accent); }
 .pl-elabel.on { fill: var(--accent); }
+/* the selected flow's steps still ahead (flow-route.js highlight `next`): a dashed accent outline, never filled */
+.pl-canvas.has-path .pl-node.next { opacity: 1; }
+.pl-node.next { border: 1px dashed var(--accent); }
+.pl-canvas.has-path .pl-edge.next { opacity: 1; }
+.pl-edge.next .pl-line { stroke: var(--accent); stroke-dasharray: 5 4; }
+.pl-edge.next .pl-head { fill: var(--accent); }
 
 /* ─── the details pane ─────────────────────────────────────────────────────── */
 

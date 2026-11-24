@@ -3,7 +3,7 @@
 //     (agent-cards.js card(): state, what it is doing, who it last talked to, recent tickets, branch,
 //     subagents and the Progress report button, which agents-page.js wires to OrchestrationGrid.report),
 //     what its role is, a line when it pushed outside QA, and the tickets standing on it;
-//   - a step (Request, Push, Outcome): a short plain description and the tickets standing there.
+//   - a step (Request, Push, Output): a short plain description and the tickets standing there.
 // With nothing clicked it holds the Independent chat card (agent-cards.js renderChat) and one line of help.
 // Pure: a node and what is known about it in, HTML out (test/pipeline-details.test.mjs).
 ;(() => {
@@ -13,7 +13,8 @@
   const ROLE = {
     request: 'Where work starts: a request you give the coordinator, who hands it out.',
     coordinator: 'Hands each request to a producer, or does it itself. Its own code changes go to QA too.',
-    producer: 'Writes the code. Finished code goes to QA; work with no code changes goes straight to the Outcome.',
+    producer: 'Writes the code. Finished code goes to QA; work with no code changes goes straight to the Output.',
+    chat: 'The chat agent in the Ask drawer: answers questions, explains tickets and reviews code. It changes no code, so its work goes straight to the Output.',
     qa: 'Tests every code change. A pass goes on to Push; a failure goes back to the producer that made it.',
     push: 'QA pushes the branch at the exact commit it tested: never forced, never a protected branch.',
     outcome: 'Where work ends: pushed after a QA pass, or done with no code changes. You open the pull request with Send.',
@@ -39,7 +40,9 @@
     const n = pushes(agent)
     const watch = agent ? `<a class="link" href="#/agent/${encodeURIComponent(agent.sessionId)}" title="Watch it work, live">Watch live</a>` : ''
     let body = ''
-    if (node.kind === 'agent') {
+    // the chat agent is no session to look up: its own card (state, cost, opens the drawer), drawn by AgentCards.renderChat
+    if (node.role === 'chat') body = '<div class="agent-cards ac-grid ac-chat-slot" hidden></div>'
+    else if (node.kind === 'agent') {
       body = agent ? `<div class="pl-card">${window.AgentCards.card(agent, { worktrees })}</div>` : `<div class="pl-card pl-missing">${window.AgentCards.missingRoot(node.label)}</div>`
     }
     return `<div class="pl-det" data-node="${esc(node.id)}">

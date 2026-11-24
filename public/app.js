@@ -1,7 +1,7 @@
 // Home (spec 5): stacked zones. Since you were away (#homeSince, since.js, spec
 // F2), Waiting on you (#homeWaiting, the flows strip, drawn by flows.js), both
 // mounted here while Home shows, then Agents (agent-cards.js, compact) and Messages.
-// Routing lives in shell.js (Shell.resolve): #/ Home, #/agents the pipeline
+// Routing lives in shell.js (Shell.resolve): #/home Home (#/ is Flows), #/agents the pipeline
 // diagram (agents-page.js), #/timeline the flowchart (flow.js), #/tickets the
 // ticket factory (factory.js), #/agent/<sessionId>[/<subagentId>] one agent
 // (agent.js). Home's status line goes to the page header through

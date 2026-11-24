@@ -6,7 +6,6 @@
 //   layout(graph, { width, rows }) { dir, width, height, nodes: [{ id, x, y, w, h, layer }],
 //                                 edges: [{ from, to, kind, label, d, head }], labels: [{ text, x, y, rotate,
 //                                 anchor, edges }] }; `rows` is how many ticket chips the boxes must hold
-//   highlight(graph, path)        { nodes: [ids], edges: [edge indices] } for a ticket's stage.path
 //
 // ═══ HOW IT IS LAID OUT ═══ Everything is worked out on two axes, MAIN (the way work flows) and CROSS
 // (across it), then turned into x and y: left to right (LR, main = x) when every layer gets a column at
@@ -298,24 +297,6 @@
     return { dir: lr ? 'LR' : 'TB', width: Math.ceil(W), height: Math.ceil(Ht), nodes: placed, edges: out, labels }
   }
 
-  // ─── a ticket's path ───────────────────────────────────────────────────────
-
-  /** The nodes a stage.path visits and the edge between each two in a row (back along a layer: the rework edge). */
-  function highlight(graph, path) {
-    const { nodes, edges } = clean(graph)
-    const known = new Set(nodes.map(n => n.id))
-    const list = (Array.isArray(path) ? path : []).map(String).filter(id => known.has(id))
-    const rank = rankMap(nodes, edges)
-    const on = new Set()
-    for (let i = 1; i < list.length; i++) {
-      const [a, b] = [list[i - 1], list[i]]
-      const found = edges.filter(e => e.from === a && e.to === b)
-      if (!found.length) continue
-      const back = rank.get(b) < rank.get(a)
-      on.add((found.find(e => (e.kind === 'rework') === back) || found[0]).i)
-    }
-    return { nodes: [...new Set(list)], edges: [...on].sort((x, y) => x - y) }
-  }
-
-  window.PipelineLayout = { ranks, layout, highlight, nodeHeight }
+  // A flow's lit route is flow-route.js highlight, over its own progress.
+  window.PipelineLayout = { ranks, layout, nodeHeight }
 })()

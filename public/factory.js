@@ -430,10 +430,7 @@
       } catch (err) { alert(err.message) }
     }))
     $$('[data-review]', box).forEach(b => b.addEventListener('click', () => reviewTickets([b.dataset.review])))
-    $$('[data-ask]', box).forEach(b => b.addEventListener('click', () => {
-      const t = data.tickets.find(x => x.id === b.dataset.ask)
-      window.FactoryChat.send(`Explain ${t.id} (${t.title}) in plain words: what it is for, where it stands (board: ${t.state}, review: ${reviewOf(t)}), and exactly what is left.`)
-    }))
+    $$('[data-ask]', box).forEach(b => b.addEventListener('click', () => explainTicket(data.tickets.find(x => x.id === b.dataset.ask))))
     $$('form[data-pass]', box).forEach(f => f.addEventListener('submit', e => {
       e.preventDefault()
       const v = Object.fromEntries(new FormData(f))
@@ -442,16 +439,26 @@
   }
 
   // ─── actions through the chat agent ───
+  // Nothing happens outside a defined flow (flow-route.mjs): each action names the flow type it starts.
   function reviewTickets(ids) {
     window.FactoryChat.send(
-      `Review the code for ${ids.join(', ')}. For each: read the Switchboard ticket (get_story_details), find its commits and files in the repo, ` +
+      `Review the code for ${ids.join(', ')}. First start a review flow for each ticket (factory flow new <id> "<title>" --type review --tickets <ID>) ` +
+      `and record the review in it. For each: read the Switchboard ticket (get_story_details), find its commits and files in the repo, ` +
       `check the code does what the ticket asks, and be adversarial (bugs with file:line). Then record each result with the factory mark command ` +
       `(reviewed + verdict, or needs-review / no-code / not-codebase), and put anything that is my call to me with the factory flow ask command.`
+    )
+  }
+  function explainTicket(t) {
+    window.FactoryChat.send(
+      `Explain ${t.id} (${t.title}) in plain words: what it is for, where it stands (board: ${t.state}, review: ${reviewOf(t)}), and exactly what is left. ` +
+      `First start an ask flow for it (factory flow new <id> "<title>" --type ask --tickets ${t.id}) and tell the answer in it.`
     )
   }
   function passTo(agent, ids, task) {
     window.FactoryChat.send(
       `Pass this to ${agent} with SendMessage (check the exact name with ListAgents), about ${ids.join(', ')}:\n\n${task}\n\n` +
+      `Tell ${agent} to start a build flow first (factory flow new <id> "<title>" --type build --tickets ${ids.join(',')} --by "${agent}"), ` +
+      `follow its route (it hands the finished change to QA, which tests and pushes it) and narrate the work in that flow. ` +
       `Add the ticket titles and anything from our review they need, keep it short, and tell me exactly what you sent.`
     )
   }

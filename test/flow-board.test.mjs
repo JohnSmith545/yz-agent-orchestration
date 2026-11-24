@@ -19,8 +19,11 @@ const { derive, DATA_DIR } = await import('../flows.mjs')
 after(() => fs.rmSync(DATA_DIR, { recursive: true, force: true }))
 
 const window = {}
-for (const f of ['shell.js', 'terms.js', 'flow-board.js']) vm.runInNewContext(fs.readFileSync(path.join(PUBLIC, f), 'utf8'), { window })
+for (const f of ['shell.js', 'terms.js', 'flow-route.js', 'flow-board.js']) vm.runInNewContext(fs.readFileSync(path.join(PUBLIC, f), 'utf8'), { window })
 const B = window.FlowBoard
+const { pipelineGraph } = await import('../pipeline.mjs')
+const { withRoute } = await import('../flow-route.mjs')
+const GRAPH = pipelineGraph({ coordinatorLabel: 'Master', codingAgents: { a: 'Agent 3' }, pipeline: { qa: 'QA' } })
 
 const DARK = JSON.parse(fs.readFileSync(path.join(HERE, 'fixtures', 'dark-mode.json'), 'utf8'))
 const NOVIS = JSON.parse(fs.readFileSync(path.join(HERE, 'fixtures', 'no-visual.json'), 'utf8'))
@@ -45,6 +48,18 @@ test('a card is the title, one story line, the progress bar with done/total, one
   assert.match(h, /<div class="fl-bar"><i style="width:\d+%"><\/i><\/div>/)
   assert.doesNotMatch(h, /ABC-101|data-ticket|fl-env|fl-ago|ago|updated/, 'no tickets, env or updated on the card')
   assert.match(h, /data-open="dark-mode"/)
+})
+
+test('a card shows its route as a compact strip: the type, where it is now, every step from Request to Output, between the story and the bar', () => {
+  const f = fx(DARK, x => { x.route = { type: 'build', steps: ['request', 'master', 'agent-3', 'qa', 'push', 'outcome'], at: '2026-11-12T08:00:00Z', by: 'Agent 3' } })
+  Object.assign(f, withRoute(f, GRAPH))
+  const h = B.card(f)
+  assert.match(text(h), /build · at Agent 3 Request Master Agent 3 QA Push Output Agent 3 \d+\/\d+$/)
+  assert.ok(h.indexOf('rt-strip') > h.indexOf('fl-card-story') && h.indexOf('rt-strip') < h.indexOf('fl-prog'))
+  assert.doesNotMatch(h, /route not set/)
+  const legacy = fx(DARK)
+  Object.assign(legacy, withRoute(legacy, GRAPH))
+  assert.match(B.card(legacy), /route not set/, 'an open flow on a guessed route says so, quietly')
 })
 
 test('with nothing to decide or blocked, the story line is the latest line the agent wrote, with its marked words as chips', () => {

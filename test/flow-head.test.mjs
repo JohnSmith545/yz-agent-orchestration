@@ -28,6 +28,17 @@ test('only the time changes: the sub (meta line and why) is the same markup, so 
   assert.equal(b.updated, 'updated 3m')
 })
 
+test('the head shows the full path from Request to Output as a step line, under the meta line (FlowRoute.line)', () => {
+  window.FlowRoute = { line: f => `<nav class="rt-line" data-for="${f.id}"></nav>` }
+  try {
+    const { sub } = H.html(flow('2026-11-13T10:00:00Z'), parts)
+    assert.match(sub, /<div class="fl-open-meta">[\s\S]*<\/div><nav class="rt-line" data-for="f"><\/nav>/)
+  } finally {
+    delete window.FlowRoute
+  }
+  assert.doesNotMatch(H.html(flow('2026-11-13T10:00:00Z'), parts).sub, /rt-line/, 'nothing when the route script is not there')
+})
+
 test('the opened flow has ONE ? whose popover says what each Output block is, in one short paragraph each', () => {
   for (const name of ['Story', 'Picture', 'How to test', 'Details']) assert.match(H.HELP, new RegExp(`<b>${name}</b>`), name)
   assert.match(H.HELP, /<dfn data-term="verified"/, 'the proof marks are still explained there')

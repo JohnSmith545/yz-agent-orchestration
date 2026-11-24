@@ -1,10 +1,13 @@
 // The tickets of /api/pipeline on the Agents page (#/agents): the chips on each node of the diagram and the
 // two lists of the side panel. Pure except explain and howToTest, which hand over to another page.
 //
-//   byNode(tickets)             { nodeId: [tickets] }: where each ticket stands now (dropped and archived off)
+//   byNode(tickets)             { nodeId: [tickets] }: where each ticket stands now, the current step of its
+//                               `progress` (flow-route.js at; stage.node when a ticket has none), dropped and
+//                               archived off
 //   chips(list) / chipRows(g)   at most MAX chips per node and a +N; the chip rows the tallest node needs
 //   chipHtml(t, labels)         one chip: the title cut by CSS, its status in the tooltip
-//   ticketList / ticketsHtml    Tickets: needs attention first (failed, sent back, blocked, waiting), then newest
+//   ticketList / ticketsHtml    Tickets: needs attention first (failed, sent back, blocked, waiting), then newest;
+//                               each row says the flow's type and its current step (`build · QA`)
 //   outputList / outputsHtml    Outputs: finished tickets with output or a QA pass, newest first
 //   testTarget(t, steps)        where How to test goes: 'qa' (QA has a record), 'flow' (its Output has test
 //                               steps), or null (no button: there is nothing to show)
@@ -39,11 +42,18 @@
 
   /** { nodeId: label } from the graph, so a row can say where its ticket is. */
   const labelsOf = graph => Object.fromEntries((graph?.nodes || []).map(n => [n.id, n.label]))
+  /** Where a ticket stands: its progress's current step (the flow is the source of truth), else its stage. */
+  const nodeOf = t => (Array.isArray(t?.progress) && window.FlowRoute ? window.FlowRoute.at(t.progress) : t?.stage?.node)
+  /** `build · QA`: the type and the current step, as a row says them; the stage's node before progress exists. */
+  const whereOf = (t, labels) => {
+    const now = window.FlowRoute && Array.isArray(t?.progress) ? window.FlowRoute.nowLabel(t) : labels[t?.stage?.node]
+    return [t?.route?.type, now || 'Dropped'].filter(Boolean).join(' · ')
+  }
 
   function byNode(tickets) {
     const out = {}
     for (const t of tickets || []) {
-      const node = t?.stage?.node
+      const node = nodeOf(t)
       if (!node || t.archived) continue
       ;(out[node] ||= []).push(t)
     }
@@ -53,7 +63,7 @@
   const chips = list => ({ shown: (list || []).slice(0, MAX), more: Math.max(0, (list || []).length - MAX) })
   const chipRows = groups => Math.min(MAX, Math.max(0, ...Object.values(groups || {}).map(l => l.length)))
 
-  const tipOf = (t, labels) => [t.title || t.id, labels?.[t.stage?.node] || '', word(t)].filter(Boolean).join(' · ')
+  const tipOf = (t, labels) => [t.title || t.id, whereOf(t, labels || {}), word(t)].filter(Boolean).join(' · ')
 
   function chipHtml(t, labels) {
     const tn = tone(t)
@@ -72,7 +82,7 @@
         const on = t.id === selected
         return `<li><button type="button" class="pl-row${t.archived ? ' pl-archived' : ''}" data-ticket="${esc(t.id)}" aria-pressed="${on}" title="${esc(tipOf(t, labels))}">` +
           `<span class="pl-row-title">${esc(t.title || t.id)}</span>` +
-          `<span class="pl-row-meta"><span class="pl-row-stage">${esc(labels[t.stage?.node] || 'Dropped')}</span><span class="pl-word${tn ? ` t-${tn}` : ''}">${esc(word(t))}</span></span>` +
+          `<span class="pl-row-meta"><span class="pl-row-stage">${esc(whereOf(t, labels))}</span><span class="pl-word${tn ? ` t-${tn}` : ''}">${esc(word(t))}</span></span>` +
           '</button></li>'
       })
       .join('')}</ul>`

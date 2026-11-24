@@ -1,6 +1,6 @@
 // Tests for public/pipeline-details.js: the details pane under the Agents page diagram. An agent node shows
 // that agent's card from agent-cards.js (state, what it does, who it talks to, tickets, branch, Progress
-// report), a push outside QA is said in a line of its own, and a step (Request, Push, Outcome) gets a plain
+// report), a push outside QA is said in a line of its own, and a step (Request, Push, Output) gets a plain
 // description and the tickets standing there. Browser files in one vm with a bare window.
 
 import { test } from 'node:test'
@@ -45,7 +45,14 @@ test('an agent that is not running says so, under the label the graph gives it',
   assert.doesNotMatch(html, /Progress report/)
 })
 
-test('Request, Push and Outcome get a short plain description and the tickets there', () => {
+test('the chat agent node says what it does and holds its own chat card (it is no session to find), never not running', () => {
+  const html = D.html({ id: 'independent', kind: 'agent', label: 'Independent', role: 'chat' }, { agent: null, tickets: [], labels })
+  assert.match(html, /class="pl-desc">The chat agent in the Ask drawer/)
+  assert.match(html, /ac-chat-slot/)
+  assert.doesNotMatch(html, /not running/)
+})
+
+test('Request, Push and Output get a short plain description and the tickets there', () => {
   for (const [id, role, kind] of [['request', 'request', 'start'], ['push', 'push', 'step'], ['outcome', 'outcome', 'end']]) {
     const html = D.html({ id, kind, label: id, role }, { tickets: [], labels })
     assert.match(html, /class="pl-desc"/, id)

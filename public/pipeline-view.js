@@ -5,7 +5,9 @@
 //     update({ graph, tickets, agents })  draws or patches: the boxes and arrows are built ONCE per graph and
 //                                         after that only moved and refilled, so a refresh never flickers and
 //                                         never loses focus; a new width (ResizeObserver) lays out again
-//     setPath({ nodes, edges } | null)    one ticket's path in the accent colour, the rest dimmed
+//     setPath({ nodes, edges, next } | null)  one ticket's route (flow-route.js highlight): what it has done
+//                                         and where it is in the accent colour, `next` (the steps still ahead)
+//                                         as a dashed accent outline, the rest dimmed
 //     setNode(id | null)                  the box whose details show below
 //   PipelineView.nodeInner(node, opts)    PURE: the inside of one box (its name, a red mark for pushes
 //                                         outside QA, +N, the chips), for the tests
@@ -47,7 +49,7 @@
 
     function build(graph) {
       const lay = window.PipelineLayout.layout(graph, { width: box.clientWidth || 1000, rows: st.rows })
-      box.innerHTML = `<div class="pl-canvas" role="group" aria-label="Who hands work to whom, from the request to the outcome">` +
+      box.innerHTML = `<div class="pl-canvas" role="group" aria-label="Who hands work to whom, from the request to the output">` +
         `<svg class="pl-svg" aria-hidden="true" focusable="false"><g class="pl-edges">${lay.edges
           .map(e => `<g class="pl-edge k-${cls(e.kind)}" data-edge="${e.i}"><path class="pl-line"/><path class="pl-head"/></g>`)
           .join('')}</g><g class="pl-labels"></g></svg>` +
@@ -99,13 +101,19 @@
       const h = st.path
       const onNodes = new Set(h?.nodes || [])
       const onEdges = new Set(h?.edges || [])
+      const nextNodes = new Set(h?.next?.nodes || [])
+      const nextEdges = new Set(h?.next?.edges || [])
       st.canvas.classList.toggle('has-path', !!h)
       for (const [id, el] of st.nodes) {
         el.classList.toggle('on', onNodes.has(id))
+        el.classList.toggle('next', nextNodes.has(id))
         el.classList.toggle('sel', id === st.node)
         el.querySelector('.pl-node-head')?.setAttribute('aria-pressed', String(id === st.node))
       }
-      for (const [i, g] of st.edges) g.classList.toggle('on', onEdges.has(i))
+      for (const [i, g] of st.edges) {
+        g.classList.toggle('on', onEdges.has(i))
+        g.classList.toggle('next', nextEdges.has(i) && !onEdges.has(i))
+      }
       for (const t of st.labels?.querySelectorAll('text') || []) t.classList.toggle('on', t.dataset.edges.split(' ').some(i => onEdges.has(Number(i))))
     }
 
