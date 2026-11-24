@@ -156,3 +156,18 @@ test('redrawing the notes keeps the keyboard focus on the switch that had it', (
   assert.ok(back > redraw, 'and focused again after')
   assert.ok(paint.slice(back).includes('?.focus()'), 'the same switch is focused again')
 })
+
+// QA, 2026-11-25: the page-wide notice ran under the open panel. Its margin used --sc-ctx-w, which was set only on
+// #scriptView, and the banners sit outside it, so the value was invalid and the margin fell back to 0.
+test('regression: the panel width token is defined where the banners can read it', () => {
+  assert.match(CSS, /:root\s*\{\s*--sc-ctx-w:\s*340px;\s*\}/)
+  assert.doesNotMatch(CSS, /#scriptView\s*\{\s*--sc-ctx-w/)
+})
+
+// QA, 2026-11-25: on a phone the closed tab sat over the right edge of the boxes and the Copy corner.
+test('regression: on a phone the page keeps a right gutter the closed tab fits in', () => {
+  const at = CSS.indexOf('@media (max-width: 720px)')
+  const body = CSS.slice(at, CSS.indexOf('\n}', at))
+  assert.match(body, /\.sc-page:not\(\.ctx-open\)\s*\{[^}]*padding-right:\s*20px/)
+  assert.match(body, /main:has\(#scriptView:not\(\[hidden\]\) \.sc-page:not\(\.ctx-open\)\) \.banners\s*\{[^}]*margin-right:\s*20px/)
+})
