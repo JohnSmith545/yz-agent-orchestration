@@ -97,6 +97,24 @@ node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow diagram acme-repor
 
 The QA agent has its own brief: `docs/qa-agent-brief.md`.
 
+When the pipeline has a **planner** (config `pipeline.planner`), it sits between the coordinator and you:
+
+> The coordinator opens the flow (`flow new <id> "<title>" --type build`) and sends the planner a message naming
+> it, instead of messaging a producer. The planner plans it and hands it to one producer with
+> `flow plan <flow> --file plan.md --to "<you>"`. From then on the flow is yours: read the plan (its path is in
+> `flow show`), follow it, and record your work on that flow as usual. The planner writes no code. Its brief is
+> `docs/planner-agent-brief.md`.
+
+When the pipeline has **Security** (config `pipeline.security`), it sits after QA:
+
+> A QA pass no longer finishes your flow: Security reviews the same commit, and QA pushes only after Security
+> passed it. A Security failure comes back to you exactly as a QA failure does, with its report: fix it, record the
+> fix, and ask QA to test again (Security reviews again after QA passes it). QA and Security failures share one
+> limit. Security never changes your code. Its brief is `docs/security-agent-brief.md`.
+>
+> What the user saved in your window on the Agents page (the model and effort it wants you on, and the files and
+> notes you are given) is printed after your rules. Start your subagents on that model.
+
 What the user sees: the flow as a card on the Flows page (`#/flows`), and each `flow ask` in **Waiting on you** with your `--why` under the question and Yes and No; the answer is sent back to the agent as a message. An opened flow lands on **Output**: the result screenshot (or your diagram, or with neither a summary chart the dashboard draws from your steps), the summary with its commits, and the numbered test steps. If the user presses **Request test steps**, a message arrives asking for those steps: drive the app, then record each step with `flow test-step`. **Request visuals** (a flow with no screenshot and no diagram) asks for a screenshot or a diagram first.
 
 The full command list is in the README, under "Agents writing flows".
