@@ -29,8 +29,11 @@
 //   GET  /api/settings                 the Settings page: a read-only summary and the send settings now (settings-routes.mjs)
 //   POST /api/settings/send            { enabled?, bases? }; POST /api/settings/pin { next, current? | reset? }: the page's
 //                                      own Origin, and a system window confirms anything that could let a page driver send
+//   GET  /api/pipeline                 { graph, tickets, builtAt }: the orchestration and where each flow stands (pipeline-routes.mjs)
+//   GET  /api/qa[?status=passed]       { qa, flows, remotes, builtAt }: what QA recorded, with report text and links (pipeline-routes.mjs)
+//   POST /api/flows/<id>/rework        send a QA failure back to its producer again after it was not delivered (qa-rework.mjs)
 //   GET  /api/commit?sha=<sha>         one commit, see commit-diff.mjs
-//   GET  /evidence/<flow>/<file>       a screenshot or log an agent attached
+//   GET  /evidence/<flow>/<file>       a screenshot or log an agent attached; a QA report (qa-<n>-report.md) as plain text
 //   POST /api/explain                  { text }: the glossary first ({ text, cost: 0, from: 'glossary', entry }), else one cheap
 //                                      headless turn ({ text, cost, from: 'model', saved }) or 502 { error } (glossary-routes.mjs)
 //   GET  /api/glossary                 { terms }: the shipped and saved words, merged (glossary-routes.mjs)
@@ -67,6 +70,8 @@ import { learnTerms } from './learn.mjs'
 import { originAllowed } from './local-origin.mjs'
 import { prGet, prRefresh, prSend } from './pr-routes.mjs'
 import { applyAnswer, applyVerify, derive, EVIDENCE_DIR, FLOW_STATUS, followsAnAsk, listFlows, readFlow, setNodeStatus, validateFlow, writeFlow } from './flows.mjs'
+import { pipelineGet, qaGet } from './pipeline-routes.mjs'
+import { reworkRetry } from './qa-rework.mjs'
 import { requestText } from './relay.mjs'
 import { sinceRoute } from './since.mjs'
 import { readSpend } from './spend.mjs'
@@ -86,6 +91,11 @@ const EVIDENCE_TYPES = {
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif',
   '.webm': 'video/webm', '.mp4': 'video/mp4', '.pdf': 'application/pdf', '.txt': 'text/plain',
 }
+/**
+ * The ONE Markdown file /evidence/ serves: a QA report as `flow qa` names it (tools/qa-cli.mjs), as plain text with
+ * nosniff, so nothing in it is ever rendered or run. Any other .md, and every .html, stays a 404.
+ */
+const QA_REPORT = /^qa-\d+-report(?:-\d+)?\.md$/
 
 function json(res, status, body) {
   res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' })
@@ -160,6 +170,9 @@ export async function factoryRoute(req, res, url, { git, gh, push, pr, port = CO
     if (action === 'pr' && !post) return send(res, await prGet(id, send$)), true
     if (action === 'pr' && post) return send(res, await prSend(id, await body(req), req.headers, send$)), true
     if (action === 'pr/refresh' && post) return send(res, await prRefresh(id, send$)), true
+    if (action === 'rework' && post) return send(res, reworkRetry(id, relay)), true
+    if (p === '/api/pipeline' && !post) return send(res, pipelineGet()), true
+    if (p === '/api/qa' && !post) return send(res, await qaGet(q.get('status') || '', { git })), true
     if (p === '/api/commit' && !post) return await commit(res, q.get('sha'), git), true
     if (p.startsWith('/evidence/') && !post) return await evidence(res, p), true
     if (p === '/api/explain' && post) return send(res, await explainRoute(await body(req), explain)), true
@@ -294,7 +307,7 @@ async function evidence(res, pathname) {
   }
   const full = path.resolve(root, rel)
   if (!full.startsWith(root + path.sep)) return json(res, 403, { error: 'Outside the evidence folder.' })
-  const type = EVIDENCE_TYPES[path.extname(full).toLowerCase()]
+  const type = EVIDENCE_TYPES[path.extname(full).toLowerCase()] ?? (QA_REPORT.test(path.basename(full)) ? 'text/plain; charset=utf-8' : undefined)
   try {
     if (type && (await stat(full)).isFile()) {
       const data = await readFile(full)

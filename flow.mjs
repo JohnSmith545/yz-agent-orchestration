@@ -75,6 +75,15 @@ function gitSteps(command) {
     .map(m => ({ verb: m[1], args: m[2] }))
 }
 
+/**
+ * How many shell commands in `events` since `sinceMs` ran `git push` (any spelling gitSteps reads: -C, env
+ * prefixes, chained with && or ;). For the agent records (server.mjs pushesOutsideQa): only QA pushes.
+ */
+export function pushCount(events, sinceMs) {
+  return (events || []).filter(e => e?.kind === 'tool' && (e.tool === 'Bash' || e.tool === 'PowerShell') && ms(e.t) >= sinceMs &&
+    gitSteps(e.command).some(s => s.verb === 'push')).length
+}
+
 /** Branch names among a git step's arguments (flags and quoted messages dropped). */
 function refsIn(args) {
   return String(args)

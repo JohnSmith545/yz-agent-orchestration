@@ -32,11 +32,12 @@ import { pinnedSessions } from './pinned-agents.mjs'
 import { hostAllowed } from './local-origin.mjs'
 import { pushEnv } from './pr-routes.mjs'
 import { makeOrchestration, pulse } from './orchestration.mjs'
-import { buildFlow } from './flow.mjs'
+import { buildFlow, pushCount } from './flow.mjs'
 import { buildReport } from './report.mjs'
 import { compareTickets } from './ticket-ids.mjs'
 import { claudeRun, makeRelay } from './relay.mjs'
 import { purgeExpired } from './trash.mjs'
+import { startReworkWatch } from './qa-rework.mjs'
 import {
   CLAUDE_DIRS,
   conversationsOf,
@@ -282,6 +283,8 @@ async function describeAgent(s, knownTrees) {
     recentWorktrees: scan ? newestKeys(scan.worktrees, 4) : [],
     recentTickets: scan ? newestKeys(scan.tickets, 6) : [],
     subagents: file ? await listSubagents(file, knownTrees) : [],
+    // only QA pushes (pipeline.mjs): git push commands any other agent ran in the last 24 h, for the page to flag
+    pushesOutsideQa: scan && labelOf(s.name) !== CONFIG.pipeline.qa ? pushCount(scan.feed.events, Date.now() - 86_400_000) : 0,
     _worktreePos: worktreePos,
     _lines: scan?.lines ?? 0,
     _scan: scan,
@@ -810,6 +813,8 @@ const relay = makeRelay({ run: claudeRun })
 // Answers a previous run queued but never delivered get a retry on the page, not silence (relay.mjs sweep).
 const lostAnswers = relay.sweep()
 if (lostAnswers.length) console.log(`relay: ${lostAnswers.length} answer(s) not sent before the last stop are marked for retry`)
+// A QA failure going back to its producer is written by QA's own shell: the server notices it, now and every 15 s (qa-rework.mjs).
+startReworkWatch(relay)
 /**
  * A flow 24 hours in the Trash is gone for good (trash.mjs). Decided from each entry's STORED time, so a
  * restart loses nothing: once now, then every 10 minutes. A failure is logged and never stops the server.
@@ -837,7 +842,7 @@ const subagentRoute = makeSubagentRoutes({
   prStates: makePrStates({ gh }),
 })
 /** The paths factory-routes.mjs answers. */
-const FACTORY_PREFIXES = ['/api/factory', '/api/chat', '/api/flows', '/api/trash', '/api/commit', '/api/explain', '/api/glossary', '/api/since', '/api/spend', '/api/settings', '/evidence/']
+const FACTORY_PREFIXES = ['/api/factory', '/api/chat', '/api/flows', '/api/trash', '/api/commit', '/api/explain', '/api/glossary', '/api/since', '/api/spend', '/api/settings', '/api/pipeline', '/api/qa', '/evidence/']
 
 const server = createServer(async (req, res) => {
   // a website that rebinds its name to 127.0.0.1 sends its own Host: only requests addressed to us are answered (local-origin.mjs)
