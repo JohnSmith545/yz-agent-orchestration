@@ -55,3 +55,14 @@ test('Security sends work back to every producer under ONE failed label; QA keep
     assert.equal(fromQa.length, 3)
   }
 })
+
+test('on a phone (a 358 px box) the nine boxes fit with no inner scroll: Security returns share one corridor lane', () => {
+  const lay = L.layout(G, { width: 358, rows: 2 })
+  assert.equal(lay.dir, 'TB')
+  assert.ok(lay.width <= 358, `${lay.width}`)
+  for (const n of lay.nodes) assert.ok(n.w >= 72, `${n.id} is ${n.w} wide`)
+  // the three return arrows of Security run along the same corridor line: their long vertical run is at one x
+  const runs = lay.edges.filter(e => e.from === 'security' && e.kind === 'rework').map(e => [...e.d.matchAll(/L([\d.]+) [\d.]+/g)].map(m => Number(m[1])))
+  const shared = runs.map(xs => Math.max(...xs))
+  assert.equal(new Set(shared).size, 1, JSON.stringify(shared))
+})

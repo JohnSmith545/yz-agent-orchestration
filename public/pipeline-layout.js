@@ -17,12 +17,13 @@
 //     along a corridor outside all the boxes (skips on one side, the rest on the other), and in through the
 //     gap before its target, each on a lane of its own. Arrows sharing a label and a target (every
 //     `no code changes`) carry that label once, on the outermost lane; so do return arrows sharing a label and
-//     a SOURCE (Security's `failed` back to every producer, pipeline.mjs).
+//     a SOURCE (Security's `failed` back to every producer, pipeline.mjs), which also share ONE corridor lane, a
+//     bus that splits only in the gap before each producer, so a phone has room for them.
 // Every box spreads the arrows on each side along that side, ordered by where their other end is, so no
 // two arrow heads share a point. Pure: no DOM, so test/pipeline-layout.test.mjs runs it in a vm.
 ;(() => {
   const LR = { pad: 12, wMin: 100, wMax: 200, gMin: 44, gPref: 64, gMax: 120, gc: 24 }
-  const TB = { pad: 8, wMin: 72, wMax: 220, roomy: 160, gm: 56, gc: 16 }
+  const TB = { pad: 8, wMin: 72, wMax: 220, roomy: 160, gm: 56, gc: 14 }
   const HEAD_H = 36 // a box's name line
   const CHIP_H = 24 // one ticket chip
   const MIN_H = 48
@@ -145,9 +146,12 @@
     const lr = L <= 1 || availLR - L * wLR >= (L - 1) * LR.gMin
     const corrOff = CORR_OFF[lr ? 'LR' : 'TB']
     const longs = side => edges.filter(e => e.type === 'long' && e.side === side)
+    // the return arrows of one source share a lane (a bus); every other long arrow has its own
+    const busOf = e => (e.kind === 'rework' ? `rework|${e.from}` : `edge|${e.i}`)
+    const lanesOf = side => new Set(longs(side).map(busOf)).size
     const margin = side => {
       const list = longs(side)
-      return list.length ? corrOff + (list.length - 1) * LANE + (list.some(e => e.label) ? LABEL_ROOM : 4) : 0
+      return list.length ? corrOff + (lanesOf(side) - 1) * LANE + (list.some(e => e.label) ? LABEL_ROOM : 4) : 0
     }
     const mNeg = margin('neg')
     const mPos = margin('pos')
@@ -185,8 +189,10 @@
     const lane = new Map() // edge -> corridor cross position
     for (const side of ['neg', 'pos']) {
       const list = longs(side).sort((a, b) => Math.abs(b.span) - Math.abs(a.span) || (side === 'neg' ? 1 : -1) * (box.get(a.from).mid - box.get(b.from).mid) || a.i - b.i)
-      list.forEach((e, p) => {
-        const depth = list.length - 1 - p // 0 is the inner lane
+      // one lane per bus, in the order its first arrow comes
+      const buses = [...new Set(list.map(busOf))]
+      list.forEach(e => {
+        const depth = buses.length - 1 - buses.indexOf(busOf(e)) // 0 is the inner lane
         lane.set(e, side === 'neg' ? c0 - corrOff - depth * LANE : c0 + crossSpan + corrOff + depth * LANE)
       })
     }
