@@ -47,14 +47,26 @@ async function send(url, text = 'idea') {
 }
 const plain = v => JSON.parse(JSON.stringify(v))
 
-test('found: generate gets the skill, and no line is added', async () => {
+// QA, 2026-11-25: the line under the output never said the skill was used, only when it was missing.
+test('regression: found: generate gets the skill, and the context line names it FIRST in what was sent', async () => {
   const skill = { text: '# Brainstorming', file: 'C:/acct/SKILL.md' }
   let asked = 0
   const url = await serve({ skill: () => (asked++, skill) })
   const { run, out } = await send(url)
   assert.deepEqual(run.opts.skill, skill)
   assert.equal(asked, 1, 'asked once per run')
-  assert.deepEqual(out.map(l => l.type), ['delta', 'done'])
+  assert.deepEqual(out[0], { type: 'context', used: [{ title: 'Brainstorming skill', chars: skill.text.length }], skipped: [] })
+  assert.deepEqual(out.slice(1).map(l => l.type), ['delta', 'done'])
+})
+
+test('regression: the skill is named before the attached context, and the run log keeps it for History', async () => {
+  const logged = []
+  const gather = async () => ({ parts: [{ title: 'Your orchestration', text: 'brief' }], skipped: [] })
+  const url = await serve({ skill: () => ({ text: '# B', file: 'x' }), gather, log: e => logged.push(e) })
+  const { out } = await send(url)
+  assert.deepEqual(out[0].used.map(u => u.title), ['Brainstorming skill', 'Your orchestration'])
+  await until(() => logged.length === 1)
+  assert.deepEqual(plain(logged[0].context.used).map(u => u.title), ['Brainstorming skill', 'Your orchestration'])
 })
 
 test('not found, or the finder throws: the run goes on the built-in rules, and ONE context line says so first', async () => {

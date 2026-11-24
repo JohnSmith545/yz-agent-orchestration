@@ -28,7 +28,9 @@
 // What it found goes to generate(), which then carries the skill (script.mjs). When it finds nothing, the skill is
 // too long, or the finder throws, the run still goes on the built-in rules, and a Brainstorming skill entry with
 // the plain reason is added to the context line's `skipped`, so the page says it in one line and the run log
-// keeps it. With no finder (the tests' default) nothing is checked.
+// keeps it. When it was found, a Brainstorming skill entry goes FIRST in the line's `used`, so the page says
+// "Sent with: Brainstorming skill, …" and a run restored from History says it too (an older run logged nothing
+// about the skill and says nothing). With no finder (the tests' default) nothing is checked.
 
 import { originAllowed } from './local-origin.mjs'
 import { composeInput } from './script-compose.mjs'
@@ -102,8 +104,10 @@ export function makeScriptRoute({ generate = realGenerate, port, gather = NO_CON
       } catch {
         got = null // a finder that fails is the same as not found: the run still goes
       }
-      if (typeof got?.text === 'string' && got.text) found = got
-      else composed.skipped.push({ title: SKILL_MISSING.title, why: typeof got?.error === 'string' ? got.error : SKILL_MISSING.why })
+      if (typeof got?.text === 'string' && got.text) {
+        found = got
+        composed.used.unshift({ title: SKILL_MISSING.title, chars: got.text.length })
+      } else composed.skipped.push({ title: SKILL_MISSING.title, why: typeof got?.error === 'string' ? got.error : SKILL_MISSING.why })
     }
 
     res.writeHead(200, { 'content-type': 'application/x-ndjson; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' })
