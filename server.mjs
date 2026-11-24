@@ -291,6 +291,7 @@ async function describeAgent(s, knownTrees) {
     recentWorktrees: scan ? newestKeys(scan.worktrees, 4) : [],
     recentTickets: scan ? newestKeys(scan.tickets, 6) : [],
     subagents: file ? await listSubagents(file, knownTrees) : [],
+    model: scan?.model || null, // the model its newest reply ran on (transcripts.mjs), for the agent window
     // only QA pushes (pipeline.mjs): git push commands any other agent ran in the last 24 h, for the page to flag
     pushesOutsideQa: scan && labelOf(s.name) !== CONFIG.pipeline.qa ? pushCount(scan.feed.events, Date.now() - 86_400_000) : 0,
     _worktreePos: worktreePos,
