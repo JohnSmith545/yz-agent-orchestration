@@ -91,9 +91,12 @@ after(() => {
   server.close()
   fs.rmSync(F.DATA_DIR, { recursive: true, force: true })
 })
-const writeFlow = (output = { merge: { ...MERGE } }) => {
+/** QA passed the head being sent (flow-qa.mjs): what every Send needs since the QA gate; `qa` null leaves it out. */
+const QA_PASSED = { status: 'passed', attempt: 1, by: 'QA', at: '2026-11-12T11:00:00Z', commit: HEAD_SHA.slice(0, 7), branch: MERGE.head, remote: 'origin', pushedAt: '2026-11-12T11:01:00Z' }
+const writeFlow = (output = { merge: { ...MERGE } }, qa = QA_PASSED) => {
   const f = structuredClone(FIXTURE)
   f.output = output
+  if (qa) f.qa = { ...qa }
   fs.writeFileSync(path.join(F.FLOWS_DIR, `${f.id}.json`), JSON.stringify(f))
 }
 beforeEach(() => {
@@ -212,6 +215,7 @@ test('POST refuses a confirm for another branch, and a review that went stale (t
   resetPrState()
   const again = await reviewed()
   gitOver = { [`refs/heads/${MERGE.head}`]: { ok: true, out: 'd'.repeat(40) } }
+  writeFlow(undefined, { ...QA_PASSED, commit: 'd'.repeat(7) }) // QA passed the new commit too: only the review is stale
   const commit = await post({ pin: PIN, confirm: again })
   assert.equal(commit.status, 409, 'a new commit since the review')
   assert.equal((await commit.json()).changed, true)
@@ -374,4 +378,42 @@ test('A6: the push sets batch-mode ssh only when the repo and the environment na
   assert.deepEqual(pushEnv('', {}), { GIT_SSH_COMMAND: 'ssh -o BatchMode=yes' })
   assert.deepEqual(pushEnv('ssh -i ~/.ssh/work', {}), {})
   assert.deepEqual(pushEnv('', { GIT_SSH_COMMAND: 'plink' }), {})
+})
+
+// ═══ the QA gate (flow-qa.mjs qaBlockers): a code change is sent only after QA passed that very commit ═══
+
+test('QA gate: QA has not passed is a blocker, and the send is refused without a push', async () => {
+  writeFlow({ merge: { ...MERGE } }, null)
+  const j = await (await get(`/api/flows/${ID}/pr`)).json()
+  assert.equal(j.facts.blockers.length, 1)
+  assert.match(j.facts.blockers[0], /^QA has not passed: hand the flow to QA/)
+  const r = await post({ pin: PIN, confirm: { head: MERGE.head, sha: HEAD_SHA, digest: digestOf(MERGE) } })
+  assert.equal(r.status, 409)
+  assert.match((await r.json()).error, /QA has not passed/)
+  assert.deepEqual([pushes(), creates()], [[], []])
+})
+
+test('QA gate: a failed or still-testing QA is a blocker that says where QA stands', async () => {
+  writeFlow({ merge: { ...MERGE } }, { ...QA_PASSED, status: 'failed', rework: { to: 'Agent 3' } })
+  assert.match((await (await get(`/api/flows/${ID}/pr`)).json()).facts.blockers[0], /^QA has not passed: it failed QA/)
+  resetPrState()
+  writeFlow({ merge: { ...MERGE } }, { ...QA_PASSED, status: 'testing' })
+  assert.match((await (await get(`/api/flows/${ID}/pr`)).json()).facts.blockers[0], /^QA has not passed: QA is testing it/)
+})
+
+test('QA gate: QA tested a different commit than the head being sent is a blocker', async () => {
+  writeFlow({ merge: { ...MERGE } }, { ...QA_PASSED, commit: '1234567' })
+  const j = await (await get(`/api/flows/${ID}/pr`)).json()
+  assert.deepEqual(j.facts.blockers.map(b => b.slice(0, 30)), ['QA tested a different commit ('])
+  const r = await send()
+  assert.equal(r.status, 409)
+  assert.equal(pushes().length, 0)
+})
+
+test('QA gate: a new QA result is seen at once, not after the 20 s cache', async () => {
+  writeFlow({ merge: { ...MERGE } }, null)
+  assert.equal((await (await get(`/api/flows/${ID}/pr`)).json()).facts.blockers.length, 1)
+  writeFlow()
+  assert.deepEqual((await (await get(`/api/flows/${ID}/pr`)).json()).facts.blockers, [])
+  assert.equal((await send()).status, 200)
 })

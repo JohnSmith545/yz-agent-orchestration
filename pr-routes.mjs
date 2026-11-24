@@ -17,6 +17,10 @@
 // pattern is refused. Every command is an argv array, never a shell string, and every gh value goes as
 // one `--flag=value` argument, so a value that starts with a dash is never read as a flag.
 //
+// ═══ THE QA GATE ═══ A flow that produced code is sent only after QA passed it, and only at the very commit QA
+// tested (flow-qa.mjs qaBlockers adds both as blockers to pr-check.mjs's facts). The flow's `qa` is part of the
+// facts' cache key, so a new QA result shows at once.
+//
 // Each handler returns { status, body }. `deps` is { git, push?, gh, pr, port, fetched? }: the runners
 // (server.mjs; the tests pass stubs; `push` has its own longer timeout), the Send settings (config.mjs
 // prSettings), the dashboard's port (local-origin.mjs), and when the server last fetched a remote.
@@ -27,6 +31,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { creditProblem, mergeReady, textCredit } from './flow-merge.mjs'
+import { qaBlockers } from './flow-qa.mjs'
 import { readFlow, validateFlow, writeFlow } from './flows.mjs'
 import { originAllowed } from './local-origin.mjs'
 import { checksOf, prFacts, prUrlOf, scrub } from './pr-check.mjs'
@@ -82,10 +87,11 @@ async function freshen(remote, { git, fetched }) {
   fetchFailed.set(remote, !(await git(['fetch', remote, '--prune', '--quiet'])).ok)
 }
 
-/** The facts for a flow's merge record; `fresh` skips the cache (a send always looks again). */
-async function factsFor(id, merge, deps, fresh = false) {
+/** The facts for a flow's merge record, with the QA gate's blockers; `fresh` skips the cache (a send always looks again). */
+async function factsFor(flow, merge, deps, fresh = false) {
+  const { id } = flow
   const { pr } = deps
-  const key = JSON.stringify([merge, pr])
+  const key = JSON.stringify([merge, pr, flow.qa ?? null])
   const hit = facts.get(id)
   if (!fresh && hit && hit.key === key && Date.now() - hit.at < FACTS_MS) return hit.facts
   if (pr.enabled) await freshen(pr.remote, deps)
@@ -93,6 +99,7 @@ async function factsFor(id, merge, deps, fresh = false) {
     ...merge, remote: pr.remote, bases: pr.bases, protect: pr.protect, enabled: pr.enabled, off: pr.off,
     git: deps.git, gh: deps.gh, fetchFailed: !!fetchFailed.get(pr.remote),
   })
+  f.blockers.push(...qaBlockers(flow, f.sha))
   facts.set(id, { key, at: Date.now(), facts: f })
   return f
 }
@@ -126,7 +133,7 @@ export async function prGet(id, deps) {
   let pr = out.pr ?? null
   let ready = mergeReady(out)
   // a pull request that stands for this record needs no facts: the page shows its state
-  const f = merge && ready ? await factsFor(id, merge, deps) : null
+  const f = merge && ready ? await factsFor(flow, merge, deps) : null
   if (f?.existingPr?.state === 'open' && !pr?.url) {
     // opened by hand (or by an earlier dashboard) for exactly this head and base: adopt it
     pr = { url: f.existingPr.url, number: f.existingPr.number, state: 'open', openedAt: new Date().toISOString(), checks: 'pending', checkedAt: null, error: null }
@@ -180,7 +187,7 @@ async function send(id, confirm, deps) {
   if (!mergeReady(out)) return answer(409, { error: `Already sent: pull request #${out.pr?.number ?? ''} stands for this branch.` })
   if (confirm.digest !== digestOf(merge)) return answer(409, { error: STALE, changed: true })
 
-  const f = await factsFor(id, merge, deps, true)
+  const f = await factsFor(flow, merge, deps, true)
   if (f.blockers.length) return answer(409, { error: f.blockers.join(' '), blockers: f.blockers })
   if (!f.sha || confirm.sha !== f.sha) return answer(409, { error: STALE, changed: true })
   // the text exactly as it will be sent, checked one last time
