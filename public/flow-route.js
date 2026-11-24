@@ -5,7 +5,8 @@
 //
 //   at(progress)        the node it stands at: the current step, the Output once every step is done, else null
 //   nowLabel(f)         that step's name ('Output' at the end, 'dropped' for a dropped flow)
-//   strip(f)            the board card's compact strip: the type, where it is now, every step by name
+//   strip(f, { mini })  the board card's compact strip: the type, where it is now, every step by name;
+//                       `mini` for a Done or Dropped tile: the type and the steps only
 //   line(f)             an opened flow's head: the full path as a step line, each step with a detail a button
 //   detailOf(role)      where a step's detail is: 'agents' (its node on Agents), 'qa' (the QA page), 'output'
 //                       (the Output tab), or null (the Request has none)
@@ -51,13 +52,17 @@
     ? ' <span class="rt-unset" title="This flow was started before routes: its path is a guess until its agent sets it (flow route)">route not set</span>'
     : '')
 
-  function strip(f) {
+  /** `mini`: the small Done and Dropped tiles, the type and the steps on one row, no `at` (it is over or dropped). */
+  function strip(f, { mini = false } = {}) {
     const list = steps(f)
     if (!list.length) return ''
     const said = list.map(s => `${s.label} ${s.state}`).join(', ')
+    const items = list.map(s => `<li class="rt-s s-${esc(s.state)}${tone(s, f)}">${esc(s.label)}</li>`).join('')
+    const type = `<span class="rt-type">${esc(f.route?.type || '')}</span>`
+    if (mini) return `<div class="rt-mini-row">${type}<ol class="rt-strip rt-mini" aria-label="Route: ${esc(said)}">${items}</ol></div>`
     const now = nowLabel(f)
-    return `<div class="rt-card"><span class="rt-type">${esc(f.route?.type || '')}</span>${now ? ` · <span class="rt-now">at ${esc(now)}</span>` : ''}${unset(f)}</div>` +
-      `<ol class="rt-strip" aria-label="Route: ${esc(said)}">${list.map(s => `<li class="rt-s s-${esc(s.state)}${tone(s, f)}">${esc(s.label)}</li>`).join('')}</ol>`
+    return `<div class="rt-card">${type}${now ? ` · <span class="rt-now">at ${esc(now)}</span>` : ''}${unset(f)}</div>` +
+      `<ol class="rt-strip" aria-label="Route: ${esc(said)}">${items}</ol>`
   }
 
   function line(f) {

@@ -21,6 +21,11 @@
 
 /* the board card: one row of small equal steps, each cut with … rather than wrapping */
 .rt-strip { display: flex; gap: 3px; margin: 0; padding: 0; list-style: none; min-width: 0; }
+/* a Done or Dropped tile: the type beside an even smaller strip */
+.rt-mini-row { display: flex; align-items: center; gap: 6px; min-width: 0; margin: 2px 0; }
+.rt-mini-row .rt-type { font-size: 10px; }
+.rt-strip.rt-mini { flex: 1 1 auto; gap: 2px; }
+.rt-strip.rt-mini .rt-s { font-size: 9.5px; line-height: 15px; padding: 0 3px; }
 .rt-strip .rt-s { flex: 1 1 0; min-width: 0; padding: 0 4px; overflow: hidden; font-size: 10.5px; line-height: 18px; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
 
 /* an opened flow's head: the full path, a step a link to its detail */

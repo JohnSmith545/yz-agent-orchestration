@@ -62,6 +62,52 @@ test('a card shows its route as a compact strip: the type, where it is now, ever
   assert.match(B.card(legacy), /route not set/, 'an open flow on a guessed route says so, quietly')
 })
 
+// ═══ which group a flow is in: by its route, not its status (QA attempt 2, 2026-11-24) ═══
+
+const BUILD = { type: 'build', steps: ['request', 'master', 'agent-3', 'qa', 'push', 'outcome'], at: '2026-11-12T08:00:00Z', by: 'Agent 3' }
+const QA = (more = {}) => ({ status: 'passed', attempt: 1, by: 'QA', at: '2026-11-12T11:00:00Z', commit: 'ab12cd3', ...more })
+/** A flow as /api/flows sends it, with its route and progress. */
+const routed = (edit = () => {}) => {
+  const f = fx(DARK, x => { x.route = structuredClone(BUILD); answered(x); edit(x) })
+  return Object.assign(f, withRoute(f, GRAPH))
+}
+
+test('groups: a done flow whose route is still on its way (QA passed, Push waiting) stays on the board; only a flow at the Output goes to Done', () => {
+  const waiting = routed(x => { x.id = 'waiting'; x.status = 'done'; x.qa = QA() })
+  const shipped = routed(x => { x.id = 'shipped'; x.status = 'done'; x.qa = QA({ pushedAt: '2026-11-12T11:05:00Z' }) })
+  const open = routed(x => { x.id = 'open' })
+  const blocked = routed(x => { x.id = 'blocked'; x.status = 'blocked' })
+  const dropped = routed(x => { x.id = 'dropped'; x.status = 'dropped' })
+  const bare = fx(DARK, x => { x.id = 'bare'; x.status = 'done' }) // no progress at all: its status decides
+  const g = B.groups([waiting, shipped, open, blocked, dropped, bare])
+  assert.deepEqual(g.live.map(f => f.id), ['waiting', 'open', 'blocked'])
+  assert.deepEqual(g.done.map(f => f.id), ['shipped', 'bare'])
+  assert.deepEqual(g.dropped.map(f => f.id), ['dropped'])
+  assert.match(text(B.card(waiting)), /build · at Push Request Master Agent 3 QA Push Output/, 'its card says where it is: at Push')
+  assert.match(B.card(waiting), /rt-s s-current[^"]*">Push</)
+})
+
+test('a small Done or Dropped card carries a compact strip with its type too, so no flow card lacks its path', () => {
+  const shipped = routed(x => { x.status = 'done'; x.qa = QA({ pushedAt: '2026-11-12T11:05:00Z' }) })
+  const h = B.small(shipped)
+  assert.match(h, /<ol class="rt-strip rt-mini"/)
+  assert.match(h, /<span class="rt-type">build<\/span>/)
+  assert.equal((h.match(/rt-s s-done/g) || []).length, 6)
+  assert.match(text(h), /^Add a dark mode toggle build Request Master Agent 3 QA Push Output Agent 3 · /)
+  const dropped = routed(x => { x.status = 'dropped' })
+  assert.match(B.small(dropped), /rt-s s-skipped/)
+  assert.doesNotMatch(B.small(fx(DARK)), /rt-strip/, 'nothing without progress')
+})
+
+test('the board and its count group by FlowBoard.groups, never by status alone', () => {
+  const flows = fs.readFileSync(path.join(PUBLIC, 'flows.js'), 'utf8')
+  assert.match(flows, /const \{ live, done, dropped \} = window\.FlowBoard\.groups\(/)
+  assert.doesNotMatch(flows, /const live = flows\.filter\(f => f\.status === 'open' \|\| f\.status === 'blocked'\)/)
+  const page = fs.readFileSync(path.join(PUBLIC, 'flows-page.js'), 'utf8')
+  assert.match(page, /window\.FlowBoard\.groups\(/, 'Flows · N counts the cards on the board')
+  assert.match(fs.readFileSync(path.join(PUBLIC, 'flow-route.css'), 'utf8'), /\.rt-mini/)
+})
+
 test('with nothing to decide or blocked, the story line is the latest line the agent wrote, with its marked words as chips', () => {
   const f = fx(DARK, answered)
   const last = f.output.story.at(-1).did

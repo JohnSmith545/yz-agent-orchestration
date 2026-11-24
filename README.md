@@ -401,7 +401,10 @@ file per flow in `data/flows/`, written with the `flow` commands below. Top to b
   Answering here is the same as answering on the node. While a flow is open, its own asks leave the strip
   (its Story and Status ask them), and the strip disappears when nothing is left in it. On the Flows page no
   `N asks waiting` toast is raised: the header dot and the strip already say it.
-- **The board**, a card per open flow, grouped by agent in the grid's column order. A card says only where
+- **The board**, a card per flow still on its way, grouped by agent in the grid's column order. On its way is
+  by **route, not status** (`FlowBoard.groups`): open and blocked flows, and a done flow whose route has a current
+  step (QA passed and Push waiting is done by status and still at Push), which keeps its full card and `at Push`.
+  The page head's `Flows · N` counts these cards. A card says only where
   the flow stands: the title, ONE line of story (the latest line the agent wrote, or the first the dashboard
   made from the steps, cut at a word to fit), ONE state chip (**waiting on you**, **blocked**, **ready to
   send**, **PR open**, **merged** or **done**), its **route** as a compact strip (below), the agent, and a thin
@@ -409,7 +412,10 @@ file per flow in `data/flows/`, written with the `flow` commands below. Top to b
   from Request to Output by name: the current one in the accent, done ones neutral filled, upcoming ones outlined,
   skipped ones faint; green and red only on the QA step, for QA passed and failed. An open flow whose route is
   inferred adds a quiet `route not set`. Tickets, env
-  and times live inside the flow. Done flows collapse into a Done row; dropped ones hide behind Show dropped.
+  and times live inside the flow. Flows that reached the Output collapse into a Done row; dropped ones hide behind
+  Show dropped. Their small tiles keep the path too: the title, the type beside a smaller strip of the steps, the
+  agent and the time, so no flow card lacks its route. Home, the palette, the Since card and the alerts still go by
+  the flow's status (a flow turning done is still announced as done).
   With no open flow the board is one line, with how flows start behind its `?`.
 - **An opened flow's head**: its title with the view tabs on the same row, the why (its first sentence and
   **more** when it is long), then ONE muted line of agent · tickets (three, then `+N`) · env · status · when it

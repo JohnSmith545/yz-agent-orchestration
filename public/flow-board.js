@@ -12,7 +12,11 @@
 // Tickets, the env and the updated time live inside the opened flow (flow-head.js).
 //
 //   card(f)                       the card markup
-//   small(f)                      the one-line tile for a done or dropped flow
+//   small(f)                      the tile for a flow at the Output or dropped: its title, a compact route strip
+//                                 with its type (flow-route.js strip, mini), the agent and the time
+//   groups(flows)                 { live, done, dropped }, by ROUTE, not status: live is every flow still on its
+//                                 way (open, blocked, or done with a current step, like QA passed and Push
+//                                 waiting), done only a flow that reached the Output, dropped the dropped ones
 //   storyLine(f)                  the line of story a card shows (chips rendered)
 //   fit(root)                     cut each card's line again at a word until it fits (after a draw)
 //   state(f)                      { word, cls } of the one chip, or null
@@ -97,10 +101,26 @@
   }
 
   const small = f => `<article class="fl-small" data-open="${esc(f.id)}" tabindex="0"><span class="fl-card-title">${esc(f.title)}</span>` +
+    (window.FlowRoute?.strip(f, { mini: true }) || '') +
     `<span class="small">${esc(f.agent)} · ${esc(window.Shell.ago(f.updatedAt))}</span></article>`
 
   /** Archived flows stay off the board and out of Waiting on you: they are reached by link and from the Archived list. */
   const shown = flows => (flows || []).filter(f => !f.archivedAt)
+
+  /**
+   * Still on its way: open or blocked, or any flow but a dropped one whose route has a current step. A done flow
+   * QA passed but has not pushed is done by status and still at Push by route: it stays a full card (QA attempt 2).
+   */
+  const onTheWay = f => f.status === 'open' || f.status === 'blocked' ||
+    (f.status !== 'dropped' && Array.isArray(f.progress) && f.progress.some(s => s.state === 'current'))
+  function groups(flows) {
+    const list = shown(flows)
+    return {
+      live: list.filter(onTheWay),
+      done: list.filter(f => f.status === 'done' && !onTheWay(f)),
+      dropped: list.filter(f => f.status === 'dropped'),
+    }
+  }
 
   function stripRows(flows, recent, openId = null) {
     const rows = []
@@ -140,5 +160,5 @@
   /** The strip's head: one count per screen, so with a flow open (its own asks left out) it says Also waiting. */
   const stripHead = (count, openId) => (openId ? 'Also waiting' : 'Waiting on you')
 
-  window.FlowBoard = { card, small, storyLine, state, stripRows, stripRow, stripHead, clip, fit, shown }
+  window.FlowBoard = { card, small, groups, storyLine, state, stripRows, stripRow, stripHead, clip, fit, shown }
 })()

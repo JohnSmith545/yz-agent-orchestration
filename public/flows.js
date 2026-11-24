@@ -173,10 +173,11 @@
   const byNewest = (a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt))
 
   function renderBoard() {
-    const flows = window.FlowBoard.shown(data.flows) // never an archived one
-    const live = flows.filter(f => f.status === 'open' || f.status === 'blocked')
-    const done = flows.filter(f => f.status === 'done').sort(byNewest)
-    const dropped = flows.filter(f => f.status === 'dropped').sort(byNewest)
+    // by route, not status: a flow still on its way is a card by its agent, even when done (QA passed, Push
+    // waiting); Done holds only what reached the Output (FlowBoard.groups, never an archived one)
+    const { live, done, dropped } = window.FlowBoard.groups(data.flows)
+    done.sort(byNewest)
+    dropped.sort(byNewest)
     const groups = agentOrder(new Set(live.map(f => f.agent))).map(a => {
       const list = live.filter(f => f.agent === a).sort(byNewest)
       return `<div class="fl-group"><h3 class="fl-group-h">${esc(a)} <span class="faint">· ${list.length}</span></h3><div class="fl-cards">${list.map(card).join('')}</div></div>`
