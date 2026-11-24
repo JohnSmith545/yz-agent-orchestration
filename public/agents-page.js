@@ -67,7 +67,7 @@
     </div>`
     box = section.querySelector('.pl-page')
     details = section.querySelector('#plDetails')
-    view = window.PipelineView.create(section.querySelector('#plDiagram'), { onNode: pickNode, onChip: id => window.PipelineTickets.explain(id) })
+    view = window.PipelineView.create(section.querySelector('#plDiagram'), { onNode: pickNode, onChip: id => window.PipelineTickets.explain(id), humanReview: true })
     panel = window.PipelinePanel.create(section.querySelector('#plPanel'), { page: box, onSelect: pickTicket })
     // the agents' settings window (agent-window.js) holds the rules editor now; closing it clears the address
     window.AgentWindow?.attach({ data: () => ({ graph: pipeline?.graph || null, status }), onClose: closedAgent })

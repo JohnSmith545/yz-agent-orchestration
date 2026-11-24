@@ -1,7 +1,10 @@
 // The Agents page diagram (#/agents) in the page: HTML boxes over one SVG of arrows, placed by
 // pipeline-layout.js, with each box's ticket chips from pipeline-tickets.js.
 //
-//   PipelineView.create(box, { onNode, onChip })   -> { update(data), setPath(h), setNode(id) }
+//   PipelineView.create(box, { onNode, onChip, humanReview })   -> { update(data), setPath(h), setNode(id) }
+//     humanReview: true places the LIVE Human review box under the diagram (human-review.js). Off by default:
+//                                         only the Agents page's own diagram is the live pipeline; the bank page
+//                                         draws a saved orchestration with this view, and that is a picture
 //     update({ graph, tickets, agents })  draws or patches: the boxes and arrows are built ONCE per graph and
 //                                         after that only moved and refilled, so a refresh never flickers and
 //                                         never loses focus; a new width (ResizeObserver) lays out again
@@ -39,7 +42,7 @@
     return `<text class="pl-elabel" x="${l.x}" y="${l.y}" text-anchor="${l.anchor}"${rot} data-edges="${l.edges.join(' ')}">${esc(l.text)}</text>`
   }
 
-  function create(box, { onNode = () => {}, onChip = () => {} } = {}) {
+  function create(box, { onNode = () => {}, onChip = () => {}, humanReview = false } = {}) {
     const st = { sig: '', graph: null, rows: 0, width: 0, canvas: null, svg: null, nodes: new Map(), edges: new Map(), labels: null, labelsHtml: '', inner: new Map(), path: null, node: null }
 
     box.addEventListener('click', e => {
@@ -94,7 +97,7 @@
         st.labels.innerHTML = html
         st.labelsHtml = html
       }
-      window.HumanReview?.place(st.canvas, lay) // the Human review box under the diagram (human-review.js): not a node, no arrow
+      if (humanReview) window.HumanReview?.place(st.canvas, lay) // the Human review box under the diagram (human-review.js): not a node, no arrow
       paint()
     }
 
