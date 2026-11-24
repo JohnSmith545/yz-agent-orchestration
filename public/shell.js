@@ -3,15 +3,15 @@
 // window.X object; the shell shows exactly one section and calls that page's
 // open/close, the way app.js route() did before.
 //
-// Routes: #/ Home, #/flows, #/tickets, #/timeline, #/agents, #/subagents, #/glossary,
-// #/agent/<id>[/<sub>]. Old links redirect (#/factory → #/tickets,
+// Routes: #/ Home, #/flows, #/qa[/<flow id>], #/tickets, #/timeline, #/agents, #/subagents,
+// #/glossary, #/agent/<id>[/<sub>]. Old links redirect (#/factory → #/tickets,
 // #/flow → #/timeline) and anything unknown goes Home.
 //
 // Shell.resolve is pure and is attached BEFORE the DOM code, which returns
 // early when there is no document, so test/shell.test.mjs can load this file
 // in a vm with a bare window.
 ;(() => {
-  const VIEWS = ['home', 'flows', 'tickets', 'timeline', 'agents', 'subagents', 'glossary', 'settings', 'agent']
+  const VIEWS = ['home', 'flows', 'qa', 'tickets', 'timeline', 'agents', 'subagents', 'glossary', 'settings', 'agent']
   const OLD = { factory: 'tickets', flow: 'timeline' }
   const route = (view, params = {}, redirect = null) => ({ view, params, redirect })
   const decode = s => {
@@ -28,6 +28,8 @@
     if (h === '' || h === '#' || h === '#/') return route('home')
     const agent = /^#\/agent\/([^/]+)(?:\/([^/]*))?/.exec(h)
     if (agent) return route('agent', { id: decode(agent[1]), sub: agent[2] ? decode(agent[2]) : null })
+    const qa = /^#\/qa\/([^/]+)\/?$/.exec(h) // one ticket opened on the QA page
+    if (qa) return route('qa', { id: decode(qa[1]) })
     const page = /^#\/([a-z]+)\/?$/.exec(h)?.[1]
     if (page && page !== 'home' && page !== 'agent' && VIEWS.includes(page)) return route(page)
     const old = /^#\/(factory|flow)\b/.exec(h)?.[1]
@@ -121,16 +123,18 @@
   const $ = id => doc.getElementById(id)
   const PIN_KEY = 'shell.railPinned'
   const HOVER_MS = 300
-  const TITLE = { home: 'Home', flows: 'Flows', tickets: 'Tickets', timeline: 'Timeline', agents: 'Agents', subagents: 'Subagents', glossary: 'Glossary', settings: 'Settings', agent: 'Agent' }
+  const TITLE = { home: 'Home', flows: 'Flows', qa: 'QA', tickets: 'Tickets', timeline: 'Timeline', agents: 'Agents', subagents: 'Subagents', glossary: 'Glossary', settings: 'Settings', agent: 'Agent' }
   // Which section each view shows, and which page object it opens and closes.
-  const SECTION = { home: 'home', flows: 'flowsView', tickets: 'factoryView', timeline: 'flowView', agents: 'agentsView', subagents: 'subagentsView', glossary: 'glossaryView', settings: 'settingsView', agent: 'agentView' }
-  const PAGE = { flows: 'FlowsPage', tickets: 'FactoryView', timeline: 'FlowView', agents: 'AgentsPage', subagents: 'SubagentsPage', glossary: 'GlossaryPage', settings: 'SettingsPage', agent: 'AgentView' }
+  const SECTION = { home: 'home', flows: 'flowsView', qa: 'qaView', tickets: 'factoryView', timeline: 'flowView', agents: 'agentsView', subagents: 'subagentsView', glossary: 'glossaryView', settings: 'settingsView', agent: 'agentView' }
+  const PAGE = { flows: 'FlowsPage', qa: 'QaPage', tickets: 'FactoryView', timeline: 'FlowView', agents: 'AgentsPage', subagents: 'SubagentsPage', glossary: 'GlossaryPage', settings: 'SettingsPage', agent: 'AgentView' }
 
   // ─── icons: 24-unit boxes drawn at 20 px, 1.75 stroke (shell.css) ───
   const svg = d => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`
   const ICON = {
     home: svg('<path d="M4 11 12 4l8 7"/><path d="M6 9.5V20h12V9.5"/><path d="M10 20v-5h4v5"/>'),
     flows: svg('<circle cx="6" cy="5" r="2.2"/><circle cx="6" cy="19" r="2.2"/><circle cx="18" cy="7" r="2.2"/><path d="M6 7.2v9.6"/><path d="M18 9.2c0 5-6 4.6-10.6 8.3"/>'),
+    // QA: a circle with a tick in it (a test passed)
+    qa: svg('<circle cx="12" cy="12" r="8.5"/><path d="m8.4 12.3 2.5 2.5 4.8-5.2"/>'),
     tickets: svg('<path d="M3 7h18v3a2 2 0 0 0 0 4v3H3v-3a2 2 0 0 0 0-4Z"/><path d="M14.5 8v1.5M14.5 11.25v1.5M14.5 14.5V16"/>'),
     timeline: svg('<path d="M3 12h4l3-7 4 14 3-7h4"/>'),
     agents: svg('<circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8"/><path d="M18 14.8c1.8.6 3 2.5 3 5.2"/>'),
@@ -159,7 +163,7 @@
       <button type="button" class="rail-pin" id="railPin" aria-pressed="false" title="Keep the rail open">${ICON.pin}</button>
     </div>
     <nav class="rail-nav" aria-label="Pages">
-      ${link('flows', '#/flows', 'Flows')}${link('tickets', '#/tickets', 'Tickets')}${link('timeline', '#/timeline', 'Timeline')}${link('agents', '#/agents', 'Agents')}${link('subagents', '#/subagents', 'Subagents')}${link('glossary', '#/glossary', 'Glossary')}
+      ${link('flows', '#/flows', 'Flows')}${link('qa', '#/qa', 'QA')}${link('tickets', '#/tickets', 'Tickets')}${link('timeline', '#/timeline', 'Timeline')}${link('agents', '#/agents', 'Agents')}${link('subagents', '#/subagents', 'Subagents')}${link('glossary', '#/glossary', 'Glossary')}
     </nav>
     <div class="rail-bottom">
       <button type="button" class="rail-item" id="railAsk" aria-controls="drawer" aria-expanded="false" title="${ASK_TIP}"><span class="rail-icon">${ICON.ask}</span><span class="rail-label">Ask</span></button>
@@ -343,6 +347,7 @@
     for (const [view, name] of Object.entries(PAGE)) if (view !== r.view) window[name]?.close?.()
     const page = window[PAGE[r.view]]
     if (r.view === 'agent') page?.open?.(r.params.id, r.params.sub)
+    else if (r.view === 'qa') page?.open?.(r.params.id)
     else page?.open?.()
     const lit = railFor(r)
     rail.querySelectorAll('a.rail-item').forEach(a => (a.dataset.view === lit ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')))

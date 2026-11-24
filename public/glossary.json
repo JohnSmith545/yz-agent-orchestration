@@ -10,6 +10,10 @@
     "short": "One piece of work an agent plans out as a small chart: steps, checks, asks and notes, joined in the order they happen.",
     "more": "Agents write flows with the factory command line. You answer the asks and tick what you have checked; the rest is the agent's to update."
   },
+  "qa": {
+    "short": "The page of every ticket that passed QA, the last check before a push: its report, its screenshots and the steps to test it yourself.",
+    "more": "QA tests each change that touched code, writes a short report, and pushes the branch at the very commit it tested. A failure goes back to the agent that made the change."
+  },
   "tickets": {
     "short": "The page for a ticket collection: the grid of who built what and how far it got, and the tables of every ticket below it."
   },

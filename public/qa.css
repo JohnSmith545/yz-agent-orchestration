@@ -1,0 +1,53 @@
+/* The QA page (#/qa, qa-view.js) and the QA state words wherever they show
+   (flow-qa-line.js: the opened flow's head, the Explain tab, this page).
+   Neutral and quiet; green only for passed and red only for failed, and each
+   always with its word, so colour is never the only signal. */
+
+/* ─── the state: a dot and a word ─── */
+.dot.qa-dot { font-size: 12.5px; }
+.dot.qa-passed { --dot: var(--ok); color: var(--ok); font-weight: 550; }
+.dot.qa-failed { --dot: var(--bad); color: var(--bad); font-weight: 550; }
+.dot.qa-testing, .dot.qa-waiting { --dot: var(--idle); color: var(--muted); }
+
+/* the rework line under a failed flow's head */
+.qa-rework { margin: 6px 0 0; color: var(--muted); }
+.qa-rework b { color: var(--ink-2); font-weight: 600; }
+.qa-undelivered { color: var(--bad); cursor: help; }
+
+/* ─── the list ─── */
+.qa-box { display: grid; gap: 16px; min-width: 0; }
+.qa-empty { margin: 8px 0; }
+.qa-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.qa-row {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 16px; row-gap: 4px; align-items: baseline;
+  padding: 14px 20px; background: var(--surface); color: inherit; text-decoration: none;
+  border: 1px solid var(--line); border-left: 3px solid var(--ok); border-radius: var(--radius);
+}
+.qa-row:hover { border-color: var(--line-strong); border-left-color: var(--ok); }
+.qa-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.qa-row > .qa-dot { grid-row: 1 / span 2; }
+.qa-row-title { font-size: 14.5px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.qa-row-meta { grid-column: 2; font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+.qa-row-meta code, .qa-meta code, .qa-attempts code { font-family: var(--mono); font-size: 12px; }
+
+/* ─── one ticket ─── */
+.qa-open { display: grid; gap: 14px; padding: 18px 24px 24px; min-width: 0; }
+.qa-open-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 12.5px; }
+.qa-title { margin: 0; font-size: 20px; font-weight: 600; line-height: 1.3; color: var(--ink); overflow-wrap: anywhere; }
+.qa-title:focus { outline: none; }
+.qa-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: -6px 0 0; font-size: 12.5px; color: var(--muted); }
+.qa-meta b { color: var(--ink-2); font-weight: 600; }
+.qa-summary { font-size: 14.5px; line-height: 1.55; color: var(--ink); max-width: 75ch; }
+.qa-summary > :first-child, .qa-report > :first-child { margin-top: 0; }
+.qa-block { padding-top: 16px; border-top: 1px solid var(--line); min-width: 0; }
+.qa-h { margin: 0 0 12px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.qa-report { max-width: 80ch; font-size: 14px; line-height: 1.6; color: var(--ink); overflow-wrap: anywhere; }
+.qa-report pre { overflow-x: auto; }
+.qa-shots { justify-content: flex-start; margin: 0; }
+.qa-shots .fl-shot { max-width: 160px; max-height: 110px; }
+.qa-attempts { margin: 0; padding-left: 18px; color: var(--muted); display: grid; gap: 4px; }
+
+@media (max-width: 720px) {
+  .qa-open { padding: 16px; }
+  .qa-row { padding: 12px 14px; }
+}

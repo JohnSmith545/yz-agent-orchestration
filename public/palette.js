@@ -3,7 +3,7 @@
 // keyboard. Type to filter, Up and Down to choose, Enter to go, Escape to
 // close. No network: it searches what the pages ALREADY loaded, gathered
 // fresh on each open:
-//   pages    the shell routes (Home, Flows, Tickets, Timeline, Agents, Subagents, Glossary, Settings)
+//   pages    the shell routes (Home, Flows, QA, Tickets, Timeline, Agents, Subagents, Glossary, Settings)
 //   flows    FlowsView.data.flows (flows.js), opened with FlowsView.gotoFlow
 //   tickets  FactoryView.tickets() (the Tickets collection, once it loaded),
 //            opened with FactoryView.gotoTicket
@@ -32,6 +32,7 @@
   const PAGES = [
     ['Home', '#/'],
     ['Flows', '#/flows'],
+    ['QA', '#/qa'],
     ['Tickets', '#/tickets'],
     ['Timeline', '#/timeline'],
     ['Agents', '#/agents'],
