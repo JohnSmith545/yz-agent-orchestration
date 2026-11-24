@@ -207,10 +207,14 @@ const textBox = l => {
 }
 const overlaps = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
 
-test('every label is drawn: each failed, own changes, passed, and no code changes once for the skips', () => {
+test('every label is drawn: failed for every return, own changes, passed, and no code changes once for the skips', () => {
   const lay = L.layout(G3, { width: 1160 })
-  const texts = plain(lay.labels.map(l => l.text)).sort()
-  assert.deepEqual(texts, ['failed', 'failed', 'failed', 'no code changes', 'own changes', 'passed'])
+  // QA's returns: one failed beside each producer, or ONE beside QA when the skip lines cross those spots
+  // (QA 2026-11-25: no line may run under a label); either way every return arrow is labelled
+  const failed = lay.labels.filter(l => l.text === 'failed')
+  assert.deepEqual(plain(failed.flatMap(l => l.edges).sort()), plain(lay.edges.filter(e => e.kind === 'rework').map(e => e.i).sort()))
+  const texts = plain(lay.labels.filter(l => l.text !== 'failed').map(l => l.text)).sort()
+  assert.deepEqual(texts, ['no code changes', 'own changes', 'passed'])
   const skip = lay.labels.find(l => l.text === 'no code changes')
   assert.equal(skip.edges.length, 4, 'the one skip label stands for all four skip arrows')
 })

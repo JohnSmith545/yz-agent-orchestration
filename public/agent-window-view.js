@@ -103,7 +103,8 @@
 
   const sizeLine = f => `${f.kind === 'file' ? `File${f.name ? ` ${esc(f.name)}` : ''}` : 'Note'} · ${num(f.chars)} characters`
 
-  function filesListHtml(entry, limits = LIMITS, label = '') {
+  /** The files list; `confirm` is the id of the file whose Remove was pressed: its row asks first (Remove or Keep). */
+  function filesListHtml(entry, limits = LIMITS, label = '', { confirm = null } = {}) {
     const files = Array.isArray(entry?.files) ? entry.files : []
     const total = files.reduce((n, f) => n + (Number(f.chars) || 0), 0)
     const sum = `<p class="aw-sum">${files.length} of ${limits.files} · ${num(total)} of ${num(limits.total)} characters</p>`
@@ -112,8 +113,11 @@
       const on = f.on !== false
       return `<li class="aw-file${on ? '' : ' is-off'}" data-aw-file="${esc(f.id)}">` +
         `<span class="aw-file-main"><span class="aw-file-title">${esc(f.title)}</span><span class="aw-file-meta">${sizeLine(f)}</span></span>` +
-        `<button type="button" class="aw-switch" role="switch" aria-checked="${on}" data-aw-act="toggle" aria-label="${esc(`Give ${f.title} to the agent`)}"><span class="aw-knob" aria-hidden="true"></span><span class="aw-switch-word">${on ? 'On' : 'Off'}</span></button>` +
-        `<button type="button" class="link aw-remove" data-aw-act="remove" aria-label="${esc(`Remove ${f.title}`)}">Remove</button></li>`
+        (f.id === confirm
+          ? `<span class="aw-confirm" role="alert">Remove ${esc(f.title)}? ${esc(label || 'The agent')} will no longer read it.</span>` +
+            '<button type="button" class="aw-danger" data-aw-act="remove-yes">Remove</button><button type="button" data-aw-act="remove-no">Keep</button></li>'
+          : `<button type="button" class="aw-switch" role="switch" aria-checked="${on}" data-aw-act="toggle" aria-label="${esc(`Give ${f.title} to the agent`)}"><span class="aw-knob" aria-hidden="true"></span><span class="aw-switch-word">${on ? 'On' : 'Off'}</span></button>` +
+            `<button type="button" class="link aw-remove" data-aw-act="remove" aria-label="${esc(`Remove ${f.title}`)}">Remove</button></li>`)
     }).join('')
     return `<ul class="aw-files">${rows}</ul>${sum}`
   }

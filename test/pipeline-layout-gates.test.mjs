@@ -11,17 +11,19 @@ import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
 
 import { DEFAULT_PIPELINE, pipelineGraph } from '../pipeline.mjs'
+import { labelBox, touchedLabels } from './diagram-geometry.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const window = {}
 vm.runInNewContext(fs.readFileSync(path.join(HERE, '..', 'public', 'pipeline-layout.js'), 'utf8'), { window })
 const L = window.PipelineLayout
 
-const G = pipelineGraph({
+const G_CONFIG = {
   coordinator: 'Master', coordinatorLabel: 'Master',
   codingAgents: { Master: 'Master', 'Agent 1': 'Agent 1', 'Agent 2': 'Agent 2', 'Agent 3': 'Agent 3', Planner: 'Planner', Security: 'Security' },
   pipeline: { ...DEFAULT_PIPELINE, planner: 'Planner', security: 'Security' }, factory: { chat: { name: 'Independent' } },
-})
+}
+const G = pipelineGraph(G_CONFIG)
 
 test('the layers run Request, Master, the planner, the producers, QA, Security, Push, Output', () => {
   const r = L.ranks(G)
@@ -45,16 +47,47 @@ for (const width of [1400, 1000, 360]) {
   })
 }
 
-test('Security sends work back to every producer under ONE failed label; QA keeps one beside each producer', () => {
-  for (const width of [1400, 1000]) {
+test('Security sends work back to every producer under ONE failed label; every QA return is labelled too', () => {
+  for (const width of [1400, 1000, 358]) {
     const lay = L.layout(G, { width })
     const fromSecurity = lay.labels.filter(l => l.text === 'failed' && l.edges.every(i => G.edges[i].from === 'security'))
     assert.equal(fromSecurity.length, 1, `at ${width}`)
     assert.equal(fromSecurity[0].edges.length, 3)
     const fromQa = lay.labels.filter(l => l.text === 'failed' && l.edges.every(i => G.edges[i].from === 'qa'))
-    assert.equal(fromQa.length, 3)
+    assert.equal(fromQa.flatMap(l => l.edges).length, 3, `at ${width}`)
   }
 })
+
+test('each Security return ends in the head of the QA return to the same producer: one arrival, no second head', () => {
+  for (const width of [1400, 1000, 358]) {
+    const lay = L.layout(G, { width })
+    for (const p of ['agent-1', 'agent-2', 'agent-3']) {
+      const qa = lay.edges.find(e => e.from === 'qa' && e.to === p && e.kind === 'rework')
+      const sec = lay.edges.find(e => e.from === 'security' && e.to === p)
+      assert.equal(sec.head, qa.head, `${p} at ${width}`)
+    }
+  }
+})
+
+// QA 2026-11-25: Security's return arrow and the skip lines ran into the producers' failed labels. No arrow,
+// arrowhead or dashed line may touch or run under any label, with both new agents on and with neither.
+const PLAIN = pipelineGraph({ ...G_CONFIG, codingAgents: { Master: 'Master', 'Agent 1': 'Agent 1', 'Agent 2': 'Agent 2', 'Agent 3': 'Agent 3' }, pipeline: { ...DEFAULT_PIPELINE } })
+for (const [name, graph] of [['both new agents', G], ['neither', PLAIN]]) {
+  for (const width of [1440 - 120, 1024 - 120, 390 - 32]) {
+    test(`no line touches a label: ${name}, ${width} wide`, () => {
+      for (const rows of [0, 1, 4]) {
+        const lay = L.layout(graph, { width, rows })
+        assert.deepEqual(touchedLabels(lay), [], `${lay.dir}, ${rows} chip rows`)
+        // and no label sits on a box or on another label
+        const boxes = lay.labels.map(l => labelBox(l, 0))
+        for (const [i, b] of boxes.entries()) {
+          for (const n of lay.nodes) assert.ok(!(b[0] < n.x + n.w && n.x < b[2] && b[1] < n.y + n.h && n.y < b[3]), `${lay.labels[i].text} on ${n.id}`)
+          for (const c of boxes.slice(i + 1)) assert.ok(!(b[0] < c[2] && c[0] < b[2] && b[1] < c[3] && c[1] < b[3]), `two labels overlap at ${width}`)
+        }
+      }
+    })
+  }
+}
 
 test('on a phone (a 358 px box) the nine boxes fit with no inner scroll: Security returns share one corridor lane', () => {
   const lay = L.layout(G, { width: 358, rows: 2 })

@@ -158,3 +158,14 @@ test('the window is a real modal dialog: showModal, aria-modal, labelled by its 
   assert.match(css, /prefers-reduced-motion: reduce\)\s*\{\s*\.aw\[open\] \{ animation: aw-fade/)
   assert.match(css, /html\.aw-lock, html\.aw-lock body \{ overflow: hidden; \}/)
 })
+
+test('Remove asks first, in the window: the row offers Remove and Keep, and only then is the file removed', () => {
+  const entry = { files: [{ id: 'f1', title: 'Spec', kind: 'file', name: 'spec.md', chars: 10, on: true }, { id: 'f2', title: 'Tip', kind: 'note', chars: 3, on: true }] }
+  const asking = V.filesListHtml(entry, V.LIMITS, 'Agent 1', { confirm: 'f1' })
+  assert.match(asking, /data-aw-file="f1"[\s\S]*<span class="aw-confirm" role="alert">Remove Spec\? Agent 1 will no longer read it\.<\/span><button type="button" class="aw-danger" data-aw-act="remove-yes">Remove<\/button><button type="button" data-aw-act="remove-no">Keep<\/button>/)
+  assert.doesNotMatch(asking.split('data-aw-file="f2"')[1], /aw-confirm/, 'only the row asked about')
+  assert.doesNotMatch(V.filesListHtml(entry, V.LIMITS, 'Agent 1'), /remove-yes/)
+  const src = read('public/agent-window.js')
+  assert.match(src, /'remove-yes'/)
+  assert.match(src, /'remove-no'/)
+})

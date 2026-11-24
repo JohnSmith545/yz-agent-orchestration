@@ -139,8 +139,25 @@ test('securityBlockers: a Security review of another commit blocks Send and the 
   assert.deepEqual(S.securityBlockers({ ...FIXTURE, qa }, CONFIG), ['Security reviewed a different commit (ab12ab1) than QA passed (cd34ef5): ask Security to review again.'])
   assert.deepEqual(S.securityBlockers({ ...FIXTURE, qa: { ...qa, security: { ...qa.security, commit: SHA } } }, CONFIG), [])
   assert.deepEqual(S.securityBlockers({ ...FIXTURE, qa: { ...qa, security: undefined } }, WITHOUT), [])
-  assert.deepEqual(S.securityBlockers({ ...FIXTURE, nodes: [], qa: { ...qa, security: undefined } }, CONFIG), [], 'no code changes: nothing to review')
+  // QA passed a commit, so a commit is about to leave the machine: Security must have passed it, whatever evidence
+  // the steps carry (QA, 2026-11-25: a flow with no commit evidence went straight to the push)
+  assert.deepEqual(S.securityBlockers({ ...FIXTURE, nodes: [], qa: { ...qa, security: undefined } }, CONFIG), ['Security has not passed the commit QA passed (cd34ef5): it has not started its review.'])
+  assert.deepEqual(S.securityBlockers({ ...FIXTURE, nodes: [], qa: { ...qa, commit: undefined, security: undefined } }, CONFIG), [], 'no commit QA passed: nothing to push, nothing to review')
+  assert.deepEqual(S.securityBlockers({ ...FIXTURE, nodes: [] }, CONFIG), [], 'no QA verdict at all: nothing to push')
   assert.deepEqual(S.securityBlockers({ ...FIXTURE, qa: { ...qa, status: 'testing', security: undefined } }, CONFIG), [], 'QA says why itself')
+})
+
+test('regression: a build flow with no commit evidence cannot be pushed before Security passed the commit QA passed', async () => {
+  const id = 'bare-build'
+  assert.equal(runFlow(['new', id, 'A change with no evidence yet', '--type', 'build'], { by: 'Agent 1', cwd: TMP, config: CONFIG }).code, 0)
+  const asQa = (...argv) => runFlow(argv, { by: 'QA', cwd: TMP, git, config: CONFIG })
+  assert.equal((await asQa('qa-start', id, '--commit', SHA)).code, 0)
+  assert.equal((await asQa('qa', id, '--status', 'passed', '--report', 'report.md', '--commit', SHA)).code, 0)
+  calls.length = 0
+  const pushed = await asQa('qa-push', id, '--branch', 'feature/bare')
+  assert.equal(pushed.code, 1)
+  assert.equal(pushed.out, 'bare-build: nothing is pushed yet. Security has not passed the commit QA passed (cd34ef5): it has not started its review.')
+  assert.equal(calls.length, 0, 'git was never asked')
 })
 
 // ═══ failures ═══
