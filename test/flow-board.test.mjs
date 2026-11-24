@@ -155,6 +155,14 @@ test('the card escapes its title, story and agent', () => {
   assert.doesNotMatch(h, /<img src=x|<script>/)
 })
 
+test('a live flow with by-hand steps not all ticked says yours by hand, after waiting on you; ticked or finished, it does not', () => {
+  const steps = [{ id: 'h1', do: 'x', expect: 'y', done: null }]
+  assert.deepEqual(JSON.parse(JSON.stringify(B.state({ status: 'open', hand: { steps } }))), { word: 'yours by hand', cls: 'warn' })
+  assert.equal(B.state({ status: 'open', hand: { steps: [{ ...steps[0], done: { by: 'you', at: 'x' } }] } }), null)
+  assert.equal(B.state({ status: 'done', hand: { steps } }).word, 'done')
+  assert.equal(B.state({ status: 'open', derived: { waiting: ['n1'] }, hand: { steps } }).word, 'waiting on you')
+})
+
 // ═══ the ask controls (the Human review box) ═══
 
 test('askControls: Yes and No on a yes or no ask, a text field with a kept value on a text one; no strip rows any more', () => {

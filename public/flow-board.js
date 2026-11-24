@@ -80,6 +80,9 @@
     const out = f.output || {}
     const ready = !!d.output?.merge?.ready
     if (d.waiting?.length) return { word: 'waiting on you', cls: 'warn' }
+    // by-hand steps (hand-steps.mjs) not all ticked on a live flow: work only the user can do
+    const hand = Array.isArray(f.hand?.steps) ? f.hand.steps : []
+    if ((f.status === 'open' || f.status === 'blocked') && hand.some(s => !s?.done)) return { word: 'yours by hand', cls: 'warn' }
     if (f.status === 'blocked') return { word: 'blocked', cls: 'bad' }
     if (out.pr?.url && !ready && out.pr.state === 'merged') return { word: 'merged', cls: 'ok' }
     if (out.pr?.url && !ready && out.pr.state === 'open') return { word: 'PR open', cls: 'accent' }

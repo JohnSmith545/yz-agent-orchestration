@@ -13,7 +13,7 @@
 .ar-rows { list-style: none; margin: 10px 0 0; padding: 0; }
 .ar-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 16px; padding: 10px 0; border-top: 1px solid var(--line); }
 .ar-main { flex: 1 1 320px; min-width: 0; display: grid; gap: 3px; }
-.ar-title { justify-self: start; min-width: 0; color: var(--ink); font-weight: 600; text-align: left; overflow-wrap: anywhere; }
+.ar-group .ar-title { justify-self: start; min-width: 0; color: var(--ink); font-weight: 600; text-align: left; overflow-wrap: anywhere; }
 .ar-broken { font-weight: 500; color: var(--muted); }
 .ar-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; color: var(--muted); font-size: 12.5px; }
 .ar-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; font-size: 13px; }
