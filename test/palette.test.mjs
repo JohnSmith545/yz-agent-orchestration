@@ -382,3 +382,12 @@ test('index.html loads palette.js before notify.js: its Escape listener must run
   assert.ok(pal > 0 && note > 0, 'both scripts are loaded')
   assert.ok(pal < note, 'palette.js comes first')
 })
+
+// QA, 2026-11-25: after the rename, typing script no longer found the page. Its old name and prompt stay as keys.
+test('regression: script and prompt still find Brainstorming, as hidden keys that are never shown', () => {
+  const P = pure()
+  const items = P.gather({})
+  for (const q of ['script', 'SCR', 'prompt']) assert.equal(labels(P.search(q, items))[0], 'Brainstorming', q)
+  const page = items.find(i => i.label === 'Brainstorming')
+  assert.equal(page.hint, '#/brainstorming', 'the row still shows only its own address')
+})

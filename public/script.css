@@ -14,6 +14,10 @@
 .sc-page { position: relative; }
 .sc-lede { margin: 0 0 22px; max-width: 90ch; }
 
+/* ⚠️ The page's own width, not the window's, decides two columns or one (QA, 2026-11-25): the rail, the Context
+   panel and the Ask drawer all take room the window size cannot see. A size container also holds fixed children,
+   so it wraps the grid only, never the fixed Context aside. */
+.sc-fit { container: sc-fit / inline-size; }
 .sc-grid {
   display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px; align-items: start;
   --sc-box-h: clamp(320px, calc(100dvh - 340px), 760px);
@@ -241,6 +245,12 @@
 
 /* the two boxes stack on a narrow window; the head rows may wrap there */
 @media (max-width: 900px) {
+  .sc-grid { grid-template-columns: minmax(0, 1fr); gap: 24px; --sc-box-h: clamp(240px, 55dvh, 560px); }
+  .sc-head { height: auto; min-height: 32px; flex-wrap: wrap; }
+}
+/* the same when the PAGE is narrow (the panel open beside a mid-size window, a pinned rail): two columns of
+   under about 365 px cannot hold the letters, the sound button and Copy (about 320 px) on one line */
+@container sc-fit (max-width: 760px) {
   .sc-grid { grid-template-columns: minmax(0, 1fr); gap: 24px; --sc-box-h: clamp(240px, 55dvh, 560px); }
   .sc-head { height: auto; min-height: 32px; flex-wrap: wrap; }
 }
