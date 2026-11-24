@@ -402,14 +402,15 @@ test('flows.view accepts output, status and process, defaults to output, and sur
   assert.doesNotThrow(() => bad.view.set('status'))
 })
 
-test('the tabs are real tabs, Output Status Process, one in the tab order; the arrow keys wrap', () => {
+test('the tabs are real tabs, Output Explain Status Process, one in the tab order; the arrow keys wrap', () => {
   const T = window.FlowTabs
   const t = T.tabs('status')
   assert.match(t, /role="tablist"/)
-  assert.deepEqual([...t.matchAll(/data-view="([a-z]+)">([A-Za-z]+)</g)].map(m => [m[1], m[2]]), [['output', 'Output'], ['status', 'Status'], ['process', 'Process']])
+  assert.deepEqual([...t.matchAll(/data-view="([a-z]+)">([A-Za-z]+)</g)].map(m => [m[1], m[2]]), [['output', 'Output'], ['explain', 'Explain'], ['status', 'Status'], ['process', 'Process']])
   assert.match(t, /aria-controls="flPanelStatus" aria-selected="true" tabindex="0"/)
   assert.equal((t.match(/tabindex="0"/g) || []).length, 1)
-  assert.equal(T.step('output', 1), 'status')
+  assert.equal(T.step('output', 1), 'explain')
+  assert.equal(T.step('explain', 1), 'status')
   assert.equal(T.step('process', 1), 'output')
   assert.equal(T.step('output', -1), 'process')
 })

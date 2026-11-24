@@ -6,9 +6,10 @@
 //              mounts last owns it.
 //   the board  a card per open flow (flow-board.js), grouped by agent in the grid's
 //              column order, a `Done` row, dropped flows behind a toggle; or, once a
-//              card is clicked, that flow opened: header, then one of three views
+//              card is clicked, that flow opened: header, then one of four views
 //              behind tabs (flow-tabs.js, remembered in flows.view): Output, the
-//              storyboard (flow-output.js); Status, the rows (flow-status.js); or
+//              storyboard (flow-output.js); Explain, the slides (flow-explain-view.js);
+//              Status, the rows (flow-status.js); or
 //              Process, the chart (flow-chart.js) with zoom (flow-zoom.js) and the
 //              node drawer (flow-drawer.js renders it, this file runs its actions,
 //              for Status too)
@@ -204,6 +205,7 @@
           <button type="button" class="help meta-r" aria-label="What the views and marks mean">?</button></div>
         <div class="fl-open-sub"></div>
         <div class="fl-out" id="flPanelOutput" role="tabpanel" aria-labelledby="flTabOutput"></div>
+        <div class="fl-explain" id="flPanelExplain" role="tabpanel" aria-labelledby="flTabExplain"></div>
         <div class="fl-stat" id="flPanelStatus" role="tabpanel" aria-labelledby="flTabStatus"></div>
         <div class="fl-scroll" id="flPanelProcess" role="tabpanel" aria-labelledby="flTabProcess"></div>
         <div class="fl-drawer" hidden></div>
@@ -344,6 +346,7 @@
     window.Glossary?.autoLearn(f) // its unknown marked words, once (glossary-store.js)
     // Only the shown view draws: a hidden chart would fit to a 0 px width. Output and Status gate their own redraw.
     if (view === 'output') return window.FlowOutput.fill($('.fl-out', board), f)
+    if (view === 'explain') return window.FlowExplainView.fill($('.fl-explain', board), f)
     if (view === 'status') {
       window.FlowStatus.fill($('.fl-stat', board), f)
       return window.FlowStatus.revealOnce($('.fl-stat', board), opened) // a link to a node: its row, once
@@ -360,6 +363,7 @@
     }
     $('.fl-zoom', board).hidden = $('.fl-scroll', board).hidden = view !== 'process'
     $('.fl-out', board).hidden = view !== 'output'
+    $('.fl-explain', board).hidden = view !== 'explain'
     $('.fl-stat', board).hidden = view !== 'status'
     const drawer = $('.fl-drawer', board)
     drawer.hidden = view !== 'process' || !drawer.innerHTML
@@ -499,12 +503,13 @@
     window.FlowTrash?.leave()
   }
 
-  async function open(flowId, nodeId) {
+  /** `as`: a view for this open only, not remembered (FlowsView.explain opens on Explain). */
+  async function open(flowId, nodeId, as) {
     if (!board) return
     leaveList()
     opened = { id: flowId, node: nodeId || null, built: false, reveal: nodeId || null } // reveal: once, on Status
-    view = window.FlowTabs.view.get()
-    if (nodeId && view === 'output') view = 'status' // Output has no row per node: Status, for this open only (not remembered)
+    view = as || window.FlowTabs.view.get()
+    if (nodeId && (view === 'output' || view === 'explain')) view = 'status' // no row per node there: Status, for this open only (not remembered)
     if (!flowOf(flowId)) {
       // not in the last list (just written, archived, or in the Trash): fetch it on its own, then merge it in
       const f = await fetchOpened()
@@ -530,10 +535,10 @@
    * once the board mounts. Without a flow (the header dot, a summary toast), the strip in view:
    * a flow opened below it has scrolled the strip under the header.
    */
-  function gotoFlow(flowId, nodeId) {
-    if (board) return flowId ? open(flowId, nodeId) : strip && scrollTo(strip)
+  function gotoFlow(flowId, nodeId, as) {
+    if (board) return flowId ? open(flowId, nodeId, as) : strip && scrollTo(strip)
     window.Shell.go('#/flows')
-    if (flowId) window.Shell.whenReady('#flowsView #fxFlows', () => open(flowId, nodeId))
+    if (flowId) window.Shell.whenReady('#flowsView #fxFlows', () => open(flowId, nodeId, as))
     else window.Shell.whenReady('#flowsView #fxWaiting:not([hidden])', scrollTo) // shown once the first load finds an ask
   }
 
@@ -612,6 +617,8 @@
     open,
     close,
     gotoFlow,
+    /** Open a flow on its Explain tab from any page (the Agents page, the QA page's Explain in Flows). */
+    explain: flowId => gotoFlow(flowId, null, 'explain'),
     showList,
     get data() { return data },
   }

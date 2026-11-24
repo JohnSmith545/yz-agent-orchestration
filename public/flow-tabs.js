@@ -1,5 +1,7 @@
-// The three views of an opened flow, as tabs on its title row (flows.js draws them):
+// The four views of an opened flow, as tabs on its title row (flows.js draws them):
 //   Output   the story, one picture, how to test it, and Details folded away (flow-output.js)
+//   Explain  a walkthrough, one slide at a time: what and why, before and after, how it works,
+//            its path through the agents, the QA result (flow-explain.js, flow-explain-view.js)
 //   Status   what is built, missing and waiting on you, row by row (flow-status.js)
 //   Process  the chart of how it got there (flow-chart.js)
 //
@@ -8,8 +10,8 @@
 //   view.get / set   the remembered choice, localStorage `flows.view` (JSON like
 //                    flows.js's other `flows.` keys); anything unreadable is Output
 ;(() => {
-  const VIEWS = ['output', 'status', 'process']
-  const NAMES = { output: 'Output', status: 'Status', process: 'Process' }
+  const VIEWS = ['output', 'explain', 'status', 'process']
+  const NAMES = { output: 'Output', explain: 'Explain', status: 'Status', process: 'Process' }
   const KEY = 'flows.view'
 
   const view = {

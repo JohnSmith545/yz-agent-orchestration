@@ -2,9 +2,10 @@
 // can sit on the title row between them):
 //
 //   head   ← Flows
-//          Title of the flow                          [Output | Status | Process] ?   (the tabs are flows.js's)
+//          Title of the flow                [Output | Explain | Status | Process] ?   (the tabs are flows.js's)
 //   sub    The why, its first sentence, more
-//          Agent 3 · ABC-1 · dev · open · updated 2m                             ⋯   (ONE muted meta line)
+//          Agent 3 · ABC-1 · dev · open · ● QA failed · updated 2m               ⋯   (ONE muted meta line)
+//          Sent back to Agent 3 · not delivered Retry                                (only when QA failed; flow-qa-line.js)
 //
 // The flow's status select and Drop live in the ⋯ menu, so they stop competing
 // with the content; flows.js still handles them (data-flow-status, data-drop).
@@ -37,6 +38,7 @@
     '<b>Compare</b> lays one over the other: drag the handle.</p>' +
     `<p><b>How to test</b>: try each ${dfn('test step')} and tick I saw this; the ticks stay in this browser only.</p>` +
     '<p><b>Details</b>: the full summary and the commits.</p>' +
+    '<p><b>Explain</b> walks through the flow one slide at a time: what and why, before and after, how it works, its path through the agents and the QA result.</p>' +
     '<p><b>Send</b>: when the agent says the work is ready, review it here and send it as a pull request; nothing is sent until you click.</p>' +
     `<p>${dfn('status', 'Status')} lists what is built, what is left and the decisions; ${dfn('process', 'Process')} is the full chart. ` +
     'The mark on a done step says how far it is proven:</p><div class="fl-legend small">' +
@@ -74,7 +76,7 @@
 
   function html(f, { tickets, envPill, statusPill, statuses, asking = null }) {
     const sep = '<span class="fl-sep" aria-hidden="true">·</span>'
-    const meta = [`<b>${esc(f.agent)}</b>`, ticketChips(f, tickets), envPill(f.env), statusPill(f.status), '<span class="fl-updated" data-updated></span>'].filter(Boolean).join(sep)
+    const meta = [`<b>${esc(f.agent)}</b>`, ticketChips(f, tickets), envPill(f.env), statusPill(f.status), window.FlowQa?.mark(f), '<span class="fl-updated" data-updated></span>'].filter(Boolean).join(sep)
     const del = asking
       ? `<p class="small fl-ask-delete">${esc(asking)}</p><span class="fl-ask-acts"><button type="button" class="link" data-delete data-confirmed>Delete</button><button type="button" class="link" data-delete-cancel>Cancel</button></span>`
       : '<button type="button" class="link" data-delete>Delete</button>'
@@ -85,7 +87,7 @@
     return {
       head: `<div class="fl-open-top"><button type="button" class="link" data-close>← Flows</button></div>
         <h2 class="fl-title">${esc(f.title)}</h2>`,
-      sub: `${why(f.why)}<div class="fl-open-meta">${meta}${menu}</div>`,
+      sub: `${why(f.why)}<div class="fl-open-meta">${meta}${menu}</div>${window.FlowQa?.reworkHtml(f) || ''}`,
       updated: `updated ${window.Shell.ago(f.updatedAt)}`,
     }
   }

@@ -46,9 +46,13 @@ example first.
   seconds: a plain **Story** of who did what and why, one **Picture** (a screenshot
   of the result, the agent's diagram of how it works, or a summary chart drawn from
   the flow), and **How to test** it by hand, step by step, with the long summary
-  folded under **Details**; **Status** lists what is built, missing and waiting on
-  you; **Process** shows the chart of steps.
+  folded under **Details**; **Explain** walks through it one slide at a time (what
+  and why, before and after, how it works, its path through the agents, the QA
+  result); **Status** lists what is built, missing and waiting on you; **Process**
+  shows the chart of steps.
   Answer an agent's question inline; the answer is pushed back to that agent.
+- **QA**: every ticket that passed QA, with QA's report, its screenshots, the steps
+  to test it yourself and links to the tested commit and the pushed branch.
 - **Tickets**: a ticket collection from your tracker, an orchestration grid of
   which agent took which ticket how far (local, dev, stage, prod), the ticket
   table with code review marks, and every worktree.
@@ -195,10 +199,13 @@ mode is `:root[data-theme="dark"]`.
 
 `public/shell.js` and `shell.css` draw the frame every page shares.
 
-- **The rail** (56 px, icons only): the brand mark (Home), Flows, Tickets,
+- **The rail** (56 px, icons only): the brand mark (Home), Flows, QA, Tickets,
   Timeline, Agents, Subagents, Glossary, and at the foot Ask, Alerts, Spend and Theme. Hover it for 300 ms,
   or Tab into it, and it opens to 200 px with labels; the pin at the top keeps
   it open (remembered). Under 720 px wide the rail is a bar along the bottom.
+  The routes are `#/`, `#/flows`, `#/qa` (and `#/qa/<flow id>` for one ticket),
+  `#/tickets`, `#/timeline`, `#/agents`, `#/subagents`, `#/glossary`, `#/settings`
+  and `#/agent/<id>[/<subagent>]`; anything else goes Home.
   Old links still work: `#/factory` goes to `#/tickets` and opens the Ask
   drawer (the old page always showed the chat), `#/flow` to `#/timeline`.
 - **The page header** (one row): the page name, ` · N` when the page counts
@@ -391,8 +398,13 @@ file per flow in `data/flows/`, written with the `flow` commands below. Top to b
   With no open flow the board is one line, with how flows start behind its `?`.
 - **An opened flow's head**: its title with the view tabs on the same row, the why (its first sentence and
   **more** when it is long), then ONE muted line of agent · tickets (three, then `+N`) · env · status · when it
-  changed. The flow's status and **Drop** sit in the `⋯` menu at the end of that line.
-- **Three views of an opened flow**, as tabs beside its title (Left and Right move between them; the page
+  changed. The flow's status and **Drop** sit in the `⋯` menu at the end of that line. Where QA stands is one
+  more word on that line, after the status: **QA passed** (green), **QA failed** (red), **QA testing**, or
+  **waiting for QA** (a done flow that changed code and has no QA record yet); nothing while QA has no part in it.
+  When QA failed, a line under it says what became of sending it back: `Sent back to Agent 3 · sent`,
+  `· sending…`, or `· not delivered` with **Retry** (`POST /api/flows/<id>/rework`); when QA stopped it
+  (`qa-failed`), that nothing was sent and you decide.
+- **Four views of an opened flow**, as tabs beside its title (Left and Right move between them; the page
   remembers the last one you used):
   - **Output** (the default) is one column you can read in ten seconds, told as a story: the **Story** leads,
     with no head and no card around it (who did what and why, one line each: a coloured name once per run of
@@ -447,6 +459,21 @@ file per flow in `data/flows/`, written with the `flow` commands below. Top to b
     or half an hour passes, or `not sent` (the reason on hover) when the relay could not deliver it or the
     dashboard restarted first, with the button saying **Ask again**. When the flow belongs to the chat agent itself, nothing is sent: the request goes
     into the Ask drawer, and you send it.
+  - **Explain** is the flow told like a short presentation: ONE slide at a time, full width, with `‹ 2/5 ›`
+    to step (ArrowLeft and ArrowRight while the slides have the focus) and a row of small labelled dots to jump.
+    A slide shows only when the flow has its data:
+    - **What and why** (always): the title, the why and the Story lines.
+    - **Before and after**: the before and after screenshots side by side, or the **Slider** laid one over the
+      other (the same as Output's Compare), when there is a pair; the Before / Now lines when the agent wrote them.
+    - **How it works**: the agent's diagram, with how it worked before beside it when there is one.
+    - **Path through the agents** (always): this ticket's way through the pipeline (`GET /api/pipeline`, read again
+      at most every 15 seconds while the tab shows), drawn with only the agents and steps it visited, in order,
+      in the one accent colour. A rework is a dashed arrow back (`failed`, `failed ×2`), and the node it is on now
+      is marked with its state (`now: testing`). A dropped flow, or one no longer on the pipeline (older than 14
+      days), says so in one line instead.
+    - **QA result**: passed or failed, the attempt, the tested commit, the branch and the push, QA's summary,
+      the rework line, and **How to test**, which opens the ticket on the QA page.
+    `FlowsView.explain(flowId)` opens any flow on this tab from another page (the Agents page, the QA page).
   - **Status** is a summary line (done, waiting, verified), then **Built** (one line per done step: its proof
     mark, the verified tick, and an env pill only when it differs from the flow's; click the row to unfold its
     evidence: commits and diffs folded again, a screenshot as a thumbnail that opens full size), **Left**
@@ -502,6 +529,24 @@ it; a direct link still opens it, and a new question from its agent brings it ba
 24 hours in the Trash is removed for good with its evidence files, decided from its stored time at startup and every
 10 minutes. **Archived · N** and **Trash · N** under the board list them, with Unarchive, Restore and Delete forever.
 Only you archive or delete: agents have no command for either, and any command on a trashed flow is refused.
+
+### QA (#/qa)
+
+The tickets QA passed, newest first (`GET /api/qa?status=passed`, read every 30 seconds while the page shows).
+Each row is a green dot and the word **Passed**, the title, the ticket ids, the agent, the tested commit's short
+sha, and when QA pushed it (`pushed 3m`, or `not pushed yet`). With none it is one line saying how a ticket gets
+here. A click opens the ticket at `#/qa/<flow id>`, a link you can share or reopen:
+
+- the QA state, the attempt, the agent, the tickets, and the **commit** and the **branch**, each a link to its
+  GitHub page in a new tab when the repo's remote is on GitHub, else plain text, and the push;
+- QA's summary, then the **Report**, drawn with the same safe Markdown as the flow summaries (nothing in it is
+  rendered as HTML; a report over 64 KB says so and links to the whole file);
+- the **Screenshots** as thumbnails that open full size, and **How to test**: QA's steps as the same cards as
+  Output's How to test (the step, what you should see, its screenshot), without the checklist;
+- the earlier attempts, one line each, and **Explain in Flows**, which opens the flow on its Explain tab.
+
+`QaPage.gotoFlow(flowId)` opens a ticket from another page. A ticket that did not pass (one opened from the
+Explain tab after a failure) opens too, red and marked **Failed**, with its rework line.
 
 ### Settings (#/settings)
 
@@ -946,35 +991,41 @@ Read only: the only command that writes anything is `git fetch origin`
 (remote-tracking refs). No checkout, stash, reset or commit, and nothing is
 written inside the repo or any worktree.
 
-## Agents (#/agents): the tree and states
+## Agents (#/agents): the pipeline diagram
 
-The Agents page draws the agents as a tree of cards (Home shows the same cards
-in a compact grid, in the same order): Coordinator's card at the root,
-a trunk running down from it, and each coding agent's card on its own rounded
-branch. An agent's subagents branch off its card the same way. A branch turns
-green while its agent works and accent blue while it tests. Sessions outside
-the team (`codingAgents` in config.json) sit below under "Other sessions",
-without lines.
+The Agents page draws the orchestration as a diagram, from a **Request** node to an
+**Outcome** node, built only from the `pipeline` setting (see QA and the pipeline):
+Request, the coordinator, each producing agent, **QA**, **Push**, Outcome. Arrows
+follow the real order. The coordinator fans out to the producers. Dashed arrows marked
+`no code changes` skip to Outcome. Return arrows marked `failed` run from QA back to each
+producer (rework). It reads left to right when there is room, else top to bottom, and is
+read again with every status refresh without redrawing.
 
-Each card shows the agent's state, what it is doing or last did, who it last
-talked to, its recent tickets and branch, and a Progress report button (the
-same report the grid's column head opens). A state is a dot and one word
+- **Tickets on the nodes**: each node carries chips for the flows standing there now
+  (at most 4, then `+N`). Green is passed, red is failed, sent back or stopped by QA;
+  the rest are neutral. Click a chip to open its explanation (the Explain tab in Flows).
+- **Click a node** for its details below the diagram. For an agent this is its card, the
+  same card the old tree drew: state, what it is doing, who it last talked to, recent
+  tickets and branch, Progress report and its subagents. Request, Push and Outcome get a
+  short description. An agent that ran `git push` outside QA in the last day gets a red
+  dot and the line `Pushed N times outside QA today`.
+- **The side panel** slides out from the right edge (the slim tab, remembered in this
+  browser). **Tickets** lists every flow with its stage and status, the ones needing
+  attention first. **Outputs** lists finished ones with **Explain** (Flows) and
+  **How to test** (QA). Select a row to light that ticket's path through the diagram in
+  the accent colour; select it again, or press Escape, to clear.
+
+Home still shows the agents as compact cards. A state is a dot and one word
 (hover it for the detail, click the word for its meaning):
 
 - **Working**: the harness says busy, or its transcript changed in the last minute. When its latest tool call runs tests or checks (vitest, jest, tsc, eslint, playwright test, flutter test or analyze, dart test, npm or pnpm test, lint and typecheck, still running or finished under two minutes ago) the hover says running tests and the dot is accent blue.
 - **Idle**: not doing anything right now.
 
-- **Drag** an agent's card to reorder the branches (or the other sessions).
-  The card lifts and tilts as it follows the pointer and the others spring
-  aside. The order is saved in this browser (localStorage). Coordinator stays at
-  the root.
-- **Click** a card to watch that agent live, or a subagent row to watch the
-  subagent. A press only becomes a drag after 4 px of movement.
-- **Keyboard**: Tab to a card, Alt+Up / Alt+Down moves it, Enter opens it.
+- **Click** a card to watch that agent live, or a subagent row to watch the subagent.
 
-The drag and drop is a small reusable component with no dependencies,
-`public/card-stack.js` and `card-stack.css` (usage at the top of the file).
-`public/agent-cards.js` and `agent-cards.css` build the tree on it.
+The diagram is `public/pipeline-layout.js` (layers from the graph), `pipeline-view.js`
+(boxes over one SVG of arrows, patched in place), `pipeline-tickets.js`,
+`pipeline-details.js` and `pipeline-panel.js`, styled by `pipeline.css`.
 
 ## Messages (who is talking to whom)
 
