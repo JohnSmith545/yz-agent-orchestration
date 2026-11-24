@@ -240,7 +240,11 @@ export function settingsBlock(store, label, role) {
   const line = modelLine(entry, role)
   const files = entry.files.filter(f => f.on).map(f => `${f.kind === 'file' ? 'File' : 'Note'}: ${f.title}${f.name ? ` (${f.name})` : ''}\n${f.text}`)
   if (!line && !files.length) return ''
-  const full = [`Settings for ${label}, set by the user on the dashboard:${line ? `\n${line}` : ''}`, ...files].join('\n\n')
+  // the planner and Security did not get their model from the user: it is fixed, and the head says so
+  const head = !FIXED_ROLES.includes(role) ? `Settings for ${label}, set by the user on the dashboard:`
+    : files.length ? `Settings for ${label}. Your model is fixed by the dashboard; the files and notes below are the user's own:`
+      : `Settings for ${label}. Your model is fixed by the dashboard, not chosen by the user:`
+  const full = [`${head}${line ? `\n${line}` : ''}`, ...files].join('\n\n')
   return full.length > PRINT_MAX ? `${full.slice(0, PRINT_MAX)}\n[cut: ${num(full.length - PRINT_MAX)} more characters]` : full
 }
 

@@ -114,7 +114,10 @@ test('settingsBlock: the wanted model in one sentence, then each switched-on fil
 
 test('settingsBlock: the planner and Security always get the fixed Opus line, whatever is saved', () => {
   const text = S.settingsBlock({ agents: {} }, 'Security', 'security')
-  assert.equal(text, 'Settings for Security, set by the user on the dashboard:\nYou always run on Opus 5.5 (claude-opus-5-5) at high effort, and so do the subagents you start. If this session runs on another model, tell the user so they can switch it in the editor.')
+  // the model is FIXED, not a choice the user made (QA, 2026-11-25): the head says so
+  assert.equal(text, 'Settings for Security. Your model is fixed by the dashboard, not chosen by the user:\nYou always run on Opus 5.5 (claude-opus-5-5) at high effort, and so do the subagents you start. If this session runs on another model, tell the user so they can switch it in the editor.')
+  const withNote = S.addFile({ agents: {} }, 'Planner', { title: 'Plan template', text: 'Goal, steps, tests.', kind: 'note' }, opts).store
+  assert.match(S.settingsBlock(withNote, 'Planner', 'planner'), /^Settings for Planner\. Your model is fixed by the dashboard; the files and notes below are the user's own:\nYou always run on Opus 5\.5[^\n]*\n\nNote: Plan template\nGoal, steps, tests\.$/)
 })
 
 test('settingsBlock: a print past 60,000 characters is cut with a visible line saying how much', () => {

@@ -60,12 +60,12 @@ test('flow new prints its agent settings after its line; nothing extra with noth
 })
 
 test('the planner and Security get their fixed Opus line from plan-start, security-start and flow rules', () => {
-  assert.match(run('Security', 'rules').out, new RegExp(`^Settings for Security, set by the user on the dashboard:\\n${OPUS.replace(/[.()]/g, '\\$&')}`))
+  assert.match(run('Security', 'rules').out, new RegExp(`^Settings for Security\\. Your model is fixed by the dashboard, not chosen by the user:\\n${OPUS.replace(/[.()]/g, '\\$&')}`))
   assert.match(run('Planner', 'rules').out, /^Settings for Planner/)
   run('Master', 'new', 'c', 'C thing', '--type', 'build')
   const start = run('Planner', 'plan-start', 'c')
   assert.equal(start.code, 0, start.out)
-  assert.match(start.out, /Planner is planning it\.[^\n]*\nSettings for Planner, set by the user on the dashboard:\nYou always run on Opus 5\.5/)
+  assert.match(start.out, /Planner is planning it\.[^\n]*\nSettings for Planner\. Your model is fixed by the dashboard, not chosen by the user:\nYou always run on Opus 5\.5/)
   // QA passes it, then Security starts and is told its fixed model
   const flow = F.readFlow('c')
   F.writeFlow({ ...flow, nodes: [{ id: 'n1', type: 'step', title: 'x', status: 'done', evidence: [{ kind: 'commit', ref: 'abc1234' }] }], qa: { status: 'passed', attempt: 1, by: 'QA', at: AT, commit: 'abc1234' } })
