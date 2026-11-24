@@ -42,7 +42,9 @@
 
 /* Inside the diagram canvas, placed by the layout under the boxes and arrows; it looks like a box of the diagram
    (the same surface, hairline and radius as .pl-node), with the waiting-on-you amber on its left edge. */
-.hr-box { position: absolute; display: flex; flex-direction: column; max-height: 340px; min-width: 0; overflow: hidden;
+.hr-box { position: absolute; display: flex; flex-direction: column; min-width: 0; overflow: hidden;
+  /* tall enough for four or five questions when the screen has room, never more than the screen: the rows scroll inside */
+  max-height: clamp(340px, calc(100vh - var(--header-h) - 56px), 760px);
   background: var(--surface); border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--line)); border-left: 3px solid var(--warn);
   border-radius: var(--radius); }
 .hr-head { flex: none; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 10px 14px 8px; border-bottom: 1px solid var(--line); }
@@ -51,9 +53,13 @@
 .hr-h:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
 .hr-dot { display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; background: var(--warn); vertical-align: 1px; }
 .hr-dot.is-calm { background: var(--line-strong); }
-.hr-count { color: var(--warn); font-size: 18px; font-weight: 650; line-height: 1; font-variant-numeric: tabular-nums; }
-.hr-count.is-zero { color: var(--muted); }
-.hr-sub { color: var(--muted); font-size: 12.5px; }
+.hr-split { color: var(--ink-2); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.hr-chips-box { flex: none; padding: 8px 14px 6px; border-bottom: 1px solid var(--line); }
+.hr-chip-n { color: var(--muted); font-variant-numeric: tabular-nums; }
+.hr-chips button[aria-pressed="true"] .hr-chip-n { color: var(--ink-2); }
+.hr-next { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 14px; margin-top: 6px; }
+.hr-next-t { color: var(--ink-2); font-size: 12.5px; }
+.hr-steps { font-size: 12.5px; }
 .hr-empty { margin: 0; padding: 12px 14px; color: var(--muted); font-size: 13px; }
 .hr-rows { list-style: none; margin: 0; padding: 0 14px; overflow-y: auto; min-height: 0; }
 .hr-rows:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
@@ -85,6 +91,5 @@
 .hr-home .link { margin-left: auto; }
 
 @media (max-width: 600px) {
-  .hr-box { max-height: 420px; }
   .hr-acts .fl-text input { width: 100%; }
 }

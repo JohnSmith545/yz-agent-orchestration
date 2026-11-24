@@ -217,18 +217,24 @@ window built from the transcript and git (no model writes it).
 
 #### Human review
 
-Under the diagram, the **Human review** box lists everything that cannot go on without you, newest first. Its
-number is how many; the same number sits on **Agents** in the rail, and the page head's **N waiting on you** opens
+Under the diagram, the **Human review** box lists everything that cannot go on without you, newest first. Its head
+says how many of each kind wait (for example **13 questions · 2 by hand · 60 tickets**), and the chips under it
+(**All**, **Questions**, **By hand**, **Blocked**, **Tickets**) show one kind at a time. It opens on Questions while
+there are any, and remembers your choice in this browser. The number on **Agents** in the rail and the page head's
+**N waiting on you** count questions and by-hand work only: what keeps an agent waiting. Clicking the pill opens
 the box.
 
 - **Question**: an agent asked something. Answer it right in the box with Yes and No (or type an answer).
 - **By hand**: work only you can do (CI/CD, cloud setup, a console setting), with how many steps are done.
 - **Blocked**: a flow its agent marked blocked.
-- **Ticket**: a ticket marked no code yet or not codebase work that no flow covers yet.
+- **Ticket**: a ticket marked no code yet or not codebase work that no flow covers yet. **Ask for steps** starts a
+  flow for it and asks the agent to write the steps for you (one message, about $0.30); they then show under
+  By hand.
 
 Each row says which agent waits, for how long, and why in one line. Click a title to open it at the right place:
-the question in its flow, the by-hand steps, or the ticket. When nothing waits on you the box says so in one line.
-With many rows it scrolls inside itself.
+the question in its flow, the by-hand steps, or the ticket, which lands at the top of the screen. The address
+then names the flow, so a reload opens it again. When nothing waits on you the box says so in one line. With many
+rows it scrolls inside itself.
 
 ### Subagents
 

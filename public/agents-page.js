@@ -47,7 +47,9 @@
     'and so does the chat agent\'s: it answers, explains and reviews, and changes no code.</p>' +
     '<p>Each chip is a ticket where it stands now: green passed, red failed, grey anything else. Click a step for its details, a chip for its explanation, ' +
     'and open Tickets on the right to light one ticket\'s route: the steps it has taken in the accent, those still ahead dashed. A red mark on an agent means it pushed outside QA today.</p>' +
-    '<p><b>Human review</b>, under the diagram, is everything waiting on you: questions (answer them there), work only you can do, blocked flows. Click a title to open it.</p>' +
+    '<p><b>Human review</b>, under the diagram, is everything waiting on you: questions (answer them there), work only you can do, blocked flows, ' +
+    'and tickets marked as work for a person. Its head says how many of each; the chips show one kind. The number on Agents in the rail and ' +
+    '<b>N waiting on you</b> at the top count questions and by-hand work only: what keeps an agent waiting. Click a title to open it.</p>' +
     '<p>Click an agent for its settings: the model you want it on, its subagents, its specification and rules, and the files and notes it is given. ' +
     'A green pill on an agent says how many subagents run under it now.</p>'
 

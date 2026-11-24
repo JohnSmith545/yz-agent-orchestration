@@ -71,15 +71,15 @@ const plain = v => JSON.parse(JSON.stringify(v))
 
 // ═══ Delete ═══
 
-test('deleting an open flow without confirm asks first (409 needsConfirm) and changes nothing', async () => {
+test('deleting an open flow without confirm asks first (200 needsConfirm: a question, not an error the browser logs) and changes nothing', async () => {
   const r = await post('/api/flows/dark/delete')
-  assert.equal(r.status, 409)
-  assert.deepEqual(await r.json(), { needsConfirm: true, message: 'Agent 3 may still be working on this. Delete it anyway?' })
+  assert.equal(r.status, 200)
+  assert.deepEqual(await r.json(), { ok: false, needsConfirm: true, message: 'Agent 3 may still be working on this. Delete it anyway?' })
   assert.ok(F.readFlow('dark'))
   assert.equal(T.inTrash('dark'), false)
   assert.deepEqual(calls, [])
   fs.writeFileSync(path.join(F.FLOWS_DIR, 'dark.json'), JSON.stringify(darkFixture(f => { f.status = 'blocked' })))
-  assert.equal((await post('/api/flows/dark/delete', { confirm: 'yes' })).status, 409, 'blocked too, and only true confirms')
+  assert.equal((await (await post('/api/flows/dark/delete', { confirm: 'yes' })).json()).needsConfirm, true, 'blocked too, and only true confirms')
 })
 
 test('deleting an open flow with confirm: queued items dropped, the agent told once, the flow in Deleted', async () => {

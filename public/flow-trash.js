@@ -4,8 +4,8 @@
 //
 //   under the board   Flow archive · 5        (archived and deleted together; nothing at all when both are empty)
 //
-// Delete on a flow its agent may still be working on (open or blocked) is answered 409 with the server's
-// question; the ⋯ menu (flow-head.js `asking`) and the card (flow-board.js) show it inline with Delete and
+// Delete on a flow its agent may still be working on (open or blocked) is answered with the server's question
+// ({ needsConfirm, message }, a 200: a question is not an error); the ⋯ menu (flow-head.js `asking`) and the card (flow-board.js) show it inline with Delete and
 // Cancel, never a window.confirm. A deleted flow is never gone: it waits in the archive's Deleted group until
 // the user chooses Delete for good there. After Delete and Archive a toast (notify.js) offers Undo; its action is
 // plain data ({ kind: 'restore' | 'unarchive' }) that notify.js hands back to restore and unarchive here.
@@ -61,7 +61,7 @@
    */
   async function remove(id, confirm) {
     const r = await call(`/api/flows/${enc(id)}/delete`, { confirm: !!confirm })
-    if (r.status === 409 && r.j?.needsConfirm) return { needsConfirm: true, message: String(r.j.message || '') }
+    if (r.j?.needsConfirm) return { needsConfirm: true, message: String(r.j.message || '') }
     if (!r.ok) return refused(r), null
     undoToast('Deleted. It waits in the flow archive until you delete it for good.', 'restore', id)
     reload()

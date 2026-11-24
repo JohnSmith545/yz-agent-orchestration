@@ -1379,7 +1379,11 @@ Under the diagram sits the **Human review** box (`human-review.js`, `GET /api/hu
 that cannot go on without the user, newest first, each row with the flow (or ticket) title, the agent waiting,
 how long it has waited and one reason: an unanswered **question** (answered in the box with the usual controls, on
 the usual answer route), **by hand** work (a flow with by-hand steps that is not finished, or an open flow for a
-ticket marked `no-code` or `not-codebase`), a **blocked** flow, and a marked **ticket** no live flow carries. It is
+ticket marked `no-code` or `not-codebase`), a **blocked** flow, and a marked **ticket** no live flow carries (its
+**Ask for steps**, `POST /api/tickets/<id>/request-hand`, starts `<ticket>-by-hand` with the agent that marked it,
+else the coordinator, and asks for by-hand steps on the relay). Its head gives the split by kind and chips filter
+it (remembered in `localStorage` `human.filter`); the rail's Agents count and the page head's `N waiting on you`
+are questions plus by-hand work. It is
 not a node of any route: `pipeline-view.js` hands it each layout and it places itself under every box, arrow and
 label, its left and right edges on the outermost boxes, inside the canvas; with many rows it scrolls inside
 itself. Its count is also on the rail's Agents entry and on Home; the page head's `N waiting on you` and

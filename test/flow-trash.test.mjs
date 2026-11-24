@@ -61,7 +61,7 @@ test('a refused call is said in plain words and reports false or null', async ()
 })
 
 test('remove hands back the server question for an open flow, without a toast', async () => {
-  const { T, toasts } = loadTrash({ '/api/flows/dark-mode/delete': { status: 409, body: { needsConfirm: true, message: 'Agent 3 may still be working on this. Delete it anyway?' } } })
+  const { T, toasts } = loadTrash({ '/api/flows/dark-mode/delete': { status: 200, body: { ok: false, needsConfirm: true, message: 'Agent 3 may still be working on this. Delete it anyway?' } } })
   assert.deepEqual(plain(await T.remove('dark-mode', false)), { needsConfirm: true, message: 'Agent 3 may still be working on this. Delete it anyway?' })
   assert.equal(toasts.length, 0)
 })
