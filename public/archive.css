@@ -27,7 +27,7 @@
   background: var(--surface-2); border-bottom: 1px solid var(--line); color: var(--ink-2); font-size: 13.5px; }
 .fl-readonly b { color: var(--ink); }
 .fl-open.is-readonly :is(.fl-more, [data-answer], [data-reopen], [data-retry], [data-node-status], [data-flow-status], [data-verify],
-  [data-sb-request], [data-sb-form], form[data-text], [data-note], [data-hand-tick], [data-hand-ask], [data-hand-done], [data-send-open], [data-send-go], [data-send-pin], [data-qa-retry]) { display: none !important; }
+  [data-sb-request], [data-sb-form], form[data-text], [data-note], [data-hand-ask], [data-hand-done], [data-send-open], [data-send-go], [data-send-pin], [data-qa-retry]) { display: none !important; }
 
 @media (max-width: 600px) {
   .ar-group { padding: 14px 14px 4px; }

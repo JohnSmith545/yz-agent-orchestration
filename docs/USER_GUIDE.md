@@ -159,6 +159,20 @@ sets one.
 - **Answering:** click Yes or No (or type an answer). The answer is sent to the agent that asked (section 7
   has the cost). The step then shows **sent**, or **not delivered · retry** if that agent is not running.
 
+#### Do this by hand
+
+Some work no agent can do for you: a decision, CI/CD settings, cloud setup, a console switch, a billing change.
+The agent writes it out as steps and stops.
+
+- An open flow shows **Do this by hand** above its views, with how many steps you have done (**2 of 5 done**).
+- Each step says what to do, why, the exact place (a path, a page or the clicks to get there) and what you should
+  see when it worked. A value to paste sits in a box with a **Copy** button.
+- Tick each step when it is done. Your ticks are saved on the flow, so they survive a reload and the agent
+  rewriting the flow. If the agent changes what a step asks, that step waits for you again.
+- When every step is ticked, **Mark the flow done** finishes it.
+- A flow that needs you but has no steps yet says so, with one button: **Ask the agent for steps**. It sends the
+  agent a message the same way as Request test steps (about $0.30). The page never makes up a step.
+
 #### Archive, Delete and the flow archive
 
 - Every card on the board has **Archive** and **Delete** at its foot; an open flow has them in its `⋯` menu too.

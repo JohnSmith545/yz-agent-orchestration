@@ -12,7 +12,9 @@
 //              Status, the rows (flow-status.js); or
 //              Process, the chart (flow-chart.js) with zoom (flow-zoom.js) and the
 //              node drawer (flow-drawer.js renders it, this file runs its actions,
-//              for Status too)
+//              for Status too). Above the views, on every tab: Do this by hand, the
+//              by-hand steps as a checklist (flow-hand.js), when the flow has any or
+//              Human review says it needs the user (human-review.js)
 // Polls /api/flows every 15 s while either box is mounted. An opened flow
 // refreshes IN PLACE: the chart keeps its scroll, the drawer is redrawn only
 // when its node changed, and text typed into an answer box survives a redraw.
@@ -208,6 +210,7 @@
         <div class="flow-tools fl-tools">${window.FlowTabs.tabs(view)}<span class="fl-zoom">${window.FlowZoom.controls()}</span>
           <button type="button" class="help meta-r" aria-label="What the views and marks mean">?</button></div>
         <div class="fl-open-sub"></div>
+        <div class="fl-hand" hidden></div>
         <div class="fl-out" id="flPanelOutput" role="tabpanel" aria-labelledby="flTabOutput"></div>
         <div class="fl-explain" id="flPanelExplain" role="tabpanel" aria-labelledby="flTabExplain"></div>
         <div class="fl-stat" id="flPanelStatus" role="tabpanel" aria-labelledby="flTabStatus"></div>
@@ -345,6 +348,7 @@
     if (!opened.built) { buildOpened(); opened.built = true; opened.head = opened.sub = opened.chart = opened.drawn = opened.ro = null; showView() }
     renderReadonly(f)
     renderHead(f)
+    window.FlowHand?.fill($('.fl-hand', board), f, { needs: !!window.HumanReview?.needsHand(f.id), readonly: readonly(f) })
     window.Glossary?.autoLearn(f) // its unknown marked words, once (glossary-store.js)
     // Only the shown view draws: a hidden chart would fit to a 0 px width. Output and Status gate their own redraw.
     if (view === 'output') return window.FlowOutput.fill($('.fl-out', board), f)
@@ -550,6 +554,19 @@
     render()
     if (!opened?.revealed) scrollTo(board) // a revealed node row has been scrolled to already
   }
+  /** Open a flow at its by-hand steps (Human review's by-hand rows, `#/flows?flow=<id>&at=hand`): the checklist in view, its heading focused. */
+  async function gotoHand(flowId) {
+    if (!board) {
+      window.Shell.go(`#/flows?flow=${enc(flowId)}&at=hand`)
+      return
+    }
+    await open(flowId)
+    if (opened?.id !== flowId) return
+    const box = $('.fl-hand', board)
+    if (!box || box.hidden) return
+    scrollTo(box)
+    box.querySelector('.fh-h')?.focus({ preventScroll: true })
+  }
   /** Scroll a box to the top, clear of the sticky page header (shell.js): measured rather than read from --header-h. */
   function scrollTo(el) {
     el.style.scrollMarginTop = `${($('#pageHead')?.offsetHeight || 0) + 16}px`
@@ -647,6 +664,7 @@
     open,
     close,
     gotoFlow,
+    gotoHand,
     /** Open a flow on its Explain tab from any page (the Agents page, the QA page's Explain in Flows). */
     explain: flowId => gotoFlow(flowId, null, 'explain'),
     get data() { return data },
