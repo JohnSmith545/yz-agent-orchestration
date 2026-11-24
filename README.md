@@ -547,7 +547,10 @@ here. A click opens the ticket at `#/qa/<flow id>`, a link you can share or reop
 - the earlier attempts, one line each, and **Explain in Flows**, which opens the flow on its Explain tab.
 
 `QaPage.gotoFlow(flowId)` opens a ticket from another page. A ticket that did not pass (one opened from the
-Explain tab after a failure) opens too, red and marked **Failed**, with its rework line.
+Explain tab after a failure) opens too, red and marked **Failed**, with its rework line. A ticket QA never saw
+is never red: the page says, in plain words, that it has not been through QA and why (it changed no code, it is
+still being worked on, it waits for QA, or it was dropped), with **How to test in Flows** (the flow's Output tab)
+and **Explain in Flows**. A link straight to `#/qa/<flow id>` reads that ticket at once, beside the list.
 
 ### Settings (#/settings)
 

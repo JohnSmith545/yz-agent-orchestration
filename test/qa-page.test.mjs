@@ -173,3 +173,67 @@ test('opened: a failed ticket (opened from Explain) is red and says Failed, with
 test('QaPage exposes open, close, update and gotoFlow', () => {
   for (const k of ['open', 'close', 'update', 'gotoFlow']) assert.equal(typeof window.QaPage[k], 'function', k)
 })
+
+// ═══ a ticket QA never saw (QA report: red "QA has no record of csp-enforce", and Loading… on a direct load) ═══
+
+const ok = body => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) })
+/** qa-page.js in a vm with a stub DOM and a fetch that answers from `routes` (url -> body). */
+function page(routes) {
+  const calls = []
+  const box = { className: '', innerHTML: '', addEventListener() {}, removeEventListener() {}, querySelector: () => null }
+  const section = { innerHTML: '', replaceChildren() {} }
+  const c = {
+    window: {}, URL, calls, box, setInterval: () => 1, clearInterval() {},
+    document: { getElementById: () => section, createElement: () => box },
+    fetch: url => { calls.push(url); return url in routes ? ok(routes[url]) : new Promise(() => {}) },
+  }
+  c.window.Lightbox = { bind() {} }
+  c.window.Shell = { current: { view: 'qa' }, setTitle() {}, setStatus() {}, ago: () => '3m', go() {}, whenReady() {} }
+  for (const f of ['terms.js', 'flow-drawer.js', 'flow-qa-line.js', 'qa-view.js', 'qa-page.js']) vm.runInNewContext(read(f), c)
+  return c
+}
+const settle = () => new Promise(r => setTimeout(r, 0))
+
+test('a direct load of #/qa/<id> asks for that ticket at once, beside the passed list, not after it', () => {
+  const c = page({})
+  c.window.QaPage.open('csp-enforce')
+  assert.ok(c.calls.includes('/api/qa?status=passed'), 'the list')
+  assert.ok(c.calls.includes('/api/qa'), 'every QA record, in the same tick: no wait for the list first')
+  assert.ok(c.calls.includes('/api/flows/csp-enforce'), 'the flow itself, for its title when QA has no record')
+})
+
+test('the list alone does not read every QA record', () => {
+  const c = page({})
+  c.window.QaPage.open(null)
+  assert.deepEqual(c.calls, ['/api/qa?status=passed'])
+})
+
+test('a ticket QA has no record of is neutral, named by its title, and points to How to test in Flows', async () => {
+  const c = page({
+    '/api/qa?status=passed': { flows: [], builtAt: '2026-11-24T12:00:00Z' },
+    '/api/qa': { flows: [] },
+    '/api/flows/csp-enforce': { id: 'csp-enforce', title: 'Enforce the CSP', status: 'done', nodes: [] },
+  })
+  c.window.QaPage.open('csp-enforce')
+  await settle()
+  await settle()
+  const h = c.box.innerHTML
+  assert.doesNotMatch(h, /class="[^"]*\bwarn\b/, 'red means failed, and this did not fail')
+  assert.match(h, /<h2 class="qa-title" tabindex="-1">Enforce the CSP<\/h2>/)
+  assert.match(text(h), /has not been through QA/)
+  assert.match(text(h), /changed no code/)
+  assert.match(h, /data-qa-output="csp-enforce"/, 'How to test lives on the Output tab in Flows')
+  assert.match(h, /data-qa-explain="csp-enforce"/)
+})
+
+test('missingHtml: the reason follows the flow, the id stands in for a title it could not read, nothing is red', () => {
+  const said = f => text(V.missingHtml('x-1', f))
+  assert.match(said(null), /^← QA x-1 /)
+  assert.match(said(null), /has not been through QA/)
+  assert.match(said({ id: 'x-1', title: 'T', status: 'done', nodes: [] }), /changed no code/)
+  assert.match(said({ id: 'x-1', title: 'T', status: 'done', nodes: [{ evidence: [{ kind: 'commit', ref: 'a' }] }] }), /waiting for QA/)
+  assert.match(said({ id: 'x-1', title: 'T', status: 'open', nodes: [{ evidence: [{ kind: 'commit', ref: 'a' }] }] }), /still being worked on/)
+  assert.match(said({ id: 'x-1', title: 'T', status: 'dropped', nodes: [] }), /dropped/)
+  for (const f of [null, { id: 'x-1', title: 'T', status: 'done', nodes: [] }]) assert.doesNotMatch(V.missingHtml('x-1', f), /\bwarn\b|qa-failed/)
+  assert.ok(!V.missingHtml('<b>', { title: '<i>x</i>', status: 'done', nodes: [] }).includes('<i>x'), 'escaped')
+})

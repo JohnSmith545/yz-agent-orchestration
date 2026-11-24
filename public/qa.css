@@ -47,6 +47,11 @@
 .qa-shots .fl-shot { max-width: 160px; max-height: 110px; }
 .qa-attempts { margin: 0; padding-left: 18px; color: var(--muted); display: grid; gap: 4px; }
 
+/* a ticket QA never saw: plain words, no colour (it did not fail) */
+.qa-missing-why { margin: 0; max-width: 70ch; font-size: 14.5px; line-height: 1.55; color: var(--ink-2); }
+.qa-missing-next { margin: -6px 0 0; color: var(--muted); }
+.qa-missing-acts { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 0; }
+
 @media (max-width: 720px) {
   .qa-open { padding: 16px; }
   .qa-row { padding: 12px 14px; }

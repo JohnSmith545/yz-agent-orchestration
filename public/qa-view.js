@@ -15,9 +15,14 @@
 //               lightbox; How to test, QA's steps as the same cards Output draws (flow-steps.js
 //               look, no checklist: QA did the testing); the earlier attempts, one line each
 //
+//   a ticket QA never saw  neutral, never red (red means QA failed it): why QA has no record (it
+//               changed no code, is still being worked on, waits for QA, was dropped), and its
+//               How to test and Explain in Flows
+//
 //   rows(flows)              PURE: the passed ones, newest first
 //   listHtml(data, now?)     the list, or its one-line empty state
 //   detailHtml(flow, now?)   one ticket
+//   missingHtml(id, flow)    a ticket with no QA record; `flow` (GET /api/flows/<id>) or null
 ;(() => {
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
   const chips = s => (window.Terms ? window.Terms.html(s) : s)
@@ -94,5 +99,28 @@
       '</section>'
   }
 
-  window.QaView = { rows, listHtml, detailHtml }
+  // ═══ a ticket QA never saw ═══
+  // Not a failure, so nothing here is red (red means QA failed it): it says in plain words why QA has
+  // no record, and sends you to the flow, whose Output tab has its own How to test.
+
+  function missingWhy(f) {
+    if (!f) return 'QA tests a ticket only when it changes code, so this one may have changed none, or not reached QA yet.'
+    if (f.status === 'dropped') return 'It was dropped before it reached QA.'
+    if (!window.FlowQa.codeProducing(f)) return 'It changed no code, so it skipped QA: QA tests only changes to code.'
+    if (f.status === 'done') return 'It changed code and is waiting for QA.'
+    return 'It is still being worked on: QA tests it once the change is finished.'
+  }
+
+  /** `flow` is the flow itself (GET /api/flows/<id>) for its title and status, or null when it could not be read. */
+  function missingHtml(id, flow) {
+    return `<section class="card qa-open qa-missing" data-qa-flow="${esc(id)}">` +
+      '<div class="qa-open-top"><a class="link" href="#/qa">← QA</a></div>' +
+      `<h2 class="qa-title" tabindex="-1">${esc(flow?.title || id)}</h2>` +
+      `<p class="qa-missing-why">This ticket has not been through QA. ${esc(missingWhy(flow))}</p>` +
+      '<p class="small qa-missing-next">Its flow has its own How to test, on the Output tab.</p>' +
+      `<p class="qa-missing-acts"><button type="button" class="link" data-qa-output="${esc(id)}">How to test in Flows</button>` +
+      `<button type="button" class="link" data-qa-explain="${esc(id)}">Explain in Flows</button></p></section>`
+  }
+
+  window.QaView = { rows, listHtml, detailHtml, missingHtml }
 })()
