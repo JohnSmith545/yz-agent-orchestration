@@ -2,8 +2,9 @@
 // Only fixed text and the fixed mute icons are here: no model text, nothing from the user.
 // test/script-page.test.mjs and its neighbours read it as a string, with no DOM.
 //
-//   ScriptMarkup.html()        the page: the two columns (head row, box, foot row each), the
-//                              History disclosure, and the empty Context aside
+//   ScriptMarkup.html()        the page: the two columns (head row, box, foot row each) in .sc-fit,
+//                              the History disclosure, and the empty Context aside. ⚠️ .sc-fit is a
+//                              size container (script.css), so the FIXED aside must stay outside it.
 //   ScriptMarkup.ICON          the mute button's two icons (sound, muted)
 //   ScriptMarkup.MUTE_LABEL    the mute button's two names
 //   ScriptMarkup.MAX           the longest text one run takes (script.mjs checks it too)
@@ -23,6 +24,7 @@
     const letters = LETTERS.map(([s, l], i) => `<span class="sc-letter" data-section="${s}" title="${s}" style="--i:${i}">${l}</span>`).join('')
     return `<div class="sc-page">
   <p class="sc-lede small">Write a rough idea. It comes back as a prompt in six labelled parts, ready to paste into any AI. Nothing is done with the task itself.</p>
+  <div class="sc-fit">
   <div class="sc-grid">
     <div class="sc-col">
       <div class="sc-head"><label for="scriptInput" class="sc-label">Your thoughts</label></div>
@@ -57,6 +59,7 @@
         <p class="small faint sc-sent" id="scriptSent" hidden></p>
       </div>
     </div>
+  </div>
   </div>
   <details class="sc-history" id="scriptHistory" hidden>
     <summary id="scriptHistorySum">History</summary>

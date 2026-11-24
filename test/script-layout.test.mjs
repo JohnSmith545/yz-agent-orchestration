@@ -199,3 +199,36 @@ test('reduced motion: a letter lighting is a colour fade that the global rule do
   assert.equal(r.decls.get('transition-duration')?.important, true)
   assert.ok(ms(r.decls.get('transition-duration').value) >= 150)
 })
+
+// ═══ QA, 2026-11-25: with the Context panel open at 1024 to 1100 px, each column was about 270 px, too narrow for
+// the letters, mute and Copy (about 320 px), so Copy ran under the panel. The viewport cannot tell how much room the
+// page has (rail pinned or not, panel open or not, Ask drawer open or not); the page's own width can. ═══
+
+/** The body of the first `@container <query> {...}` block in `text`, braces balanced. */
+function containerBlock(text, query) {
+  const at = text.indexOf(`@container ${query}`)
+  if (at < 0) return null
+  let i = text.indexOf('{', at)
+  const start = i + 1
+  for (let depth = 1; depth; ) {
+    i++
+    if (text[i] === '{') depth++
+    else if (text[i] === '}') depth--
+  }
+  return text.slice(start, i)
+}
+
+test('regression: the grid sits in its own size container, and the fixed Context panel is NOT inside it', () => {
+  assert.match(h, /<div class="sc-fit">\s*<div class="sc-grid">/)
+  const fit = h.slice(h.indexOf('<div class="sc-fit">'), h.indexOf('<details class="sc-history"'))
+  assert.ok(!fit.includes('id="scriptContext"'), 'a size container would hold the fixed panel inside it')
+  assert.ok(h.indexOf('id="scriptContext"') > h.indexOf('<div class="sc-fit">'))
+  assert.match(css, /\.sc-fit\s*\{[^}]*container:\s*sc-fit \/ inline-size/)
+})
+
+test('regression: when the page itself is under 760 px wide the boxes stack and the heads may wrap, whatever the window', () => {
+  const narrow = containerBlock(css, 'sc-fit (max-width: 760px)')
+  assert.ok(narrow, 'a container query on the page width')
+  assert.match(narrow, /\.sc-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/)
+  assert.match(narrow, /\.sc-head\s*\{[^}]*height:\s*auto[^}]*flex-wrap:\s*wrap/)
+})
