@@ -9,13 +9,12 @@
 
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 import { writeAtomic } from './atomic-write.mjs'
+import { DATA_DIR } from './project-store.mjs'
 
-const HERE = path.dirname(fileURLToPath(import.meta.url))
-/** Data root, as in flows.mjs: tests point FACTORY_DATA_DIR at a temp folder before importing. */
-export const DATA_DIR = process.env.FACTORY_DATA_DIR || path.join(HERE, 'data')
+/** The current project's data folder, as in flows.mjs (project-store.mjs): tests point FACTORY_DATA_DIR at a temp folder before importing. */
+export { DATA_DIR }
 export const STATE_FILE = path.join(DATA_DIR, 'factory-state.json')
 
 /** Review marks a ticket can carry. `reviewed` also has a verdict. */

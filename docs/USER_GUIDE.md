@@ -262,6 +262,26 @@ page tells you to use the terminal instead (`node tools/factory.mjs pr-pin`).
 Each person sets their own PIN on their own machine; it is kept there (only as a hash) and never shared.
 Type it only in your own browser, never in a window an agent is driving.
 
+### Projects and the Orchestration bank
+
+The box at the top of the rail shows the project you are looking at, such as **Flinki v2**, and under it the
+orchestration it uses. Open it to switch to another project: everything on the dashboard changes to that
+project, and the page reloads by itself once the dashboard has restarted (a second or two). If something is
+still running (the Ask chat answering, an answer on its way to an agent), the switch does not happen and the
+page says what is still running, so you can try again once it has finished.
+
+**Add a project…** asks for a name, the folder of its git repository, how its sessions are recognised (left
+empty, the folder name) and which orchestration it starts with: the same as the project you are in, or one
+saved in the bank. **Rename or remove…** renames a project or takes it off the list; its flows, rules and
+evidence stay on disk and its repository is not touched. The first project, the one in config.json, and the one
+you are looking at cannot be removed.
+
+The **Orchestration bank** in the rail keeps the ways your agents work together: who hands out the work, who
+writes code, who tests, and each agent's specification and rules. Save the current one under a name, open one
+to see its diagram and rules, rename, duplicate or delete it, or **Use on this project**. Before it switches, the
+page says what will change, saves the orchestration in use now to the bank under a dated name (so you can
+always switch back), and names any agent that has no session in this project yet.
+
 ### Glossary
 
 Every word the dashboard can explain, searchable, with your own wording when you write one. Section 5 has the
@@ -481,7 +501,8 @@ The sizes below were measured on one setup; yours will differ.
 On Windows, run `tools\keep-alive.cmd` instead of `npm start`. It starts the server and starts it again 5
 seconds after it stops. Its log is `%LOCALAPPDATA%\yz-agent-orchestration\server.log`; close its window to stop it.
 To start it at login, press Win+R, type `shell:startup`, and put a shortcut to `tools\keep-alive.cmd` in the
-folder that opens. Leave `stopHour` at `null` when you use it, or it restarts after every stop.
+folder that opens. Leave `stopHour` at `null` when you use it, or it restarts after every stop. Switching
+project restarts the server on purpose; the loop starts it again at once.
 
 On macOS or Linux, use your own service manager (launchd, systemd, or a terminal multiplexer) to run
 `npm start` in this folder.

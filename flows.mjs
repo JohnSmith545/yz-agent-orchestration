@@ -38,7 +38,6 @@
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 import { writeAtomic } from './atomic-write.mjs'
 import { DIAGRAM_KINDS, DIAGRAM_MAX } from './diagram-text.mjs'
@@ -49,14 +48,17 @@ import { keepHand, validateHand } from './hand-steps.mjs'
 import { keepRoute, validateRoute } from './flow-route.mjs'
 import { sayShorter, STORY_ID, STORY_MAX, storyOf, YOU } from './flow-story.mjs'
 import { lookup } from './glossary.mjs'
+import { DATA_DIR } from './project-store.mjs'
 import { recordFlowStatus } from './since-store.mjs'
 import { termsOfFlow } from './terms.mjs'
 
 export { clip, sayShorter, STORY_MAX, storyOf } from './flow-story.mjs'
 
-const HERE = path.dirname(fileURLToPath(import.meta.url))
-/** Data root. Tests point FACTORY_DATA_DIR at a temp folder before importing. */
-export const DATA_DIR = process.env.FACTORY_DATA_DIR || path.join(HERE, 'data')
+/**
+ * The CURRENT PROJECT's data folder (project-store.mjs): data/ (or FACTORY_DATA_DIR) for the first project,
+ * data/projects/<id> for any other. Tests point FACTORY_DATA_DIR at a temp folder before importing.
+ */
+export { DATA_DIR }
 export const FLOWS_DIR = path.join(DATA_DIR, 'flows')
 export const EVIDENCE_DIR = path.join(DATA_DIR, 'evidence')
 

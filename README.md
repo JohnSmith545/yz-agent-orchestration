@@ -185,9 +185,10 @@ Run `tools\keep-alive.cmd` (Windows) instead of `npm start` to have the dashboar
 starts `node server.mjs` from the repo root, and starts it again 5 seconds after it stops for any reason.
 Its output goes to `%LOCALAPPDATA%\yz-agent-orchestration\server.log`. Close its window to stop it. A stop at
 `stopHour` is restarted too, so leave `stopHour` null when you use it. Run only one: a second copy (or any
-dashboard already on the port) fails with EADDRINUSE and tries again every 5 seconds, filling the log. To
-start it at login, press Win+R, open `shell:startup`, and put a shortcut to `tools\keep-alive.cmd` in the
-folder that opens.
+dashboard already on the port) waits up to 15 seconds for the port, stops, and tries again 5 seconds later,
+filling the log. To start it at login, press Win+R, open `shell:startup`, and put a shortcut to
+`tools\keep-alive.cmd` in the folder that opens. A project switch (below) stops the server with exit code 75,
+which the loop starts again at once instead of after 5 seconds.
 
 ### Fonts
 
@@ -740,6 +741,34 @@ The gear above Theme in the rail. Two sections:
 Each person sets their own PIN on their own machine: it lives in that machine's config.json, which is never
 committed. When Send is off or has no PIN, the Send bar under a flow's Output says `Sending is off` with a link
 here.
+
+### Projects and the Orchestration bank (#/bank)
+
+The **Project menu** at the top of the rail shows the project the dashboard watches, with the orchestration it
+last took from the bank under its name. Choose another project and the WHOLE dashboard switches: its repo,
+sessions, tickets, flows, evidence, scores and agent rules. **Add a project…** asks for a name, the top folder of
+its git repository, how its sessions are recognised (default: the folder name) and the orchestration it starts
+with (the same as the current project, or one from the bank). **Rename or remove…** removes a project from the
+list only; its data and its repo stay.
+
+- `projects.json` (beside config.json, gitignored; in FACTORY_DATA_DIR when that is set) holds
+  `{ active, projects: [{ id, name, primary?, config }] }`. The first project is config.json itself and keeps
+  `data/` exactly where it is; any other has `data/projects/<id>/` and takes nothing per-project from config.json
+  (repo, sessionCwdMatch, ticketPrefixes, coordinator, labels, aliases, pinnedAgents, pipeline, levels, the
+  ticket collections, the chat name and fork). Machine settings (port, claudeDirs, models, `pr`, reminders) stay
+  shared. With no projects.json the dashboard works exactly as before (project-store.mjs).
+- A switch writes `active` and restarts the server so every module loads fresh (restart.mjs): under
+  keep-alive.cmd with exit code 75; started by hand, it starts its own hidden replacement on the same port and
+  exits. A switch is refused while the Ask chat is answering, an answer waits in the relay queue, or another
+  write is still being answered. Agents' commands (`tools/factory.mjs …`) run from inside a project's repo
+  write to that project, whichever one the page shows; `YZ_PROJECT=<id>` names one outright.
+- The **Orchestration bank** saves orchestration styles for every project, in `data/orchestration-bank.json`:
+  the pipeline block (whole), the coordinator and agent labels, the chat agent's name, and each agent's
+  specification and rules, never a repo, session id, pin or ticket setting. **Use on this project** saves the
+  style in use first, writes the new one (config.json in place for the first project, projects.json for any
+  other; the rules file of the project) and restarts. The first read of an empty bank saves the current style
+  once. Limits: names of 60 characters, 50 entries, 256 KB each. A new per-agent store joins a style as one
+  line in `STYLE_PARTS` (orchestration-parts.mjs).
 
 ### Tickets (#/tickets)
 

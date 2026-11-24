@@ -7,6 +7,15 @@
 //
 //   withPrKeys(text, changes)    the new text
 //   writePrKeys(file, changes)   read, change, write atomically
+//
+// The Orchestration bank (orchestration-parts.mjs) writes a saved style into a project's config the same
+// careful way, by dotted path ({ pipeline: {...}, 'factory.chat.name': 'Ask' }): each value is replaced where
+// it stands, at its own indentation; a missing key is added at the end of its parent object; a parent that is
+// not there, or a result that would not parse to exactly that change, writes the whole file again as JSON.
+//
+//   withConfigKeys(text, changes)    the new text
+//   writeConfigKeys(file, changes)   read, change, write atomically
+//   setKeys(object, changes)         the same change on a plain object (a project kept in projects.json)
 
 import { readFileSync } from 'node:fs'
 import { writeAtomic } from './atomic-write.mjs'
@@ -69,4 +78,125 @@ export function withPrKeys(text, changes) {
 
 export function writePrKeys(file, changes) {
   writeAtomic(file, withPrKeys(readFileSync(file, 'utf8'), changes))
+}
+
+// ═══ any key, by dotted path (the Orchestration bank) ═══
+
+/**
+ * Where each object member's value sits in `text`, by dotted path ('pipeline', 'factory.chat.name'), and where
+ * each object's braces and last member end ('' is the whole file). Members of objects inside a list get a path
+ * with `[]` in it, so no change ever matches them. `text` must be valid JSON (the caller parsed it first).
+ */
+function layout(text) {
+  const members = new Map() // path -> { start, end, keyAt }
+  const objects = new Map() // path -> { open, close, lastEnd }
+  let i = 0
+  const ws = () => { while (i < text.length && /\s/.test(text[i])) i++ }
+  const str = () => {
+    const s = i
+    for (i++; i < text.length && text[i] !== '"'; i++) if (text[i] === '\\') i++
+    i++
+    return JSON.parse(text.slice(s, i))
+  }
+  function value(at) {
+    ws()
+    const c = text[i]
+    if (c === '{') {
+      const obj = { open: i, close: -1, lastEnd: -1 }
+      i++
+      ws()
+      while (text[i] !== '}') {
+        const keyAt = i
+        const key = str()
+        ws()
+        i++ // the colon
+        ws()
+        const start = i
+        const p = at === '' ? key : `${at}.${key}`
+        value(p)
+        members.set(p, { start, end: i, keyAt })
+        obj.lastEnd = i
+        ws()
+        if (text[i] === ',') i++
+        ws()
+      }
+      obj.close = i++
+      if (!objects.has(at)) objects.set(at, obj)
+      return
+    }
+    if (c === '[') {
+      i++
+      ws()
+      while (text[i] !== ']') {
+        value(`${at}[]`)
+        ws()
+        if (text[i] === ',') i++
+        ws()
+      }
+      i++
+      return
+    }
+    if (c === '"') return void str()
+    while (i < text.length && !/[\s,}\]]/.test(text[i])) i++
+  }
+  value('')
+  return { members, objects }
+}
+
+/** The spaces before the first character of the line `at` is on. */
+const indentAt = (text, at) => /[ \t]*/.exec(text.slice(text.lastIndexOf('\n', at - 1) + 1))[0]
+const pretty = (value, indent, nl) => JSON.stringify(value, null, 2).split('\n').join(`${nl}${indent}`)
+
+/** One change on the text, or null when its parent object is not there. */
+function withOneKey(text, p, value, nl) {
+  const { members, objects } = layout(text)
+  const at = members.get(p)
+  if (at) return text.slice(0, at.start) + pretty(value, indentAt(text, at.keyAt), nl) + text.slice(at.end)
+  const dot = p.lastIndexOf('.')
+  const [parentPath, key] = dot < 0 ? ['', p] : [p.slice(0, dot), p.slice(dot + 1)]
+  const parent = objects.get(parentPath)
+  if (!parent) return null
+  if (parent.lastEnd < 0) {
+    const outer = indentAt(text, parent.open)
+    const inner = `${outer}  `
+    return `${text.slice(0, parent.open)}{${nl}${inner}${JSON.stringify(key)}: ${pretty(value, inner, nl)}${nl}${outer}}${text.slice(parent.close + 1)}`
+  }
+  const first = [...members].find(([k]) => (dot < 0 ? !k.includes('.') && !k.includes('[') : k.startsWith(`${parentPath}.`) && !k.slice(parentPath.length + 1).includes('.')))
+  const indent = first ? indentAt(text, first[1].keyAt) : `${indentAt(text, parent.open)}  `
+  const sameLine = first && text.slice(parent.open, first[1].keyAt).indexOf('\n') < 0
+  const lead = sameLine ? ', ' : `,${nl}${indent}`
+  return text.slice(0, parent.lastEnd) + lead + `${JSON.stringify(key)}: ${pretty(value, indent, nl)}` + text.slice(parent.lastEnd)
+}
+
+/** `obj` with each dotted path set to its value; the parents a path needs are made; `obj` is not changed. */
+export function setKeys(obj, changes) {
+  const out = structuredClone(obj ?? {})
+  for (const [p, value] of Object.entries(changes)) {
+    const keys = p.split('.')
+    let o = out
+    for (const k of keys.slice(0, -1)) {
+      if (!o[k] || typeof o[k] !== 'object' || Array.isArray(o[k])) o[k] = {}
+      o = o[k]
+    }
+    o[keys.at(-1)] = structuredClone(value)
+  }
+  return out
+}
+
+export function withConfigKeys(text, changes) {
+  const want = setKeys(JSON.parse(text), changes)
+  const nl = text.includes('\r\n') ? '\r\n' : '\n'
+  let out = text
+  for (const [p, value] of Object.entries(changes)) {
+    out = withOneKey(out, p, value, nl)
+    if (out === null) break
+  }
+  try {
+    if (out !== null && same(JSON.parse(out), want)) return out
+  } catch {}
+  return `${JSON.stringify(want, null, 2)}${nl}`
+}
+
+export function writeConfigKeys(file, changes) {
+  writeAtomic(file, withConfigKeys(readFileSync(file, 'utf8'), changes))
 }

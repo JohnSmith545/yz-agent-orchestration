@@ -40,6 +40,7 @@
     ['Subagents', '#/subagents'],
     ['Glossary', '#/glossary'],
     ['Settings', '#/settings'],
+    ['Orchestration bank', '#/bank'],
   ]
   const KIND = { page: 'Page', flow: 'Flow', ticket: 'Ticket', agent: 'Agent', action: 'Action' }
   // Live flows first, then the finished ones; a dropped flow is still findable, last.
