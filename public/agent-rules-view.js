@@ -94,19 +94,21 @@
 
   const rulesCount = draft => (draft.rules.length ? `· ${draft.rules.length}` : '')
 
+  // ⚠️ No maxlength on either field, ON PURPOSE: the browser would cut a long paste without a word, and the cut
+  // text would then pass every check (QA, 2026-11-24). addRule and problem refuse it with a sentence instead.
   function editorHtml(node, draft, limits) {
     const id = esc(idOf(node))
     return `<div class="ar-field">
         <label class="pl-det-sub" for="${id}-spec">Specification</label>
         <p class="ar-hint" id="${id}-hint">What this agent is for and how it should work, in your words.</p>
-        <textarea id="${id}-spec" data-ar-field="spec" rows="5" maxlength="${limits.spec}" aria-describedby="${id}-hint ${id}-count">\n${esc(draft.spec)}</textarea>
+        <textarea id="${id}-spec" data-ar-field="spec" rows="5" aria-describedby="${id}-hint ${id}-count">\n${esc(draft.spec)}</textarea>
         <p class="ar-count" id="${id}-count" data-ar-count>${countLine(draft.spec.length, limits.spec)}</p>
       </div>
       <h3 class="pl-det-sub" id="${id}-rules">Rules <span class="faint" data-ar-n>${rulesCount(draft)}</span></h3>
       <div data-ar-list>${rulesListHtml(draft)}</div>
       <div class="ar-add">
         <label class="ar-add-label" for="${id}-add">Add a rule</label>
-        <div class="ar-add-row"><input type="text" id="${id}-add" data-ar-field="pending" maxlength="${limits.rule}" value="${esc(draft.pending)}" placeholder="For example: run the tests before you say done." autocomplete="off"><button type="button" data-ar-act="add">Add</button></div>
+        <div class="ar-add-row"><input type="text" id="${id}-add" data-ar-field="pending" value="${esc(draft.pending)}" placeholder="For example: run the tests before you say done." autocomplete="off"><button type="button" data-ar-act="add">Add</button></div>
       </div>
       <p class="ar-error" role="status" aria-live="polite" data-ar-error>${esc(draft.error)}</p>
       <div class="ar-actions"><button type="button" class="primary" data-ar-act="save"${draft.saving ? ' disabled' : ''}>${draft.saving ? 'Saving…' : 'Save'}</button><button type="button" data-ar-act="cancel">Cancel</button></div>

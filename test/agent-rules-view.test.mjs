@@ -49,12 +49,12 @@ test('edit: a labelled textarea with the spec and a count, each rule with a remo
   const html = V.slotHtml(node, ROLE, { entry, draft })
   assert.match(html, /data-ar-mode="edit"/)
   assert.match(html, /<label[^>]*for="ar-agent-1-spec"[^>]*>Specification<\/label>/)
-  assert.match(html, /<textarea id="ar-agent-1-spec"[^>]*maxlength="2000"[^>]*aria-describedby="[^"]*ar-agent-1-count[^"]*"[^>]*>\nBuilds the web pages.\nOnly web.<\/textarea>/, 'a newline after the tag: the parser drops one, so a typed leading line survives')
+  assert.match(html, /<textarea id="ar-agent-1-spec"[^>]*aria-describedby="[^"]*ar-agent-1-count[^"]*"[^>]*>\nBuilds the web pages.\nOnly web.<\/textarea>/, 'a newline after the tag: the parser drops one, so a typed leading line survives')
   assert.match(html, /id="ar-agent-1-count"[^>]*>31 of 2,000 characters</)
   assert.match(html, /data-ar-act="remove" data-ar-i="0" aria-label="Remove rule 1: Never touch the mobile app."/)
   assert.match(html, /data-ar-act="remove" data-ar-i="1"/)
   assert.match(html, /<label[^>]*for="ar-agent-1-add"[^>]*>Add a rule<\/label>/)
-  assert.match(html, /<input type="text" id="ar-agent-1-add" data-ar-field="pending" maxlength="300"/)
+  assert.match(html, /<input type="text" id="ar-agent-1-add" data-ar-field="pending" value=""/)
   assert.match(html, /data-ar-act="add"[^>]*>Add</)
   assert.match(html, /class="primary" data-ar-act="save"[^>]*>Save</)
   assert.match(html, /data-ar-act="cancel"[^>]*>Cancel</)
@@ -154,4 +154,17 @@ test('whenOf: a short local day and time, the same text on every redraw', () => 
 
 test('Changes escapes the sentence (it carries a label)', () => {
   assert.doesNotMatch(V.slotHtml(node, ROLE, { entry, changes: [{ at: changes[0].at, text: '<b>x</b> got 1 new rule.' }] }), /<b>x/)
+})
+
+// QA, 2026-11-24: the Add field had maxlength=300, so the browser cut a pasted 304-character rule to 300 and
+// Enter added the cut rule with no word said. The fields take any length; the page's own checks refuse it.
+test('a rule or a specification over its limit is refused with a sentence, never silently cut by the field', () => {
+  const draft = V.draftOf(entry)
+  assert.doesNotMatch(V.slotHtml(node, ROLE, { entry, draft }), /maxlength/, 'no field cuts what is typed or pasted')
+  const long = 'x'.repeat(304)
+  const added = V.addRule({ ...draft, pending: long }, long)
+  assert.equal(added.error, 'That rule is too long. Keep each rule to 300 characters.')
+  assert.equal(added.draft.pending, long, 'the text is kept as typed')
+  assert.equal(added.draft.rules.length, draft.rules.length, 'and nothing was added')
+  assert.equal(V.problem({ spec: 'y'.repeat(2001), rules: [] }), 'The specification is too long. Keep it to 2,000 characters.')
 })
