@@ -1,5 +1,5 @@
 // The orchestration, live: a plain-text brief of the user's own agent setup that the dashboard writes from
-// facts it already has, so the SCRIPT Generator knows the system when an idea is about it (#/script, the
+// facts it already has, so the Brainstorming page knows the system when an idea is about it (#/brainstorming, the
 // Context panel's Orchestration switch).
 //
 //   orchestrationBrief({ config, graph, extras }) -> text, at most 8,000 characters
@@ -41,7 +41,7 @@ const PAGES = [
   ['Flows', 'the first page. Every request as a flow, with its route from Request to Output, what was built, how to test it, and questions from agents to answer.'],
   ['Home', 'what changed since you last looked, open questions from agents, and a card per agent.'],
   ['QA', 'every ticket that passed QA, with its report, its screenshots and the steps to test it yourself.'],
-  ['SCRIPT', 'turns a rough idea into a ready-to-paste prompt in six labelled parts.'],
+  ['Brainstorming', 'turns a rough idea into a ready-to-paste prompt in six labelled parts.'],
   ['Tickets', 'a ticket collection from the tracker, which agent took which ticket how far, and every worktree.'],
   ['Timeline', 'what each agent did on each task, as a zoomable chart.'],
   ['Agents', 'the orchestration as a pipeline diagram, and a live view of one agent.'],

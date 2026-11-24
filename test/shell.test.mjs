@@ -35,12 +35,17 @@ test('Home moved to #/home; #/flows still opens Flows, so old links keep working
 })
 
 test('each page route resolves to its own view without a redirect', () => {
-  for (const view of ['flows', 'home', 'qa', 'script', 'tickets', 'timeline', 'agents', 'subagents', 'glossary', 'settings']) {
+  for (const view of ['flows', 'home', 'qa', 'tickets', 'timeline', 'agents', 'subagents', 'glossary', 'settings']) {
     assert.deepEqual(r(`#/${view}`), { view, params: {}, redirect: null })
   }
+  assert.deepEqual(r('#/brainstorming'), { view: 'script', params: {}, redirect: null }, 'its view keeps the old name')
 })
 
 // ═══ old routes ═══
+
+test('#/script (the page before it was Brainstorming) redirects to #/brainstorming', () => {
+  assert.deepEqual(r('#/script'), { view: 'script', params: {}, redirect: '#/brainstorming' })
+})
 
 test('#/factory redirects to #/tickets', () => {
   assert.deepEqual(r('#/factory'), { view: 'tickets', params: {}, redirect: '#/tickets' })

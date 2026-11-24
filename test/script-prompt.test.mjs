@@ -125,7 +125,7 @@ test('a reply shaped as the prompt asks for questions is questions, with one fie
   const s = Q.split(reply)
   assert.deepEqual(JSON.parse(JSON.stringify(s.items.map(i => i.n))), [1, 2, 3])
   assert.equal(s.lead.length, 1, 'the acknowledging line sits above the questions')
-  assert.match(Q.title(s), / 3 questions$/)
+  assert.equal(Q.title(s), 'Brainstorming has 3 questions')
 })
 
 test('a reply shaped as the prompt asks for a prompt is a card with six sections and quiet assumptions after it', () => {

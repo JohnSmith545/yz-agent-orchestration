@@ -60,9 +60,9 @@ test('text with no items cannot be split: null, and the pop-up shows it whole wi
 })
 
 test('the head says how many questions there are', () => {
-  assert.equal(Q.title(Q.split(REAL)), 'SCRIPT has 3 questions')
-  assert.equal(Q.title(Q.split('1. Only one?')), 'SCRIPT has 1 question')
-  assert.equal(Q.title(null), 'SCRIPT has a question')
+  assert.equal(Q.title(Q.split(REAL)), 'Brainstorming has 3 questions')
+  assert.equal(Q.title(Q.split('1. Only one?')), 'Brainstorming has 1 question')
+  assert.equal(Q.title(null), 'Brainstorming has a question')
 })
 
 test('answers: a numbered list matching the questions, an empty one as (no answer)', () => {
