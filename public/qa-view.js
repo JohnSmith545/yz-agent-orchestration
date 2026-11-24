@@ -17,12 +17,13 @@
 //
 //   a ticket QA never saw  neutral, never red (red means QA failed it): why QA has no record (it
 //               changed no code, is still being worked on, waits for QA, was dropped), and its
-//               How to test and Explain in Flows
+//               Explain in Flows, and How to test in Flows when its flow has test steps
 //
 //   rows(flows)              PURE: the passed ones, newest first
 //   listHtml(data, now?)     the list, or its one-line empty state
 //   detailHtml(flow, now?)   one ticket
 //   missingHtml(id, flow)    a ticket with no QA record; `flow` (GET /api/flows/<id>) or null
+//   frontmatter(text)        PURE: { fields, body }: the report's leading --- block, shown as a small list
 ;(() => {
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
   const chips = s => (window.Terms ? window.Terms.html(s) : s)
@@ -63,11 +64,46 @@
   const picture = (ref, alt) => window.FlowDrawer.evidenceBody({ kind: 'shot', ref, label: alt })
   const block = (name, n, body) => `<section class="qa-block" aria-label="${name}"><h3 class="qa-h">${name}${n ? ` <span class="faint">· ${n}</span>` : ''}</h3>${body}</section>`
 
+  /**
+   * PURE: a report's YAML frontmatter (the `---` block QA's brief puts at the top: ticket, result, tested,
+   * screenshots, commit) split from its text. Only the simple form QA writes: `key: value` lines, and a key
+   * with no value holding indented `sub: value` lines. No block opening the text, or one never closed: no fields.
+   */
+  function frontmatter(text) {
+    const all = String(text ?? '')
+    const lines = all.split(/\r?\n/)
+    const none = { fields: {}, body: all }
+    if (lines[0]?.trim() !== '---') return none
+    const end = lines.findIndex((l, i) => i > 0 && l.trim() === '---')
+    if (end < 0) return none
+    const fields = {}
+    let parent = null
+    for (const line of lines.slice(1, end)) {
+      const m = /^(\s*)([A-Za-z0-9_-]+):\s*(.*)$/.exec(line)
+      if (!m) continue
+      const value = m[3].trim().replace(/^(['"])(.*)\1$/, '$2')
+      if (m[1] && parent) fields[parent][m[2]] = value
+      else if (!m[1]) {
+        parent = value ? null : m[2]
+        fields[m[2]] = value || {}
+      }
+    }
+    return { fields, body: lines.slice(end + 1).join('\n') }
+  }
+
+  /** The block's key facts, neutral (the state's colour is on the meta line already): Result, Tested, Commit. */
+  function front(fields) {
+    const tested = fields.tested && typeof fields.tested === 'object' ? Object.entries(fields.tested).map(([k, v]) => `${k}: ${v}`).join(' · ') : fields.tested
+    const rows = [['Result', fields.result], ['Tested', tested], ['Commit', fields.commit && short(fields.commit)]].filter(([, v]) => typeof v === 'string' && v)
+    return rows.length ? `<dl class="qa-front">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` : ''
+  }
+
   function report(r) {
     if (!r) return block('Report', 0, '<p class="small faint">No report.</p>')
     if (r.text == null) return block('Report', 0, '<p class="small faint">The report file is missing.</p>')
     const cut = r.truncated ? `<p class="small faint">The report is longer than 64 KB: only the start shows. ${out(r.url, 'Open the full report')}</p>` : ''
-    return block('Report', 0, `<div class="qa-report">${window.FlowDrawer.md(r.text)}</div>${cut}`)
+    const { fields, body } = frontmatter(r.text)
+    return block('Report', 0, `${front(fields)}<div class="qa-report">${window.FlowDrawer.md(body)}</div>${cut}`)
   }
 
   function step(s, i) {
@@ -101,7 +137,7 @@
 
   // ═══ a ticket QA never saw ═══
   // Not a failure, so nothing here is red (red means QA failed it): it says in plain words why QA has
-  // no record, and sends you to the flow, whose Output tab has its own How to test.
+  // no record, and sends you to the flow (to its own How to test on Output, when it has test steps).
 
   function missingWhy(f) {
     if (!f) return 'QA tests a ticket only when it changes code, so this one may have changed none, or not reached QA yet.'
@@ -111,16 +147,20 @@
     return 'It is still being worked on: QA tests it once the change is finished.'
   }
 
-  /** `flow` is the flow itself (GET /api/flows/<id>) for its title and status, or null when it could not be read. */
+  /**
+   * `flow` is the flow itself (GET /api/flows/<id>) for its title and status, or null when it could not be read.
+   * How to test in Flows only when that flow HAS test steps (output.testing): else it would lead to an empty block.
+   */
   function missingHtml(id, flow) {
+    const steps = Array.isArray(flow?.output?.testing) && flow.output.testing.length > 0
     return `<section class="card qa-open qa-missing" data-qa-flow="${esc(id)}">` +
       '<div class="qa-open-top"><a class="link" href="#/qa">← QA</a></div>' +
       `<h2 class="qa-title" tabindex="-1">${esc(flow?.title || id)}</h2>` +
       `<p class="qa-missing-why">This ticket has not been through QA. ${esc(missingWhy(flow))}</p>` +
-      '<p class="small qa-missing-next">Its flow has its own How to test, on the Output tab.</p>' +
-      `<p class="qa-missing-acts"><button type="button" class="link" data-qa-output="${esc(id)}">How to test in Flows</button>` +
+      (steps ? '<p class="small qa-missing-next">Its flow has its own How to test, on the Output tab.</p>' : '') +
+      '<p class="qa-missing-acts">' + (steps ? `<button type="button" class="link" data-qa-output="${esc(id)}">How to test in Flows</button>` : '') +
       `<button type="button" class="link" data-qa-explain="${esc(id)}">Explain in Flows</button></p></section>`
   }
 
-  window.QaView = { rows, listHtml, detailHtml, missingHtml }
+  window.QaView = { rows, listHtml, detailHtml, missingHtml, frontmatter }
 })()

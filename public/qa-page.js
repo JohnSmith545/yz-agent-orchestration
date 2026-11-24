@@ -3,7 +3,7 @@
 // (id null for the list) and close() when it leaves; this file fetches, mounts
 // and writes the page head (`QA · N`, N the tickets that passed).
 //
-// It reads GET /api/qa?status=passed every 30 s while it shows. A ticket opened
+// It reads GET /api/qa?status=passed on every open, and every 30 s while it shows. A ticket opened
 // by link that may not be in that list (one that failed, opened from the Explain
 // tab, or one QA never saw) is read AT ONCE, beside the list, never after it: GET
 // /api/qa (every status) for its QA record and GET /api/flows/<id> for its title.
@@ -115,8 +115,10 @@
       window.Lightbox.bind(box)
       timer = setInterval(load, POLL_MS)
       drawn = ''
-      void load()
     }
+    // EVERY open reads the list again (back from another page, ← QA from a ticket): a ticket may have passed
+    // since. The last list (kept across close) shows meanwhile, never an empty one or Loading…
+    void load()
     // at once, beside the list: before the list has answered, any ticket; after, only one it lacks
     if (selected && !find(selected)) void loadOne(selected)
     render()

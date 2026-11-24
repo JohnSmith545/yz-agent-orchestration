@@ -212,7 +212,7 @@ test('a ticket QA has no record of is neutral, named by its title, and points to
   const c = page({
     '/api/qa?status=passed': { flows: [], builtAt: '2026-11-24T12:00:00Z' },
     '/api/qa': { flows: [] },
-    '/api/flows/csp-enforce': { id: 'csp-enforce', title: 'Enforce the CSP', status: 'done', nodes: [] },
+    '/api/flows/csp-enforce': { id: 'csp-enforce', title: 'Enforce the CSP', status: 'done', nodes: [], output: { testing: [{ id: 't1', do: 'Open it', expect: 'It opens' }] } },
   })
   c.window.QaPage.open('csp-enforce')
   await settle()
@@ -236,4 +236,57 @@ test('missingHtml: the reason follows the flow, the id stands in for a title it 
   assert.match(said({ id: 'x-1', title: 'T', status: 'dropped', nodes: [] }), /dropped/)
   for (const f of [null, { id: 'x-1', title: 'T', status: 'done', nodes: [] }]) assert.doesNotMatch(V.missingHtml('x-1', f), /\bwarn\b|qa-failed/)
   assert.ok(!V.missingHtml('<b>', { title: '<i>x</i>', status: 'done', nodes: [] }).includes('<i>x'), 'escaped')
+})
+
+// ═══ QA attempt 2 ═══
+
+test('every open of the page reads the list again, and the last list shows while it loads', async () => {
+  const routes = { '/api/qa?status=passed': { flows: [qaFlow()], builtAt: '2026-11-24T12:00:00Z' } }
+  const c = page(routes)
+  c.window.QaPage.open(null)
+  await settle()
+  assert.match(c.box.innerHTML, /qa-row/)
+  c.window.QaPage.close()
+  delete routes['/api/qa?status=passed'] // the next read never answers
+  c.window.QaPage.open(null)
+  assert.equal(c.calls.filter(u => u === '/api/qa?status=passed').length, 2, 'coming back reads it again')
+  assert.match(c.box.innerHTML, /qa-row/, 'the last list, not Loading…, while it does')
+  c.window.QaPage.open('dark-mode')
+  c.window.QaPage.open(null)
+  assert.equal(c.calls.filter(u => u === '/api/qa?status=passed').length, 4, '← QA from a ticket reads it again too')
+})
+
+test('frontmatter: the --- block at the top of a report is taken off the text, its fields kept', () => {
+  const md = '---\r\nticket: qa-pipeline\nresult: FAILED\ntested:\n  local: failed\n  dev: not-tested\nscreenshots: screenshots/\ncommit: d293e3c856a4e494bc584bf2382f6bad51cf107a\n---\n\n# QA report\n\nBody.'
+  const { fields, body } = plain(V.frontmatter(md))
+  assert.equal(body.trim(), '# QA report\n\nBody.')
+  assert.deepEqual(fields, { ticket: 'qa-pipeline', result: 'FAILED', tested: { local: 'failed', dev: 'not-tested' }, screenshots: 'screenshots/', commit: 'd293e3c856a4e494bc584bf2382f6bad51cf107a' })
+  assert.deepEqual(plain(V.frontmatter('# No block\n---\nx: y')), { fields: {}, body: '# No block\n---\nx: y' }, 'only a block that opens the text')
+  assert.deepEqual(plain(V.frontmatter('---\nresult: x\nno end')), { fields: {}, body: '---\nresult: x\nno end' }, 'an unclosed block is left as text')
+  assert.deepEqual(plain(V.frontmatter(null)), { fields: {}, body: '' })
+})
+
+test('the report shows its result, tested rungs and commit as one small neutral list, never the raw block', () => {
+  const text0 = '---\nticket: dark-mode\nresult: <b>PASSED</b>\ntested:\n  local: passed\n  dev: not-tested\ncommit: cd34ef5a1b2c3d4e\n---\n\nAll **good**.'
+  const h = V.detailHtml(qaFlow({ report: { ...qaFlow().report, text: text0 } }), NOW)
+  const report = h.match(/aria-label="Report"[\s\S]*?<\/section>/)[0]
+  assert.doesNotMatch(report, /---|ticket:/, 'the block is gone from the text')
+  assert.match(report, /<dl class="qa-front">/)
+  assert.match(text(report), /Result &lt;b&gt;PASSED&lt;\/b&gt; Tested local: passed · dev: not-tested Commit cd34ef5/)
+  assert.doesNotMatch(report, /<b>PASSED/, 'escaped')
+  assert.doesNotMatch(report, /\bwarn\b|qa-failed|qa-passed/, 'neutral: the state mark is in the meta line already')
+  const none = V.detailHtml(qaFlow(), NOW)
+  assert.doesNotMatch(none, /qa-front/, 'no block, no list')
+})
+
+test('no QA record: How to test in Flows only when the flow has test steps; else Explain in Flows alone', () => {
+  const steps = { id: 'x-1', title: 'T', status: 'done', nodes: [], output: { testing: [{ id: 't1', do: 'a', expect: 'b' }] } }
+  const withSteps = V.missingHtml('x-1', steps)
+  assert.match(withSteps, /data-qa-output="x-1"/)
+  assert.match(text(withSteps), /own How to test, on the Output tab/)
+  for (const f of [null, { id: 'x-1', title: 'T', status: 'done', nodes: [] }, { id: 'x-1', status: 'done', nodes: [], output: { testing: [] } }]) {
+    const h = V.missingHtml('x-1', f)
+    assert.doesNotMatch(h, /data-qa-output|How to test/, JSON.stringify(f))
+    assert.match(h, /data-qa-explain="x-1"/)
+  }
 })

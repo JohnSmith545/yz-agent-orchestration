@@ -533,7 +533,8 @@ Only you archive or delete: agents have no command for either, and any command o
 
 ### QA (#/qa)
 
-The tickets QA passed, newest first (`GET /api/qa?status=passed`, read every 30 seconds while the page shows).
+The tickets QA passed, newest first (`GET /api/qa?status=passed`, read on every visit and every 30 seconds while the page shows; the last list stays
+  on show while it reads).
 Each row is a green dot and the word **Passed**, the title, the ticket ids, the agent, the tested commit's short
 sha, and when QA pushed it (`pushed 3m`, or `not pushed yet`). With none it is one line saying how a ticket gets
 here. A click opens the ticket at `#/qa/<flow id>`, a link you can share or reopen:
@@ -541,7 +542,9 @@ here. A click opens the ticket at `#/qa/<flow id>`, a link you can share or reop
 - the QA state, the attempt, the agent, the tickets, and the **commit** and the **branch**, each a link to its
   GitHub page in a new tab when the repo's remote is on GitHub, else plain text, and the push;
 - QA's summary, then the **Report**, drawn with the same safe Markdown as the flow summaries (nothing in it is
-  rendered as HTML; a report over 64 KB says so and links to the whole file);
+  rendered as HTML; a report over 64 KB says so and links to the whole file). The `---` block QA puts at the top
+  (ticket, result, tested, screenshots, commit) is taken off the text, and its result, tested rungs and commit
+  show above it as a small list;
 - the **Screenshots** as thumbnails that open full size, and **How to test**: QA's steps as the same cards as
   Output's How to test (the step, what you should see, its screenshot), without the checklist;
 - the earlier attempts, one line each, and **Explain in Flows**, which opens the flow on its Explain tab.
@@ -549,8 +552,8 @@ here. A click opens the ticket at `#/qa/<flow id>`, a link you can share or reop
 `QaPage.gotoFlow(flowId)` opens a ticket from another page. A ticket that did not pass (one opened from the
 Explain tab after a failure) opens too, red and marked **Failed**, with its rework line. A ticket QA never saw
 is never red: the page says, in plain words, that it has not been through QA and why (it changed no code, it is
-still being worked on, it waits for QA, or it was dropped), with **How to test in Flows** (the flow's Output tab)
-and **Explain in Flows**. A link straight to `#/qa/<flow id>` reads that ticket at once, beside the list.
+still being worked on, it waits for QA, or it was dropped), with **Explain in Flows**, and **How to test in Flows** (the
+flow's Output tab) only when that flow has test steps. A link straight to `#/qa/<flow id>` reads that ticket at once, beside the list.
 
 ### Settings (#/settings)
 
@@ -864,7 +867,9 @@ Routes:
   branch } }], remotes: { repo, dashboard }, builtAt }`, for a QA page: every flow QA recorded, newest first (at most
   100), with the report text (at most 64 KB) and the GitHub pages of the tested commit and the pushed branch, read
   from `git remote get-url` (github.com https and `git@` addresses; anything else is null; never the raw address,
-  which may hold a token).
+  which may hold a token). The links name the repo that holds the tested commit: `qa.repo` when QA pushed with
+  `--repo`, else the watched repo when `git cat-file -e <sha>^{commit}` finds it there, else the dashboard's own
+  folder (its origin), else no commit or branch link. Which repo holds a commit is remembered per sha.
 - `POST /api/flows/<id>/rework` sends a failure back again after it was not delivered.
 
 Each agent on `/api/status` carries `pushesOutsideQa`: how many `git push` commands it ran in the last 24 hours,
