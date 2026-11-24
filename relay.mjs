@@ -24,6 +24,9 @@
 // to stop. ⚠️ It is the one item that needs NO flow file, at queue time or when the batch goes: the
 // flow is in the Trash by then, so the item carries the agent and the title itself. `drop` forgets
 // everything else queued for that flow at delete time.
+// So does a QA failure going back to its producer (`queueRework`, qa-rework.mjs): one line per flow,
+// sent to `qa.rework.to` (not necessarily the flow's agent), stamped as `qa.rework.sentAt` or `.error`,
+// and marked by the startup sweep like a request when the restart lost it.
 //
 // Rules this file keeps:
 // - `queue` runs AFTER the answer route has sent its 200, so it never throws
@@ -49,6 +52,7 @@ import { claudeBin } from './claude-cli.mjs'
 import { CONFIG } from './config.mjs'
 import { hasBefore } from './flow-change.mjs'
 import { listFlowIds, NODE_STATUS, readFlow, validateFlow, visualOf, writeFlow } from './flows.mjs'
+import { lostRework, lookupRework, reworkLine, stampRework } from './qa-rework.mjs'
 import { parseTurn, recordCost } from './spend.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -184,7 +188,7 @@ function deletedLine(flow) {
 export function buildPrompt(agent, entries) {
   return [
     `Send the session named ${JSON.stringify(String(agent))} ONE message with SendMessage (use ListAgents first to resolve the exact name; if two match, pick the one whose cwd is in ${CONFIG.repo}). The message, verbatim:`,
-    ...entries.map(e => (e.deleted ? deletedLine(e.flow) : e.question ? questionLine(e.flow, e.term, e.sentence) : e.request ? requestText(e.flow, e.note) : e.status ? statusLine(e.flow, e.node) : askLine(e.flow, e.node))),
+    ...entries.map(e => (e.deleted ? deletedLine(e.flow) : e.rework ? reworkLine(e.flow, CONFIG.pipeline.qa) : e.question ? questionLine(e.flow, e.term, e.sentence) : e.request ? requestText(e.flow, e.note) : e.status ? statusLine(e.flow, e.node) : askLine(e.flow, e.node))),
     'Reply with only SENT or FAILED: <reason>.',
   ].join('\n')
 }
@@ -257,6 +261,7 @@ function lookupQuestion(flowId, term, sentence) {
  */
 const lookupItem = ({ flowId, nodeId, kind, note, term, sentence, title }) =>
   kind === 'deleted' ? { flow: { id: flowId, title }, deleted: true }
+    : kind === 'rework' ? lookupRework(flowId)
     : kind === 'status' ? lookupStatus(flowId, nodeId)
     : kind === 'request' ? lookupRequest(flowId, note)
     : kind === 'question' ? lookupQuestion(flowId, term, sentence)
@@ -280,8 +285,13 @@ function stamp(entries, outcome, at) {
       const flow = readFlow(flowId)
       if (!flow) continue
       let changed = false
-      for (const { node: sent, status, request, question, deleted, requestedAt } of list) {
+      for (const entry of list) {
+        const { node: sent, status, request, question, deleted, requestedAt, rework } = entry
         if (status || question || deleted) continue // a status line, a question or a delete has no delivery record on the flow
+        if (rework) {
+          changed = stampRework(flow, entry, outcome, at) || changed
+          continue
+        }
         if (request) {
           const out = flow.output
           if (!out || !requestedAt || out.requestedAt !== requestedAt) continue
@@ -309,11 +319,11 @@ function stamp(entries, outcome, at) {
 // ═══ The queue ═══
 
 /**
- * makeRelay({ run, now?, delayMs? }) -> { queue, queueStatus, queueRequest, queueQuestion, queueDeleted, drop, deliverNow, status, sweep }.
+ * makeRelay({ run, now?, delayMs? }) -> { queue, queueStatus, queueRequest, queueQuestion, queueDeleted, queueRework, drop, deliverNow, status, sweep }.
  * `run(prompt)` resolves { ok, out, err }; it may reject, which counts as a failure.
  */
 export function makeRelay({ run, now = () => new Date().toISOString(), delayMs = DEFAULT_DELAY_MS }) {
-  /** agent -> { items: [{ flowId, nodeId, kind: 'answer' | 'status' | 'request' | 'question' | 'deleted', note?, term?, sentence?, title? }], timer } */
+  /** agent -> { items: [{ flowId, nodeId, kind: 'answer' | 'status' | 'request' | 'question' | 'deleted' | 'rework', note?, term?, sentence?, title? }], timer } */
   const batches = new Map()
   let running = 0
   let last = null
@@ -365,7 +375,9 @@ export function makeRelay({ run, now = () => new Date().toISOString(), delayMs =
    */
   function enqueue(flowId, nodeId, kind, note, term, sentence, gone = null) {
     try {
-      const agent = gone ? gone.agent : lookupItem({ flowId, nodeId, kind, note, term, sentence }).flow.agent
+      // a rework goes to the producer QA named (its entry's agent); everything else to the flow's agent
+      const entry = gone ? null : lookupItem({ flowId, nodeId, kind, note, term, sentence })
+      const agent = gone ? gone.agent : entry.agent ?? entry.flow.agent
       let batch = batches.get(agent)
       if (!batch) batches.set(agent, (batch = { items: [], timer: null }))
       const same = batch.items.find(i => i.flowId === flowId && i.nodeId === nodeId && i.kind === kind && (kind !== 'question' || i.term === term))
@@ -400,6 +412,8 @@ export function makeRelay({ run, now = () => new Date().toISOString(), delayMs =
    * Tell `agent` the user deleted flow `flowId` titled `title`: ONE line, batched like the rest, and needing no flow
    * file. The route calls it only for an open or blocked flow whose agent is not the chat agent (trash-routes.mjs).
    */
+  /** Queue a QA failure going back to its producer (qa-rework.mjs noticeReworks); one line per flow, batched like the rest. */
+  const queueRework = flowId => enqueue(flowId, null, 'rework')
   const queueDeleted = (flowId, title, agent) => enqueue(flowId, null, 'deleted', undefined, undefined, undefined, { title: String(title ?? ''), agent: String(agent ?? '') })
 
   /** At delete time: forget every item still queued for `flowId` (answers, statuses, requests, questions, an earlier delete). */
@@ -462,12 +476,14 @@ export function makeRelay({ run, now = () => new Date().toISOString(), delayMs =
         const out = flow.output
         const asked = Date.parse(out?.requestedAt || '')
         const lostRequest = at - asked <= REQUEST_FRESH_MS && !(out.requestSentAt >= out.requestedAt) && !out.requestError
-        if (!lost.length && !lostRequest) continue
+        const lostQa = lostRework(flow, RESTARTED) // a QA failure queued to go back and never sent (qa-rework.mjs)
+        if (!lost.length && !lostRequest && !lostQa) continue
         for (const n of lost) n.deliveryError = RESTARTED
         if (lostRequest) out.requestError = RESTARTED
         writeFlow(flow)
         for (const n of lost) marked.push({ flowId, nodeId: n.id })
         if (lostRequest) marked.push({ flowId, nodeId: null })
+        if (lostQa) marked.push({ flowId, nodeId: null, rework: true })
       } catch (err) {
         console.error(`relay: the startup sweep could not mark flow ${flowId}: ${err?.message || err}`)
       }
@@ -475,5 +491,5 @@ export function makeRelay({ run, now = () => new Date().toISOString(), delayMs =
     return marked
   }
 
-  return { queue, queueStatus, queueRequest, queueQuestion, queueDeleted, drop, deliverNow, status, sweep }
+  return { queue, queueStatus, queueRequest, queueQuestion, queueDeleted, queueRework, drop, deliverNow, status, sweep }
 }
