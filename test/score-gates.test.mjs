@@ -8,7 +8,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
 import { DEFAULT_PIPELINE, pipelineGraph } from '../pipeline.mjs'
-import { cellOf, scoreOf } from '../score.mjs'
+import { cellOf, scoreOf, securityApplies } from '../score.mjs'
 import { GATE_KINDS, LOG_KINDS, orchestrationLog } from '../score-log.mjs'
 
 const BASE = {
@@ -27,6 +27,10 @@ const qa = (status, more = {}) => ({ status, attempt: 1, by: 'QA', startedAt: ag
 const sec = (status, more = {}) => ({ status, by: 'Security', startedAt: ago(7000), at: ago(6000), commit: 'abc1234', ...more })
 const score = (flows, g = G) => scoreOf(flows, g, { now: NOW, days: 30 })
 const cell = (f, g = G) => cellOf(f, g, NOW, 7 * DAY)
+// a route planned before Security joined the pipeline, and one planned through it (score.mjs securityApplies)
+const SEC_ID = G.nodes.find(n => n.role === 'security').id
+const oldRoute = { type: 'build', steps: ['request', 'master', 'agent-1', 'qa', 'push', 'outcome'], at: ago(9 * DAY), by: 'Agent 1' }
+const newRoute = { ...oldRoute, steps: ['request', 'master', 'planner', 'agent-1', 'qa', SEC_ID, 'push', 'outcome'] }
 
 test('cellOf: QA passed and Security passed is delivered, at the Security verdict; QA alone is not yet', () => {
   assert.deepEqual(cell(flow('a', { status: 'done', qa: qa('passed', { security: sec('passed') }) })), { cell: 'delivered', why: null, kind: 'security', time: NOW - 6000 })
@@ -36,7 +40,7 @@ test('cellOf: QA passed and Security passed is delivered, at the Security verdic
 })
 
 test('cellOf: finished without a Security pass slipped through; stopped by Security is missed', () => {
-  assert.deepEqual(cell(flow('e', { status: 'done', updatedAt: ago(500), qa: qa('passed') })), { cell: 'slipped', why: null, kind: 'done', time: NOW - 500 })
+  assert.deepEqual(cell(flow('e', { status: 'done', updatedAt: ago(500), route: newRoute, qa: qa('passed') })), { cell: 'slipped', why: null, kind: 'done', time: NOW - 500 })
   assert.deepEqual(cell(flow('f', { status: 'blocked', qa: qa('passed', { security: sec('security-failed') }) })), { cell: 'missed', why: 'stopped', kind: 'stopped', time: NOW - 6000 })
 })
 
@@ -84,7 +88,7 @@ test('the log tags Security verdicts and the planners hand-outs as their own kin
 test('the log: a stop by Security is said by Security; a finish with no Security pass slipped through', () => {
   const ev = orchestrationLog([
     flow('stop', { status: 'blocked', qa: qa('passed', { security: sec('security-failed') }) }),
-    flow('slip', { status: 'done', updatedAt: ago(500), qa: qa('passed') }),
+    flow('slip', { status: 'done', updatedAt: ago(500), route: newRoute, qa: qa('passed') }),
   ], G, { now: NOW, days: 30 })
   const stop = ev.find(e => e.kind === 'stopped')
   assert.deepEqual([stop.agent, stop.text, stop.cell], ['Security', 'Security stopped this, so it will not reach the Output.', 'missed'])
@@ -132,4 +136,32 @@ test('without Security on the graph, Security data in a flow is neither counted 
   const g = flow('y', { qa: qa('passed', { security: sec('failed', { rework: { to: 'Agent 1' } }) }) })
   assert.equal(score([f, g], PLAIN).counts.caught, 0)
   assert.ok(!orchestrationLog([f, g], PLAIN, { now: NOW, days: 30 }).some(e => e.kind === 'security'))
+})
+
+// ═══ flows finished before Security joined the pipeline ═══
+
+test('a flow that finished on a route planned before Security existed is judged by QA alone, not counted as slipped', () => {
+  const old = flow('old', { status: 'done', route: oldRoute, qa: qa('passed') })
+  assert.equal(securityApplies(old, G), false)
+  assert.deepEqual(cell(old), { cell: 'delivered', why: null, kind: 'passed', time: NOW - 8000 })
+  const s = score([old])
+  assert.deepEqual(s.counts, { delivered: 1, slipped: 0, missed: 0, caught: 0 })
+  assert.deepEqual(s.correctness, { value: 1, right: 1, judged: 1 })
+})
+
+test('Security still applies to a flow planned through it, one it reviewed, and any flow still on its way; a finished flow with no route is older still', () => {
+  const planned = flow('planned', { status: 'done', updatedAt: ago(500), route: newRoute, qa: qa('passed') })
+  assert.equal(securityApplies(planned, G), true)
+  assert.equal(cell(planned).cell, 'slipped', 'planned through Security and finished without its pass')
+  const reviewed = flow('reviewed', { status: 'done', route: oldRoute, qa: qa('passed', { security: sec('passed') }) })
+  assert.equal(securityApplies(reviewed, G), true)
+  assert.deepEqual(cell(reviewed), { cell: 'delivered', why: null, kind: 'security', time: NOW - 6000 })
+  const earlier = flow('earlier', { status: 'done', route: oldRoute, qa: qa('passed', { attempt: 2, attempts: [qa('passed', { security: sec('failed', { rework: { to: 'Agent 1' } }) })] }) })
+  assert.equal(securityApplies(earlier, G), true, 'Security reviewed an earlier attempt')
+  assert.equal(securityApplies(flow('bare', { status: 'done', qa: qa('passed') }), G), false, 'finished with no stored route: older than routes, so older than Security')
+  assert.equal(securityApplies(flow('bare-moving', { qa: qa('passed') }), G), true, 'no stored route but still on its way')
+  const moving = flow('moving', { route: oldRoute, qa: qa('passed') })
+  assert.equal(securityApplies(moving, G), true)
+  assert.equal(cell(moving).cell, null, 'not finished yet: it still waits for Security')
+  assert.equal(securityApplies(planned, PLAIN), false, 'no Security on the graph')
 })

@@ -100,7 +100,7 @@
     return `<p class="psc-lede">The pipeline makes one call on each piece of work: let it through to the Output, or hold it back. Counted over ${esc(spanOf(score))}.</p>` +
       '<div class="psc-scroll"><table class="psc-four"><caption class="psc-sr">The four counts</caption>' +
       '<thead><tr><td></td><th scope="col">The work was good</th><th scope="col">The work was not good</th></tr></thead><tbody>' +
-      `<tr><th scope="row">Went to the Output</th>${cell(n.delivered, 'Right, delivered', 'QA passed it (and Security, when it is on the pipeline), or it finished with no code changes.', 'delivered')}${cell(n.slipped, 'Wrong, slipped through', 'It finished with code changes QA never tested, or that Security never passed.', 'slipped')}</tr>` +
+      `<tr><th scope="row">Went to the Output</th>${cell(n.delivered, 'Right, delivered', 'QA passed it (and Security, when it is on the pipeline), or it finished with no code changes.', 'delivered')}${cell(n.slipped, 'Wrong, slipped through', 'It finished with code changes QA never tested, or that Security never passed. Work finished before Security joined the pipeline is judged by QA alone.', 'slipped')}</tr>` +
       `<tr><th scope="row">Held back</th>${cell(n.missed, 'Wrong, missed', `Dropped, stopped at QA or Security, or no update for ${stall} days.`, 'missed')}${cell(n.caught, 'Right, caught', 'Each time QA or Security failed the work and held it back.', 'caught')}</tr>` +
       '</tbody></table></div>' +
       `<p class="psc-way">${way}</p>` +

@@ -18,6 +18,8 @@
 // SLIPPED THROUGH; one Security stopped (security-failed) is MISSED, stopped; and EACH Security failure verdict
 // (failed or security-failed) is a CATCH, like a QA failure, against the work it reviewed. Without Security on the
 // graph a QA pass is delivered as before and no Security verdict is counted, whatever the flow file holds.
+// A flow that finished on a route planned BEFORE Security joined the pipeline is judged by QA alone (securityApplies):
+// switching Security on never turns work delivered earlier into work that slipped through.
 //
 // Not counted: flows still on their way (open or blocked, waiting at QA, being tested, or sent back for a fix) that
 // changed in the last stallDays (`inFlight`). Trashed flows have no file, so they never reach here; archived flows
@@ -148,6 +150,24 @@ export function securityVerdictsOf(flow) {
 export const securityOn = graph => (graph?.nodes || []).some(n => n.role === 'security')
 
 /**
+ * Whether Security's pass is part of what THIS flow needs to count as delivered. ⚠️ Turning Security on must not
+ * rewrite the past: a flow that FINISHED on a route planned before Security existed (its stored route has no
+ * Security step, and Security never reviewed it) is judged by QA alone, as it was when it finished. Without this,
+ * every flow delivered before the switch would count as slipped through the day Security joins the pipeline.
+ * A finished flow with no stored route at all is older still (every new flow gets a route), so it is judged the
+ * same way. Security does apply to: a flow it reviewed (any attempt), a flow whose stored route goes through it,
+ * and any flow still on its way (QA pushes only after Security passed, so it will be reviewed).
+ */
+export function securityApplies(flow, graph) {
+  const id = (graph?.nodes || []).find(n => n.role === 'security')?.id
+  if (!id) return false
+  const qa = isObject(flow?.qa) ? flow.qa : null
+  if (isObject(qa?.security) || (Array.isArray(qa?.attempts) ? qa.attempts : []).some(a => isObject(a?.security))) return true
+  const steps = Array.isArray(flow?.route?.steps) ? flow.route.steps : []
+  return steps.includes(id) || flow.status !== 'done'
+}
+
+/**
  * THE rule for the three flow cells, shared with the log: { cell: delivered | slipped | missed | null, why, kind,
  * time }. `why` (missed only) is dropped | stopped | stalled; `kind` is the log event that puts the flow in its cell
  * (passed, done, dropped, stopped, stalled), and `time` is that event's time: the final verdict for a flow QA passed
@@ -161,7 +181,7 @@ export function cellOf(flow, graph, now, stallMs) {
   if (flow.status === 'dropped') return out('missed', 'dropped', updated, 'dropped')
   const qa = isObject(flow.qa) ? flow.qa : null
   const last = () => verdictsOf(flow).at(-1)?.at ?? null
-  if (qa?.status === 'passed' && securityOn(graph)) {
+  if (qa?.status === 'passed' && securityApplies(flow, graph)) {
     // QA passed: delivered only once Security passed it too (flow-security.mjs); kind `security` is its verdict
     const s = isObject(qa.security) ? qa.security : null
     if (s?.status === 'passed') return out('delivered', 'security', timeOf(s.at))
