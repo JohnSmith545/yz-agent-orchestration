@@ -31,6 +31,7 @@
     if (agent) return route('agent', { id: decode(agent[1]), sub: agent[2] ? decode(agent[2]) : null })
     const qa = /^#\/qa\/([^/]+)\/?$/.exec(h) // one ticket opened on the QA page
     if (qa) return route('qa', { id: decode(qa[1]) })
+    if (/^#\/agents\/?\?/.test(h)) return route('agents') // one agent's settings window open (agents-page.js reads ?agent=)
     const page = /^#\/([a-z]+)\/?$/.exec(h)?.[1]
     if (page && page !== 'agent' && VIEWS.includes(page)) return route(page)
     const old = /^#\/(factory|flow)\b/.exec(h)?.[1]

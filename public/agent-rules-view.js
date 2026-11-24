@@ -64,9 +64,9 @@
 
   // ═══ HTML ═══
 
-  /** The head's Settings button: a gear and the word, aria-expanded while the editor is open. */
-  const settingsButton = (node, editing) =>
-    `<button type="button" class="link pl-det-set" data-ar-act="settings" data-ar-label="${esc(node.label)}" aria-expanded="${editing ? 'true' : 'false'}" aria-controls="${esc(idOf(node))}">${GEAR}Settings</button>`
+  /** The head's Settings button: a gear and the word (`word`: Edit in the agent window), aria-expanded while the editor is open. */
+  const settingsButton = (node, editing, word = 'Settings') =>
+    `<button type="button" class="link pl-det-set" data-ar-act="settings" data-ar-label="${esc(node.label)}" aria-expanded="${editing ? 'true' : 'false'}" aria-controls="${esc(idOf(node))}">${GEAR}${esc(word)}</button>`
 
   /** The agent's last saved changes, newest first, behind a quiet disclosure (closed unless `open`); '' when none. */
   function changesHtml(node, changes, open) {
