@@ -147,7 +147,7 @@
 .sc-history { margin-top: 28px; border-top: 1px solid var(--line); padding-top: 14px; }
 .sc-history > summary { cursor: pointer; width: fit-content; font-size: 13px; font-weight: 600; color: var(--ink-2); }
 .sc-history > summary:hover { color: var(--ink); }
-.sc-h-list { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; }
+.sc-h-list { list-style: none; margin: 12px 0 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; } /* minmax: a long idea never widens the page at phone width */
 .sc-h-item { display: flex; align-items: center; gap: 12px; padding-right: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
 .sc-h-item.sc-h-current { border-color: var(--line-strong); }
 .sc-h-row {

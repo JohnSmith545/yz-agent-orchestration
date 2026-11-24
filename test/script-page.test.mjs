@@ -254,3 +254,9 @@ test('the words the user reads name the page Brainstorming: glossary, spend, Con
 test('one comment says why the files, names, routes and data keep the word script', () => {
   assert.match(read('script-page.js'), /file names, the window\.Script\* names, the \/api\/script\/ routes and the data files keep/)
 })
+
+// At 390 px with History open, a long idea made the list wider than the page (603 px), so the page scrolled
+// sideways: the grid's one column sized to its widest row. minmax(0, 1fr) keeps it to the page.
+test('regression: the History list never widens the page at phone width', () => {
+  assert.match(read('script.css'), /\.sc-h-list \{[^}]*grid-template-columns: minmax\(0, 1fr\)/)
+})
