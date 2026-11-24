@@ -198,6 +198,8 @@ const DEFAULTS = {
   stopHour: null,
   /** More Claude config folders to find sessions in (e.g. a second account's ~/.claude-second). ~/.claude is always read. */
   claudeDirs: [],
+  /** Agents drawn on the Flow diagrams even when their session is closed: name -> { sessionId, cwd, claudeDir }. */
+  pinnedAgents: {},
   /** Path of the Claude Code binary for headless turns; empty = newest one bundled with an IDE extension. */
   claudeBin: '',
   /**

@@ -28,6 +28,7 @@ import { makePrStates } from './subagent-prs.mjs'
 import { makeSubagentRoutes } from './subagent-routes.mjs'
 import { listRepoSubagents, oneSubagent, sessionFile, ticketBuilders, windowStart } from './subagents.mjs'
 import { listFlows } from './flows.mjs'
+import { pinnedSessions } from './pinned-agents.mjs'
 import { hostAllowed } from './local-origin.mjs'
 import { pushEnv } from './pr-routes.mjs'
 import { makeOrchestration, pulse } from './orchestration.mjs'
@@ -247,6 +248,8 @@ async function liveSessions() {
       }
     }
   }
+  // A pinned agent whose session is closed still gets listed, idle, from its saved history.
+  sessions.push(...pinnedSessions(CONFIG.pinnedAgents, new Set(sessions.map(x => x.sessionId))))
   return sessions
 }
 
