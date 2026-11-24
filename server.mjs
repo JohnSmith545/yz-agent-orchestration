@@ -45,6 +45,8 @@ import { compareTickets } from './ticket-ids.mjs'
 import { claudeRun, makeRelay } from './relay.mjs'
 import { purgeExpired } from './trash.mjs'
 import { startReworkWatch } from './qa-rework.mjs'
+import { makeProjectRoutes } from './projects-routes.mjs'
+import { listenWhenFree, makeRestarter, underKeepAlive, waitForPredecessor } from './restart.mjs'
 import {
   CLAUDE_DIRS,
   conversationsOf,
@@ -866,6 +868,16 @@ const scriptRoute = makeScriptRoute({ port: PORT, gather: makeContextGatherer(sc
 const scriptContextRoute = makeScriptContextRoute({ port: PORT, ...scriptContext })
 /** The SCRIPT run log (script-log-routes.mjs): the newest 50 runs, for the page's History list. */
 const scriptLogRoute = makeScriptLogRoute({ port: PORT })
+/**
+ * The Project menu and the Orchestration bank (projects-routes.mjs). A switch restarts this process (restart.mjs):
+ * whether the keep-alive loop runs it is read once now, off the request path.
+ */
+const supervised = underKeepAlive()
+const projectRoute = makeProjectRoutes({
+  port: PORT, relay, restart: () => restartServer(), chatBusy: () => chatStatus().busy,
+  gitTop: async dir => { const r = await git(['rev-parse', '--show-toplevel'], dir); return r.ok ? r.out : null },
+  sessionNames: async () => (await liveSessions()).map(s => s.name),
+})
 /** The paths factory-routes.mjs answers. */
 const FACTORY_PREFIXES = ['/api/factory', '/api/chat', '/api/flows', '/api/trash', '/api/commit', '/api/explain', '/api/glossary', '/api/since', '/api/spend', '/api/settings', '/api/pipeline', '/api/qa', '/api/agents/rules', '/api/score', '/api/log', '/evidence/']
 
@@ -873,7 +885,9 @@ const server = createServer(async (req, res) => {
   // a website that rebinds its name to 127.0.0.1 sends its own Host: only requests addressed to us are answered (local-origin.mjs)
   if (!hostAllowed(req.headers.host, PORT)) return res.writeHead(403, { 'content-type': 'text/plain' }).end('Unknown host.')
   const url = new URL(req.url, 'http://localhost')
+  projectRoute.track(req, res) // a write still being answered holds a project switch back
   try {
+    if (await projectRoute(req, res, url)) return
     if (FACTORY_PREFIXES.some(prefix => url.pathname.startsWith(prefix))) {
       // `fetched`: Send reuses the server's own fetch of origin when it is under a minute old (pr-routes.mjs)
       const fetched = remote => (remote === 'origin' && fetchState.ok ? fetchState.at : null)
@@ -932,7 +946,12 @@ const server = createServer(async (req, res) => {
   }
 })
 
-server.listen(PORT, '127.0.0.1', () => console.log(`Yz Agent Orchestration on http://127.0.0.1:${PORT}`))
+/** Closes this server and starts the next one after a switch (restart.mjs); never two, never none. */
+const restartServer = makeRestarter({ server, loop: () => supervised })
+// After a switch started by hand, the old server is still letting the port go: wait for it, then for the port.
+await waitForPredecessor()
+if (!(await listenWhenFree(server, PORT, '127.0.0.1'))) process.exit(1)
+console.log(`Yz Agent Orchestration on http://127.0.0.1:${PORT}${CONFIG.project ? ` (project ${CONFIG.project.name})` : ''}`)
 
 await fetchOrigin()
 setInterval(fetchOrigin, FETCH_EVERY_MS).unref()
