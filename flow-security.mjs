@@ -19,7 +19,7 @@
 // QA failures and Security failures share ONE limit, pipeline.maxReworks (reworksSoFar). Only the Security commands
 // (tools/security-cli.mjs) write this block. Pure: no file access, no git.
 
-import { gateLabels, isCodeProducing } from './pipeline.mjs'
+import { gateLabels } from './pipeline.mjs'
 
 export const SECURITY_STATUS = Object.freeze(['reviewing', 'passed', 'failed', 'security-failed'])
 /** A verdict is in: no second one on the same QA attempt. */
@@ -96,14 +96,16 @@ const NOT_PASSED = {
 
 /**
  * Why a flow may not be pushed or sent yet because of Security, one line each; [] when Security is not on the
- * pipeline, the flow changed no code, or Security passed the very commit QA passed. Send (pr-routes.mjs) and
- * `flow qa-push` (tools/qa-cli.mjs) both ask this.
+ * pipeline, there is no commit QA passed (nothing to push, so nothing to review), or Security passed the very commit
+ * QA passed. Send (pr-routes.mjs) and `flow qa-push` (tools/qa-cli.mjs) both ask this.
+ * ⚠️ NOT isCodeProducing: that reads step evidence, the summary and a recorded pull request, and a flow can carry
+ * none of them while QA passed a commit that is about to be pushed (QA, 2026-11-25). The commit QA passed decides.
  */
 export function securityBlockers(flow, config) {
   const label = gateLabels(config).security
-  if (!label || !isCodeProducing(flow)) return []
   const qa = isObject(flow?.qa) ? flow.qa : null
-  if (qa?.status !== 'passed') return [] // QA's own blocker says why
+  if (!label || !qa || !isText(qa.commit)) return []
+  if (qa.status !== 'passed') return [] // QA's own blocker says why
   const s = isObject(qa.security) ? qa.security : null
   if (s?.status !== 'passed') return [`${label} has not passed the commit QA passed (${short(qa.commit) || 'none'}): ${NOT_PASSED[s?.status] || NOT_PASSED.none}`]
   if (!sameCommit(s.commit, qa.commit)) return [`${label} reviewed a different commit (${short(s.commit) || 'none'}) than QA passed (${short(qa.commit)}): ask ${label} to review again.`]
