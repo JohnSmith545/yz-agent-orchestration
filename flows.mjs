@@ -26,6 +26,9 @@
 //   clears it (trash-routes.mjs), mergeKeepingAnswers takes it from the stored file only, and listFlows
 //   leaves an archived flow out unless asked. A NEW open ask clears it (writeFlow), so archiving never
 //   hides a later question. Deleting is the Trash (trash.mjs), not a field.
+// - `qa` (optional) is QA's record of testing the flow (flow-qa.mjs validateQa): only the QA commands
+//   (tools/qa-cli.mjs) write it, and mergeKeepingAnswers takes it from the stored file only (keepQa),
+//   so a producer's rewrite can neither drop a failure nor forge a pass.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -35,6 +38,7 @@ import { writeAtomic } from './atomic-write.mjs'
 import { DIAGRAM_KINDS, DIAGRAM_MAX } from './diagram-text.mjs'
 import { hasBefore, validateChange } from './flow-change.mjs'
 import { mergeReady, validateSend } from './flow-merge.mjs'
+import { keepQa, validateQa } from './flow-qa.mjs'
 import { sayShorter, STORY_ID, STORY_MAX, storyOf, YOU } from './flow-story.mjs'
 import { lookup } from './glossary.mjs'
 import { recordFlowStatus } from './since-store.mjs'
@@ -130,6 +134,7 @@ export function validateFlow(flow) {
     if (typeof n.id === 'string') seen.add(n.id)
   })
   if (flow.output !== undefined) problems.push(...validateOutput(flow.output, flow.id))
+  if (flow.qa !== undefined) problems.push(...validateQa(flow.qa, flow.id))
   return problems
 }
 
@@ -512,6 +517,7 @@ export function mergeKeepingAnswers(incoming, existing) {
   // Archive is the user's, like a tick: only ever from the stored file, never set or cleared by an agent.
   if (existing?.archivedAt) incoming.archivedAt = existing.archivedAt
   else delete incoming.archivedAt
+  keepQa(incoming, existing) // QA's, like a tick is the user's: only ever from the stored file
   if (existing?.createdAt) incoming.createdAt = existing.createdAt
   delete incoming.derived
   return incoming

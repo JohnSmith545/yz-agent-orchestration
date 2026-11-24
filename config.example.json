@@ -53,6 +53,12 @@
     "explainModel": "claude-haiku-5-5"
   },
   "claudeDirs": [],
+  "pipeline": {
+    "qa": "QA",
+    "producers": null,
+    "protectedBranches": ["dev", "stage", "main", "master"],
+    "maxReworks": 3
+  },
   "pr": {
     "enabled": false,
     "remote": "origin",

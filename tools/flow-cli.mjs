@@ -27,6 +27,7 @@ import {
 import { isTrashed } from '../trash.mjs'
 import { changeBlock, changeCommands } from './change-cli.mjs'
 import { prBlock, prCommands } from './pr-cli.mjs'
+import { qaBlock, qaCommands } from './qa-cli.mjs'
 import { sayCommands, storyBlock } from './story-cli.mjs'
 
 /** Flags that take no value. Every other `--x` takes the next argument. */
@@ -40,6 +41,8 @@ const BEFORE_BOOLEAN = new Set([...BOOLEAN, 'before'])
 export const ANY_BOOLEAN = BEFORE_BOOLEAN
 /** The flags `summary` takes more than once (`--commit a --commit b`); every other command keeps the last one. */
 const SUMMARY_REPEAT = new Set(['commit', 'diff'])
+/** `qa` takes --shot more than once (its --step groups are read from the raw argv, tools/qa-cli.mjs). */
+const QA_REPEAT = new Set(['shot'])
 
 /**
  * `a --x 1 b --text` → { _: ['a', 'b'], x: '1', text: true }. Shared with tools/factory.mjs.
@@ -96,7 +99,14 @@ The Output, what the user sees first: when a piece of work is finished, record
   test-clear <flow>     empties the test steps, to record them again
   pr <flow> --head <branch> --base <branch> --title "<title>" --body-file <path>   when the work is ready for the
    base branch: a plain-English title and a body that follows the repo pull request template; never push or open
-   the pull request yourself, the user reviews the Output and sends it. No line may credit an AI tool. pr <flow> --clear
+   the pull request yourself: hand the flow to QA, which tests it and pushes it on a pass; the user then sends it.
+   No line may credit an AI tool. pr <flow> --clear
+QA only (--by must be config pipeline.qa):
+  qa-start <flow> [--commit <sha>] [--status testing|pending]   a new attempt, or the same one before a result
+  qa <flow> --status passed|failed --report <file.md> --commit <sha> [--summary "..."] [--shot <file>]...
+     [--step "<do>" --expect "<see>" [--step-shot <file>]]...   passed: the flow is done; failed: back to its producer
+  qa-push <flow> [--branch <b>] [--remote origin] [--repo <path>]   after a pass: pushes exactly the tested commit,
+     never forced, never a protected branch
   Every flow needs a visual: a result shot for work you can see, else a diagram (an API, a job, a deploy).
   diagram: statements split by ; or new lines, each A -> B, A -> B: arrow label, a chain A -> B -> C, or a lone A;
    a kind before a label: [actor] a person or outside system, [store] data at rest, [decision], [box] (the default);
@@ -299,6 +309,7 @@ function outputBlock(flow) {
     `  test steps: ${steps.length || 'none yet'}`,
     ...steps.map((t, i) => `    ${i + 1}. [${t.id}] ${t.do} -> ${t.expect}${t.shot ? '' : ' (no shot)'}`),
     ...prBlock(flow),
+    ...qaBlock(flow),
   ]
   // A request counts until a step arrives after it. The relay records requestError when it could not
   // deliver it (relay.mjs), and then it is NOT an open request: the page says not sent the same way
@@ -441,22 +452,25 @@ const COMMANDS = {
   ...sayCommands(NO_NAME),
   ...changeCommands(NO_NAME),
   ...prCommands(NO_NAME),
+  ...qaCommands({ noName: NO_NAME, evidenceTarget, copyEvidence, shotExt: SHOT_EXT, shotError: SHOT_ERROR }),
 }
 
 /**
  * Run one `flow` command: { out, code, err? }. Errors from the store come back as `out` with code 1;
- * `err` is a note for stderr next to a good result (show's Output block).
+ * `err` is a note for stderr next to a good result (show's Output block). `qa-push` runs git, so it
+ * returns a Promise of the same (tools/factory.mjs awaits it). `git` and `config` are for the QA
+ * commands, so tests stub the git runner and the pipeline (tools/qa-cli.mjs); left out, the real ones.
  */
-export function runFlow(argv, { by, cwd }) {
+export function runFlow(argv, { by, cwd, git, config } = {}) {
   const [cmd, ...rest] = argv
   const command = Object.hasOwn(COMMANDS, cmd ?? '') ? COMMANDS[cmd] : null
   if (!command) return fail(USAGE)
   try {
     const booleans = cmd === 'result' || cmd === 'diagram' ? BEFORE_BOOLEAN : BOOLEAN
-    const f = flags(rest, cmd === 'summary' ? SUMMARY_REPEAT : undefined, booleans)
+    const f = flags(rest, cmd === 'summary' ? SUMMARY_REPEAT : cmd === 'qa' ? QA_REPEAT : undefined, booleans)
     // Every command but new, write and list names its flow first (say, change and pr too): one guard for them all.
     if (!['new', 'write', 'list'].includes(cmd) && isTrashed(f._[0])) return fail(TRASHED(f._[0]))
-    return command(f, { by, cwd })
+    return command(f, { by, cwd, argv: rest, ...(git ? { git } : {}), ...(config ? { config } : {}) })
   } catch (err) {
     return fail(err.message)
   }

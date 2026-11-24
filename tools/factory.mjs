@@ -5,7 +5,7 @@
 //
 //   node tools/factory.mjs mark ABC-123 reviewed --verdict check --note "what is left"
 //   node tools/factory.mjs mark ABC-123 needs-review|no-code|not-codebase [--note "..."]
-//   node tools/factory.mjs flow <command> ...            (see tools/flow-cli.mjs)
+//   node tools/factory.mjs flow <command> ...            (see tools/flow-cli.mjs; the QA commands: tools/qa-cli.mjs)
 //   node tools/factory.mjs decide --question "..." --why "..." [--ticket ABC-123] [--yes "..."] [--no "..."] [--text] [--flow <id>]
 //   node tools/factory.mjs show ABC-123
 //   node tools/factory.mjs term "<word>" "<plain explanation>" [--more "..."] [--flow <id>]   (see tools/term-cli.mjs)
@@ -63,7 +63,8 @@ try {
   } else if (cmd === 'pr-pin') {
     runPinCli().then(finish, e => finish({ out: e.message, code: 1 }))
   } else if (cmd === 'flow') {
-    finish(runFlow(rest, ctx))
+    // qa-push runs git, so it answers with a Promise; every other flow command answers at once
+    Promise.resolve(runFlow(rest, ctx)).then(finish, e => finish({ out: e.message, code: 1 }))
   } else if (cmd === 'decide') {
     finish(decide())
   } else if (cmd === 'term') {

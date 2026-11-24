@@ -8,6 +8,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isBranch } from './flow-merge.mjs'
+import { DEFAULT_PIPELINE, pipelineSettings } from './pipeline.mjs'
 import { validPinHash } from './send-pin.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -214,6 +215,13 @@ const DEFAULTS = {
   pr: DEFAULT_PR,
   /** The branches the grid compares: the coordinator's working branch and the remote dev, stage and prod (levelSettings). */
   levels: DEFAULT_LEVELS,
+  /**
+   * The orchestration (pipeline.mjs): `qa` is the label of the agent that tests every code change last and is
+   * the only one that pushes; `producers` the labels that write code (null: every codingAgents label but the
+   * coordinator's and QA's); `protectedBranches` the branches QA never pushes to (case-insensitive, `*` matches
+   * anything; pr.protect and pr.bases are refused too); `maxReworks` how often a failure goes back before it stops.
+   */
+  pipeline: DEFAULT_PIPELINE,
   /** The Factory page: ticket collections, the chat agent, the answer relay and the explainer. */
   factory: {
     /**
@@ -260,6 +268,7 @@ function load() {
   config.ticketPrefixes = ticketPrefixList(raw.ticketPrefixes)
   config.pr = prSettings(raw.pr)
   config.levels = levelSettings(raw.levels)
+  config.pipeline = pipelineSettings(raw.pipeline)
   if (!config.repo) throw new Error('config.json needs "repo": the absolute path of the git repo to watch.')
   config.repo = config.repo.replace(/\\/g, '/')
   if (!config.sessionCwdMatch) config.sessionCwdMatch = path.basename(config.repo)
