@@ -97,8 +97,9 @@ turns, billed to your Claude account like any other session:
 - **Learning words**: a flow's marked words the glossary does not know yet, up to 12 in one small turn,
   a fraction of a cent; at most 200 words a day.
 - **Ticket refresh**: each refresh of a collection (the button, or its timer) is one turn.
-- **Brainstorming** (`#/brainstorming`): each **Generate** is one Opus 5.5 turn at high effort, about 3 cents for a
-  full prompt and under 2 cents when it asks questions first (measured 2026-11-24).
+- **Brainstorming** (`#/brainstorming`): each **Generate** is one Opus 5.5 turn at high effort, about 10 cents for
+  the first run in an hour and about 5 cents for each run after it (measured 2026-11-25, with the brainstorming skill
+  and the orchestration brief).
 
 The figures are measurements from one setup, not quotes. **Spend today** in the
 rail adds up what these turns cost.
@@ -607,22 +608,25 @@ listed under the block, as quiet notes you can overrule. **Copy** copies only wh
   Your text goes on stdin. The route is `POST /api/script/generate` (`{ text }`, 1 to 8000 characters, same-origin
   only), streamed back as NDJSON: `delta` lines, then one `done` or `error` line. One run goes at a time (a second
   gets 409). Closing the tab stops the run; going to another page does not, and the result is there when you come back.
-- **The brainstorming skill:** when the superpowers plugin is installed in the account folder the run uses
-  (`CLAUDE_CONFIG_DIR`, else `~/.claude`; `script-skill.mjs` reads its `plugins/installed_plugins.json`), each run
-  invokes `/superpowers:brainstorming` the supported way: `--plugin-dir` loads that plugin for this run only, its hooks
-  are turned off (its start hook would add a second whole skill), and the turn starts with the skill's slash command,
-  which the CLI expands into the skill's text in the same request. Tools stay off. The system prompt then says how the
-  skill's steps map onto the page: its questions go in the pop-up, its design is the six-part prompt, and its spec
-  file, commits and plan do not apply. Without the plugin the page works on the built-in rules alone, and the line
-  under the output says `Left out: Brainstorming skill (It was not found on this machine, ...)`.
-- **What it costs:** about 3 cents for a full prompt and under 2 cents when it asks questions instead (measured
-  2026-11-24: $0.034 and $0.015). Each run counts in **Spend today** as Brainstorming.
+- **The brainstorming skill** (`/superpowers:brainstorming`): when the superpowers plugin is installed in the account
+  folder the run uses (`CLAUDE_CONFIG_DIR`, else `~/.claude`), `script-skill.mjs` finds it through that folder's
+  `plugins/installed_plugins.json` and reads its `SKILL.md` at run time (it is never copied into this repo). The system
+  prompt carries it after the rules and a short mapping onto this page: its questions go in the pop-up as one numbered
+  list, its design is the six-part prompt, its spec file, commits and plan do not apply, and the rules win where the
+  two differ. Tools stay off. Without the plugin the page works on the built-in rules alone, and the line under the
+  output says `Left out: Brainstorming skill (It was not found on this machine, ...)`. Invoking it as a slash command
+  (`--plugin-dir` and the command on stdin) also works, but measured twice the cost, so it is not used (`script.mjs`
+  says why).
+- **What it costs** (measured 2026-11-25, the orchestration brief attached, no live session): the first run in an hour
+  writes the rules and the skill to the prompt cache, about 10 cents ($0.096 for a full prompt). Runs after it within
+  the hour read them back at a tenth of the price: $0.045 for a set of questions. On main before the skill, the same
+  full prompt cost $0.051. Each run counts in **Spend today** as Brainstorming.
 - **The layout:** two equal columns, each a head row of the same height, a box, and a foot row. Both boxes share one
   height that fits the window, so they start and end on the same line before, during and after a run; the output
   scrolls inside its box. The page is as wide as the banner above it. Under 900 px the columns stack.
 - **The output:** clean text, never raw marks. Bold and code show as bold and code, numbered and bulleted lines as
   real lists, and the code block as a prompt card with one row per section (its letter, its label, its text), with
-  no fence lines. The assumptions line under it is a small quiet note. It is drawn from text only, never as HTML
+  no fence lines. The assumptions under it are small quiet notes. It is drawn from text only, never as HTML
   (`script-render.js` splits the answer into parts, `script-view.js` draws them and only patches what changed).
 - **The letters:** S C R I P T sit above the output. While the model thinks (no text yet) they ripple in a slow wave
   and the line says **Thinking…**. Each lights in the accent with a small pop as its section starts streaming, read
@@ -642,7 +646,8 @@ listed under the block, as quiet notes you can overrule. **Copy** copies only wh
   round sends the first round's answers again, since the model remembers nothing). Say *just do it* or *skip the
   questions* in your idea and it writes the prompt at once, with its assumptions listed. They show in the output box, the letters stay dark (the line says **Questions first**),
   nothing pops, and your text is left as it was. A pop-up opens over **Your thoughts**, `Brainstorming has 3 questions`,
-  with each question and its own answer field (text with no numbered or bulleted items gets one field). **Answer and
+  with each question and its own answer field (text with no numbered or bulleted items gets one field). Choices the
+  model offers as bullets under a question show under that question and get no field of their own. **Answer and
   generate** (or Ctrl+Enter in it) needs at least one answer and sends your text, then `Answers to your questions:`,
   the questions and your answers as a numbered list, `(no answer)` for any you skipped. **Later**, Escape or × closes
   it and keeps what you typed in the **Your answers** box under your thoughts; **Show the questions** opens it again.
