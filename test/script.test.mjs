@@ -247,11 +247,15 @@ test('no output for the idle time kills the child and ends with the timeout mess
 })
 
 test('output keeps the idle timer from firing', async () => {
+  // Four gaps of half the idle time: together they outlast it, so only a reset timer survives, and each
+  // gap keeps 200 ms of slack. With 60 ms and 30 ms gaps a busy parallel run once stretched a gap past
+  // the limit (QA, 1 failure in 8 full runs).
+  const IDLE = 400
   const h = harness()
-  const run = S.generate('idea', { ...h.opts, onDelta: () => {}, idleMs: 60 })
+  const run = S.generate('idea', { ...h.opts, onDelta: () => {}, idleMs: IDLE })
   await tick()
   for (let i = 0; i < 4; i++) {
-    await new Promise(r => setTimeout(r, 30))
+    await new Promise(r => setTimeout(r, IDLE / 2))
     h.child.line(delta('x'))
   }
   h.child.line(result())
