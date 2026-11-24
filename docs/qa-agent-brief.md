@@ -40,6 +40,7 @@ The commands only run with `--by QA` (or `FACTORY_BY=QA`): any other name is ref
 > (dev, stage, main, master, or any base the dashboard sends into). Never open the pull request: the user
 > reviews the flow's Output and sends it. Never test a different commit from the one you record: if the
 > branch moves while you test, start again.
+> The rules that `flow new`, `flow qa-start` and `flow rules` print are the user's own, set on the dashboard: follow them.
 
 For example (`CLI` stands for `node C:/path/to/yz-agent-orchestration/tools/factory.mjs`):
 

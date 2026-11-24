@@ -52,6 +52,7 @@ so a relative path would not resolve.
 > A command refused with "in the Trash" means the user deleted that flow: stop work on it and do not write to it again.
 > When the user asks you to give the SCRIPT Generator some context, add it as a note with
 > `context add "<title>" --text "..."` (or `--file <path>`); `context list` and `context remove <id>` manage them.
+> The rules that `flow new`, `flow qa-start` and `flow rules` print are the user's own, set on the dashboard: follow them.
 
 For example (`--by` names the agent; `FACTORY_BY` does the same):
 

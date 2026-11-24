@@ -29,6 +29,7 @@ import { changeBlock, changeCommands } from './change-cli.mjs'
 import { prBlock, prCommands } from './pr-cli.mjs'
 import { qaBlock, qaCommands } from './qa-cli.mjs'
 import { newRoute, routeBlock, routeCommands, settleRoute } from './route-cli.mjs'
+import { rulesCommands, withQaRules, withRules } from './rules-cli.mjs'
 import { sayCommands, storyBlock } from './story-cli.mjs'
 
 /** Flags that take no value. Every other `--x` takes the next argument. */
@@ -88,6 +89,7 @@ export const USAGE = `usage: flow <command>
    a new flow needs "route": { "type": "build" } (or review, ask), and a rewrite keeps the stored route
   show <flow>           the JSON with derived, to read back answers (stdout); what its Output holds (stderr)
   list [--open] [--waiting] [--agent X] [--ticket ABC-1] [--archived]   archived flows only with --archived
+  rules [--by "<label>"]   your specification and rules, set by the user on the dashboard (new and qa-start print them too)
   Only the user archives or deletes a flow. A command refused with "in the Trash" means stop work on that flow.
 The Output, what the user sees first: when a piece of work is finished, record
   say <flow> "<what was done>" [--why "<the reason>"] [--who "<label>"] [--id s2 --replace]   one story line
@@ -441,7 +443,7 @@ function cmdList(f) {
 }
 
 const COMMANDS = {
-  new: cmdNew,
+  new: withRules(cmdNew),
   step: addCmd('step'),
   check: addCmd('check'),
   ask: addCmd('ask'),
@@ -461,7 +463,8 @@ const COMMANDS = {
   ...changeCommands(NO_NAME),
   ...prCommands(NO_NAME),
   ...routeCommands(NO_NAME),
-  ...qaCommands({ noName: NO_NAME, evidenceTarget, copyEvidence, shotExt: SHOT_EXT, shotError: SHOT_ERROR }),
+  ...withQaRules(qaCommands({ noName: NO_NAME, evidenceTarget, copyEvidence, shotExt: SHOT_EXT, shotError: SHOT_ERROR })),
+  ...rulesCommands(NO_NAME),
 }
 
 /**
@@ -478,7 +481,7 @@ export function runFlow(argv, { by, cwd, git, config } = {}) {
     const booleans = cmd === 'result' || cmd === 'diagram' ? BEFORE_BOOLEAN : BOOLEAN
     const f = flags(rest, cmd === 'summary' ? SUMMARY_REPEAT : cmd === 'qa' ? QA_REPEAT : undefined, booleans)
     // Every command but new, write and list names its flow first (say, change and pr too): one guard for them all.
-    if (!['new', 'write', 'list'].includes(cmd) && isTrashed(f._[0])) return fail(TRASHED(f._[0]))
+    if (!['new', 'write', 'list', 'rules'].includes(cmd) && isTrashed(f._[0])) return fail(TRASHED(f._[0]))
     return command(f, { by, cwd, argv: rest, ...(git ? { git } : {}), ...(config ? { config } : {}) })
   } catch (err) {
     return fail(err.message)

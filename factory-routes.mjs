@@ -34,6 +34,8 @@
 //   GET  /api/pipeline                 { graph, tickets, builtAt }: the orchestration and where each flow stands (pipeline-routes.mjs)
 //   GET  /api/qa[?status=passed]       { qa, flows, remotes, builtAt }: what QA recorded, with report text and links (pipeline-routes.mjs)
 //   POST /api/flows/<id>/rework        send a QA failure back to its producer again after it was not delivered (qa-rework.mjs)
+//   GET  /api/agents/rules             { agents, limits }: the user's specification and rules for each agent (agent-rules-routes.mjs)
+//   PUT  /api/agents/rules/<label>     { spec?, rules? }: the page's own Origin only; 404 a label not in the graph, 400 a limit
 //   GET  /api/commit?sha=<sha>         one commit, see commit-diff.mjs
 //   GET  /evidence/<flow>/<file>       a screenshot or log an agent attached; a QA report (qa-<n>-report.md) as plain text
 //   POST /api/explain                  { text }: the glossary first ({ text, cost: 0, from: 'glossary', entry }), else one cheap
@@ -59,6 +61,7 @@
 import { readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 
+import { rulesGet, rulesPut } from './agent-rules-routes.mjs'
 import { chatEvents, chatLog, chatNew, chatSend, chatStop } from './chat.mjs'
 import { commitDiff } from './commit-diff.mjs'
 import { CONFIG, CONFIG_FILE, prNow } from './config.mjs'
@@ -86,6 +89,8 @@ const SLUG = /^[a-z0-9-]+$/
 /** /api/trash/<id>/restore and /api/trash/<id>/purge; the id is checked against SLUG before any disk access. */
 const TRASH_PATH = /^\/api\/trash\/([^/]+)\/(restore|purge)$/
 const SHA = /^[0-9a-f]{7,40}$/
+/** /api/agents/rules and /api/agents/rules/<label> (the label URL-encoded; agent-rules-routes.mjs checks it against the graph). */
+const RULES_PATH = /^\/api\/agents\/rules(?:\/([^/]+))?$/
 /** /api/flows/<id> and /api/flows/<id>/<action> (`pr/refresh` has two parts); the id is checked against SLUG before any disk access. */
 const FLOW_PATH = /^\/api\/flows\/([^/]+)(?:\/([a-z-]+(?:\/[a-z-]+)?))?$/
 /** The longest note the user may add to a request for test steps (it goes into a relay prompt). */
@@ -176,6 +181,9 @@ export async function factoryRoute(req, res, url, { git, gh, push, pr, port = CO
     if (action === 'pr/refresh' && post) return send(res, await prRefresh(id, send$)), true
     if (action === 'rework' && post) return send(res, reworkRetry(id, relay)), true
     if (p === '/api/pipeline' && !post) return send(res, pipelineGet()), true
+    const rules = RULES_PATH.exec(p)
+    if (rules && rules[1] === undefined && req.method === 'GET') return send(res, rulesGet()), true
+    if (rules && rules[1] !== undefined && req.method === 'PUT') return send(res, rulesPut(labelOf(rules[1]), await body(req), req.headers, { port })), true
     if (p === '/api/qa' && !post) return send(res, await qaGet(q.get('status') || '', { git })), true
     if (p === '/api/commit' && !post) return await commit(res, q.get('sha'), git), true
     if (p.startsWith('/evidence/') && !post) return await evidence(res, p), true
@@ -193,6 +201,15 @@ export async function factoryRoute(req, res, url, { git, gh, push, pr, port = CO
     return json(res, e.status || 400, { error: e.message }), true
   }
   return false
+}
+
+/** A URL-encoded label, or '' when it does not decode (agent-rules-routes.mjs then answers 404). */
+function labelOf(raw) {
+  try {
+    return decodeURIComponent(raw)
+  } catch {
+    return ''
+  }
 }
 
 // ═══ Flow handlers ═══
