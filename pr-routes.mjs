@@ -19,7 +19,9 @@
 //
 // ═══ THE QA GATE ═══ A flow that produced code is sent only after QA passed it, and only at the very commit QA
 // tested (flow-qa.mjs qaBlockers adds both as blockers to pr-check.mjs's facts). The flow's `qa` is part of the
-// facts' cache key, so a new QA result shows at once.
+// facts' cache key, so a new QA result shows at once. With Security on the pipeline (config pipeline.security), the
+// flow also waits for Security's pass of that same commit (flow-security.mjs securityBlockers; `deps.config`, else
+// config.mjs CONFIG, says whether there is one).
 //
 // Each handler returns { status, body }. `deps` is { git, push?, gh, pr, port, fetched? }: the runners
 // (server.mjs; the tests pass stubs; `push` has its own longer timeout), the Send settings (config.mjs
@@ -30,8 +32,10 @@ import { rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import { CONFIG } from './config.mjs'
 import { creditProblem, mergeReady, textCredit } from './flow-merge.mjs'
 import { qaBlockers } from './flow-qa.mjs'
+import { securityBlockers } from './flow-security.mjs'
 import { readFlow, validateFlow, writeFlow } from './flows.mjs'
 import { originAllowed } from './local-origin.mjs'
 import { checksOf, prFacts, prUrlOf, scrub } from './pr-check.mjs'
@@ -99,7 +103,7 @@ async function factsFor(flow, merge, deps, fresh = false) {
     ...merge, remote: pr.remote, bases: pr.bases, protect: pr.protect, enabled: pr.enabled, off: pr.off,
     git: deps.git, gh: deps.gh, fetchFailed: !!fetchFailed.get(pr.remote),
   })
-  f.blockers.push(...qaBlockers(flow, f.sha))
+  f.blockers.push(...qaBlockers(flow, f.sha), ...securityBlockers(flow, deps.config || CONFIG))
   facts.set(id, { key, at: Date.now(), facts: f })
   return f
 }

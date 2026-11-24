@@ -12,6 +12,8 @@
 //     branch, remote, repo, pushedAt, pushError   what `flow qa-push` did (never retried on its own)
 //     rework     { to, queuedAt, sentAt, error } on a failure: `to` is the producer it goes back to (QA's);
 //                queuedAt, sentAt and error are the SERVER's (qa-rework.mjs, relay.mjs), like an answer's delivery
+//     security   Security's review of a passed attempt, when pipeline.security is set (flow-security.mjs): it
+//                belongs to this attempt and its commit, so a new attempt needs a new review
 //     attempts   the earlier attempts, oldest first, each the same shape without `attempts`
 //   }
 //
@@ -21,6 +23,7 @@
 // serves it as text/plain (factory-routes.mjs), so nothing in it ever runs.
 
 import { isBranch } from './flow-merge.mjs'
+import { validateSecurity } from './flow-security.mjs'
 import { isCodeProducing } from './pipeline.mjs'
 
 export const QA_STATUS = Object.freeze(['pending', 'testing', 'passed', 'failed', 'qa-failed'])
@@ -94,6 +97,7 @@ function attemptProblems(q, flowId, at, nested) {
       if (r.error != null && !bounded(r.error, QA_MAX.error)) problems.push(`${at} rework error must be null or text of at most ${QA_MAX.error} characters`)
     }
   }
+  if (q.security !== undefined) problems.push(...validateSecurity(q.security, flowId, `${at} security`))
   if (nested && q.attempts !== undefined) problems.push(`${at} must not hold attempts of its own`)
   return problems
 }
@@ -156,6 +160,9 @@ export function qaView(qa) {
   const { attempts, ...current } = qa
   return {
     ...current,
-    attempts: (Array.isArray(attempts) ? attempts : []).map(a => ({ attempt: a.attempt, status: a.status, at: a.at ?? null, commit: a.commit ?? null, summary: a.summary ?? '', report: a.report ?? null })),
+    attempts: (Array.isArray(attempts) ? attempts : []).map(a => ({
+      attempt: a.attempt, status: a.status, at: a.at ?? null, commit: a.commit ?? null, summary: a.summary ?? '', report: a.report ?? null,
+      ...(a.security && typeof a.security === 'object' ? { security: a.security.status } : {}), // Security's verdict on it, when it had one
+    })),
   }
 }
