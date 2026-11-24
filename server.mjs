@@ -43,7 +43,6 @@ import { buildFlow, pushCount } from './flow.mjs'
 import { buildReport } from './report.mjs'
 import { compareTickets } from './ticket-ids.mjs'
 import { claudeRun, makeRelay } from './relay.mjs'
-import { purgeExpired } from './trash.mjs'
 import { startReworkWatch } from './qa-rework.mjs'
 import {
   CLAUDE_DIRS,
@@ -823,20 +822,6 @@ if (lostAnswers.length) console.log(`relay: ${lostAnswers.length} answer(s) not 
 // A QA failure going back to its producer is written by QA's own shell: the server notices it, now and every 15 s (qa-rework.mjs).
 startReworkWatch(relay)
 /**
- * A flow 24 hours in the Trash is gone for good (trash.mjs). Decided from each entry's STORED time, so a
- * restart loses nothing: once now, then every 10 minutes. A failure is logged and never stops the server.
- */
-function sweepTrash() {
-  try {
-    const gone = purgeExpired()
-    if (gone.length) console.log(`trash: ${gone.length} flow(s) 24 hours in the Trash removed for good: ${gone.join(', ')}`)
-  } catch (err) {
-    console.error(`trash: the sweep failed: ${err?.message || err}`)
-  }
-}
-sweepTrash()
-setInterval(sweepTrash, 10 * 60_000).unref()
-/**
  * The Subagents page (subagent-routes.mjs): every subagent of the repo's sessions, live or ended, read
  * from the transcripts, with the state of its pull requests from `gh pr view` (read only).
  */
@@ -867,7 +852,7 @@ const scriptContextRoute = makeScriptContextRoute({ port: PORT, ...scriptContext
 /** The SCRIPT run log (script-log-routes.mjs): the newest 50 runs, for the page's History list. */
 const scriptLogRoute = makeScriptLogRoute({ port: PORT })
 /** The paths factory-routes.mjs answers. */
-const FACTORY_PREFIXES = ['/api/factory', '/api/chat', '/api/flows', '/api/trash', '/api/commit', '/api/explain', '/api/glossary', '/api/since', '/api/spend', '/api/settings', '/api/pipeline', '/api/qa', '/api/agents/rules', '/api/score', '/api/log', '/evidence/']
+const FACTORY_PREFIXES = ['/api/factory', '/api/chat', '/api/flows', '/api/trash', '/api/archive', '/api/human', '/api/commit', '/api/explain', '/api/glossary', '/api/since', '/api/spend', '/api/settings', '/api/pipeline', '/api/qa', '/api/agents/rules', '/api/score', '/api/log', '/evidence/']
 
 const server = createServer(async (req, res) => {
   // a website that rebinds its name to 127.0.0.1 sends its own Host: only requests addressed to us are answered (local-origin.mjs)

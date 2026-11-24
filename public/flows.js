@@ -18,12 +18,13 @@
 // when its node changed, and text typed into an answer box survives a redraw.
 // gotoFlow opens a flow from anywhere: it goes to #/flows first when the board
 // is not mounted (notify.js toasts, the grid hover card, the strip on Home).
-// Archive and the Trash (flow-trash.js): under the board a quiet line links
-// to the Archived and Trash lists, each drawn IN PLACE of the board (showList,
-// also from the palette) with ← Flows back, like an opened flow. An archived
-// flow is left out of /api/flows, so one opened by link is fetched on its own
-// after each poll and kept (never on the board or in the strip: FlowBoard.shown);
-// one that went to the Trash says so, with Restore.
+// Archive and Delete (flow-trash.js): on each card and in an opened flow's ⋯ menu.
+// Under the board a quiet line links to the flow archive (#/archive,
+// archive-page.js). An archived or deleted flow is left out of /api/flows, so
+// one opened from the archive (or by link) is fetched on its own after each poll
+// and kept (never on the board or in the strip: FlowBoard.shown). It opens
+// READ-ONLY: a banner says it is archived or deleted, with Restore, and every
+// control that would change it is hidden (archive.css) and refused here.
 ;(() => {
   const $ = (s, el = document) => el.querySelector(s)
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
@@ -54,8 +55,8 @@
   const recent = new Set()
   /** the opened flow: its id, the node in the drawer, and what was last drawn (to redraw only on change) */
   let opened = null
-  /** 'trash' or 'archived': that list in place of the board (flow-trash.js), or null */
-  let listing = null
+  /** A card whose Delete waits on the server's question: { id, message } (FlowBoard.card shows it inline) */
+  let cardAsking = null
   let zoom = store.get('zoom', 1) // a number, or 'fit'
   let view = window.FlowTabs?.view.get() || 'output' // or 'status' / 'process'; `?.`: the strip-only tests load no flow-tabs.js
   let z = 1 // the scale in effect
@@ -63,6 +64,8 @@
   const loaded = []
 
   const flowOf = id => data.flows.find(f => f.id === id)
+  /** An archived or deleted flow (opened from the archive): shown, never changed. */
+  const readonly = f => !!(f?.archivedAt || f?.deletedAt)
   const mounted = () => !!(strip || board)
 
   // ═══ load and post ═══
@@ -75,7 +78,7 @@
       if (!r.ok) throw new Error(j.error || r.status)
       if (mine !== gen || !mounted()) return
       if (board && opened && !j.flows.some(f => f.id === opened.id)) {
-        const one = await fetchOpened() // archived (still open by link) or in the Trash (say so)
+        const one = await fetchOpened() // archived or deleted: still open, read-only
         if (mine !== gen || !mounted()) return
         if (one) j = { ...j, flows: [...j.flows, one] }
       }
@@ -84,12 +87,12 @@
       render()
       for (const fn of loaded) fn(data)
     } catch (e) {
-      if (mine === gen && board && !opened && !listing) board.innerHTML = `<div class="banner">Flows: ${esc(e.message)}</div>`
+      if (mine === gen && board && !opened) board.innerHTML = `<div class="banner">Flows: ${esc(e.message)}</div>`
     }
   }
   /**
-   * The opened flow on its own, when the list left it out: the flow (an archived one), or null with
-   * `opened.gone` holding why (`<id> is in the Trash.`, which renderOpened turns into Restore).
+   * The opened flow on its own, when the list left it out: the flow (an archived one, or a deleted one with its
+   * `deletedAt`), or null with `opened.gone` holding why (no such flow).
    */
   async function fetchOpened() {
     const id = opened.id
@@ -168,8 +171,8 @@
     const known = cols.filter(a => agents.has(a))
     return [...known, ...[...agents].filter(a => !cols.includes(a)).sort((a, b) => a.localeCompare(b))]
   }
-  const card = f => window.FlowBoard.card(f)
-  const small = f => window.FlowBoard.small(f)
+  const card = f => window.FlowBoard.card(f, { asking: cardAsking })
+  const small = f => window.FlowBoard.small(f, { asking: cardAsking })
   const byNewest = (a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt))
 
   function renderBoard() {
@@ -333,16 +336,14 @@
   function renderOpened() {
     const f = flowOf(opened.id)
     if (!f) {
-      // deleted (here, in another tab, or a link to one): it can still come back, so say where it is and offer that
-      const gone = /is in the Trash/.test(opened.gone || '')
-        ? `<p class="small warn">This flow is in the Trash. <button type="button" class="link" data-trash-restore="${esc(opened.id)}">Restore</button></p>`
-        : `<p class="small warn">No flow ${esc(opened.id)}: it may have been removed.</p>`
+      // deleted for good (here, in another tab, or a link to one): nothing is left to show
       board.innerHTML = `<section class="card fl-open"><div class="fl-open-head"><button type="button" class="link" data-close>← Flows</button>
-        ${gone}</div></section>`
+        <p class="small warn">No flow ${esc(opened.id)}: it may have been deleted for good.</p></div></section>`
       opened.built = false
       return
     }
-    if (!opened.built) { buildOpened(); opened.built = true; opened.head = opened.sub = opened.chart = opened.drawn = null; showView() }
+    if (!opened.built) { buildOpened(); opened.built = true; opened.head = opened.sub = opened.chart = opened.drawn = opened.ro = null; showView() }
+    renderReadonly(f)
     renderHead(f)
     window.Glossary?.autoLearn(f) // its unknown marked words, once (glossary-store.js)
     // Only the shown view draws: a hidden chart would fit to a 0 px width. Output and Status gate their own redraw.
@@ -356,6 +357,24 @@
     if (chartSig !== opened.chart) { opened.chart = chartSig; drawChart(null) }
     renderDrawer(f)
   }
+  /** An archived or deleted flow is shown, never changed: the banner above the views, and the class archive.css reads. */
+  function renderReadonly(f) {
+    const html = readonlyBanner(f)
+    if (opened.ro === html) return
+    opened.ro = html
+    const box = $('.fl-open', board)
+    box.classList.toggle('is-readonly', !!html)
+    $('.fl-readonly', board)?.remove()
+    if (html) $('.fl-open-sub', board).insertAdjacentHTML('afterend', html)
+  }
+  /** PURE: the read-only line for an archived or deleted flow, else ''. */
+  function readonlyBanner(f) {
+    if (!readonly(f)) return ''
+    const what = f.deletedAt ? `This flow is <b>deleted</b> (${window.Shell.ago(f.deletedAt)}).` : `This flow is <b>archived</b> (${window.Shell.ago(f.archivedAt)}).`
+    return `<p class="fl-readonly" role="note"><span>${what} It is in the flow archive, and nothing can be changed here.</span>` +
+      `<button type="button" class="link" data-ro-restore>Restore</button><a class="link" href="#/archive">Open the flow archive</a></p>`
+  }
+
   /** Output (the storyboard), Status (the rows) or Process (the chart and drawer), remembered in flows.view. */
   function showView() {
     for (const t of board.querySelectorAll('.fl-tabs [data-view]')) {
@@ -379,7 +398,7 @@
 
   function render() {
     if (strip) renderStrip()
-    if (board) listing ? window.FlowTrash.fill(board, listing) : opened ? renderOpened() : renderBoard()
+    if (board) opened ? renderOpened() : renderBoard()
   }
 
   // ═══ events: one delegated listener per box, bound at mount ═══
@@ -406,16 +425,16 @@
     const t = e.target.closest('[data-ticket]')
     if (t) { e.stopPropagation(); return window.FactoryView?.gotoTicket(t.dataset.ticket) }
     if (e.target.closest('[data-dropped]')) { showDropped = !showDropped; return renderBoard() }
-    const list = e.target.closest('[data-list]') // Archived · N, Trash · N under the board
-    if (list) return showList(list.dataset.list)
-    if (listing && window.FlowTrash.click(e, board)) return // the lists' Restore, Delete forever, Unarchive, Delete
     if (e.target.closest('[data-close]')) return close()
+    const act = e.target.closest('[data-card-archive], [data-card-delete], [data-card-cancel]') // a card's own Archive and Delete
+    if (act) return void cardAction(act)
     const card = e.target.closest('[data-open]')
     if (card) return open(card.dataset.open)
-    const back = e.target.closest('[data-trash-restore]')
-    if (back) return void window.FlowTrash.restore(back.dataset.trashRestore)
     const f = flowOf(opened?.id)
     if (!f) return
+    if (e.target.closest('[data-ro-restore]')) return void restoreOpened(f)
+    // an archived or deleted flow: the views, their tabs and links still work; nothing that would change it does
+    if (readonly(f) && e.target.closest('[data-drop], [data-archive], [data-delete], [data-answer], [data-reopen], [data-retry], [data-ask-chat]')) return
     if (e.target.closest('[data-drop]')) {
       if (confirm(`Drop the flow ${f.title}? It moves behind show dropped.`)) post(f.id, 'drop').then(r => r && load())
       return
@@ -450,7 +469,7 @@
   }
   async function onBoardChange(e) {
     const f = flowOf(opened?.id)
-    if (!f) return
+    if (!f || readonly(f)) return
     const el = e.target
     let r = null
     if (el.matches('[data-flow-status]')) r = await post(f.id, 'status', { status: el.value })
@@ -487,32 +506,43 @@
     renderOpened()
     if (opened.asking) $('.fl-open-sub [data-delete][data-confirmed]', board)?.focus() // the question's own Delete
   }
-  /** The Archived or Trash list in place of the board, from anywhere (the links under it, the palette). */
-  function showList(kind) {
-    if (!board) {
-      window.Shell.go('#/flows')
-      return window.Shell.whenReady('#flowsView #fxFlows', () => board && showList(kind))
+  /**
+   * A card's Archive or Delete (flow-board.js draws them). Delete on a flow its agent may be working on gets the
+   * server's question back, shown on that card with Delete and Cancel; anything else goes at once, with Undo.
+   */
+  async function cardAction(btn) {
+    if (btn.hasAttribute('data-card-cancel')) { cardAsking = null; return renderBoard() }
+    const id = btn.dataset.cardArchive || btn.dataset.cardDelete
+    if (btn.hasAttribute('data-card-archive')) {
+      if (await window.FlowTrash.archive(id, true)) { data = window.FlowTrash.without(data, id); renderBoard() }
+      return
     }
-    opened = null
-    listing = kind
-    render()
-    scrollTo(board)
+    const r = await window.FlowTrash.remove(id, btn.hasAttribute('data-confirmed'))
+    cardAsking = r?.needsConfirm ? { id, message: r.message } : null
+    if (r?.ok) data = window.FlowTrash.without(data, id)
+    if (board && !opened) renderBoard()
+    if (cardAsking) board?.querySelector(`[data-card-delete="${CSS.escape(id)}"][data-confirmed]`)?.focus()
   }
-  /** Leaving a list (opening a flow from it, ← Flows, the page going away). */
-  function leaveList() {
-    listing = null
-    window.FlowTrash?.leave()
+  /** Restore from the read-only banner: a deleted flow comes back from Deleted, an archived one to the board. */
+  async function restoreOpened(f) {
+    const done = f.deletedAt ? await window.FlowTrash.restore(f.id) : await window.FlowTrash.unarchive(f.id)
+    if (!done || opened?.id !== f.id) return
+    data = window.FlowTrash.without(data, f.id) // fetched afresh: the restored flow, live (or archived) again
+    opened.ro = null
+    const one = await fetchOpened()
+    if (one && opened?.id === f.id) data = { ...data, flows: [...data.flows, one] }
+    render()
   }
 
   /** `as`: a view for this open only, not remembered (FlowsView.explain opens on Explain). */
   async function open(flowId, nodeId, as) {
     if (!board) return
-    leaveList()
+    cardAsking = null
     opened = { id: flowId, node: nodeId || null, built: false, reveal: nodeId || null } // reveal: once, on Status
     view = as || window.FlowTabs.view.get()
     if (nodeId && (view === 'output' || view === 'explain')) view = 'status' // no row per node there: Status, for this open only (not remembered)
     if (!flowOf(flowId)) {
-      // not in the last list (just written, archived, or in the Trash): fetch it on its own, then merge it in
+      // not in the last list (just written, archived, or deleted): fetch it on its own, then merge it in
       const f = await fetchOpened()
       if (opened?.id !== flowId) return
       if (f) data = { ...data, flows: [...data.flows.filter(x => x.id !== f.id), f] }
@@ -527,7 +557,6 @@
   }
   function close() {
     opened = null
-    leaveList()
     if (strip) renderStrip() // the closed flow's asks come back to the strip
     if (board) renderBoard()
   }
@@ -597,7 +626,7 @@
       if (board) unbind(board, BOARD_ON)
       board = null
       opened = null
-      leaveList()
+      cardAsking = null
       stopPollingIfIdle()
     },
     /** Home: the strip alone, same handlers and the same poll. Idempotent. */
@@ -620,7 +649,6 @@
     gotoFlow,
     /** Open a flow on its Explain tab from any page (the Agents page, the QA page's Explain in Flows). */
     explain: flowId => gotoFlow(flowId, null, 'explain'),
-    showList,
     get data() { return data },
   }
 })()

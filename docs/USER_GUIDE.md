@@ -159,16 +159,20 @@ sets one.
 - **Answering:** click Yes or No (or type an answer). The answer is sent to the agent that asked (section 7
   has the cost). The step then shows **sent**, or **not delivered · retry** if that agent is not running.
 
-#### Archive and Trash
+#### Archive, Delete and the flow archive
 
-- **Archive** (in a flow's `⋯` menu) puts a flow away without deleting it. It leaves the board, Waiting on you,
-  Home and the alerts, but a link to it still works. If its agent asks you something new, it comes back by itself.
-- **Delete** moves a flow to the **Trash**. If its agent may still be working on it, the menu asks first, and the
-  agent is told to stop. A toast offers **Undo**.
-- A flow stays in the Trash for **24 hours**, even if the dashboard restarts. Then it is gone for good, and its
-  screenshots and other evidence files go with it.
-- **Archived · N** and **Trash · N** under the board open those lists: **Unarchive**, **Restore**, and
-  **Delete forever** (it asks once more on the same button). The Trash shows how long each flow has left.
+- Every card on the board has **Archive** and **Delete** at its foot; an open flow has them in its `⋯` menu too.
+- **Archive** puts a flow away without changing it. It leaves the board and the alerts. If its agent asks you
+  something new, it comes back by itself.
+- **Delete** also takes a flow off the board, and its agent is told to stop. If that agent may still be working on
+  it, the card (or the menu) asks first. A toast offers **Undo**.
+- Nothing is lost by either. Both go to the **flow archive** (**Flow archive** in the rail, or **Flow archive · N**
+  under the board), in two groups: **Archived** and **Deleted**. Nothing leaves it by a timer.
+- In the archive, a search box filters by title or ticket id. Click a title to read the flow: it opens with a
+  banner saying it is archived or deleted, and nothing in it can be changed. **Restore** puts a flow back.
+- **Delete for good** (Deleted only) removes the flow and its screenshots. It asks first in the row, naming the
+  flow, and cannot be undone.
+- The pipeline score still counts archived flows. Deleted flows are left out.
 - Only you archive or delete flows. Agents cannot.
 
 ### Tickets

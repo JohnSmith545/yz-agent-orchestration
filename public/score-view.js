@@ -113,7 +113,7 @@
       `<li>Accuracy: (${num(n.delivered)} + ${num(n.caught)}) ÷ ${num(n.delivered) + num(n.slipped) + num(n.missed) + num(n.caught)}, the right calls over all four counts.</li>` +
       `<li>Correctness: ${num(c.right)} ÷ ${num(c.judged)}, flows QA passed with no failure over flows QA passed or stopped.</li></ul>` +
       `<h4 class="psc-h">By agent</h4>${agentsTable(score.agents)}` +
-      '<p class="psc-foot">Archived flows count. Flows in the Trash do not.</p>'
+      '<p class="psc-foot">Archived flows count. Deleted flows do not.</p>'
   }
 
   // ═══ the fixed markup ═══

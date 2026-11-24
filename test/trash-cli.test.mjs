@@ -25,10 +25,10 @@ after(() => {
 const cli = (...argv) => spawnSync(process.execPath, ['tools/factory.mjs', ...argv], {
   cwd: ROOT, env: { ...process.env, FACTORY_DATA_DIR: F.DATA_DIR, FACTORY_BY: '' }, encoding: 'utf8',
 })
-const STOP = id => `Flow ${id} is in the Trash: the user deleted it. Stop work on it; it can be restored from the Trash for 24 hours.`
+const STOP = id => `Flow ${id} was deleted by the user: it is in the flow archive. Stop work on it; only the user can restore it.`
 const lines = s => s.split(/\r?\n/).filter(Boolean)
 
-test('any command on a flow in the Trash exits 1 with ONE plain line telling the agent to stop', () => {
+test('any command on a deleted flow exits 1 with ONE plain line telling the agent to stop', () => {
   F.createFlow({ id: 'gone', title: 'Add a dark mode toggle', agent: 'Agent 3' })
   const file = path.join(TMP, 'gone.json')
   fs.writeFileSync(file, JSON.stringify(F.readFlow('gone')))
@@ -58,12 +58,12 @@ test('the CLI guard matches the server: an entry left behind beside a live flow 
   assert.equal(F.readFlow('twice').nodes.length, 1)
 })
 
-test('flow new on an id in the Trash says to pick another', () => {
+test('flow new on a deleted id says to pick another', () => {
   F.createFlow({ id: 'taken', title: 'Old', agent: 'Agent 3' })
   moveToTrash('taken')
   const r = cli('flow', 'new', 'taken', 'New', '--type', 'build', '--by', 'Agent 3')
   assert.equal(r.status, 1)
-  assert.deepEqual(lines(r.stderr), ['Flow taken is in the Trash. Pick another id.'])
+  assert.deepEqual(lines(r.stderr), ['Flow taken was deleted and is in the flow archive. Pick another id.'])
   assert.equal(F.readFlow('taken'), null)
 })
 

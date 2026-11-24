@@ -117,3 +117,14 @@ test('a subagent in the live view lights Subagents, a session lights Agents, and
   assert.equal(railFor(resolve('#/')), 'flows')
   assert.equal(railFor(resolve('#/home')), 'home')
 })
+
+// ═══ a query on a page route ═══
+
+test('a page route may carry a query: handed to the page as params.query, decoded; a bare page keeps params {}', () => {
+  assert.deepEqual(r('#/flows?flow=dark-mode&at=hand'), { view: 'flows', params: { query: { flow: 'dark-mode', at: 'hand' } }, redirect: null })
+  assert.deepEqual(r('#/agents?human'), { view: 'agents', params: { query: { human: '' } }, redirect: null })
+  assert.deepEqual(r('#/archive?q=dark+mode%21'), { view: 'archive', params: { query: { q: 'dark mode!' } }, redirect: null })
+  assert.deepEqual(r('#/archive?q=%E0%A4'), { view: 'archive', params: { query: { q: '%E0%A4' } }, redirect: null }, 'a malformed escape is kept raw')
+  assert.deepEqual(r('#/archive'), { view: 'archive', params: {}, redirect: null })
+  assert.deepEqual(r('#/nope?x=1'), { view: 'flows', params: {}, redirect: '#/' })
+})

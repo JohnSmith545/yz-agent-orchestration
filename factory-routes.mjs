@@ -9,14 +9,15 @@
 //   POST /api/chat/send                { text }
 //   POST /api/chat/stop
 //   POST /api/chat/new                 { fork?: true }: true starts the next chat from forkFrom, once
-//   GET  /api/flows[?open=1&waiting=1&agent=X&ticket=T&archived=1]   { flows, invalid, counts: { archived, trash } }:
+//   GET  /api/flows[?open=1&waiting=1&agent=X&ticket=T&archived=1]   { flows, invalid, counts: { archived, deleted } }:
 //                                      archived flows left out, or with archived=1 only them
 //   GET  /api/flows/<id>               the flow with `derived` (an archived one too: a direct link keeps working)
 //                                      Both carry each flow's `route` (stored, or inferred: true) and `progress`, its
 //                                      steps' states (flow-route.mjs withRoute), as /api/pipeline and /api/qa do
 //   POST /api/flows/<id>/archive       { archived }; POST /api/flows/<id>/delete { confirm? }: trash-routes.mjs
-//   GET  /api/trash; POST /api/trash/<id>/restore; POST /api/trash/<id>/purge: the Trash (trash-routes.mjs)
-//   Any flow route on an id in the Trash: 404 { error: '<id> is in the Trash.' }
+//   GET  /api/archive; POST /api/trash/<id>/restore; POST /api/trash/<id>/purge: the flow archive (trash-routes.mjs)
+//   GET /api/flows/<id> on a deleted id: the flow, read-only, with deletedAt; any other flow route on it: 404
+//   { error: '<id> was deleted: it is in the flow archive.' }
 //   POST /api/flows/<id>/answer        { node, answer, note? }, then relay.queue
 //   POST /api/flows/<id>/verify        { node, verified }, the user's tick
 //   POST /api/flows/<id>/status        { node, status } (after an ask: then relay.queueStatus), or { status } for the flow
@@ -86,7 +87,7 @@ import { requestText } from './relay.mjs'
 import { sinceRoute } from './since.mjs'
 import { readSpend } from './spend.mjs'
 import { listTrash } from './trash.mjs'
-import { archiveRoute, deleteRoute, purgeRoute, restoreRoute, trashedFlow, trashList } from './trash-routes.mjs'
+import { archiveList, archiveRoute, deleteRoute, purgeRoute, restoreRoute, trashedFlow } from './trash-routes.mjs'
 
 const SLUG = /^[a-z0-9-]+$/
 /** /api/trash/<id>/restore and /api/trash/<id>/purge; the id is checked against SLUG before any disk access. */
@@ -162,11 +163,11 @@ export async function factoryRoute(req, res, url, { git, gh, push, pr, port = CO
 
     if (p === '/api/flows' && !post) return json(res, 200, flowList(q)), true
     if (flowPath && !SLUG.test(id)) return json(res, 400, { error: 'Flow id must match /^[a-z0-9-]+$/.' }), true
-    const trashed = flowPath && trashedFlow(id)
+    const trashed = flowPath && trashedFlow(id, !action && !post)
     if (trashed) return send(res, trashed), true
     if (action === 'archive' && post) return send(res, archiveRoute(id, await body(req))), true
     if (action === 'delete' && post) return send(res, deleteRoute(id, await body(req), relay)), true
-    if (p === '/api/trash' && !post) return send(res, trashList()), true
+    if (p === '/api/archive' && !post) return send(res, archiveList()), true
     const [, trashId, trashAction] = TRASH_PATH.exec(p) || []
     if (trashId && !SLUG.test(trashId)) return json(res, 400, { error: 'Flow id must match /^[a-z0-9-]+$/.' }), true
     if (trashAction === 'restore' && post) return send(res, restoreRoute(trashId, relay)), true
@@ -224,17 +225,17 @@ function filterOf(q) {
 }
 
 /**
- * The list, plus the counts behind the page's `Archived · N` and `Trash · N` links, so it needs no second request.
- * ⚠️ The Trash count never turns the list into an error: a Trash that cannot be read leaves `trash` out.
+ * The list, plus the counts behind the page's `Flow archive · N` link (archived and deleted), so it needs no second
+ * request. ⚠️ The deleted count never turns the list into an error: deleted flows that cannot be read leave it out.
  */
 function flowList(q) {
   const tally = {}
   const { flows, invalid } = listFlows(filterOf(q), tally)
   const counts = { archived: tally.archived }
   try {
-    counts.trash = listTrash().length
+    counts.deleted = listTrash().length
   } catch (err) {
-    console.error(`trash: could not count the Trash: ${err?.message || err}`)
+    console.error(`archive: could not count the deleted flows: ${err?.message || err}`)
   }
   const graph = pipelineGraph(CONFIG)
   return { flows: flows.map(f => ({ ...f, ...withRoute(f, graph) })), invalid, counts }

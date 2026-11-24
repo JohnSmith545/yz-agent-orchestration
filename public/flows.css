@@ -67,6 +67,13 @@ svg.fc .fc-type text { font-size: 11px; font-weight: 600; fill: var(--muted); }
 /* one line of story: flow-board.js cuts it at a word; the ellipsis here only catches a narrow card */
 .fl-card-story { margin: 0; font-size: 13px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fl-card-agent { font-size: 12px; color: var(--faint); }
+.fl-card-acts { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: baseline; gap: 4px 14px; font-size: 12px; }
+.fl-card-acts .link { color: var(--muted); }
+.fl-card-acts .link:hover { color: var(--ink); }
+.fl-card-acts .fl-row-bad, .fl-card-acts .fl-row-bad:hover { color: var(--bad); }
+.fl-card-acts.is-asking { justify-content: flex-start; }
+.fl-card-ask { flex: 1 1 100%; color: var(--ink-2); }
+.fl-small .fl-card-acts { margin-top: 3px; }
 /* the card's ONE state chip */
 .fl-chip { flex: none; font-size: 11.5px; font-weight: 600; padding: 0 8px; border-radius: 999px; line-height: 1.7; white-space: nowrap; }
 .fl-chip.warn { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }

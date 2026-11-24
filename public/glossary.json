@@ -4,7 +4,11 @@
     "more": "It refreshes itself every minute. Click an agent card to watch that agent live."
   },
   "flows": {
-    "short": "The page of every flow: the plan each agent writes as it works, with the questions that wait on you at the top."
+    "short": "The page of every flow: the plan each agent writes as it works, grouped by agent, with the finished ones below."
+  },
+  "archive": {
+    "short": "The flow archive: every flow you archived or deleted, kept until you choose Delete for good.",
+    "more": "Open one to read it; nothing can be changed there. Restore puts it back on the Flows board. Nothing leaves the archive by a timer."
   },
   "flow": {
     "short": "One piece of work an agent plans out as a small chart: steps, checks, asks and notes, joined in the order they happen.",

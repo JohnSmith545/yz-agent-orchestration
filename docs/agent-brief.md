@@ -49,7 +49,7 @@ so a relative path would not resolve.
 > it again. The user then reviews the Output and sends the pull request.
 > The pull request text must not credit an AI tool: no Co-Authored-By line, no Generated with line, no tool named as an author.
 > Only the user archives or deletes a flow; never try to do either yourself.
-> A command refused with "in the Trash" means the user deleted that flow: stop work on it and do not write to it again.
+> A command refused with "deleted" means the user deleted that flow (it waits in the flow archive): stop work on it and do not write to it again.
 > When the user asks you to give the SCRIPT Generator some context, add it as a note with
 > `context add "<title>" --text "..."` (or `--file <path>`); `context list` and `context remove <id>` manage them.
 > The rules that `flow new`, `flow qa-start` and `flow rules` print are the user's own, set on the dashboard: follow them.

@@ -105,7 +105,7 @@ export async function decide(hook) {
   // The name its card goes by: a subagent's task name, a session's own name, else one it already signed with.
   const own = hook.agent_id ? taskName(file) : sessionName(hook.transcript_path, hook.session_id)
   const names = [...scan.flowBy, hook.agent_id ? own : ''].filter(Boolean)
-  // A flow of its own that the USER deleted is not asked for again: the Trash is the user's answer (trash.mjs).
+  // A flow of its own that the USER deleted is not asked for again: the flow archive is the user's answer (trash.mjs).
   const { isTrashed } = await import('../trash.mjs')
   if ([...scan.flowIds].some(isTrashed)) return null
   // Archived flows count too: archiving hides a flow from the board, it does not undo the telling.

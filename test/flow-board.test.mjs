@@ -40,11 +40,11 @@ const PR = { url: 'https://example.com/acme/app/pull/12', number: 12, state: 'op
 
 // ═══ the card ═══
 
-test('a card is the title, one story line, the progress bar with done/total, one state chip and the agent; nothing else', () => {
+test('a card is the title, one story line, the progress bar with done/total, one state chip, the agent, then Archive and Delete; nothing else', () => {
   const f = fx(DARK)
   const h = B.card(f)
   const { done, total } = f.derived.progress
-  assert.equal(text(h), `${f.title} waiting on you ${text(B.storyLine(f))} ${f.agent} ${done}/${total}`)
+  assert.equal(text(h), `${f.title} waiting on you ${text(B.storyLine(f))} ${f.agent} ${done}/${total} Archive Delete`)
   assert.match(h, /<div class="fl-bar"><i style="width:\d+%"><\/i><\/div>/)
   assert.doesNotMatch(h, /ABC-101|data-ticket|fl-env|fl-ago|ago|updated/, 'no tickets, env or updated on the card')
   assert.match(h, /data-open="dark-mode"/)
@@ -54,7 +54,7 @@ test('a card shows its route as a compact strip: the type, where it is now, ever
   const f = fx(DARK, x => { x.route = { type: 'build', steps: ['request', 'master', 'agent-3', 'qa', 'push', 'outcome'], at: '2026-11-12T08:00:00Z', by: 'Agent 3' } })
   Object.assign(f, withRoute(f, GRAPH))
   const h = B.card(f)
-  assert.match(text(h), /build · at Agent 3 Request Master Agent 3 QA Push Output Agent 3 \d+\/\d+$/)
+  assert.match(text(h), /build · at Agent 3 Request Master Agent 3 QA Push Output Agent 3 \d+\/\d+ Archive Delete$/)
   assert.ok(h.indexOf('rt-strip') > h.indexOf('fl-card-story') && h.indexOf('rt-strip') < h.indexOf('fl-prog'))
   assert.doesNotMatch(h, /route not set/)
   const legacy = fx(DARK)

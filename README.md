@@ -550,15 +550,18 @@ file per flow in `data/flows/`, written with the `flow` commands below. Top to b
   **Request test steps** from the Output view (one line per flow, with your note). Each delivery
   costs roughly $0.30 and ten seconds.
 
-### Archive and Trash
+### Archive, Delete and the flow archive (#/archive)
 
-Flows are the one thing the dashboard keeps of its own, so they are the one thing you can put away. In an opened
-flow's `⋯` menu, **Archive** hides it from the board, Waiting on you, Home, the palette and the alerts without deleting
-it; a direct link still opens it, and a new question from its agent brings it back. **Delete** moves it to the Trash
-(`data/trash/<id>.json`); a flow its agent may still be working on asks first, and that agent is told to stop. A flow
-24 hours in the Trash is removed for good with its evidence files, decided from its stored time at startup and every
-10 minutes. **Archived · N** and **Trash · N** under the board list them, with Unarchive, Restore and Delete forever.
-Only you archive or delete: agents have no command for either, and any command on a trashed flow is refused.
+Flows are the one thing the dashboard keeps of its own, so they are the one thing you can put away. Each card on the
+board, and an opened flow's `⋯` menu, has **Archive** and **Delete**. **Archive** hides a flow from the board, the
+palette and the alerts without changing it; a new question from its agent brings it back. **Delete** moves it to
+`data/trash/<id>.json` (the folder keeps its old name, so entries an older version wrote still show); a flow its agent
+may still be working on asks first, and that agent is told to stop. Nothing is removed by a timer: both wait in the
+**flow archive** (`#/archive`, `archive-page.js`, `GET /api/archive`), in an Archived and a Deleted group with a search
+by title or ticket id. A title opens the flow read-only (a banner, every control that would change it hidden and
+refused); **Restore** puts it back, and **Delete for good** (Deleted only, asked in the row) removes it with its
+evidence files. Archived flows count in the pipeline score; deleted ones do not. Only you archive or delete: agents
+have no command for either, and any command on a deleted flow is refused.
 
 ### QA (#/qa)
 
@@ -1094,7 +1097,7 @@ Routes:
   request|coordinator|producer|chat|qa|push|outcome }], edges: [{ from, to, label?, kind: main|branch|rework|skip }] },
   tickets: [{ id, title, agent, tickets, status, stage: { node, status, path, reworks }, route, progress, qa, codeProducing,
   hasOutput, archived, updatedAt }], builtAt }`. Open and blocked flows always, done and dropped ones changed in the
-  last 14 days, archived ones flagged, the Trash never. `qa` is the current attempt in full and the earlier ones as
+  last 14 days, archived ones flagged, deleted ones never. `qa` is the current attempt in full and the earlier ones as
   an outline. Node ids are slugs of the labels (`agent-1`); the edges also carry the coordinator's own changes going
   to QA and its `no code changes` skip.
 - `GET /api/qa[?status=passed]` returns `{ qa: <label>, flows: [{ id, title, agent, tickets, status, archived,
@@ -1321,7 +1324,7 @@ read again with every status refresh without redrawing.
   Not enough data yet. A window switch counts the last 7 days, 30 days (the default) or all time: a QA verdict by
   its own time (so a flow QA passed or stopped counts at that final verdict), a stalled flow from the day it
   stalled, any other flow by its last update; anything with no stored time is never counted. Flows still on their
-  way are not counted; archived ones are, the Trash never. **How it is counted** opens the four boxes with the live
+  way are not counted; archived ones are, deleted ones never. **How it is counted** opens the four boxes with the live
   counts, each with **See these in the log** (the side panel opens on Log with that filter), the flows that slipped
   through or were missed (each a link to the flow), the sums, and a By agent table (handed to QA, passed first
   time, sent back). The window, F1 or F4, and the strip collapsed to one line are remembered in this browser; the

@@ -7,13 +7,17 @@
 //   │ build · at Agent 3                       │   its route (flow-route.js strip): the type, where it is now,
 //   │ Request Master Agent 3 QA Push Output    │   every step done, current or upcoming; `route not set` when guessed
 //   │ Agent 3  ━━━━━━━━━━━━━━━━━━━━━───  13/18 │   the agent, small and muted, and a thin progress bar
+//   │                         Archive   Delete │   its own Archive and Delete (flows.js makes the calls)
 //   └─────────────────────────────────────────┘
 //
 // Tickets, the env and the updated time live inside the opened flow (flow-head.js).
 //
-//   card(f)                       the card markup
-//   small(f)                      the tile for a flow at the Output or dropped: its title, a compact route strip
-//                                 with its type (flow-route.js strip, mini), the agent and the time
+//   card(f, { asking })           the card markup; `asking` ({ id, message }) is a Delete waiting on the server's
+//                                 question, shown on that card with Delete and Cancel instead of its two actions
+//   small(f, { asking })          the tile for a flow at the Output or dropped: its title, a compact route strip
+//                                 with its type (flow-route.js strip, mini), the agent and the time, and the same
+//                                 two actions
+//   acts(f, asking)               the two actions alone
 //   groups(flows)                 { live, done, dropped }, by ROUTE, not status: live is every flow still on its
 //                                 way (open, blocked, or done with a current step, like QA passed and Push
 //                                 waiting), done only a flow that reached the Output, dropped the dropped ones
@@ -25,8 +29,8 @@
 //                                 without those of the flow that is open (its Story and
 //                                 Status already ask them)
 //   stripRow({ f, n })            one row of it: the question, why it is asked under it, the controls
-//   shown(flows)                  the flows the board draws: never an archived one (/api/flows leaves them
-//                                 out, but an archived flow opened by link is merged into the page's data)
+//   shown(flows)                  the flows the board draws: never an archived or deleted one (/api/flows leaves
+//                                 them out, but one opened from the archive is merged into the page's data)
 ;(() => {
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
   const chips = s => (window.Terms ? window.Terms.html(esc(s)) : esc(s))
@@ -88,7 +92,20 @@
     return null
   }
 
-  function card(f) {
+  /** Archive and Delete for one flow on the board; while its Delete waits on the server's question, that question. */
+  function acts(f, asking = null) {
+    const id = esc(f.id)
+    const title = esc(f.title)
+    if (asking?.id === f.id) {
+      return `<div class="fl-card-acts is-asking" role="group" aria-label="Delete ${title}"><span class="fl-card-ask">${esc(asking.message)}</span>` +
+        `<button type="button" class="link fl-row-bad" data-card-delete="${id}" data-confirmed aria-label="Delete ${title}">Delete</button>` +
+        `<button type="button" class="link" data-card-cancel aria-label="Cancel deleting ${title}">Cancel</button></div>`
+    }
+    return `<div class="fl-card-acts"><button type="button" class="link" data-card-archive="${id}" aria-label="Archive ${title}">Archive</button>` +
+      `<button type="button" class="link fl-row-bad" data-card-delete="${id}" aria-label="Delete ${title}">Delete</button></div>`
+  }
+
+  function card(f, { asking = null } = {}) {
     const { done = 0, total = 0 } = f.derived?.progress || {}
     const s = state(f)
     const line = storyLine(f)
@@ -97,15 +114,15 @@
       (line ? `<p class="fl-card-story" data-line="${esc(rawLine(f))}">${line}</p>` : '') +
       (window.FlowRoute?.strip(f) || '') + // its route from Request to Output (flow-route.js)
       `<div class="fl-prog"><span class="fl-card-agent">${esc(f.agent)}</span>` +
-      `<div class="fl-bar"><i style="width:${total ? Math.round((done / total) * 100) : 0}%"></i></div><span>${done}/${total}</span></div></article>`
+      `<div class="fl-bar"><i style="width:${total ? Math.round((done / total) * 100) : 0}%"></i></div><span>${done}/${total}</span></div>${acts(f, asking)}</article>`
   }
 
-  const small = f => `<article class="fl-small" data-open="${esc(f.id)}" tabindex="0"><span class="fl-card-title">${esc(f.title)}</span>` +
+  const small = (f, { asking = null } = {}) => `<article class="fl-small" data-open="${esc(f.id)}" tabindex="0"><span class="fl-card-title">${esc(f.title)}</span>` +
     (window.FlowRoute?.strip(f, { mini: true }) || '') +
-    `<span class="small">${esc(f.agent)} · ${esc(window.Shell.ago(f.updatedAt))}</span></article>`
+    `<span class="small">${esc(f.agent)} · ${esc(window.Shell.ago(f.updatedAt))}</span>${acts(f, asking)}</article>`
 
-  /** Archived flows stay off the board and out of Waiting on you: they are reached by link and from the Archived list. */
-  const shown = flows => (flows || []).filter(f => !f.archivedAt)
+  /** Archived and deleted flows stay off the board and out of Waiting on you: they are reached from the flow archive. */
+  const shown = flows => (flows || []).filter(f => !f.archivedAt && !f.deletedAt)
 
   /**
    * Still on its way: open or blocked, or any flow but a dropped one whose route has a current step. A done flow
@@ -160,5 +177,5 @@
   /** The strip's head: one count per screen, so with a flow open (its own asks left out) it says Also waiting. */
   const stripHead = (count, openId) => (openId ? 'Also waiting' : 'Waiting on you')
 
-  window.FlowBoard = { card, small, groups, storyLine, state, stripRows, stripRow, stripHead, clip, fit, shown }
+  window.FlowBoard = { card, small, acts, groups, storyLine, state, stripRows, stripRow, stripHead, clip, fit, shown }
 })()
