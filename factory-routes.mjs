@@ -33,6 +33,8 @@
 //                                      own Origin, and a system window confirms anything that could let a page driver send
 //   GET  /api/pipeline                 { graph, tickets, builtAt }: the orchestration and where each flow stands (pipeline-routes.mjs)
 //   GET  /api/qa[?status=passed]       { qa, flows, remotes, builtAt }: what QA recorded, with report text and links (pipeline-routes.mjs)
+//   GET  /api/score[?days=7|30|all]    the pipeline scorecard: precision, recall, F-score, accuracy, correctness (score-routes.mjs)
+//   GET  /api/log[?days&cell&kind]     { events, total, window, builtAt }: the orchestration log, each event with its score cell (score-routes.mjs)
 //   POST /api/flows/<id>/rework        send a QA failure back to its producer again after it was not delivered (qa-rework.mjs)
 //   GET  /api/agents/rules             { agents, limits }: the user's specification and rules for each agent (agent-rules-routes.mjs)
 //   PUT  /api/agents/rules/<label>     { spec?, rules? }: the page's own Origin only; 404 a label not in the graph, 400 a limit
@@ -79,6 +81,7 @@ import { withRoute } from './flow-route.mjs'
 import { pipelineGraph } from './pipeline.mjs'
 import { pipelineGet, qaGet } from './pipeline-routes.mjs'
 import { reworkRetry } from './qa-rework.mjs'
+import { logGet, scoreGet } from './score-routes.mjs'
 import { requestText } from './relay.mjs'
 import { sinceRoute } from './since.mjs'
 import { readSpend } from './spend.mjs'
@@ -185,6 +188,8 @@ export async function factoryRoute(req, res, url, { git, gh, push, pr, port = CO
     if (rules && rules[1] === undefined && req.method === 'GET') return send(res, rulesGet()), true
     if (rules && rules[1] !== undefined && req.method === 'PUT') return send(res, rulesPut(labelOf(rules[1]), await body(req), req.headers, { port })), true
     if (p === '/api/qa' && !post) return send(res, await qaGet(q.get('status') || '', { git })), true
+    if (p === '/api/score' && !post) return send(res, scoreGet(q.get('days'))), true
+    if (p === '/api/log' && !post) return send(res, logGet({ days: q.get('days'), cell: q.get('cell'), kind: q.get('kind') })), true
     if (p === '/api/commit' && !post) return await commit(res, q.get('sha'), git), true
     if (p.startsWith('/evidence/') && !post) return await evidence(res, p), true
     if (p === '/api/explain' && post) return send(res, await explainRoute(await body(req), explain)), true
