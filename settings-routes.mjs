@@ -19,6 +19,7 @@ import { CONFIG } from './config.mjs'
 import { writePrKeys } from './config-write.mjs'
 import { isBranch } from './flow-merge.mjs'
 import { originAllowed } from './local-origin.mjs'
+import { CURRENT_PROJECT, PROJECTS_FILE } from './project-store.mjs'
 import { hashPin, pinProblem, sharedLock, verifyPin } from './send-pin.mjs'
 
 const TITLE = 'Yz Agent Orchestration'
@@ -36,7 +37,8 @@ function setup(configFile) {
   const chat = CONFIG.factory?.chat || {}
   return {
     repo: CONFIG.repo,
-    configPath: configFile,
+    // a project other than the first keeps its repo, agents and pipeline in projects.json (project-store.mjs)
+    configPath: CURRENT_PROJECT && !CURRENT_PROJECT.primary ? PROJECTS_FILE : configFile,
     coordinator: CONFIG.coordinator,
     coordinatorLabel: CONFIG.coordinatorLabel,
     codingAgents: [...new Set(Object.values(CONFIG.codingAgents || {}))],

@@ -48,7 +48,8 @@
       row('Chat', `${esc(chat.name)} · ${esc(chat.model)} · ${esc(chat.mode)}`) +
       row('Ticket prefixes', setup.ticketPrefixes == null ? '<span class="set-faint">from the ticket sources</span>' : list(setup.ticketPrefixes)) +
       row('Reminders', (setup.reminders || []).length ? setup.reminders.map(r => `${esc(r.at)} ${esc(r.days)} · ${esc(r.text)}`).join('<br>') : '<span class="set-faint">none</span>') +
-      '</dl><p class="set-muted">Change these in config.json, then restart the dashboard.</p>'
+      // a project other than the first keeps its settings in projects.json (project-store.mjs)
+      `</dl><p class="set-muted">Change these in ${esc(String(setup.configPath || 'config.json').split(/[\\/]/).pop())}, then restart the dashboard.</p>`
   }
 
   function html(v) {
