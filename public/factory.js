@@ -497,8 +497,14 @@
     filters = {}; query = ''; $('#fxQ').value = ''; saveFilters()
     expanded.add(id)
     render()
-    const tr = $(`tr.fx-r[data-id="${CSS.escape(id)}"]`)
-    if (tr) { tr.scrollIntoView({ behavior: 'smooth', block: 'center' }); tr.classList.add('flash'); setTimeout(() => tr.classList.remove('flash'), 1500) }
+    const row = () => $(`tr.fx-r[data-id="${CSS.escape(id)}"]`)
+    const tr = row()
+    if (!tr) return
+    // to the top of the screen, and kept there while the grid above the table draws (scroll-keep.js): found again
+    // by id each time, since a redraw replaces the row
+    window.ScrollKeep ? window.ScrollKeep.to(row) : tr.scrollIntoView({ block: 'start' })
+    tr.classList.add('flash')
+    setTimeout(() => row()?.classList.remove('flash'), 1500)
   }
 
   // close dropdowns on outside click
