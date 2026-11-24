@@ -267,8 +267,9 @@ the repo, with `C:/path/to/yz-agent-orchestration` replaced by the absolute path
 > after: a screenshot before you change anything visible (`flow result --before`), and one plain line each
 > for how it was and how it is now (`flow change`). When the work is ready for the base branch, record the
 > pull request with `flow pr` (the branch, the base, a plain-English title, and a body file that follows the
-> repo's own pull request template); never push or open it yourself: the user reviews the Output and sends
-> it. The pull request text must not credit an AI tool. Pass `--by "<your dashboard label>"` (or set FACTORY_BY) on `flow new` and the output
+> repo's own pull request template); never push or open it yourself: hand the flow to QA. QA tests it, pushes
+> the branch on a pass, and sends a failure back to you with its report; fix it and ask QA to test it again. The
+> user then reviews the Output and sends it. The pull request text must not credit an AI tool. Pass `--by "<your dashboard label>"` (or set FACTORY_BY) on `flow new` and the output
 > commands: the answers are sent to that name.
 
 **`--by` must be the agent's label on the dashboard** (as in `codingAgents`, for example `Agent 1`): that is

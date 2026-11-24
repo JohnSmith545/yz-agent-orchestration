@@ -118,6 +118,10 @@ rail adds up what these turns cost.
     `pr-pin` refuses a PIN piped in only so that a script cannot set one by accident.
   The dashboard never reads gh's token, and any credential in what git or gh print is removed before it is
   shown or stored. Keep the `--blocked-origins` advice below as an extra layer.
+- **QA's push** is not the server's: the QA agent runs `flow qa-push` in its own shell (QA and the pipeline,
+  below). It pushes only a flow QA passed, exactly the commit QA tested, to a branch that is not protected, never
+  forced, never retried, and only with `--by` set to the QA label. Like Send, it gives an agent with a shell nothing
+  it could not do already; it makes the one push the pipeline expects easy to see and to check.
 - The Subagents page asks GitHub for the state of the subagents' pull requests with `gh pr view --json` (the `pr.gh`
   command): read only, at most once a minute per pull request. It never runs a gh command that writes.
 - A request with no Origin header (not from a browser) is accepted, so any local process on this
@@ -153,6 +157,7 @@ refresh themselves; the Refresh button in the page header rebuilds at once.
 | `stopHour` | Local hour to stop at, or null |
 | `ticketPrefixes` | Ticket id prefixes in rank order, such as `["ABC", "XYZ"]` (see Assumptions about your repo and tracker). Left out: taken from the collections and the ticket sources |
 | `pr` | Send to the base branch, off by default: `{ "enabled": false, "remote": "origin", "bases": ["dev"], "gh": "gh" }`. `enabled` must be `true` to turn it on, and is honoured only with a `pinHash` (set it on the Settings page or with `node tools/factory.mjs pr-pin`, never by hand); these keys are read again whenever config.json changes, so no restart; `protect` lists the branches never sent from (default `["main", "master", "stage", "prod", "production", "release/*", "release-*"]`, `*` matches anything); `remote` is the remote to push to; `bases` are the branches a flow may be sent into; `gh` is the GitHub CLI command (signed in with `gh auth login`). A bad value turns the feature off with a warning in the server log |
+| `pipeline` | The orchestration (QA and the pipeline, below): `{ "qa": "QA", "producers": null, "protectedBranches": ["dev", "stage", "main", "master"], "maxReworks": 3 }`. `qa` is the dashboard label of the agent that tests every code change last and is the only one that pushes; `producers` the labels that write code (`null`: every `codingAgents` label but the coordinator's and QA's); `protectedBranches` the branches QA never pushes to (any case, `*` matches anything; `pr.protect` and `pr.bases` are refused too); `maxReworks` how many times a failure goes back to its producer before the flow stops. A bad key keeps its default, with a warning |
 | `levels` | The branches the levels compare: `{ "work": "followup", "dev": "origin/dev", "stage": "origin/stage", "prod": "origin/main" }` (these are the defaults). A bad value keeps its default, with a warning |
 | `reminders` | Reminders at a local time, once a day: `[{ "at": "17:55", "days": "weekdays", "text": "Wrap up: commit or park your work." }]`. `days` is `weekdays` (Monday to Friday) or `daily`; `[]` turns them off. Left out, there are none. `at` is a real time, 00:00 to 23:59, and one reminder per time. A bad or repeated entry is left out with a warning in the server log |
 
@@ -455,8 +460,9 @@ file per flow in `data/flows/`, written with the `flow` commands below. Top to b
   block of Output is then one quiet bar: `feature/dark-mode → dev · 8 commits · ready` and **Send to dev**
   (the base is in the label). Before it says ready the dashboard checks, on request and at most every 20
   seconds (fetching the remote at most once a minute): the branch exists and is ahead of its base, it merges
-  cleanly, no commit message, title or body credits an AI tool, gh is installed and signed in, and no pull
-  request is already open for the branch (its link shows instead). Any of those is a **blocker**: the bar says
+  cleanly, no commit message, title or body credits an AI tool, gh is installed and signed in, no pull
+  request is already open for the branch (its link shows instead), and, for a flow that changed code, QA passed
+  it (`QA has not passed: …`) at the very commit being sent (`QA tested a different commit …`). Any of those is a **blocker**: the bar says
   **blocked**, lists each reason on its own line, and the button is off. Being behind the base, CI never
   having run on the commits (the branch is not on the remote yet) and more than 50 commits are **warnings**.
   The button opens a review in place (not a dialog): the title with its commit and file counts, the body, the
@@ -621,7 +627,9 @@ Every agent that works in the repo gets the same brief. Paste this paragraph int
 > so the dashboard can explain it. If the word is unusual, define it yourself with `term`.
 > When the work is ready to go to the base branch, record it with `flow pr <flow> --head <branch> --base <branch>
 > --title "<plain-English title>" --body-file <file>`, the body following the repo's own pull request template.
-> Never push or open the pull request yourself: the user reviews the Output and sends it. The pull request text
+> Never push or open the pull request yourself: when your work is ready, record `flow pr` and hand the flow to QA
+> (send QA a message naming the flow). QA tests it, pushes the branch on a pass, and sends a failure back to you with
+> its report: fix it and ask QA to test it again. The user then sends the pull request. The pull request text
 > must not credit an AI tool (no Co-Authored-By line, no Generated with line).
 
 The commands (`node tools/factory.mjs flow …`). Each writes the flow file atomically and prints one line;
@@ -650,6 +658,9 @@ flow test-clear <flow>
 flow say <flow> "<what was done>" [--why "<the reason>"] [--who "<label>"] [--id s2 --replace]
 flow say-clear <flow>
 flow pr <flow> --head <branch> --base <branch> --title "<title>" --body-file <path> | --clear
+flow qa-start <flow> [--commit <sha>] [--status testing|pending]                                  # QA only
+flow qa <flow> --status passed|failed --report <file.md> --commit <sha> [--summary "..."] [--shot <file>]... [--step "<do>" --expect "<see>" [--step-shot <file>]]...   # QA only
+flow qa-push <flow> [--branch <b>] [--remote origin] [--repo <path>]                              # QA only
 term "<word>" "<plain explanation, 1 or 2 sentences, at most 300 characters>" [--more "..."] [--flow <id>]   # not under flow
 ```
 
@@ -710,7 +721,7 @@ delivered it) and `requestError` (it did not, or the dashboard restarted before 
 plain-English title of at most 120 characters on one line, and the body from a file (Markdown, at most 6000
 characters) that follows the repo's own pull request template. A title or body line that credits an AI tool
 (a `Co-Authored-By:` line, `Generated with`, or naming one) is refused with the line it found. The agent never
-pushes or opens the pull request itself. What the server opened is `output.pr`, the server's like an answer:
+pushes or opens the pull request itself: it hands the flow to QA, which pushes the branch once it passes. What the server opened is `output.pr`, the server's like an answer:
 no command sets it and a rewrite always keeps it from the stored file. `flow show` says
 `send: feature/dark-mode -> dev, not sent` or `send: PR #12 open, checks passing`.
 
@@ -719,7 +730,7 @@ no command sets it and a rewrite always keeps it from the stored file. `flow sho
 no are unchanged, and your tick only while the step title is the same and its old evidence is still there.
 Screenshots from a browser are saved first, then attached with `flow evidence … --shot`, which copies each as
 `<flow>/<node>-<name>` (numbered when taken, so two `shot.png` files never collide); the dashboard serves them
-read-only at `/evidence/…`, images and video only.
+read-only at `/evidence/…`, images and video only (and text, PDF, and a QA report: see QA and the pipeline).
 
 The other commands, from any shell:
 
@@ -731,6 +742,84 @@ node tools/factory.mjs show ABC-123
 ```
 
 `decide` is the old command, kept so older briefs still work: it becomes a `flow ask` on a new one-ask flow.
+
+### QA and the pipeline
+
+Who hands work to whom is ONE graph, `pipeline.mjs`, drawn from config.json (`coordinator`, `codingAgents` and
+`pipeline`):
+
+```
+Request -> Coordinator -> Agent 1 | Agent 2 | Agent 3 -> QA -> Push -> Outcome
+```
+
+The coordinator hands each request out; the producers (Agent 1, 2, 3) write the code; **QA** is the last stage
+before the push for every flow that changed code, and the only agent that pushes. A flow changed code when a step
+has commit or diff evidence, its summary lists a commit or diff, or it recorded a pull request (`flow pr`). A flow
+that changed none (an investigation, a plan, an ask) goes straight to the Outcome.
+
+1. A producer finishes, records `flow pr`, and messages QA (its brief says so; it never pushes).
+2. QA runs `flow qa-start`, runs the repo's tests and Playwright checks of the change with screenshots, writes a
+   short Markdown report, and records `flow qa … --status passed|failed`. Its brief is `docs/qa-agent-brief.md`.
+3. **Passed**: the flow is done. QA runs `flow qa-push`, which checks the tested commit is in the repo, then runs
+   `git -C <repo> push <remote> <sha>:refs/heads/<branch>` with that full sha: never forced, no `+`, no tags, never
+   retried, never a branch in `pipeline.protectedBranches`, `pr.protect` or `pr.bases`, or `HEAD` (any case). With a
+   recorded pull request the branch defaults to, and must be, its head. It records `qa.pushedAt`, or `qa.pushError`
+   with the reason. You then open the pull request with **Send** and your PIN, as before: Send now refuses a flow
+   that changed code unless QA passed it at the very commit being sent.
+4. **Failed**: the flow goes back to the producer that made the change (the flow's agent). The dashboard notices
+   the failure within 15 seconds and sends that agent ONE relay message (about $0.30): the flow, the attempt, QA's
+   summary, and the absolute paths of the report and screenshots, asking it to fix the change and ask QA to test
+   again. The result is `qa.rework.sentAt`, or `qa.rework.error` when it could not be delivered. A failure queued
+   when the dashboard stopped is marked `not sent: the dashboard restarted` and never sent again on its own;
+   `POST /api/flows/<id>/rework` sends it again. A failure QA recorded while the dashboard was down was never
+   queued, so it is sent once the dashboard is back.
+5. **Stopped**: a failure whose agent is not a producer, or a flow that already went back `pipeline.maxReworks`
+   times, becomes `qa-failed`: the flow is **blocked** and nothing is sent. You decide what happens next.
+
+The QA commands run only with `--by` equal to `pipeline.qa`. A flow's `qa` block is QA's, as `output.pr` is the
+server's: no other command writes it, and a producer's `flow write` keeps it from the stored file, so no producer
+can drop a failure or forge a pass:
+
+```
+qa: { status: pending|testing|passed|failed|qa-failed, attempt, by, startedAt, at, commit, report, shots, steps:
+      [{ do, expect, shot? }], summary, branch, remote, repo, pushedAt, pushError,
+      rework: { to, queuedAt, sentAt, error } | null, attempts: [the earlier attempts, oldest first] }
+```
+
+`qa-start` begins attempt n+1 (the last result moves into `attempts`), or updates the same attempt before a
+result is in; it opens a done or blocked flow again and refuses a dropped one. `qa` copies the report into the
+flow's evidence folder as `<flow>/qa-<n>-report.md` (a `.md` or `.txt` file; HTML is refused), the screenshots as
+`<flow>/qa-<n>-<name>` and the step shots as `<flow>/qa-<n>-step<i>-<name>`, exactly like `flow result --shot`.
+`/evidence/` serves a QA report as `text/plain` with `nosniff`, so nothing in it is ever rendered or run; any other
+`.md` and every `.html` stays a 404. `flow show` says where QA stands (`qa: failed, attempt 1 at cd34ef5, back to
+Agent 3 (sent)`).
+
+Where each flow stands is derived, never stored (`stageOf`): a dropped flow has no node; an open one sits on its
+agent (an agent not in the graph sits on the coordinator); a done one that changed no code is at the Outcome by the
+skip edge, and one that did waits on QA; pending and testing sit on QA; a failure sent back sits on its producer
+(`rework`); `qa-failed` sits on QA (`failed`); passed and not pushed sits on Push (`failed` when the push was
+refused); passed and pushed is the Outcome. The path lists every node the flow went through, one QA visit per
+attempt and one producer visit per rework.
+
+Routes:
+
+- `GET /api/pipeline` returns `{ graph: { nodes: [{ id, kind: start|agent|step|end, label, role:
+  request|coordinator|producer|qa|push|outcome }], edges: [{ from, to, label?, kind: main|branch|rework|skip }] },
+  tickets: [{ id, title, agent, tickets, status, stage: { node, status, path, reworks }, qa, codeProducing,
+  hasOutput, archived, updatedAt }], builtAt }`. Open and blocked flows always, done and dropped ones changed in the
+  last 14 days, archived ones flagged, the Trash never. `qa` is the current attempt in full and the earlier ones as
+  an outline. Node ids are slugs of the labels (`agent-1`); the edges also carry the coordinator's own changes going
+  to QA and its `no code changes` skip.
+- `GET /api/qa[?status=passed]` returns `{ qa: <label>, flows: [{ id, title, agent, tickets, status, archived,
+  updatedAt, stage, qa, report: { ref, url, text, truncated } | null, shots: [{ ref, url }], links: { repo, commit,
+  branch } }], remotes: { repo, dashboard }, builtAt }`, for a QA page: every flow QA recorded, newest first (at most
+  100), with the report text (at most 64 KB) and the GitHub pages of the tested commit and the pushed branch, read
+  from `git remote get-url` (github.com https and `git@` addresses; anything else is null; never the raw address,
+  which may hold a token).
+- `POST /api/flows/<id>/rework` sends a failure back again after it was not delivered.
+
+Each agent on `/api/status` carries `pushesOutsideQa`: how many `git push` commands it ran in the last 24 hours,
+read from the same transcript scan (0 for QA), so a page can flag a push that did not go through QA.
 
 ### The stop check
 

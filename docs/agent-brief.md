@@ -37,9 +37,11 @@ so a relative path would not resolve.
 > A message asking what a word means: answer it with `term`, in plain words, saying why it mattered for this work.
 > When the work is ready to go to the base branch, record the pull request with
 > `flow pr <flow> --head <branch> --base <branch> --title "<plain-English title>" --body-file <file>`, the body
-> following the repo's own pull request template. Never push or open the pull request yourself: the user
-> reviews the Output and sends it. The pull request text must not credit an AI tool: no Co-Authored-By line,
-> no Generated with line, no tool named as an author.
+> following the repo's own pull request template. Never push or open the pull request yourself: when your work
+> is ready, record `flow pr` and hand the flow to QA (send QA a message naming the flow). QA tests it, pushes the
+> branch on a pass, and sends a failure back to you with its report: fix it, record the fix, and ask QA to test
+> it again. The user then reviews the Output and sends the pull request.
+> The pull request text must not credit an AI tool: no Co-Authored-By line, no Generated with line, no tool named as an author.
 > Only the user archives or deletes a flow; never try to do either yourself.
 > A command refused with "in the Trash" means the user deleted that flow: stop work on it and do not write to it again.
 
@@ -70,7 +72,8 @@ node C:/path/to/yz-agent-orchestration/tools/factory.mjs term "redirect URL" "Th
 ```
 
 When the branch is ready for the base branch, record the pull request (the body file follows the repo's
-pull request template); the user sends it from the Output:
+pull request template) and hand the flow to QA; QA pushes the branch once it passes, and the user sends it
+from the Output:
 
 ```
 node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow pr abc-123-login --head feature/login-redirect --base dev --title "Keep the page you asked for after signing in" --body-file pr.md --by Coordinator
@@ -82,6 +85,8 @@ set a box's shape; `: label` names the arrow into a box):
 ```
 node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow diagram acme-report "[actor] Scheduler -> Report job: every night; Report job -> [store] Reports: saves; Report job -> [actor] Team: emails" --by Coordinator
 ```
+
+The QA agent has its own brief: `docs/qa-agent-brief.md`.
 
 What the user sees: the flow as a card on the Flows page (`#/flows`), and each `flow ask` in **Waiting on you** with your `--why` under the question and Yes and No; the answer is sent back to the agent as a message. An opened flow lands on **Output**: the result screenshot (or your diagram, or with neither a summary chart the dashboard draws from your steps), the summary with its commits, and the numbered test steps. If the user presses **Request test steps**, a message arrives asking for those steps: drive the app, then record each step with `flow test-step`. **Request visuals** (a flow with no screenshot and no diagram) asks for a screenshot or a diagram first.
 
