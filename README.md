@@ -53,6 +53,8 @@ example first.
   Answer an agent's question inline; the answer is pushed back to that agent.
 - **QA**: every ticket that passed QA, with QA's report, its screenshots, the steps
   to test it yourself and links to the tested commit and the pushed branch.
+- **SCRIPT**: turns a rough idea into a ready-to-paste prompt in six labelled parts, streamed, with a soft pop when
+  it is done.
 - **Tickets**: a ticket collection from your tracker, an orchestration grid of
   which agent took which ticket how far (local, dev, stage, prod), the ticket
   table with code review marks, and every worktree.
@@ -93,6 +95,8 @@ turns, billed to your Claude account like any other session:
 - **Learning words**: a flow's marked words the glossary does not know yet, up to 12 in one small turn,
   a fraction of a cent; at most 200 words a day.
 - **Ticket refresh**: each refresh of a collection (the button, or its timer) is one turn.
+- **The SCRIPT Generator** (`#/script`): each **Generate** is one Opus 5.5 turn at high effort, about 3 cents for a
+  full prompt and under 2 cents when it asks questions first (measured 2026-11-24).
 
 The figures are measurements from one setup, not quotes. **Spend today** in the
 rail adds up what these turns cost.
@@ -200,11 +204,11 @@ mode is `:root[data-theme="dark"]`.
 
 `public/shell.js` and `shell.css` draw the frame every page shares.
 
-- **The rail** (56 px, icons only): the brand mark (Home), Flows, QA, Tickets,
+- **The rail** (56 px, icons only): the brand mark (Home), Flows, QA, SCRIPT, Tickets,
   Timeline, Agents, Subagents, Glossary, and at the foot Ask, Alerts, Spend and Theme. Hover it for 300 ms,
   or Tab into it, and it opens to 200 px with labels; the pin at the top keeps
   it open (remembered). Under 720 px wide the rail is a bar along the bottom.
-  The routes are `#/`, `#/flows`, `#/qa` (and `#/qa/<flow id>` for one ticket),
+  The routes are `#/`, `#/flows`, `#/qa` (and `#/qa/<flow id>` for one ticket), `#/script`,
   `#/tickets`, `#/timeline`, `#/agents`, `#/subagents`, `#/glossary`, `#/settings`
   and `#/agent/<id>[/<subagent>]`; anything else goes Home.
   Old links still work: `#/factory` goes to `#/tickets` and opens the Ask
@@ -285,7 +289,7 @@ mode is `:root[data-theme="dark"]`.
   still shows that day's reminder once.
 - **Spend today** (`public/spend.js`, `spend.mjs`): above Theme, `$12.40 today`
   is what the dashboard's OWN headless turns cost today: the chat, the answer
-  relay, the explainer and the ticket refreshes. It is hidden while today is
+  relay, the explainer, the ticket refreshes and the SCRIPT Generator. It is hidden while today is
   zero, and the closed rail shows the short amount (`$4.20`, `$12`). Click it
   for the total by kind and the last 20 turns with how long ago. Each turn's
   `total_cost_usd` is appended as one line to `data/spend.jsonl` (`{ at, kind,
@@ -554,6 +558,40 @@ Explain tab after a failure) opens too, red and marked **Failed**, with its rewo
 is never red: the page says, in plain words, that it has not been through QA and why (it changed no code, it is
 still being worked on, it waits for QA, or it was dropped), with **Explain in Flows**, and **How to test in Flows** (the
 flow's Output tab) only when that flow has test steps. A link straight to `#/qa/<flow id>` reads that ticket at once, beside the list.
+
+### SCRIPT Generator (#/script)
+
+Write a rough idea in **Your thoughts** and press **Generate** (or Ctrl+Enter, Cmd+Enter on a Mac). It comes back as a
+prompt for any AI, ready to paste, in one code block with six labelled parts: **S**ituation, **C**haracter,
+**R**equest, **I**ntent, **P**resentation and **T**one. It never does the task itself. Any assumptions it made sit in
+one line under the block. **Copy** copies only what is inside the block (no fences, no assumptions line) and says
+**Copied** for a moment; it stays off until a block exists.
+
+- **How it calls the model:** one headless Claude Code turn, like the chat, never the raw API (no API key is needed):
+  Opus 5.5 (`claude-opus-5-5`) at high effort, with the SCRIPT system prompt in `script-prompt.mjs` (word for word,
+  and tested). The run is clean: `--tools ""` and `--strict-mcp-config` give it no tools and no MCP servers,
+  `--setting-sources ""` loads none of your settings (without it your `~/.claude/CLAUDE.md` and plugin hooks rode
+  along), it runs in a fresh empty temp folder with `--no-session-persistence`, and `--name SCRIPT` stops the CLI's
+  own session-title call. The CLI still adds its short environment note and your account email; no flag removes them.
+  Your text goes on stdin. The route is `POST /api/script/generate` (`{ text }`, 1 to 8000 characters, same-origin
+  only), streamed back as NDJSON: `delta` lines, then one `done` or `error` line. One run goes at a time (a second
+  gets 409). Closing the tab stops the run; going to another page does not, and the result is there when you come back.
+- **What it costs:** about 3 cents for a full prompt and under 2 cents when it asks questions instead (measured
+  2026-11-24: $0.034 and $0.015). Each run counts in **Spend today** as SCRIPT Generator.
+- **The letters:** S C R I P T sit above the output and each lights in the accent as its section starts streaming,
+  read from the text itself. When the last section finishes (Tone, then the closing fence, or a good end with all
+  six seen), the letters settle with a small bounce, the box glows once, and a short soft pop plays. Under reduced
+  motion it is a fade, with no movement.
+- **The pop and mute:** the pop is made in the browser with the Web Audio API (no sound file): a 115 ms sine that
+  falls from 620 to 300 Hz, at a low volume. The speaker button by the letters mutes it; the choice is kept in this
+  browser (`script.muted`). Muted, the letters and the glow still show.
+- **When it asks questions:** an idea that leaves the situation or the goal unclear gets up to three short questions
+  instead of a prompt. They show in the output box, the letters stay dark, nothing pops, and your text is left as it
+  was. A **Your answers** box opens under it: answer there and press **Generate again**, which sends your text, then
+  `Answers to your questions:`, the questions and your answers.
+- **When it fails** (Claude Code missing, the run stopped, the model declined, or no output for 2 minutes): a calm
+  line says so with **Retry**, which sends the same request again. Any text that had arrived stays, marked
+  **Incomplete**. There is no pop.
 
 ### Settings (#/settings)
 

@@ -1,0 +1,175 @@
+// Tests for the SCRIPT page (#/script): how it is wired into the shell, index.html, the
+// check script, the palette, the glossary and the server, the page's markup (labels,
+// controls, accessible names), and its stylesheet (one accent, the narrow layout, the
+// completion motion and its reduced-motion fade). Browser scripts in a vm with a bare
+// window: the markup is a string, so no DOM is needed.
+
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import path from 'node:path'
+import vm from 'node:vm'
+import { fileURLToPath } from 'node:url'
+
+const HERE = path.dirname(fileURLToPath(import.meta.url))
+const ROOT = path.join(HERE, '..')
+const PUBLIC = path.join(ROOT, 'public')
+const read = f => fs.readFileSync(path.join(PUBLIC, f), 'utf8')
+const ctx = { window: {} }
+for (const f of ['shell.js', 'script-text.js', 'script-state.js', 'script-sound.js', 'script-stream.js', 'script-page.js']) vm.runInNewContext(read(f), ctx)
+const { window } = ctx
+const plain = v => JSON.parse(JSON.stringify(v))
+const text = h => h.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+
+/** The body of the first `@media <query> {...}` block in `css`, braces balanced. */
+function block(css, query) {
+  const at = css.indexOf(`@media ${query}`)
+  if (at < 0) return null
+  let i = css.indexOf('{', at)
+  const start = i + 1
+  for (let depth = 1; depth; ) {
+    i++
+    if (css[i] === '{') depth++
+    else if (css[i] === '}') depth--
+  }
+  return css.slice(start, i)
+}
+
+// ═══ the route and the rail ═══
+
+test('#/script is the SCRIPT page and lights its own rail entry', () => {
+  const r = h => plain(window.Shell.resolve(h))
+  assert.deepEqual(r('#/script'), { view: 'script', params: {}, redirect: null })
+  assert.deepEqual(r('#/script/'), { view: 'script', params: {}, redirect: null })
+  assert.equal(window.Shell.railFor(window.Shell.resolve('#/script')), 'script')
+})
+
+test('the rail links to SCRIPT right after QA, with its own icon, and the shell opens ScriptPage in #scriptView', () => {
+  const shell = read('shell.js')
+  assert.match(shell, /\$\{link\('qa', '#\/qa', 'QA'\)\}\$\{link\('script', '#\/script', 'SCRIPT'\)\}/)
+  assert.match(shell, /^\s+script: svg\(/m, 'the rail icon, drawn like the others')
+  assert.match(shell, /script: 'scriptView'/)
+  assert.match(shell, /script: 'ScriptPage'/)
+  assert.match(shell, /script: 'SCRIPT'/, 'the page title')
+  assert.match(shell, /const VIEWS = \[[^\]]*'script'/)
+})
+
+test('index.html holds the section, the stylesheet and the scripts, in dependency order', () => {
+  const index = read('index.html')
+  assert.match(index, /<section id="scriptView" aria-label="SCRIPT" hidden><\/section>/)
+  assert.ok(index.includes('<link rel="stylesheet" href="script.css">'))
+  const at = s => index.indexOf(`<script src="${s}"></script>`)
+  const order = ['script-text.js', 'script-state.js', 'script-sound.js', 'script-stream.js', 'script-page.js']
+  for (const s of order) assert.ok(at(s) > at('shell.js'), s)
+  for (let i = 1; i < order.length; i++) assert.ok(at(order[i - 1]) < at(order[i]), `${order[i - 1]} before ${order[i]}`)
+})
+
+test('npm run check covers every new file, and the palette and glossary know the page', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
+  for (const f of ['script.mjs', 'script-prompt.mjs', 'script-routes.mjs', 'public/script-text.js', 'public/script-state.js', 'public/script-sound.js', 'public/script-stream.js', 'public/script-page.js']) {
+    assert.ok(pkg.scripts.check.includes(`node --check ${f}`), f)
+  }
+  assert.match(read('palette.js'), /\['SCRIPT', '#\/script'\]/)
+  assert.ok(JSON.parse(read('glossary.json')).script?.short?.length > 20)
+})
+
+test('the server mounts the route with its own port', () => {
+  const server = fs.readFileSync(path.join(ROOT, 'server.mjs'), 'utf8')
+  assert.match(server, /import \{ makeScriptRoute \} from '\.\/script-routes\.mjs'/)
+  assert.match(server, /makeScriptRoute\(\{ port: PORT \}\)/)
+  assert.match(server, /if \(await scriptRoute\(req, res, url\)\) return/)
+})
+
+// ═══ the markup ═══
+
+test('two boxes: "Your thoughts" with Generate on the left, the letters, mute, Copy and the output on the right', () => {
+  const h = window.ScriptPage.markup()
+  assert.match(h, /<label for="scriptInput"[^>]*>Your thoughts<\/label>/)
+  assert.match(h, /<textarea id="scriptInput"[^>]*maxlength="8000"/)
+  assert.match(h, /<label for="scriptAnswers"[^>]*>Your answers<\/label>/)
+  assert.match(h, /<div class="sc-answers" id="scriptAnswersBox" hidden>/, 'the answers box waits for questions')
+  assert.equal((h.match(/class="primary"/g) || []).length, 1, 'ONE primary button')
+  assert.match(h, /<button type="button" class="primary" id="scriptGo">Generate<\/button>/)
+  assert.match(h, /<button type="button" id="scriptCopy" disabled>Copy<\/button>/, 'Copy waits for a code block')
+  assert.match(h, /<pre class="sc-out" id="scriptOut"/)
+  assert.ok(h.indexOf('id="scriptLetters"') < h.indexOf('id="scriptOut"'), 'the letters sit above the output')
+  assert.ok(h.indexOf('id="scriptInput"') < h.indexOf('id="scriptOut"'), 'input on the left, output on the right')
+})
+
+test('the letters spell S C R I P T, one per section, each named for screen readers', () => {
+  const h = window.ScriptPage.markup()
+  const letters = [...h.matchAll(/<span class="sc-letter" data-section="(\w+)" title="(\w+)">(\w)<\/span>/g)].map(m => [m[1], m[3]])
+  assert.deepEqual(letters, [['Situation', 'S'], ['Character', 'C'], ['Request', 'R'], ['Intent', 'I'], ['Presentation', 'P'], ['Tone', 'T']])
+})
+
+test('the mute toggle is a button with a speaker icon and an accessible label', () => {
+  const h = window.ScriptPage.markup()
+  assert.match(h, /<button type="button" class="sc-mute" id="scriptMute" aria-pressed="false" aria-label="Mute the completion sound" title="Mute the completion sound">\s*<svg/)
+})
+
+test('the error line is calm: a small mark, the message and Retry, hidden until needed', () => {
+  const h = window.ScriptPage.markup()
+  assert.match(h, /<div class="sc-error" id="scriptError" role="alert" hidden><i class="sc-mark" aria-hidden="true"><\/i><span id="scriptErrorText"><\/span><button type="button" id="scriptRetry">Retry<\/button><\/div>/)
+})
+
+test('the page never writes model text as HTML: the output only ever gets textContent', () => {
+  const src = read('script-page.js')
+  const html = [...src.matchAll(/\.(?:innerHTML|outerHTML)\s*=\s*([^\n]+)/g)].map(m => m[1].trim())
+  assert.ok(html.length >= 1)
+  for (const rhs of html) assert.match(rhs, /^(markup\(\)|muted \? ICON\.muted : ICON\.sound\b)/, `only the static markup and the fixed icons go in as HTML: ${rhs}`)
+  assert.doesNotMatch(src, /insertAdjacentHTML/)
+  assert.match(src, /out\.textContent = /)
+})
+
+test('Ctrl or Cmd with Enter generates from either box', () => {
+  const src = read('script-page.js')
+  assert.match(src, /\(e\.ctrlKey \|\| e\.metaKey\) && e\.key === 'Enter'/)
+})
+
+test('the AudioContext is made or resumed from the Generate click, and the pop is skipped when muted', () => {
+  const src = read('script-page.js')
+  assert.match(src, /ScriptSound\.ensureContext\(\)/)
+  assert.match(src, /if \(!window\.ScriptSound\.isMuted\(store\(\)\)\) window\.ScriptSound\.play\(audio\)/)
+})
+
+// ═══ the stylesheet ═══
+
+test('script.css: the two boxes stack on a narrow window, and nothing forces a horizontal scroll', () => {
+  const css = read('script.css')
+  assert.match(css, /\.sc-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(0, 1fr\)/)
+  const narrow = block(css, '(max-width: 900px)')
+  assert.ok(narrow, 'a narrow-window block')
+  assert.match(narrow, /\.sc-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)\s*;/)
+  assert.match(css, /\.sc-out\s*\{[^}]*white-space:\s*pre-wrap/)
+  assert.match(css, /\.sc-out\s*\{[^}]*overflow-wrap:\s*anywhere/)
+  assert.match(css, /\.sc-text\s*\{[^}]*box-sizing:\s*border-box/)
+  assert.doesNotMatch(css, /min-width:\s*[4-9]\d\dpx/, 'no wide minimum width')
+})
+
+test('script.css: the accent marks only the lit letters and the completion highlight', () => {
+  const css = read('script.css')
+  const rules = [...css.matchAll(/([^{}]+)\{([^{}]*var\(--accent(?:-soft)?\)[^{}]*)\}/g)].map(m => m[1].trim())
+  assert.ok(rules.length >= 2)
+  for (const sel of rules) assert.match(sel, /sc-letter\.on|sc-glow|^\d+%|^from|^to/, sel)
+  assert.doesNotMatch(css, /#[0-9a-f]{3,8}\b/i, 'tokens only, no fixed colours: light and dark both follow')
+})
+
+test('script.css: the letters settle with a scale bounce under 400 ms; the box glows briefly', () => {
+  const css = read('script.css')
+  const settle = /\.sc-settle[^{]*\{[^}]*animation:\s*sc-settle\s+(\d+)ms/.exec(css)
+  assert.ok(settle, 'the settle animation')
+  assert.ok(Number(settle[1]) < 400, `${settle[1]} ms`)
+  assert.match(css, /@keyframes sc-settle\s*\{[^@]*scale\(/)
+  assert.match(css, /\.sc-out\.sc-glow\s*\{[^}]*animation:\s*sc-glow\s+\d+ms/)
+})
+
+test('script.css: under reduced motion nothing scales or moves, a simple fade only', () => {
+  const css = read('script.css')
+  const calm = block(css, '(prefers-reduced-motion: reduce)')
+  assert.ok(calm, 'a reduced-motion block')
+  assert.match(calm, /\.sc-settle[^{]*\{[^}]*animation:\s*sc-fade/)
+  assert.doesNotMatch(calm, /scale|translate|rotate/)
+  const fade = /@keyframes sc-fade\s*\{([^@]*?)\}\s*\}/.exec(css)?.[1] || ''
+  assert.match(fade, /opacity/)
+  assert.doesNotMatch(fade, /transform/)
+})

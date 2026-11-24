@@ -33,6 +33,7 @@
     ['Home', '#/'],
     ['Flows', '#/flows'],
     ['QA', '#/qa'],
+    ['SCRIPT', '#/script'],
     ['Tickets', '#/tickets'],
     ['Timeline', '#/timeline'],
     ['Agents', '#/agents'],
