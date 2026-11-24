@@ -101,9 +101,23 @@
   .sc-text, .sc-out { min-height: 200px; }
 }
 
-/* reduced motion: no scale and no movement, a simple fade only */
+/* reduced motion: no scale and no movement, a simple fade only.
+   ⚠️ Every property here is !important ON PURPOSE. styles.css's global reduced-motion rule
+   (`*, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1
+   !important; transition-duration: .01ms !important }`) otherwise wins, and the fade becomes a
+   one-frame flicker with no visible highlight (QA FAIL-30, 2026-11-24). These selectors are more
+   specific than `*`, so their !important wins for these two elements only; the global rule still
+   calms the rest of the app. The fades are opacity and colour only, nothing moves. */
 @media (prefers-reduced-motion: reduce) {
-  .sc-letters.sc-settle .sc-letter.on { animation: sc-fade 300ms ease-out both; }
-  .sc-out.sc-glow { animation: sc-tint 700ms ease-out; }
+  .sc-letters.sc-settle .sc-letter.on {
+    animation-name: sc-fade !important; animation-duration: 300ms !important; animation-timing-function: ease-out !important;
+    animation-fill-mode: both !important; animation-iteration-count: 1 !important; animation-delay: 0s !important;
+    transition-duration: 0s !important;
+  }
+  .sc-out.sc-glow {
+    animation-name: sc-tint !important; animation-duration: 700ms !important; animation-timing-function: ease-out !important;
+    animation-fill-mode: none !important; animation-iteration-count: 1 !important; animation-delay: 0s !important;
+    transition-duration: 0s !important;
+  }
   .sc-letter, .sc-text { transition: none; }
 }

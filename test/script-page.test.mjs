@@ -163,11 +163,54 @@ test('script.css: the letters settle with a scale bounce under 400 ms; the box g
   assert.match(css, /\.sc-out\.sc-glow\s*\{[^}]*animation:\s*sc-glow\s+\d+ms/)
 })
 
+// ═══ regression (QA 2026-11-24, FAIL-30): the reduced-motion fade must really run ═══
+// styles.css has a global reduced-motion rule, `*, *::before, *::after { animation-duration: .01ms !important; ... }`.
+// It beat script.css's plain 300 ms and 700 ms, so the letters' opacity jumped in one frame and the box edge
+// snapped back with no visible highlight. The SCRIPT rules must win with their own !important, without
+// weakening the global rule for the rest of the app.
+
+/** Each `selector { body }` rule in a block of CSS (no nesting), as { sel, decls: Map(prop -> { value, important }) }. */
+function rules(css) {
+  return [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(([, sel, body]) => {
+    const decls = new Map()
+    for (const d of body.split(';')) {
+      const m = /^\s*([a-z-]+)\s*:\s*([\s\S]+?)\s*$/.exec(d)
+      if (!m) continue
+      decls.set(m[1], { value: m[2].replace(/\s*!important$/, ''), important: /!important$/.test(m[2]) })
+    }
+    return { sel: sel.replace(/\/\*[\s\S]*?\*\//g, '').trim(), decls }
+  })
+}
+const ms = v => (/^[\d.]+ms$/.test(v) ? Number.parseFloat(v) : /^[\d.]+s$/.test(v) ? Number.parseFloat(v) * 1000 : NaN)
+
+test('regression: under reduced motion the SCRIPT fade and tint beat the global zeroing with !important and a real duration', () => {
+  const star = rules(block(read('styles.css'), '(prefers-reduced-motion: reduce)')).find(r => /^\*\s*,/.test(r.sel))
+  assert.ok(star, 'the global reduced-motion rule is still there')
+  assert.equal(star.decls.get('animation-duration')?.important, true, 'the global rule still zeroes the rest of the app')
+  const zeroed = [...star.decls].filter(([p, d]) => d.important && /^(animation|transition)-/.test(p)).map(([p]) => p)
+  assert.ok(zeroed.includes('animation-duration') && zeroed.includes('transition-duration'), zeroed.join(','))
+
+  const calm = block(read('script.css'), '(prefers-reduced-motion: reduce)')
+  for (const name of ['sc-fade', 'sc-tint']) {
+    const own = rules(calm).filter(r => r.decls.get('animation-name')?.value === name)
+    assert.ok(own.length >= 1, `a reduced-motion rule that runs ${name}, named with animation-name`)
+    for (const r of own) {
+      assert.ok(/\.sc-/.test(r.sel) && !/^\*/.test(r.sel), `${r.sel}: a SCRIPT selector, more specific than *`)
+      assert.equal(r.decls.get('animation-name').important, true, `${r.sel}: animation-name !important`)
+      for (const p of zeroed) assert.equal(r.decls.get(p)?.important, true, `${r.sel}: ${p} must be declared !important to beat the * rule`)
+      const dur = ms(r.decls.get('animation-duration').value)
+      assert.ok(dur >= 150, `${r.sel}: ${name} runs ${dur} ms, which is not a visible fade`)
+      assert.equal(r.decls.get('animation-iteration-count').value, '1', `${r.sel}: once`)
+    }
+  }
+  assert.doesNotMatch(calm, /scale|translate|rotate/, 'still no movement')
+})
+
 test('script.css: under reduced motion nothing scales or moves, a simple fade only', () => {
   const css = read('script.css')
   const calm = block(css, '(prefers-reduced-motion: reduce)')
   assert.ok(calm, 'a reduced-motion block')
-  assert.match(calm, /\.sc-settle[^{]*\{[^}]*animation:\s*sc-fade/)
+  assert.match(calm, /\.sc-settle[^{]*\{[^}]*animation(?:-name)?:\s*sc-fade/)
   assert.doesNotMatch(calm, /scale|translate|rotate/)
   const fade = /@keyframes sc-fade\s*\{([^@]*?)\}\s*\}/.exec(css)?.[1] || ''
   assert.match(fade, /opacity/)
