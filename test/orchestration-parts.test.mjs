@@ -12,6 +12,7 @@ const ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'orch-parts-test-'))
 process.env.FACTORY_DATA_DIR = ROOT
 const O = await import('../orchestration-parts.mjs')
 const R = await import('../agent-rules.mjs')
+const S = await import('../agent-settings.mjs')
 after(() => fs.rmSync(ROOT, { recursive: true, force: true }))
 
 const CONFIG_TEXT = `{
@@ -55,8 +56,8 @@ function seedRules(file, label, spec, rules) {
   R.writeRules(store, file)
 }
 
-test('the parts that exist today: the agents and pipeline, then the rules; each has a key, read and write', () => {
-  assert.deepEqual(O.STYLE_PARTS.map(p => p.key), ['agents', 'rules'])
+test('the parts that exist today: the agents and pipeline, the rules, then each agents model; each has a key, read and write', () => {
+  assert.deepEqual(O.STYLE_PARTS.map(p => p.key), ['agents', 'rules', 'settings'])
   for (const p of O.STYLE_PARTS) {
     assert.equal(typeof p.read, 'function')
     assert.equal(typeof p.write, 'function')
@@ -103,13 +104,13 @@ test('the rules part holds each agent of the graph with its specification and ru
   assert.deepEqual(r.agents.Master, { spec: '', rules: [] })
 })
 
-test('a style written to another project changes its config in projects.json and its own rules file only', () => {
+test('a style written to another project changes its config in projects.json and its own rules and settings files only', () => {
   const w = world()
   seedRules(w.primary.file('agent-rules.json'), 'Agent 1', 'Builds.', ['Rule one.'])
   const style = O.takeSnapshot(w.primary)
   const before = fs.readFileSync(w.configFile, 'utf8')
   const done = O.applySnapshot(style, w.other)
-  assert.deepEqual(done, { applied: ['agents', 'rules'], skipped: [] })
+  assert.deepEqual(done, { applied: ['agents', 'rules', 'settings'], skipped: [] })
   assert.equal(fs.readFileSync(w.configFile, 'utf8'), before) // config.json untouched
   const other = JSON.parse(fs.readFileSync(w.projectsFile, 'utf8')).projects[1]
   assert.equal(other.config.repo, 'C:/work/other') // its own keys stay
@@ -176,22 +177,22 @@ test('a style saved before a part existed leaves that part as it is (skipped); a
   const style = O.takeSnapshot(w.primary)
   delete style.parts.rules
   style.parts.future = { anything: true }
-  assert.deepEqual(O.applySnapshot(style, w.other), { applied: ['agents'], skipped: ['rules'] })
+  assert.deepEqual(O.applySnapshot(style, w.other), { applied: ['agents', 'settings'], skipped: ['rules'] })
 })
 
 test('one more per-agent store plugs in as one line in the list of parts', () => {
   const w = world()
   const extra = {
-    key: 'settings',
-    read: t => JSON.parse(fs.existsSync(t.file('agent-settings.json')) ? fs.readFileSync(t.file('agent-settings.json'), 'utf8') : '{}'),
-    write: (v, t) => { fs.mkdirSync(t.dataDir, { recursive: true }); fs.writeFileSync(t.file('agent-settings.json'), JSON.stringify(v)) },
+    key: 'pins',
+    read: t => JSON.parse(fs.existsSync(t.file('agent-pins.json')) ? fs.readFileSync(t.file('agent-pins.json'), 'utf8') : '{}'),
+    write: (v, t) => { fs.mkdirSync(t.dataDir, { recursive: true }); fs.writeFileSync(t.file('agent-pins.json'), JSON.stringify(v)) },
   }
-  fs.writeFileSync(w.primary.file('agent-settings.json'), JSON.stringify({ QA: { model: 'x' } }))
+  fs.writeFileSync(w.primary.file('agent-pins.json'), JSON.stringify({ QA: { model: 'x' } }))
   const parts = [...O.STYLE_PARTS, extra]
   const style = O.takeSnapshot(w.primary, parts)
-  assert.deepEqual(style.parts.settings, { QA: { model: 'x' } })
+  assert.deepEqual(style.parts.pins, { QA: { model: 'x' } })
   O.applySnapshot(style, w.other, parts)
-  assert.deepEqual(JSON.parse(fs.readFileSync(w.other.file('agent-settings.json'), 'utf8')), { QA: { model: 'x' } })
+  assert.deepEqual(JSON.parse(fs.readFileSync(w.other.file('agent-pins.json'), 'utf8')), { QA: { model: 'x' } })
 })
 
 test('the view of a style: its graph, each agent with its role, specification and rules, and one summary line', () => {
@@ -225,4 +226,36 @@ test('the agents of a style that have no session in the project yet (the chat ag
   assert.deepEqual(O.noSessionFor(style, ['Master', 'app-a9']), ['Agent 1', 'QA'])
   assert.deepEqual(O.noSessionFor(style, ['Master', 'Agent 1', 'app-a9', 'QA']), [])
   assert.deepEqual(O.noSessionFor(style, []), ['Master', 'Agent 1', 'Agent 3', 'QA'])
+})
+
+test('a style carries the model and effort chosen for each agent, and never the files an agent was given', () => {
+  const w = world()
+  let from = S.applyModel(S.readAgentSettings(w.primary.file('agent-settings.json')), 'Agent 1', { model: 'claude-sonnet-5-5', effort: 'low' }).store
+  from = S.addFile(from, 'Agent 1', { title: 'House rules', text: 'Only for this repo.', kind: 'note' }).store
+  S.writeAgentSettings(from, w.primary.file('agent-settings.json'))
+  const style = O.takeSnapshot(w.primary)
+  assert.deepEqual(style.parts.settings.agents['Agent 1'], { model: 'claude-sonnet-5-5', effort: 'low' })
+  assert.deepEqual(style.parts.settings.agents.QA, { model: null, effort: null })
+  assert.ok(!JSON.stringify(style).includes('Only for this repo.'))
+
+  // the target keeps its own files, takes the model, and an agent with no choice in the style loses its own
+  let to = S.applyModel(S.readAgentSettings(w.other.file('agent-settings.json')), 'QA', { model: 'claude-haiku-5-5' }).store
+  to = S.addFile(to, 'Agent 1', { title: 'Other repo notes', text: 'Stays here.', kind: 'note' }).store
+  fs.mkdirSync(w.other.dataDir, { recursive: true })
+  S.writeAgentSettings(to, w.other.file('agent-settings.json'))
+  O.applySnapshot(style, w.other)
+  const after = S.readAgentSettings(w.other.file('agent-settings.json'))
+  assert.equal(S.entryOf(after, 'Agent 1').model, 'claude-sonnet-5-5')
+  assert.equal(S.entryOf(after, 'Agent 1').effort, 'low')
+  assert.deepEqual(S.entryOf(after, 'Agent 1').files.map(x => x.text), ['Stays here.'])
+  assert.equal(S.entryOf(after, 'QA').model, null)
+})
+
+test('a saved model that is not one of the listed models is refused before anything is written', () => {
+  const w = world()
+  const style = O.takeSnapshot(w.primary)
+  style.parts.settings.agents.QA = { model: 'not-a-model', effort: null }
+  assert.match(O.checkSnapshot(style), /QA: Pick one of the listed models./)
+  assert.throws(() => O.applySnapshot(style, w.other), /Pick one of the listed models/)
+  assert.equal(fs.existsSync(w.other.file('agent-settings.json')), false)
 })

@@ -12,7 +12,7 @@
 //
 // ═══ PLUGGING IN ONE MORE PER-AGENT STORE ═══ A part is one line in STYLE_PARTS. For a store kept in the
 // project's data folder as <name>.json, with read(file) and write(value, file) functions:
-//   { key: 'settings', read: t => readSettings(t.file('agent-settings.json')), write: (v, t) => writeSettings(v, t.file('agent-settings.json')) }
+//   { key: 'pins', read: t => readPins(t.file('agent-pins.json')), write: (v, t) => writePins(v, t.file('agent-pins.json')) }
 // `t.file(name)` is that file in the TARGET project's folder (never DATA_DIR: a new project is written before
 // the server has switched to it). An optional `check(value)` returns a sentence to refuse a bad saved value
 // before ANY part is written. A style saved before a part existed simply has no value for it: that part is
@@ -30,6 +30,9 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 
 import { agentLabels, appendLog, applyChange, checkChange, diffEntries, readRules, RULES_FILE, RULES_LOG, rulesOf, writeRules } from './agent-rules.mjs'
+import {
+  appendSettingsLog, applyModel, EFFORTS, entryOf, MODELS, readAgentSettings, SETTINGS_FILE, SETTINGS_LOG, writeAgentSettings,
+} from './agent-settings.mjs'
 import { coordinatorSettings, DEFAULT_CHAT_NAME } from './config.mjs'
 import { setKeys, writeConfigKeys } from './config-write.mjs'
 import { AGENT_LABEL } from './flows.mjs'
@@ -40,6 +43,8 @@ const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v)
 const silent = () => {}
 const RULES_NAME = path.basename(RULES_FILE)
 const LOG_NAME = path.basename(RULES_LOG)
+const SETTINGS_NAME = path.basename(SETTINGS_FILE)
+const SETTINGS_LOG_NAME = path.basename(SETTINGS_LOG)
 /** At most this many session names in a style, and agents in its rules. */
 const MAX_AGENTS = 40
 
@@ -171,8 +176,49 @@ const rulesPart = {
   },
 }
 
+// ═══ the model and effort chosen for each agent (agent-settings.mjs) ═══
+// ⚠️ ONLY the model and the effort travel with a style. The files and notes an agent was given are context about
+// ONE project (and can be 60,000 characters an agent, past what a bank entry may hold), so a style never carries
+// them and never touches the target's own: write() goes through applyModel, which keeps an entry's files.
+
+function checkSettings(v) {
+  if (!isObj(v) || !isObj(v.agents)) return 'The saved models are not readable.'
+  for (const [label, e] of Object.entries(v.agents)) {
+    if (!AGENT_LABEL.test(label)) return `${label} is not an agent name.`
+    if (e?.model != null && !MODELS.some(m => m.id === e.model)) return `${label}: Pick one of the listed models.`
+    if (e?.effort != null && !EFFORTS.includes(e.effort)) return `${label}: Pick low, medium or high effort.`
+  }
+  return null
+}
+
+const settingsPart = {
+  key: 'settings',
+  read(t) {
+    const store = readAgentSettings(t.file(SETTINGS_NAME))
+    const agents = {}
+    for (const label of agentLabels(graphOf(agentsOf(t.raw())))) {
+      const e = entryOf(store, label)
+      agents[label] = { model: e.model ?? null, effort: e.effort ?? null }
+    }
+    return { agents }
+  },
+  check: checkSettings,
+  write(v, t) {
+    const file = t.file(SETTINGS_NAME)
+    let store = readAgentSettings(file)
+    const lines = []
+    const at = new Date().toISOString()
+    for (const [label, e] of Object.entries(v.agents)) {
+      const r = applyModel(store, label, { model: e?.model ?? null, effort: e?.effort ?? null }, { now: () => at })
+      store = r.store
+      if (r.text) lines.push({ at, label, text: r.text })
+    }
+    writeAgentSettings(store, file)
+    for (const line of lines) appendSettingsLog(line, t.file(SETTINGS_LOG_NAME)) // each agents Changes list says what the switch changed
+  },
+}
 /** The parts of a style, in the order they are written. ONE line per part: see the header. */
-export const STYLE_PARTS = [agentsPart, rulesPart]
+export const STYLE_PARTS = [agentsPart, rulesPart, settingsPart]
 
 // ═══ snapshots ═══
 
