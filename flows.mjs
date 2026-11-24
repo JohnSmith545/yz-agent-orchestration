@@ -433,7 +433,7 @@ export function addNode(flow, { type, title, id, why, env, after, status, yes, n
   node.after = after || []
   if (WORK.has(type)) Object.assign(node, { status: status || 'todo', evidence: [], verified: null })
   if (type === 'ask') {
-    Object.assign(node, { kind: kind || 'yesno', yes: yes || '', no: no || '', answer: null, answeredAt: null, note: '', sentAt: null, deliveryError: null })
+    Object.assign(node, { kind: kind || 'yesno', yes: yes || '', no: no || '', answer: null, answeredAt: null, note: '', sentAt: null, deliveryError: null, at: now() })
   }
   flow.nodes.push(node)
   return node
@@ -472,6 +472,10 @@ export function applyAnswer(flow, nodeId, answer, note) {
       throw new Error(`answer must be ${node.kind === 'text' ? 'non-empty text' : 'yes, no'} or null`)
     }
   }
+  // ⚠️ How long a question has waited counts from when IT was asked (`at`, Human review and the pulse): an ask
+  // written before asks carried a time falls back to the flow's last write, which this very write moves. So every
+  // other open ask with no time keeps the one it was shown with, the flow's updatedAt as stored, before it moves.
+  for (const n of flow.nodes || []) if (n.type === 'ask' && n !== node && n.answer == null && !isText(n.at) && isText(flow.updatedAt)) n.at = flow.updatedAt
   node.answer = answer
   node.answeredAt = answer === null ? null : now()
   if (note !== undefined) node.note = String(note)
@@ -517,6 +521,8 @@ export function mergeKeepingAnswers(incoming, existing) {
       const kept = askKept ? old : {}
       for (const key of ['answer', 'answeredAt', 'sentAt', 'deliveryError']) n[key] = kept[key] ?? null
       n.note = askKept ? old.note ?? '' : ''
+      // when it was asked: the stored time while it is the same question, else the agent's, else the time of this write
+      n.at = askKept && isText(old.at) ? old.at : isText(n.at) ? n.at : now()
     }
   }
   // The storyboard: a rewrite that leaves `output` out keeps the stored one whole (an agent that

@@ -134,3 +134,27 @@ test('with the real queue (the turn stubbed): the request goes once, the latest 
   assert.equal(h.requestError, null)
   assert.equal(F.readFlow('ci').output?.requestedAt, undefined, 'the test steps request is untouched')
 })
+
+// ═══ how long a question has waited (QA nit 3) ═══
+
+test('answering one question never resets how long the flow other questions have waited', async () => {
+  const f = F.readFlow('ci')
+  // two asks written before asks carried a time: they fall back to the flow last write
+  f.nodes = [{ id: 'q1', type: 'ask', title: 'First?', kind: 'yesno', answer: null, after: [] }, { id: 'q2', type: 'ask', title: 'Second?', kind: 'yesno', answer: null, after: [] }]
+  F.writeFlow(f)
+  const before = (await (await get('/api/human')).json()).items.find(i => i.key === 'ask:ci:q2').since
+  await new Promise(r => setTimeout(r, 20))
+  assert.equal((await post('/api/flows/ci/answer', { node: 'q1', answer: 'yes' })).status, 200)
+  const after = (await (await get('/api/human')).json()).items.find(i => i.key === 'ask:ci:q2').since
+  assert.equal(after, before, 'q2 still waits from when it was shown')
+  assert.notEqual(F.readFlow('ci').updatedAt, before, 'the flow itself was written')
+})
+
+test('an agent rewrite keeps when a question was asked while it is the same question; a reworded one starts again', async () => {
+  const { mergeKeepingAnswers } = F
+  const stored = { id: 'x', title: 'X', agent: 'A', status: 'open', nodes: [{ id: 'q1', type: 'ask', title: 'Go?', kind: 'yesno', answer: null, at: '2026-11-20T00:00:00.000Z' }] }
+  const same = mergeKeepingAnswers({ ...stored, nodes: [{ id: 'q1', type: 'ask', title: 'Go?', kind: 'yesno', at: '2030-01-01T00:00:00.000Z' }] }, stored)
+  assert.equal(same.nodes[0].at, '2026-11-20T00:00:00.000Z')
+  const reworded = mergeKeepingAnswers({ ...stored, nodes: [{ id: 'q1', type: 'ask', title: 'Go now?', kind: 'yesno' }] }, stored)
+  assert.ok(reworded.nodes[0].at > '2026-11-20T00:00:00.000Z')
+})

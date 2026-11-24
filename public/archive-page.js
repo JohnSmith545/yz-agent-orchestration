@@ -195,7 +195,7 @@
     if ((id = pick('data-ar-delete'))) {
       const confirmed = !!t.closest('[data-confirmed]')
       const r = await call(`/api/flows/${enc(id)}/delete`, { confirm: confirmed })
-      if (r.status === 409 && r.j?.needsConfirm) {
+      if (r.j?.needsConfirm) {
         state.asking = { id, message: String(r.j.message || '') }
         return paint()
       }

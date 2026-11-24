@@ -8,9 +8,10 @@
 //   GET  /api/archive              { archived: [{ id, title, agent, status, tickets, archivedAt }], deleted: [{ id,
 //                                  title, agent, status, tickets, deletedAt, broken? }] }, each the newest first
 //   POST /api/flows/<id>/archive   { archived: true|false }: sets or clears archivedAt
-//   POST /api/flows/<id>/delete    { confirm?: true }: an open or blocked flow without confirm is 409
-//                                  { needsConfirm, message } and nothing changes; otherwise the flow moves to
-//                                  the archive's Deleted group, { ok, deletedAt }
+//   POST /api/flows/<id>/delete    { confirm?: true }: an open or blocked flow without confirm is 200
+//                                  { ok: false, needsConfirm, message } and nothing changes (a question, not an
+//                                  error: the browser logs no failed request); otherwise the flow moves to the
+//                                  archive's Deleted group, { ok, deletedAt }
 //   POST /api/trash/<id>/restore   { ok, archived } or the plain refusal (404 unknown, 409 the id is taken); a stop
 //                                  line not sent yet is cancelled
 //   POST /api/trash/<id>/purge     { ok }: Delete for good, the entry and the flow's evidence
@@ -51,7 +52,7 @@ export function deleteRoute(id, b, relay) {
   if (!flow) return no(404, `No flow ${id}.`)
   const working = live(flow)
   if (working && b?.confirm !== true) {
-    return { status: 409, body: { needsConfirm: true, message: `${flow.agent} may still be working on this. Delete it anyway?` } }
+    return ok({ ok: false, needsConfirm: true, message: `${flow.agent} may still be working on this. Delete it anyway?` })
   }
   const { deletedAt } = moveToTrash(id)
   relay.drop(id)
