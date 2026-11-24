@@ -146,3 +146,24 @@ test('GET /api/log with a bad window, cell or kind is a 400 with a plain sentenc
     assert.deepEqual(await r.json(), { error }, q)
   }
 })
+
+test('GET /api/log carries the saved rule changes as rule events, inside the window only', async () => {
+  const logFile = path.join(process.env.FACTORY_DATA_DIR, 'agent-rules-log.jsonl')
+  fs.writeFileSync(logFile, [
+    JSON.stringify({ at: ago(2 * DAY), label: 'Agent 1', spec: null, added: ['Run the tests first.', 'Never push.'], removed: [] }),
+    JSON.stringify({ at: ago(20 * DAY), label: QA, spec: 'set', added: [], removed: [] }),
+  ].map(l => l + String.fromCharCode(10)).join(''))
+  try {
+    const week = await (await fetch(`${base}/api/log?days=7&kind=rule`)).json()
+    assert.equal(week.total, 1)
+    assert.deepEqual({ kind: week.events[0].kind, agent: week.events[0].agent, text: week.events[0].text, cell: week.events[0].cell, flow: week.events[0].flow },
+      { kind: 'rule', agent: 'Agent 1', text: 'Agent 1 got 2 new rules.', cell: null, flow: null })
+    const all = await (await fetch(`${base}/api/log?days=all&kind=rule`)).json()
+    assert.equal(all.total, 2)
+    // a rule change never puts a count in a scorecard cell
+    const caught = await (await fetch(`${base}/api/log?days=all&cell=caught`)).json()
+    assert.ok(caught.events.every(e => e.kind !== 'rule'))
+  } finally {
+    fs.rmSync(logFile, { force: true })
+  }
+})

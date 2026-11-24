@@ -653,7 +653,9 @@ for my full agent orchestration" gets questions back. The **Context** tab on the
   system is (a coordinator hands requests to producers, QA tests every code change and is the only one that
   pushes, failures go back), each agent and its role in the Agents page's wording, the three flow types and their
   routes, the QA rules (how many reworks, the protected branches), the pages in one line each, and what the
-  dashboard is built with. It carries labels and settings only: never paths, session ids, your account, the PIN
+  dashboard is built with. When you have saved rules for an agent (Agents, then Settings), they
+  follow as a section, and so does the pipeline score of the last 30 days once anything has been scored
+  (`script-brief-extras.mjs`). It carries labels and settings only: never paths, session ids, your account, the PIN
   hash or tokens, and it is scrubbed for them as well. At most 8,000 characters. **Preview** shows it.
 - **Live session**: pick one running session by its label (Master, Agent 1 …). When you press **Generate**, the
   newest part of its conversation is read fresh: your typed messages and its text replies only, with no tool calls,
@@ -1329,7 +1331,7 @@ read again with every status refresh without redrawing.
   sentence ("QA failed this and sent it back to Agent 1."), the flow's title, and, when it put a count in a score, a
   quiet tag such as **Counted: right, caught**. The events: a flow started, its route planned or changed, work handed
   to QA, each pass and failure (earlier attempts too), QA's push, a flow finished with no QA record, dropped, stopped
-  at QA, stalled, and rule changes once a rule store is wired in. A refused push is not shown: the flow file keeps
+  at QA, stalled, and every saved change to an agent's specification or rules. A refused push is not shown: the flow file keeps
   no time for it. The tags sit on the very events the scorecard counts, so the events tagged in a window add up to
   its four counts. Chips filter it: All, Delivered, Caught, Missed, Slipped through, Rules. It counts over the
   scorecard's window. Click an event to select its flow, as on Tickets. A refresh reads it again with the diagram

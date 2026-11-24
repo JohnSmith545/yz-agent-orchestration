@@ -9,10 +9,12 @@
 //                                    `cell` keeps the events that put a count in that scorecard cell (delivered,
 //                                    caught, missed, slipped), `kind` one kind (the panel's Rules filter is
 //                                    kind=rule). `total` is how many matched before the cut.
-// Any other value is a 400 with one plain sentence. No rule store is wired in yet: `extra` is empty until one is.
+// Any other value is a 400 with one plain sentence. The log also carries every saved change to an agent's rules
+// (agent-rules.mjs readLog and ruleEvents) as `rule` events; orchestrationLog keeps the ones inside the window.
 //
 // Each handler returns { status, body }. `config` is config.mjs CONFIG by default; tests may pass `now`.
 
+import { readLog, ruleEvents } from './agent-rules.mjs'
 import { CONFIG } from './config.mjs'
 import { listFlows } from './flows.mjs'
 import { pipelineGraph } from './pipeline.mjs'
@@ -37,7 +39,10 @@ export function scoreGet(raw, { config = CONFIG, now = Date.now() } = {}) {
   return { status: 200, body: { ...score, builtAt: new Date(now).toISOString() } }
 }
 
-export function logGet({ days: rawDays, cell, kind } = {}, { config = CONFIG, now = Date.now(), extra = [] } = {}) {
+/** Every saved rule change as a log event; the window is applied by orchestrationLog, so none is cut here. */
+const ruleChanges = now => ruleEvents(readLog(), { now, days: Infinity })
+
+export function logGet({ days: rawDays, cell, kind } = {}, { config = CONFIG, now = Date.now(), extra = ruleChanges(now) } = {}) {
   const days = daysOf(rawDays)
   if (days === undefined) return BAD_WINDOW
   if (cell && !LOG_CELLS.includes(cell)) return { status: 400, body: { error: 'The cell must be delivered, caught, missed or slipped.' } }

@@ -31,6 +31,7 @@ import { makeContextGatherer, makeScriptContextRoute } from './script-context-ro
 import { makeScriptLogRoute } from './script-log-routes.mjs'
 import { appendRun } from './script-log.mjs'
 import { orchestrationBrief } from './script-brief.mjs'
+import { briefExtras } from './script-brief-extras.mjs'
 import { pipelineGraph } from './pipeline.mjs'
 import { listRepoSubagents, oneSubagent, sessionFile, ticketBuilders, windowStart } from './subagents.mjs'
 import { listFlows } from './flows.mjs'
@@ -849,12 +850,16 @@ const subagentRoute = makeSubagentRoutes({
 })
 /** The SCRIPT Generator (script-routes.mjs): POST /api/script/generate, one paid Opus run at a time, streamed. */
 /**
- * What SCRIPT can be told (script-context-routes.mjs): the orchestration brief, written fresh from the config on
+ * What SCRIPT can be told (script-context-routes.mjs): the orchestration brief, written fresh from the config, the
+ * agents' saved rules and the pipeline score (script-brief-extras.mjs) on
  * each read, and the RUNNING sessions by dashboard label (a pinned session that is closed is not running), each
  * with its transcript, read only when the user presses Generate.
  */
 const scriptContext = {
-  brief: () => orchestrationBrief({ config: CONFIG, graph: pipelineGraph(CONFIG) }),
+  brief: () => {
+    const graph = pipelineGraph(CONFIG)
+    return orchestrationBrief({ config: CONFIG, graph, extras: briefExtras({ graph }) })
+  },
   sessions: async () => (await liveSessions()).filter(s => !s.pinned).map(s => ({ label: labelOf(s.name), state: s.status === 'busy' ? 'working' : 'idle', transcript: () => transcriptFile(s) })),
 }
 const scriptRoute = makeScriptRoute({ port: PORT, gather: makeContextGatherer(scriptContext), log: appendRun })
