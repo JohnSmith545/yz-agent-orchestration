@@ -4,8 +4,12 @@
 // resolves { type: 'error', error } with a calm message. test/script-stream.test.mjs
 // runs it in a vm with a stub fetch.
 //
-//   ScriptStream.generate(text, { onDelta, fetch?, signal? })
+//   ScriptStream.generate(text, { onDelta, onContext?, fetch?, signal? })
 //       → { type: 'done', ok, stopReason, cost } | { type: 'error', error, cost? }
+//       A `{ type: 'context', used, skipped }` line (what the Context panel sent, before the first
+//       delta) goes to onContext({ used, skipped }), each list an array, never to onDelta.
+//       `signal` aborts the fetch (Restart); the promise then resolves an error, which the page
+//       drops because that run is over (script-state.js, run ids).
 //   ScriptStream.splitLines(buffer) → { lines, rest }   pure: whole lines out, the tail kept
 ;(() => {
   const URL_PATH = '/api/script/generate'
@@ -26,7 +30,7 @@
     }
   }
 
-  async function generate(text, { onDelta = () => {}, fetch = window.fetch?.bind(window), signal } = {}) {
+  async function generate(text, { onDelta = () => {}, onContext = () => {}, fetch = window.fetch?.bind(window), signal } = {}) {
     let res
     try {
       res = await fetch(URL_PATH, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text }), signal })
@@ -50,6 +54,7 @@
       const o = parse(l)
       if (!o) return
       if (o.type === 'delta' && typeof o.text === 'string') onDelta(o.text)
+      else if (o.type === 'context') onContext({ used: Array.isArray(o.used) ? o.used : [], skipped: Array.isArray(o.skipped) ? o.skipped : [] })
       else if (o.type === 'done' || o.type === 'error') final = o
     }
     try {

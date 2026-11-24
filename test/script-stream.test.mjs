@@ -80,3 +80,30 @@ test('a garbled line is skipped, not fatal', async () => {
   assert.equal((await SS.generate('idea', { onDelta: t => got.push(t), fetch })).type, 'done')
   assert.deepEqual(got, ['ok'])
 })
+
+test('a context line before the first delta goes to onContext, not onDelta', async () => {
+  const ctxLine = { type: 'context', used: [{ title: 'Brand voice', chars: 120 }], skipped: [{ title: 'Old notes', why: 'too long' }] }
+  const fetch = async () => response([line(ctxLine) + line({ type: 'delta', text: 'Hi' }) + line({ type: 'done', ok: true, stopReason: 'end_turn', cost: 0 })])
+  const seen = []
+  const got = []
+  const out = await SS.generate('idea', { onDelta: t => got.push(t), onContext: c => seen.push(plain(c)), fetch })
+  assert.equal(out.type, 'done')
+  assert.deepEqual(got, ['Hi'])
+  assert.deepEqual(seen, [{ used: [{ title: 'Brand voice', chars: 120 }], skipped: [{ title: 'Old notes', why: 'too long' }] }])
+})
+
+test('a context line with no onContext, or with missing lists, is harmless', async () => {
+  const fetch = async () => response([line({ type: 'context' }) + line({ type: 'done', ok: true, stopReason: 'end_turn', cost: 0 })])
+  assert.equal((await SS.generate('idea', { onDelta: () => {}, fetch })).type, 'done')
+  const seen = []
+  await SS.generate('idea', { onDelta: () => {}, onContext: c => seen.push(plain(c)), fetch })
+  assert.deepEqual(seen, [{ used: [], skipped: [] }])
+})
+
+test('the abort signal reaches fetch, so Restart can stop the run', async () => {
+  let got = null
+  const signal = { aborted: false }
+  const fetch = async (_u, opts) => ((got = opts.signal), response([line({ type: 'done', ok: true, stopReason: 'end_turn', cost: 0 })]))
+  await SS.generate('idea', { onDelta: () => {}, fetch, signal })
+  assert.equal(got, signal)
+})

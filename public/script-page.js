@@ -3,70 +3,46 @@
 // in six labelled sections, Situation, Character, Request, Intent, Presentation, Tone.
 //
 // This file is the DOM glue only. What to draw comes from ScriptState (script-state.js),
-// the text rules from ScriptText (script-text.js), the stream from ScriptStream
-// (script-stream.js) and the pop from ScriptSound (script-sound.js).
+// the text rules from ScriptText (script-text.js), the answer's parts from ScriptRender
+// (script-render.js), drawn by ScriptView (script-view.js), the stream from ScriptStream
+// (script-stream.js), the pop from ScriptSound (script-sound.js), Copy from ScriptCopy
+// (script-copy.js), the questions pop-up from ScriptAsk (script-ask.js) and the History list
+// from ScriptHistoryView (script-history-view.js).
 //
-// - ⚠️ Model text is NEVER HTML: the output box only ever gets textContent.
+// - ⚠️ Model text is NEVER HTML: ScriptView builds the output from text nodes, and the Sent with
+//   line is text too. Only markup() and the fixed mute icons go in as HTML.
 // - The letters light from the streamed text itself (ScriptText.sectionsStarted), never a
-//   timer. The completion moment (ScriptState.justCompleted) settles the letters, glows the
-//   box once and plays the pop, unless muted. Under reduced motion the CSS fades instead.
+//   timer: a lit letter pops once, the one being written keeps a soft ring, and while the model
+//   thinks (no text yet) they ripple. The completion moment (ScriptState.justCompleted) settles
+//   the letters, glows the box once and plays the pop, unless muted. Under reduced motion the
+//   CSS fades instead.
 // - The AudioContext is made or resumed in the Generate click, a user gesture, so the
 //   browser lets the pop play when it comes, seconds later.
+// - Restart aborts the run's fetch (the server then kills the model process), resets the state
+//   and empties both boxes, with Undo for UNDO_MS. The stopped run's late events carry its old
+//   run id, so the state drops them: no error, no pop, no late text.
 // - Leaving the page does NOT stop a run: the section is only hidden, the run finishes and
 //   is there when you come back. Closing the tab cuts the stream, and the server then
 //   kills the model process.
+// - The Context panel (script-context.js, another file) is optional: an empty aside for it, and
+//   ScriptContext.create on mount when it is loaded.
+// - Questions: a run that ends on them opens the pop-up over Your thoughts (ScriptState
+//   `asking`). Later keeps what was typed in Your answers, and Show the questions opens it again.
+// - History: a row brings its run back as a finished state (ScriptState restore), with no
+//   completion moment, no pops and no pop-up. It is refreshed after every run ends.
 //
-//   window.ScriptPage = { open(), close(), markup() }   markup() is the static HTML (tests)
+//   window.ScriptPage = { open(), close(), markup() }   markup() is ScriptMarkup.html() (script-markup.js)
 ;(() => {
   const T = () => window.ScriptText
   const St = () => window.ScriptState
-  const MAX = 8000
+  const MAX = window.ScriptMarkup.MAX
   const COPIED_MS = 1500
-  const MOMENT_MS = 1000 // longer than the settle (340 ms) and the glow (900 ms)
-  const IS_MAC = /Mac|iPhone|iPad/.test(window.navigator?.platform || window.navigator?.userAgent || '')
-  const svg = d => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`
-  const SPEAKER = '<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4Z"/>'
-  const ICON = {
-    sound: svg(`${SPEAKER}<path d="M15.5 9a4 4 0 0 1 0 6"/><path d="M18 6.5a7.5 7.5 0 0 1 0 11"/>`),
-    muted: svg(`${SPEAKER}<path d="m16 9.5 5 5M21 9.5l-5 5"/>`),
-  }
-  const LETTERS = [['Situation', 'S'], ['Character', 'C'], ['Request', 'R'], ['Intent', 'I'], ['Presentation', 'P'], ['Tone', 'T']]
-  const MUTE_LABEL = { off: 'Mute the completion sound', on: 'Turn the completion sound back on' }
-
-  function markup() {
-    const letters = LETTERS.map(([s, l]) => `<span class="sc-letter" data-section="${s}" title="${s}">${l}</span>`).join('')
-    return `<div class="sc-page">
-  <p class="sc-lede small">Write a rough idea. It comes back as a prompt in six labelled parts, ready to paste into any AI. Nothing is done with the task itself.</p>
-  <div class="sc-grid">
-    <div class="sc-col">
-      <label for="scriptInput" class="sc-label">Your thoughts</label>
-      <textarea id="scriptInput" class="sc-text" maxlength="${MAX}" rows="12" spellcheck="true" placeholder="What do you want an AI to do? Who is it for, and why?"></textarea>
-      <div class="sc-answers" id="scriptAnswersBox" hidden>
-        <label for="scriptAnswers" class="sc-label">Your answers</label>
-        <textarea id="scriptAnswers" class="sc-text sc-text-short" rows="5" placeholder="Answer the questions on the right, in your own words."></textarea>
-      </div>
-      <div class="sc-actions">
-        <button type="button" class="primary" id="scriptGo">Generate</button>
-        <span class="small faint" id="scriptKeys">${IS_MAC ? '⌘' : 'Ctrl'}+Enter</span>
-        <span class="small faint sc-hint" id="scriptHint" aria-live="polite"></span>
-      </div>
-    </div>
-    <div class="sc-col">
-      <div class="sc-head">
-        <div class="sc-letters" id="scriptLetters" role="group" aria-label="Sections started: none">${letters}</div>
-        <button type="button" class="sc-mute" id="scriptMute" aria-pressed="false" aria-label="${MUTE_LABEL.off}" title="${MUTE_LABEL.off}">
-          ${ICON.sound}
-        </button>
-        <span class="small faint sc-progress" id="scriptProgress" aria-live="polite"></span>
-        <span class="small sc-copied" id="scriptCopied" role="status"></span>
-        <button type="button" id="scriptCopy" disabled>Copy</button>
-      </div>
-      <pre class="sc-out" id="scriptOut" tabindex="0" aria-label="Your prompt" aria-busy="false" data-empty="Your prompt appears here."></pre>
-      <div class="sc-error" id="scriptError" role="alert" hidden><i class="sc-mark" aria-hidden="true"></i><span id="scriptErrorText"></span><button type="button" id="scriptRetry">Retry</button></div>
-    </div>
-  </div>
-</div>`
-  }
+  const MOMENT_MS = 1000 // longer than the settle (370 ms) and the glow (900 ms)
+  const POP_MS = 320 // a little longer than the pop (260 ms)
+  const UNDO_MS = 6000
+  const M = window.ScriptMarkup
+  const { ICON, MUTE_LABEL } = M
+  const markup = () => M.html()
 
   if (!window.document) {
     window.ScriptPage = { open() {}, close() {}, markup }
@@ -83,10 +59,17 @@
   }
   let els = null
   let state = null
+  let output = null // the ScriptView drawing #scriptOut
   let audio = null
+  let controller = null // the running fetch's AbortController, for Restart
   let copiedTimer = 0
   let momentTimer = 0
+  let undoTimer = 0
+  let undoSaved = null
   let drawn = ''
+  let sentDrawn = 'null'
+  let ask = null // the questions pop-up (script-ask.js)
+  let history = null // the History list (script-history-view.js)
 
   function mount() {
     const view = doc.getElementById('scriptView')
@@ -94,11 +77,30 @@
     const $ = id => doc.getElementById(id)
     els = {
       input: $('scriptInput'), answersBox: $('scriptAnswersBox'), answers: $('scriptAnswers'), go: $('scriptGo'), hint: $('scriptHint'),
+      restart: $('scriptRestart'), undo: $('scriptUndo'), undoBtn: $('scriptUndoBtn'),
       letters: $('scriptLetters'), mute: $('scriptMute'), progress: $('scriptProgress'), copied: $('scriptCopied'), copy: $('scriptCopy'),
-      out: $('scriptOut'), error: $('scriptError'), errorText: $('scriptErrorText'), retry: $('scriptRetry'),
+      out: $('scriptOut'), error: $('scriptError'), errorText: $('scriptErrorText'), retry: $('scriptRetry'), sent: $('scriptSent'),
+      askOpen: $('scriptAskOpen'),
     }
     state = St().initial()
+    output = window.ScriptView.create(els.out)
+    ask = window.ScriptAsk.create($('scriptInBox'), {
+      onSubmit: answers => {
+        els.answers.value = answers
+        dispatch({ type: 'unask' })
+        onGenerate() // exactly what Generate again sends with these answers
+      },
+      onLater: answers => {
+        if (answers) els.answers.value = answers // nothing typed is lost
+        dispatch({ type: 'unask' })
+      },
+    })
+    els.askOpen.addEventListener('click', () => dispatch({ type: 'ask' }))
+    history = window.ScriptHistoryView.create($('scriptHistory'), { onRestore })
+    history.refresh()
     els.go.addEventListener('click', onGenerate)
+    els.restart.addEventListener('click', onRestart)
+    els.undoBtn.addEventListener('click', onUndo)
     els.retry.addEventListener('click', () => state.request && send(state.request, state.followUp))
     els.copy.addEventListener('click', onCopy)
     els.mute.addEventListener('click', () => paintMute(!window.ScriptSound.isMuted(store()), true))
@@ -109,10 +111,19 @@
           onGenerate()
         }
       })
-      box.addEventListener('input', () => (els.hint.textContent = ''))
+      box.addEventListener('input', () => {
+        els.hint.textContent = ''
+        hideUndo() // typing again: the old text is not coming back over the new
+        paintRestart(St().view(state))
+      })
     }
     paintMute(window.ScriptSound.isMuted(store()), false)
     paint()
+    try {
+      window.ScriptContext?.create(doc.getElementById('scriptContext'), { page: view.querySelector('.sc-page') })
+    } catch {
+      /* the Context panel is optional: the page works without it */
+    }
   }
 
   function paintMute(muted, save) {
@@ -126,16 +137,18 @@
 
   function paint() {
     const v = St().view(state)
-    if (drawn !== state.output) {
-      const pinned = els.out.scrollHeight - els.out.scrollTop - els.out.clientHeight < 24
-      els.out.textContent = state.output
-      drawn = state.output
-      if (pinned && v.busy) els.out.scrollTop = els.out.scrollHeight // follow the stream unless the user scrolled up
+    const key = `${v.busy}\u0000${state.output}`
+    if (drawn !== key) {
+      const box = els.out
+      const pinned = box.scrollHeight - box.scrollTop - box.clientHeight < 24
+      if (state.output) output.render(window.ScriptRender.parts(state.output, { live: v.busy }), { live: v.busy })
+      else output.clear()
+      drawn = key
+      if (pinned && v.busy) box.scrollTop = box.scrollHeight // follow the stream unless the user scrolled up
     }
     els.out.setAttribute('aria-busy', String(v.busy))
     els.out.classList.toggle('sc-incomplete', v.incomplete)
-    for (const el of els.letters.querySelectorAll('.sc-letter')) el.classList.toggle('on', v.lit.includes(el.dataset.section))
-    els.letters.setAttribute('aria-label', `Sections started: ${v.lit.length ? v.lit.join(', ') : 'none'}`)
+    paintLetters(v)
     els.progress.textContent = v.incomplete ? 'Incomplete' : v.progress
     els.copy.disabled = !v.canCopy
     els.answersBox.hidden = !v.showAnswers
@@ -144,11 +157,56 @@
     els.error.hidden = !v.error
     els.errorText.textContent = v.error
     els.retry.hidden = !v.canRetry
+    paintSent(v.context)
+    paintRestart(v)
+    els.askOpen.hidden = !(state.phase === 'questions' && !v.asking)
+    if (v.asking) ask.open(state.questions)
+    else ask.close()
+  }
+
+  /** Lit letters, the one being written (its ring), a pop for each that just lit, the thinking wave. */
+  function paintLetters(v) {
+    els.letters.classList.toggle('sc-thinking', v.thinking)
+    for (const el of els.letters.querySelectorAll('.sc-letter')) {
+      const s = el.dataset.section
+      const on = v.lit.includes(s)
+      if (on && !el.classList.contains('on') && !state.restored) pop(el) // a restore lights them quietly
+      if (!on) el.classList.remove('sc-pop')
+      el.classList.toggle('on', on)
+      el.classList.toggle('now', v.current === s)
+    }
+    els.letters.setAttribute('aria-label', `Sections started: ${v.lit.length ? v.lit.join(', ') : 'none'}`)
+  }
+
+  function pop(el) {
+    el.classList.remove('sc-pop')
+    void el.offsetWidth // restart the animation if the letter pops again soon
+    el.classList.add('sc-pop')
+    setTimeout(() => el.classList.remove('sc-pop'), POP_MS)
+  }
+
+  /** The quiet line under the output: what the Context panel sent with this run. Text only. */
+  function paintSent(c) {
+    const key = JSON.stringify(c)
+    if (key === sentDrawn) return
+    sentDrawn = key
+    els.sent.hidden = !c
+    els.sent.textContent = ''
+    for (const line of c ? [c.sent, c.left].filter(Boolean) : []) {
+      const span = doc.createElement('span')
+      span.textContent = line
+      els.sent.appendChild(span)
+    }
+  }
+
+  function paintRestart(v) {
+    els.restart.disabled = !(v.canRestart || els.input.value || els.answers.value)
   }
 
   function dispatch(ev) {
     const before = state
     state = St().reduce(state, ev)
+    if (state === before) return // a late event from a stopped run: nothing to draw
     paint()
     if (St().justCompleted(before, state)) moment()
   }
@@ -161,11 +219,14 @@
     void els.out.offsetWidth // restart the animations if a second moment comes quickly
     els.letters.classList.add('sc-settle')
     els.out.classList.add('sc-glow')
-    momentTimer = setTimeout(() => {
-      els.letters.classList.remove('sc-settle')
-      els.out.classList.remove('sc-glow')
-    }, MOMENT_MS)
+    momentTimer = setTimeout(endMoment, MOMENT_MS)
     if (!window.ScriptSound.isMuted(store())) window.ScriptSound.play(audio)
+  }
+
+  function endMoment() {
+    clearTimeout(momentTimer)
+    els.letters.classList.remove('sc-settle')
+    els.out.classList.remove('sc-glow')
   }
 
   function hint(msg, focus) {
@@ -192,44 +253,89 @@
   async function send(text, followUp) {
     els.hint.textContent = ''
     els.copied.textContent = ''
+    hideUndo()
     audio = audio || window.ScriptSound.ensureContext()
+    const ctl = new AbortController()
+    controller = ctl
     dispatch({ type: 'start', text, followUp })
-    const out = await window.ScriptStream.generate(text, { onDelta: t => dispatch({ type: 'delta', text: t }) })
-    dispatch({ type: 'end', ok: out.type === 'done', error: out.error })
+    const run = state.run
+    els.out.scrollTop = 0
+    const out = await window.ScriptStream.generate(text, {
+      signal: ctl.signal,
+      onDelta: t => dispatch({ type: 'delta', text: t, run }),
+      onContext: c => dispatch({ type: 'context', ...c, run }),
+    })
+    if (controller === ctl) controller = null
+    dispatch({ type: 'end', ok: out.type === 'done', error: out.error, run })
     window.Spend?.refresh?.() // the rail's spend chip shows this run's cost
+    history.refresh(out.run) // the server logged it, stopped runs too
+  }
+
+  /** A History row: bring that run back, finished. Refused (false) while a run is going. */
+  function onRestore(run) {
+    if (St().view(state).busy) return false
+    endMoment()
+    hideUndo()
+    ask.forget()
+    els.hint.textContent = ''
+    els.copied.textContent = ''
+    els.input.value = String(run.text ?? '')
+    els.answers.value = ''
+    dispatch(window.ScriptHistory.restoreEvent(run))
+    els.out.scrollTop = 0
+    return true
+  }
+
+  /** Start the page over: stop any run, empty both boxes and the output, offer Undo for the text. */
+  function onRestart() {
+    const saved = { thoughts: els.input.value, answers: els.answers.value }
+    controller?.abort() // the server sees the request close and kills the model process
+    controller = null
+    endMoment()
+    clearTimeout(copiedTimer)
+    els.copied.textContent = ''
+    els.hint.textContent = ''
+    els.input.value = ''
+    els.answers.value = ''
+    ask.forget()
+    dispatch({ type: 'reset' }) // closes the questions pop-up too
+    els.out.scrollTop = 0
+    if (saved.thoughts.trim() || saved.answers.trim()) showUndo(saved)
+    els.input.focus()
+  }
+
+  function showUndo(saved) {
+    clearTimeout(undoTimer)
+    undoSaved = saved
+    els.undo.hidden = false
+    undoTimer = setTimeout(hideUndo, UNDO_MS)
+  }
+
+  function hideUndo() {
+    clearTimeout(undoTimer)
+    undoSaved = null
+    if (els) els.undo.hidden = true
+  }
+
+  /** Undo puts the typed text back, not the output. The questions went with the output, so any
+   *  answers come back under the thoughts, in the one box that is still showing. */
+  function onUndo() {
+    const s = undoSaved
+    hideUndo()
+    if (!s) return
+    els.input.value = s.answers.trim() ? `${s.thoughts.replace(/\s+$/, '')}\n\n${s.answers}` : s.thoughts
+    paintRestart(St().view(state))
+    els.input.focus()
+    els.input.setSelectionRange(els.input.value.length, els.input.value.length)
   }
 
   async function onCopy() {
     const code = St().view(state).code
     if (code == null) return
-    let ok = false
-    try {
-      await window.navigator.clipboard.writeText(code)
-      ok = true
-    } catch {
-      ok = copyFallback(code)
-    }
+    const ok = await window.ScriptCopy.copy(code) // only the prompt inside the block
     clearTimeout(copiedTimer)
     els.copied.textContent = ok ? 'Copied' : 'Could not copy. Select the text instead.'
     copiedTimer = setTimeout(() => (els.copied.textContent = ''), COPIED_MS)
-  }
-
-  /** For a browser without the async clipboard (or without permission): a hidden textarea and execCommand. */
-  function copyFallback(code) {
-    const ta = doc.createElement('textarea')
-    ta.value = code
-    ta.setAttribute('readonly', '')
-    ta.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0'
-    doc.body.appendChild(ta)
-    ta.select()
-    let ok = false
-    try {
-      ok = doc.execCommand('copy')
-    } catch {
-      ok = false
-    }
-    ta.remove()
-    return ok
   }
 
   function open() {
@@ -237,7 +343,7 @@
     window.Shell.setTitle('SCRIPT', 'script')
     window.Shell.setStatus('Opus 5.5 · high effort',
       '<p>Each <b>Generate</b> is one Claude Code run on Opus 5.5 at high effort, with no tools and none of your settings, CLAUDE.md or memory. It is billed to your Claude account and counted in <b>Spend today</b>.</p>' +
-      '<p>One run goes at a time. When the model asks questions first, answer them and press <b>Generate again</b>.</p>')
+      '<p>One run goes at a time. When the model asks questions first, answer them in the pop-up and press <b>Answer and generate</b>. <b>Restart</b> stops a run and starts the page over. <b>History</b>, under the boxes, brings back an earlier run.</p>')
     if (state.phase === 'idle') els.input.focus({ preventScroll: true })
   }
 

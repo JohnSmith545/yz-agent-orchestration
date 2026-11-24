@@ -604,17 +604,39 @@ one line under the block. **Copy** copies only what is inside the block (no fenc
   gets 409). Closing the tab stops the run; going to another page does not, and the result is there when you come back.
 - **What it costs:** about 3 cents for a full prompt and under 2 cents when it asks questions instead (measured
   2026-11-24: $0.034 and $0.015). Each run counts in **Spend today** as SCRIPT Generator.
-- **The letters:** S C R I P T sit above the output and each lights in the accent as its section starts streaming,
-  read from the text itself. When the last section finishes (Tone, then the closing fence, or a good end with all
-  six seen), the letters settle with a small bounce, the box glows once, and a short soft pop plays. Under reduced
-  motion it is a fade, with no movement.
+- **The layout:** two equal columns, each a head row of the same height, a box, and a foot row. Both boxes share one
+  height that fits the window, so they start and end on the same line before, during and after a run; the output
+  scrolls inside its box. The page is as wide as the banner above it. Under 900 px the columns stack.
+- **The output:** clean text, never raw marks. Bold and code show as bold and code, numbered and bulleted lines as
+  real lists, and the code block as a prompt card with one row per section (its letter, its label, its text), with
+  no fence lines. The assumptions line under it is a small quiet note. It is drawn from text only, never as HTML
+  (`script-render.js` splits the answer into parts, `script-view.js` draws them and only patches what changed).
+- **The letters:** S C R I P T sit above the output. While the model thinks (no text yet) they ripple in a slow wave
+  and the line says **Thinking…**. Each lights in the accent with a small pop as its section starts streaming, read
+  from the text itself; the one being written keeps a soft pulsing ring, its row eases in, and a thin caret blinks
+  where the text arrives. When the last section finishes (Tone, then the closing fence, or a good end with all six
+  seen), the letters settle with a small bounce one after another (all in under 400 ms), the box glows once, and a
+  short soft pop plays. Under reduced motion nothing moves or loops: each of these is a short fade.
+- **Restart** (next to Generate) starts the page over: it stops a run that is going (the server then stops the
+  model), and clears your text, the answers, the output, the letters and any error. **Started over.** with **Undo**
+  shows for 6 seconds and puts your text back (answers come back under your thoughts); the output does not come back.
+  A stopped run never shows an error, pops, or adds late text.
 - **The pop and mute:** the pop is made in the browser with the Web Audio API (no sound file): a 115 ms sine that
   falls from 620 to 300 Hz, at a low volume. The speaker button by the letters mutes it; the choice is kept in this
   browser (`script.muted`). Muted, the letters and the glow still show.
 - **When it asks questions:** an idea that leaves the situation or the goal unclear gets up to three short questions
-  instead of a prompt. They show in the output box, the letters stay dark, nothing pops, and your text is left as it
-  was. A **Your answers** box opens under it: answer there and press **Generate again**, which sends your text, then
-  `Answers to your questions:`, the questions and your answers.
+  instead of a prompt. They show in the output box, the letters stay dark (the line says **Questions first**),
+  nothing pops, and your text is left as it was. A pop-up opens over **Your thoughts**, `SCRIPT has 3 questions`,
+  with each question and its own answer field (text with no numbered or bulleted items gets one field). **Answer and
+  generate** (or Ctrl+Enter in it) needs at least one answer and sends your text, then `Answers to your questions:`,
+  the questions and your answers as a numbered list, `(no answer)` for any you skipped. **Later**, Escape or × closes
+  it and keeps what you typed in the **Your answers** box under your thoughts; **Show the questions** opens it again.
+  You can also answer in that box and press **Generate again**.
+- **History**, under the two columns, closed by default (this browser remembers open or closed): the runs the
+  dashboard logged (`GET /api/script/log`, newest first), each with when, the first line of the idea, what came back
+  (Prompt, Questions, Stopped or Did not finish), the cost and the **Sent with** titles. Click a run to bring it back
+  as it finished (no pop and no glow; questions open the answers box, not the pop-up); not while a run is going.
+  **Remove** drops one, **Clear history** asks once on the page, then drops all. A dashboard without the log hides it.
 - **When it fails** (Claude Code missing, the run stopped, the model declined, or no output for 2 minutes): a calm
   line says so with **Retry**, which sends the same request again. Any text that had arrived stays, marked
   **Incomplete**. There is no pop.

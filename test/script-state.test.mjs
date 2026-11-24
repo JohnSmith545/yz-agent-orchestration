@@ -153,10 +153,220 @@ test('deltas or ends that arrive when nothing runs change nothing', () => {
 
 test('the status line under the letters says how many sections have started', () => {
   let s = St.reduce(St.initial(), { type: 'start', text: 'idea' })
+  assert.equal(St.view(s).progress, 'Thinking…', 'before the first text: the model is thinking')
+  s = St.reduce(s, { type: 'delta', text: 'Sure.\n' })
   assert.equal(St.view(s).progress, 'Writing…')
   s = St.reduce(s, { type: 'delta', text: '```\nSituation: a\nCharacter: b\n' })
   assert.equal(St.view(s).progress, '2 of 6 sections')
   s = St.reduce(stream(s, 'Request: c\nIntent: d\nPresentation: e\nTone: f\n```'), { type: 'end', ok: true })
   assert.equal(St.view(s).progress, 'All 6 sections')
   assert.equal(St.view(St.initial()).progress, '')
+})
+
+// ═══ thinking, the letter being written, and the questions path ═══
+
+test('thinking: a run with no text yet is thinking; the first text ends it', () => {
+  let s = St.reduce(St.initial(), { type: 'start', text: 'idea' })
+  assert.equal(St.view(s).thinking, true)
+  s = St.reduce(s, { type: 'delta', text: '\n' })
+  assert.equal(St.view(s).thinking, true, 'a bare line break is not text yet')
+  s = St.reduce(s, { type: 'delta', text: 'Sure' })
+  assert.equal(St.view(s).thinking, false)
+  assert.equal(St.view(St.initial()).thinking, false)
+  const failed = St.reduce(St.reduce(St.initial(), { type: 'start', text: 'x' }), { type: 'end', ok: false, error: 'No.' })
+  assert.equal(St.view(failed).thinking, false, 'a failed run is not thinking')
+})
+
+test('current: the section being written right now, until the block closes', () => {
+  let s = St.reduce(St.initial(), { type: 'start', text: 'idea' })
+  assert.equal(St.view(s).current, null)
+  s = St.reduce(s, { type: 'delta', text: '```\nSituation: a\n' })
+  assert.equal(St.view(s).current, 'Situation')
+  s = St.reduce(s, { type: 'delta', text: 'Character: b\n' })
+  assert.equal(St.view(s).current, 'Character')
+  s = stream(s, 'Request: c\nIntent: d\nPresentation: e\nTone: f\n')
+  assert.equal(St.view(s).current, 'Tone')
+  s = St.reduce(s, { type: 'delta', text: '```\n' })
+  assert.equal(St.view(s).current, null, 'the block closed: nothing is being written')
+  assert.equal(St.view(St.reduce(s, { type: 'end', ok: true })).current, null)
+})
+
+test('the questions path says Questions first', () => {
+  const s = St.reduce(stream(St.reduce(St.initial(), { type: 'start', text: 'idea' }), QUESTIONS), { type: 'end', ok: true })
+  assert.equal(St.view(s).progress, 'Questions first')
+})
+
+// ═══ Restart ═══
+
+test('reset: back to idle and empty from any phase, with nothing lit and nothing to copy', () => {
+  const running = stream(St.reduce(St.initial(), { type: 'start', text: 'idea' }), '```\nSituation: a\n')
+  const asked = St.reduce(stream(St.reduce(St.initial(), { type: 'start', text: 'idea' }), QUESTIONS), { type: 'end', ok: true })
+  const failed = St.reduce(running, { type: 'end', ok: false, error: 'Boom.' })
+  const done = St.reduce(stream(St.reduce(St.initial(), { type: 'start', text: 'idea' }), PROMPT), { type: 'end', ok: true })
+  for (const s of [running, asked, failed, done]) {
+    const r = St.reduce(s, { type: 'reset' })
+    assert.equal(r.phase, 'idle')
+    assert.equal(r.output, '')
+    assert.equal(r.error, '')
+    assert.equal(r.questions, '')
+    assert.equal(r.request, '')
+    assert.equal(r.completed, false)
+    assert.equal(r.context, null)
+    const v = St.view(r)
+    assert.deepEqual(plain(v.lit), [])
+    assert.equal(v.canCopy, false)
+    assert.equal(v.showAnswers, false)
+    assert.equal(v.busy, false)
+    assert.equal(v.button, 'Generate')
+    assert.equal(v.canRestart, false)
+    assert.equal(St.justCompleted(s, r), false, 'a reset never fires the completion moment')
+  }
+})
+
+test('canRestart: on for anything but a fresh idle page', () => {
+  assert.equal(St.view(St.initial()).canRestart, false)
+  const s = St.reduce(St.initial(), { type: 'start', text: 'idea' })
+  assert.equal(St.view(s).canRestart, true, 'a run can be stopped')
+  assert.equal(St.view(St.reduce(s, { type: 'end', ok: false, error: 'x' })).canRestart, true)
+})
+
+test('a late delta or end from the stopped run, after a reset, changes nothing and never completes', () => {
+  let s = stream(St.reduce(St.initial(), { type: 'start', text: 'idea' }), '```\nSituation: a\n')
+  const old = s.run
+  s = St.reduce(s, { type: 'reset' })
+  assert.equal(St.reduce(s, { type: 'delta', text: 'Tone: x\n```', run: old }), s)
+  assert.equal(St.reduce(s, { type: 'delta', text: 'late' }), s, 'even with no run id: nothing is running')
+  assert.equal(St.reduce(s, { type: 'end', ok: true, run: old }), s)
+  assert.equal(St.reduce(s, { type: 'end', ok: false, error: 'The connection closed.', run: old }), s, 'an aborted run shows no error')
+})
+
+test('a late delta or end from the stopped run cannot reach the NEXT run', () => {
+  let s = stream(St.reduce(St.initial(), { type: 'start', text: 'idea' }), '```\nSituation: a\n')
+  const old = s.run
+  s = St.reduce(St.reduce(s, { type: 'reset' }), { type: 'start', text: 'idea 2' })
+  const now = s.run
+  assert.notEqual(now, old)
+  assert.equal(St.reduce(s, { type: 'delta', text: 'stale', run: old }), s)
+  assert.equal(St.reduce(s, { type: 'end', ok: false, error: 'cut', run: old }), s)
+  s = St.reduce(s, { type: 'delta', text: 'fresh', run: now })
+  assert.equal(s.output, 'fresh')
+  s = St.reduce(s, { type: 'end', ok: true, run: now })
+  assert.equal(s.phase, 'questions')
+})
+
+test('every start gets a new run id', () => {
+  const a = St.reduce(St.initial(), { type: 'start', text: 'x' })
+  const b = St.reduce(St.reduce(a, { type: 'end', ok: false, error: 'e' }), { type: 'start', text: 'x' })
+  assert.notEqual(a.run, b.run)
+})
+
+// ═══ what was sent with the run (the Context panel's line) ═══
+
+test('context: kept from the stream line and shown as one quiet line; cleared by a new run and by reset', () => {
+  let s = St.reduce(St.initial(), { type: 'start', text: 'idea' })
+  assert.equal(St.view(s).context, null, 'no line when the run had none')
+  s = St.reduce(s, { type: 'context', used: [{ title: 'Brand voice', chars: 120 }, { title: 'Audience', chars: 80 }], skipped: [{ title: 'Old notes', why: 'too long' }], run: s.run })
+  assert.deepEqual(plain(St.view(s).context), { sent: 'Sent with: Brand voice, Audience', left: 'Left out: Old notes (too long)' })
+  s = St.reduce(stream(s, PROMPT), { type: 'end', ok: true })
+  assert.ok(St.view(s).context, 'it stays once the run is over')
+  assert.equal(St.view(St.reduce(s, { type: 'start', text: 'again' })).context, null)
+  assert.equal(St.view(St.reduce(s, { type: 'reset' })).context, null)
+})
+
+test('context: only what was left out, or only what was sent, or nothing at all', () => {
+  const go = c => St.view(St.reduce(St.reduce(St.initial(), { type: 'start', text: 'x' }), { type: 'context', ...c })).context
+  assert.deepEqual(plain(go({ used: [], skipped: [{ title: 'Big file', why: '' }] })), { sent: '', left: 'Left out: Big file' })
+  assert.deepEqual(plain(go({ used: [{ title: 'A' }], skipped: [] })), { sent: 'Sent with: A', left: '' })
+  assert.equal(go({ used: [], skipped: [] }), null)
+  assert.equal(go({ used: 'nope', skipped: null }), null)
+  assert.equal(go({ used: [{ chars: 4 }, null, { title: '' }] }), null, 'entries with no title are dropped')
+})
+
+test('context: a line from a stopped run is ignored', () => {
+  const s = St.reduce(St.reduce(St.initial(), { type: 'start', text: 'x' }), { type: 'reset' })
+  assert.equal(St.reduce(s, { type: 'context', used: [{ title: 'A' }], skipped: [] }), s)
+})
+
+// ═══ History: restore a logged run ═══
+
+test('restore a prompt: finished, letters lit, Copy on, and NO completion moment', () => {
+  const s0 = St.initial()
+  const r = St.reduce(s0, { type: 'restore', text: 'idea', output: PROMPT, ok: true, cancelled: false, context: { used: [{ title: 'A' }], skipped: [] } })
+  assert.equal(r.phase, 'prompt')
+  const v = St.view(r)
+  assert.deepEqual(plain(v.lit), ['Situation', 'Character', 'Request', 'Intent', 'Presentation', 'Tone'])
+  assert.equal(v.canCopy, true)
+  assert.equal(v.busy, false)
+  assert.equal(v.current, null)
+  assert.equal(v.progress, 'All 6 sections')
+  assert.deepEqual(plain(v.context), { sent: 'Sent with: A', left: '' })
+  assert.equal(St.justCompleted(s0, r), false, 'no settle, no glow, no pop on a restore')
+  assert.equal(r.restored, true)
+  assert.equal(r.request, 'idea', 'Retry and a later run start from the restored text')
+})
+
+test('restore questions: the answers box opens, NOT the pop-up', () => {
+  const r = St.reduce(St.initial(), { type: 'restore', text: 'idea', output: QUESTIONS, ok: true })
+  assert.equal(r.phase, 'questions')
+  assert.equal(r.questions, QUESTIONS)
+  const v = St.view(r)
+  assert.equal(v.showAnswers, true)
+  assert.equal(v.asking, false)
+  assert.equal(v.button, 'Generate again')
+})
+
+test('restore a failed or stopped run: its text is shown as it was, with a calm line and Retry', () => {
+  const failed = St.view(St.reduce(St.initial(), { type: 'restore', text: 'idea', output: '```\nSituation: a\n', ok: false, error: 'Boom.' }))
+  assert.equal(failed.error, 'Boom.')
+  assert.equal(failed.incomplete, true)
+  assert.equal(failed.canRetry, true)
+  const stopped = St.view(St.reduce(St.initial(), { type: 'restore', text: 'idea', output: '', ok: false, cancelled: true }))
+  assert.match(stopped.error, /stopped/i)
+})
+
+test('a restore is refused while a run is going', () => {
+  const s = St.reduce(St.initial(), { type: 'start', text: 'idea' })
+  assert.equal(St.reduce(s, { type: 'restore', text: 'x', output: PROMPT, ok: true }), s)
+})
+
+test('a restored page is cleared by Restart, and a new run after it completes normally with its moment', () => {
+  const r = St.reduce(St.initial(), { type: 'restore', text: 'idea', output: PROMPT, ok: true })
+  const reset = St.reduce(r, { type: 'reset' })
+  assert.equal(reset.phase, 'idle')
+  assert.equal(reset.restored, false)
+  const started = St.reduce(r, { type: 'start', text: 'idea' })
+  assert.equal(started.restored, false)
+  let s = started
+  let fired = 0
+  for (let i = 0; i < PROMPT.length; i += 5) {
+    const next = St.reduce(s, { type: 'delta', text: PROMPT.slice(i, i + 5) })
+    if (St.justCompleted(s, next)) fired++
+    s = next
+  }
+  assert.equal(fired, 1)
+})
+
+// ═══ the questions pop-up ═══
+
+test('a run that ends on questions opens the pop-up; a prompt does not', () => {
+  const q = St.reduce(stream(St.reduce(St.initial(), { type: 'start', text: 'idea' }), QUESTIONS), { type: 'end', ok: true })
+  assert.equal(St.view(q).asking, true)
+  const p = St.reduce(stream(St.reduce(St.initial(), { type: 'start', text: 'idea' }), PROMPT), { type: 'end', ok: true })
+  assert.equal(St.view(p).asking, false)
+})
+
+test('close (Later, Escape) and reopen (Show the questions); only on the questions path', () => {
+  const q = St.reduce(stream(St.reduce(St.initial(), { type: 'start', text: 'idea' }), QUESTIONS), { type: 'end', ok: true })
+  const closed = St.reduce(q, { type: 'unask' })
+  assert.equal(St.view(closed).asking, false)
+  assert.equal(St.view(closed).showAnswers, true, 'the answers box stays')
+  assert.equal(St.view(St.reduce(closed, { type: 'ask' })).asking, true)
+  const idle = St.initial()
+  assert.equal(St.view(St.reduce(idle, { type: 'ask' })).asking, false, 'no questions, no pop-up')
+})
+
+test('Restart and a new run close the pop-up', () => {
+  const q = St.reduce(stream(St.reduce(St.initial(), { type: 'start', text: 'idea' }), QUESTIONS), { type: 'end', ok: true })
+  assert.equal(St.view(St.reduce(q, { type: 'reset' })).asking, false)
+  assert.equal(St.view(St.reduce(q, { type: 'start', text: 'again', followUp: true })).asking, false)
 })

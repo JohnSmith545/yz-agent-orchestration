@@ -16,7 +16,7 @@ const ROOT = path.join(HERE, '..')
 const PUBLIC = path.join(ROOT, 'public')
 const read = f => fs.readFileSync(path.join(PUBLIC, f), 'utf8')
 const ctx = { window: {} }
-for (const f of ['shell.js', 'script-text.js', 'script-state.js', 'script-sound.js', 'script-stream.js', 'script-page.js']) vm.runInNewContext(read(f), ctx)
+for (const f of ['shell.js', 'script-text.js', 'script-render.js', 'script-state.js', 'script-sound.js', 'script-stream.js', 'script-view.js', 'script-markup.js', 'script-page.js']) vm.runInNewContext(read(f), ctx)
 const { window } = ctx
 const plain = v => JSON.parse(JSON.stringify(v))
 const text = h => h.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
@@ -59,14 +59,14 @@ test('index.html holds the section, the stylesheet and the scripts, in dependenc
   assert.match(index, /<section id="scriptView" aria-label="SCRIPT" hidden><\/section>/)
   assert.ok(index.includes('<link rel="stylesheet" href="script.css">'))
   const at = s => index.indexOf(`<script src="${s}"></script>`)
-  const order = ['script-text.js', 'script-state.js', 'script-sound.js', 'script-stream.js', 'script-page.js']
+  const order = ['script-text.js', 'script-render.js', 'script-state.js', 'script-sound.js', 'script-stream.js', 'script-view.js', 'script-markup.js', 'script-page.js']
   for (const s of order) assert.ok(at(s) > at('shell.js'), s)
   for (let i = 1; i < order.length; i++) assert.ok(at(order[i - 1]) < at(order[i]), `${order[i - 1]} before ${order[i]}`)
 })
 
 test('npm run check covers every new file, and the palette and glossary know the page', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
-  for (const f of ['script.mjs', 'script-prompt.mjs', 'script-routes.mjs', 'public/script-text.js', 'public/script-state.js', 'public/script-sound.js', 'public/script-stream.js', 'public/script-page.js']) {
+  for (const f of ['script.mjs', 'script-prompt.mjs', 'script-routes.mjs', 'public/script-text.js', 'public/script-state.js', 'public/script-sound.js', 'public/script-stream.js', 'public/script-page.js', 'public/script-render.js', 'public/script-view.js', 'public/script-markup.js']) {
     assert.ok(pkg.scripts.check.includes(`node --check ${f}`), f)
   }
   assert.match(read('palette.js'), /\['SCRIPT', '#\/script'\]/)
@@ -91,14 +91,14 @@ test('two boxes: "Your thoughts" with Generate on the left, the letters, mute, C
   assert.equal((h.match(/class="primary"/g) || []).length, 1, 'ONE primary button')
   assert.match(h, /<button type="button" class="primary" id="scriptGo">Generate<\/button>/)
   assert.match(h, /<button type="button" id="scriptCopy" disabled>Copy<\/button>/, 'Copy waits for a code block')
-  assert.match(h, /<pre class="sc-out" id="scriptOut"/)
+  assert.match(h, /<div class="sc-out" id="scriptOut" tabindex="0" role="region" aria-label="Your prompt"/)
   assert.ok(h.indexOf('id="scriptLetters"') < h.indexOf('id="scriptOut"'), 'the letters sit above the output')
   assert.ok(h.indexOf('id="scriptInput"') < h.indexOf('id="scriptOut"'), 'input on the left, output on the right')
 })
 
 test('the letters spell S C R I P T, one per section, each named for screen readers', () => {
   const h = window.ScriptPage.markup()
-  const letters = [...h.matchAll(/<span class="sc-letter" data-section="(\w+)" title="(\w+)">(\w)<\/span>/g)].map(m => [m[1], m[3]])
+  const letters = [...h.matchAll(/<span class="sc-letter" data-section="(\w+)" title="(\w+)" style="--i:(\d)">(\w)<\/span>/g)].map(m => [m[1], m[4]])
   assert.deepEqual(letters, [['Situation', 'S'], ['Character', 'C'], ['Request', 'R'], ['Intent', 'I'], ['Presentation', 'P'], ['Tone', 'T']])
 })
 
@@ -118,7 +118,11 @@ test('the page never writes model text as HTML: the output only ever gets textCo
   assert.ok(html.length >= 1)
   for (const rhs of html) assert.match(rhs, /^(markup\(\)|muted \? ICON\.muted : ICON\.sound\b)/, `only the static markup and the fixed icons go in as HTML: ${rhs}`)
   assert.doesNotMatch(src, /insertAdjacentHTML/)
-  assert.match(src, /out\.textContent = /)
+  // the output box is drawn by script-view.js, from DOM nodes with textContent only
+  const view = read('script-view.js')
+  assert.doesNotMatch(view, /innerHTML|outerHTML|insertAdjacentHTML|createContextualFragment/)
+  assert.match(view, /\.textContent = /)
+  assert.doesNotMatch(read('script-render.js'), /innerHTML|document/, 'the renderer is pure: text in, parts out')
 })
 
 test('Ctrl or Cmd with Enter generates from either box', () => {
@@ -150,7 +154,8 @@ test('script.css: the accent marks only the lit letters and the completion highl
   const css = read('script.css')
   const rules = [...css.matchAll(/([^{}]+)\{([^{}]*var\(--accent(?:-soft)?\)[^{}]*)\}/g)].map(m => m[1].trim())
   assert.ok(rules.length >= 2)
-  for (const sel of rules) assert.match(sel, /sc-letter\.on|sc-glow|^\d+%|^from|^to/, sel)
+  // .sc-letter.now is a lit letter too: the one whose section is being written right now
+  for (const sel of rules) assert.match(sel, /sc-letter\.on|sc-letter\.now|sc-glow|^\d+%|^from|^to/, sel)
   assert.doesNotMatch(css, /#[0-9a-f]{3,8}\b/i, 'tokens only, no fixed colours: light and dark both follow')
 })
 
@@ -159,6 +164,10 @@ test('script.css: the letters settle with a scale bounce under 400 ms; the box g
   const settle = /\.sc-settle[^{]*\{[^}]*animation:\s*sc-settle\s+(\d+)ms/.exec(css)
   assert.ok(settle, 'the settle animation')
   assert.ok(Number(settle[1]) < 400, `${settle[1]} ms`)
+  // staggered across the six letters, and ALL of it still done in under 400 ms
+  const step = /\.sc-settle[^{]*\{[^}]*animation-delay:\s*calc\(var\(--i\)\s*\*\s*(\d+)ms\)/.exec(css)
+  assert.ok(step, 'the settle is staggered by letter')
+  assert.ok(Number(settle[1]) + 5 * Number(step[1]) < 400, `${settle[1]} + 5 x ${step[1]} ms`)
   assert.match(css, /@keyframes sc-settle\s*\{[^@]*scale\(/)
   assert.match(css, /\.sc-out\.sc-glow\s*\{[^}]*animation:\s*sc-glow\s+\d+ms/)
 })

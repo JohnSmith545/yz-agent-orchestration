@@ -1,64 +1,133 @@
 /* The SCRIPT Generator page (#/script, script-page.js). Minimal: the neutral tokens,
    generous whitespace, and ONE accent, used only for the lit letters and the brief
    completion highlight. The primary button is ink, not accent, for that reason. Every
-   colour is a token from styles.css, so light and dark both follow the theme. */
+   colour is a token from styles.css, so light and dark both follow the theme.
 
-.sc-page { max-width: 1240px; }
-.sc-lede { margin: 0 0 22px; max-width: 64ch; }
+   Alignment (2026-11-24): both columns are the same three rows. A head row of ONE fixed
+   height (the label on the left; the letters, mute, progress and Copy on the right), then
+   the box, then a foot row. Both boxes share one height (--sc-box-h) that fits the window,
+   so they start and end at the same line in every state; the output scrolls inside its
+   box, and Your answers takes a share of the LEFT box instead of growing the column. The
+   page has no width cap, so its right edge lines up with the banner above it, like the
+   other pages. Nothing here styles the Context panel's aside: that panel brings its own file. */
 
-.sc-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+.sc-page { position: relative; }
+.sc-lede { margin: 0 0 22px; max-width: 90ch; }
+
+.sc-grid {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px; align-items: start;
+  --sc-box-h: clamp(320px, calc(100dvh - 340px), 760px);
+}
 .sc-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 
+.sc-head { display: flex; align-items: center; gap: 8px 12px; height: 32px; min-width: 0; }
 .sc-label { font-size: 13px; font-weight: 600; color: var(--ink); }
+
+/* the left box: Your thoughts, and Your answers under it once the model asks */
+.sc-box { position: relative; height: var(--sc-box-h); display: flex; flex-direction: column; gap: 14px; min-height: 0; }
 .sc-text {
-  display: block; width: 100%; box-sizing: border-box; min-height: 300px; resize: vertical;
+  display: block; width: 100%; box-sizing: border-box; flex: 1 1 0; min-height: 0; resize: none;
   font: inherit; font-size: 14px; line-height: 1.6; color: var(--ink);
   background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius);
   padding: 12px 14px; transition: border-color .15s ease;
 }
-.sc-text-short { min-height: 130px; }
 .sc-text::placeholder { color: var(--faint); }
 .sc-text:hover { border-color: var(--muted); }
 .sc-text:focus { border-color: var(--ink-2); }
-.sc-answers { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.sc-answers { display: flex; flex-direction: column; gap: 8px; flex: 0 0 42%; min-height: 0; animation: sc-open 280ms ease-out both; }
+.sc-answers-head { flex: none; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.sc-ask-open { font-size: 12.5px; }
 
-.sc-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 4px; }
+/* the questions pop-up (script-ask.js): laid over the left box, so nothing shifts; it scrolls inside */
+.sc-ask {
+  position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column; min-height: 0;
+  background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius); box-shadow: var(--shadow);
+  animation: sc-rise 200ms ease-out both;
+}
+.sc-ask-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px 10px; border-bottom: 1px solid var(--line); }
+.sc-ask-title { margin: 0; font-size: 14px; font-weight: 600; color: var(--ink); }
+.sc-ask-x { width: 28px; height: 28px; padding: 0; border: 0; background: none; color: var(--muted); font-size: 18px; line-height: 1; }
+.sc-ask-x:hover { color: var(--ink); }
+.sc-ask-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 12px; overflow-wrap: anywhere; }
+.sc-ask-note { margin: 0; font-size: 13px; color: var(--muted); }
+.sc-ask-whole { margin: 0; white-space: pre-wrap; color: var(--ink); }
+.sc-ask-list { margin: 0; padding-left: 1.6em; display: flex; flex-direction: column; gap: 14px; }
+.sc-ask-list > li::marker { color: var(--muted); }
+.sc-ask-q { margin: 0 0 6px; color: var(--ink); }
+.sc-ask-q strong { font-weight: 600; }
+.sc-ask-q code { font: 12.5px/1.5 var(--mono); padding: 1px 5px; border-radius: 4px; background: var(--surface-2); border: 1px solid var(--line); }
+.sc-ask .sc-text { flex: none; min-height: 64px; resize: vertical; padding: 8px 10px; }
+.sc-ask-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 14px 12px; border-top: 1px solid var(--line); }
+.sc-ask-hint { color: var(--ink-2); }
+
+/* the foot rows: Generate and Restart on the left; the error and the Sent with line on the right */
+.sc-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-height: 32px; }
+.sc-foot-out { flex-direction: column; align-items: stretch; gap: 8px; }
 .sc-page button.primary { background: var(--ink); border-color: var(--ink); color: var(--surface); padding: 7px 18px; }
 .sc-page button.primary:disabled { opacity: .55; }
 .sc-page button:disabled { cursor: default; }
+#scriptRestart { padding: 6px 14px; }
 .sc-hint { color: var(--ink-2); }
+.sc-undo { display: inline-flex; align-items: baseline; gap: 6px; color: var(--ink-2); }
+.sc-undo .link { font-size: 12.5px; color: var(--ink); border-bottom-color: var(--line-strong); }
+.sc-sent { margin: 0; display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
 
-/* the head row over the output: the letters, mute, progress, Copy */
-.sc-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-height: 28px; }
-.sc-letters { display: inline-flex; gap: 6px; }
+/* the right head row: the letters, mute, progress, Copy, all on one line */
+.sc-letters { display: inline-flex; gap: 6px; flex: none; }
 .sc-letter {
-  display: grid; place-items: center; width: 26px; height: 26px; box-sizing: border-box;
+  position: relative; display: grid; place-items: center; width: 26px; height: 26px; box-sizing: border-box;
   font: 600 13px/1 var(--font); letter-spacing: .02em; color: var(--faint);
   border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface);
   transition: color .25s ease, border-color .25s ease, background-color .25s ease;
 }
 .sc-letter.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
 .sc-mute {
-  display: grid; place-items: center; width: 28px; height: 28px; padding: 0;
+  display: grid; place-items: center; flex: none; width: 28px; height: 28px; padding: 0;
   border: 0; background: none; color: var(--muted);
 }
 .sc-mute:hover { color: var(--ink); }
 .sc-mute svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
-.sc-progress { min-width: 0; }
+.sc-progress, .sc-copied { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sc-copied { margin-left: auto; color: var(--ink-2); }
 .sc-copied:empty { display: none; }
-.sc-head #scriptCopy { margin-left: auto; }
+.sc-head #scriptCopy { margin-left: auto; flex: none; }
 .sc-copied:not(:empty) + #scriptCopy { margin-left: 0; }
 
-/* the output: escaped text in a monospace box */
+/* the output: clean text in the UI font, never raw marks (script-render.js, script-view.js) */
 .sc-out {
-  margin: 0; min-height: 300px; max-height: 70vh; overflow: auto; box-sizing: border-box;
-  padding: 14px 16px; font: 13px/1.65 var(--mono); color: var(--ink);
+  height: var(--sc-box-h); overflow: auto; box-sizing: border-box; margin: 0;
+  padding: 16px 18px; font: 14px/1.6 var(--font); color: var(--ink);
   white-space: pre-wrap; overflow-wrap: anywhere;
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
 }
-.sc-out:empty::before { content: attr(data-empty); color: var(--faint); font-family: var(--font); font-size: 13.5px; }
+.sc-out:empty::before { content: attr(data-empty); color: var(--faint); font-size: 13.5px; }
 .sc-out.sc-incomplete { border-style: dashed; border-color: var(--line-strong); }
+.sc-para { margin: 0; animation: sc-rise 240ms ease-out both; }
+.sc-out strong { font-weight: 600; color: var(--ink); }
+.sc-out code { font: 12.5px/1.5 var(--mono); padding: 1px 5px; border-radius: 4px; background: var(--surface-2); border: 1px solid var(--line); }
+.sc-list { margin: 0; padding-left: 1.6em; }
+.sc-list > li { padding-left: .3em; animation: sc-rise 240ms ease-out both; }
+.sc-list > li + li { margin-top: 8px; }
+.sc-list > li::marker { color: var(--muted); font-variant-numeric: tabular-nums; }
+.sc-note { font-size: 12.5px; color: var(--muted); }
+.sc-out > .sc-para + *, .sc-out > .sc-list + *, .sc-out > .sc-card + * { margin-top: 12px; } /* after the margin: 0 rules above */
+
+/* the prompt card: letter, label and text on one grid, so every row lines up down the card */
+.sc-card {
+  /* the label column starts wide enough for Presentation, so the text does not shift right when it arrives */
+  display: grid; grid-template-columns: max-content minmax(6.2em, max-content) minmax(0, 1fr); gap: 12px 10px;
+  padding: 14px 16px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius);
+  animation: sc-appear 200ms ease-out both;
+}
+.sc-lead { grid-column: 1 / -1; color: var(--ink-2); }
+.sc-row { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: baseline; animation: sc-rise 220ms ease-out both; }
+.sc-badge {
+  display: inline-grid; place-items: center; width: 20px; height: 20px; box-sizing: border-box;
+  font: 600 11px/1 var(--font); color: var(--ink-2);
+  border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface);
+}
+.sc-row-label { font-size: 12.5px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.sc-row-text { white-space: pre-wrap; min-width: 0; color: var(--ink); }
 
 /* a failure: neutral copy, the red only as a small mark */
 .sc-error {
@@ -69,14 +138,84 @@
 .sc-mark { width: 7px; height: 7px; border-radius: 50%; background: var(--bad); flex: none; }
 .sc-error span { flex: 1 1 200px; min-width: 0; }
 
+/* History (script-history-view.js): a quiet disclosure under both columns, one row per run */
+.sc-history { margin-top: 28px; border-top: 1px solid var(--line); padding-top: 14px; }
+.sc-history > summary { cursor: pointer; width: fit-content; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.sc-history > summary:hover { color: var(--ink); }
+.sc-h-list { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; }
+.sc-h-item { display: flex; align-items: center; gap: 12px; padding-right: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.sc-h-item.sc-h-current { border-color: var(--line-strong); }
+.sc-h-row {
+  flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px;
+  padding: 9px 12px; border: 0; background: none; text-align: left; font-size: 13px; color: var(--ink);
+}
+.sc-h-row:hover { background: var(--surface-2); }
+.sc-h-when { flex: none; min-width: 3ch; color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.sc-h-idea { flex: 1 1 200px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sc-h-kind, .sc-h-cost { flex: none; font-size: 12.5px; color: var(--ink-2); }
+.sc-h-stopped, .sc-h-failed { color: var(--muted); }
+.sc-h-cost { color: var(--muted); font-variant-numeric: tabular-nums; }
+.sc-h-sent { flex: 1 0 100%; font-size: 12px; color: var(--faint); overflow-wrap: anywhere; }
+.sc-h-remove { flex: none; font-size: 12.5px; }
+.sc-h-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; }
+.sc-h-ask { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); }
+.sc-h-note { color: var(--ink-2); }
+
+/* ─── motion while it runs ───────────────────────────────────────────────────
+   Every one is tied to something real: the wave only while the model thinks (no
+   text yet), a pop when a section really starts, a ring on the section being
+   written, a caret where the text is arriving. Neutral greys, except the lit
+   letters and their ring. */
+
+/* thinking: the letters ripple left to right, slowly, until the first text */
+.sc-letters.sc-thinking .sc-letter { animation: sc-wave 1500ms ease-in-out infinite; animation-delay: calc(var(--i) * 110ms); }
+@keyframes sc-wave {
+  0%, 50%, 100% { transform: none; color: var(--faint); border-color: var(--line); }
+  20% { transform: translateY(-3px); color: var(--ink-2); border-color: var(--line-strong); }
+}
+/* a letter lighting: one small pop with its colour change */
+.sc-letter.sc-pop { animation: sc-pop 260ms cubic-bezier(.3, .7, .4, 1); }
+@keyframes sc-pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.22); }
+  100% { transform: scale(1); }
+}
+/* the section being written right now: a soft ring that breathes until the next one starts */
+.sc-letter.now::after {
+  content: ""; position: absolute; inset: -4px; pointer-events: none;
+  border: 1.5px solid var(--accent); border-radius: calc(var(--radius) + 3px);
+  animation: sc-ring 1400ms ease-in-out infinite;
+}
+@keyframes sc-ring {
+  0%, 100% { opacity: .2; transform: scale(.94); }
+  50% { opacity: .75; transform: scale(1.02); }
+}
+/* new text eases in once (the view never remakes what is already drawn) */
+@keyframes sc-rise {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes sc-appear { from { opacity: 0; } }
+@keyframes sc-open {
+  from { flex-basis: 0%; opacity: 0; }
+  to { flex-basis: 42%; opacity: 1; }
+}
+/* the caret where the text is arriving (script-view.js moves .sc-live) */
+.sc-live::after {
+  content: ""; display: inline-block; width: 2px; height: 1.1em; margin-left: 2px; vertical-align: -.2em;
+  border-radius: 1px; background: var(--ink-2); animation: sc-blink 1s steps(1, end) infinite;
+}
+@keyframes sc-blink { 50% { opacity: 0; } }
+
 /* ─── the completion moment ─────────────────────────────────────────────────
-   The lit letters settle with one small scale bounce (340 ms, under 400 ms in
-   total), and the output box glows once in the accent, then lets it go. */
-.sc-letters.sc-settle .sc-letter.on { animation: sc-settle 340ms cubic-bezier(.3, .7, .4, 1) both; }
+   The lit letters settle with a small scale bounce, one after another (220 ms
+   each, 30 ms apart: all six done in 370 ms, under 400 ms), and the output box
+   glows once in the accent, then lets it go. */
+.sc-letters.sc-settle .sc-letter.on { animation: sc-settle 220ms cubic-bezier(.3, .7, .4, 1) both; animation-delay: calc(var(--i) * 30ms); }
 @keyframes sc-settle {
   0% { transform: scale(1); }
-  45% { transform: scale(1.16); }
-  75% { transform: scale(.96); }
+  45% { transform: scale(1.2); }
+  75% { transform: scale(.95); }
   100% { transform: scale(1); }
 }
 .sc-out.sc-glow { animation: sc-glow 900ms ease-out; }
@@ -95,18 +234,23 @@
   100% { border-color: var(--line); }
 }
 
-/* the two boxes stack on a narrow window */
+/* the two boxes stack on a narrow window; the head rows may wrap there */
 @media (max-width: 900px) {
-  .sc-grid { grid-template-columns: minmax(0, 1fr); gap: 24px; }
-  .sc-text, .sc-out { min-height: 200px; }
+  .sc-grid { grid-template-columns: minmax(0, 1fr); gap: 24px; --sc-box-h: clamp(240px, 55dvh, 560px); }
+  .sc-head { height: auto; min-height: 32px; flex-wrap: wrap; }
+}
+/* a very narrow card: the text goes under its letter and label */
+@media (max-width: 560px) {
+  .sc-card { grid-template-columns: max-content minmax(0, 1fr); }
+  .sc-row-text { grid-column: 1 / -1; }
 }
 
-/* reduced motion: no scale and no movement, a simple fade only.
+/* reduced motion: nothing moves and nothing loops; each moment above is a simple fade.
    ⚠️ Every property here is !important ON PURPOSE. styles.css's global reduced-motion rule
    (`*, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1
    !important; transition-duration: .01ms !important }`) otherwise wins, and the fade becomes a
    one-frame flicker with no visible highlight (QA FAIL-30, 2026-11-24). These selectors are more
-   specific than `*`, so their !important wins for these two elements only; the global rule still
+   specific than `*`, so their !important wins for these elements only; the global rule still
    calms the rest of the app. The fades are opacity and colour only, nothing moves. */
 @media (prefers-reduced-motion: reduce) {
   .sc-letters.sc-settle .sc-letter.on {
@@ -119,5 +263,26 @@
     animation-fill-mode: none !important; animation-iteration-count: 1 !important; animation-delay: 0s !important;
     transition-duration: 0s !important;
   }
-  .sc-letter, .sc-text { transition: none; }
+  /* no wave, no pop, no blinking: thinking is a quiet colour change, the caret holds still */
+  .sc-letters.sc-thinking .sc-letter, .sc-letter.sc-pop, .sc-live::after { animation-name: none !important; }
+  .sc-letters.sc-thinking .sc-letter { color: var(--muted); border-color: var(--line-strong); }
+  /* a letter lighting, and thinking starting or stopping: the colours fade */
+  .sc-letter {
+    transition-property: color, border-color, background-color !important; transition-duration: 300ms !important;
+    transition-timing-function: ease !important;
+  }
+  /* the ring holds still and fades in once */
+  .sc-letter.now::after {
+    opacity: .6; transform: none;
+    animation-name: sc-appear !important; animation-duration: 300ms !important; animation-timing-function: ease-out !important;
+    animation-fill-mode: both !important; animation-iteration-count: 1 !important; animation-delay: 0s !important;
+    transition-duration: 0s !important;
+  }
+  /* new text, the card, the answers box and the questions pop-up fade in, with no rise and no growing */
+  .sc-row, .sc-para, .sc-list > li, .sc-card, .sc-answers, .sc-ask {
+    animation-name: sc-appear !important; animation-duration: 220ms !important; animation-timing-function: ease-out !important;
+    animation-fill-mode: both !important; animation-iteration-count: 1 !important; animation-delay: 0s !important;
+    transition-duration: 0s !important;
+  }
+  .sc-text { transition: none; }
 }
