@@ -16,7 +16,7 @@
   },
   "script": {
     "short": "The SCRIPT Generator: write a rough idea and get back a ready-to-paste prompt for any AI, in six labelled parts: Situation, Character, Request, Intent, Presentation and Tone.",
-    "more": "Each Generate is one paid run of Opus 5.5 at high effort, with no tools and none of your settings. When the idea leaves the situation or the goal unclear, it asks up to three short questions first."
+    "more": "Each Generate is one paid run of Opus 5.5 at high effort, with no tools and none of your settings. When the idea leaves gaps that matter, it asks a few short questions first (at most five at a time, in at most two rounds); say just do it to skip them."
   },
   "tickets": {
     "short": "The page for a ticket collection: the grid of who built what and how far it got, and the tables of every ticket below it."

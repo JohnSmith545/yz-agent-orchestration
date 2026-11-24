@@ -590,13 +590,14 @@ flow's Output tab) only when that flow has test steps. A link straight to `#/qa/
 
 Write a rough idea in **Your thoughts** and press **Generate** (or Ctrl+Enter, Cmd+Enter on a Mac). It comes back as a
 prompt for any AI, ready to paste, in one code block with six labelled parts: **S**ituation, **C**haracter,
-**R**equest, **I**ntent, **P**resentation and **T**one. It never does the task itself. Any assumptions it made sit in
-one line under the block. **Copy** copies only what is inside the block (no fences, no assumptions line) and says
+**R**equest, **I**ntent, **P**resentation and **T**one. It never does the task itself. Every assumption it made is
+listed under the block, as quiet notes you can overrule. **Copy** copies only what is inside the block (no fences, no assumptions line) and says
 **Copied** for a moment; it stays off until a block exists.
 
 - **How it calls the model:** one headless Claude Code turn, like the chat, never the raw API (no API key is needed):
-  Opus 5.5 (`claude-opus-5-5`) at high effort, with the SCRIPT system prompt in `script-prompt.mjs` (word for word,
-  and tested). The run is clean: `--tools ""` and `--strict-mcp-config` give it no tools and no MCP servers,
+  Opus 5.5 (`claude-opus-5-5`) at high effort, with the system prompt in `script-prompt.mjs`: the user's own rules for building a prompt (the six
+  parts, reading the context first, a silent gap scan, questions scaled to the task, only the facts you gave, plan
+  first for code), taken from their method document, each rule and the exact text tested. The run is clean: `--tools ""` and `--strict-mcp-config` give it no tools and no MCP servers,
   `--setting-sources ""` loads none of your settings (without it your `~/.claude/CLAUDE.md` and plugin hooks rode
   along), it runs in a fresh empty temp folder with `--no-session-persistence`, and `--name SCRIPT` stops the CLI's
   own session-title call. The CLI still adds its short environment note and your account email; no flag removes them.
@@ -625,8 +626,10 @@ one line under the block. **Copy** copies only what is inside the block (no fenc
 - **The pop and mute:** the pop is made in the browser with the Web Audio API (no sound file): a 115 ms sine that
   falls from 620 to 300 Hz, at a low volume. The speaker button by the letters mutes it; the choice is kept in this
   browser (`script.muted`). Muted, the letters and the glow still show.
-- **When it asks questions:** an idea that leaves the situation or the goal unclear gets up to three short questions
-  instead of a prompt. They show in the output box, the letters stay dark (the line says **Questions first**),
+- **When it asks questions:** an idea with gaps that matter gets a few short questions instead of a prompt, highest
+  impact first: none or one or two for a small clear ask, at most 5 at a time, and at most two rounds (the second
+  round sends the first round's answers again, since the model remembers nothing). Say *just do it* or *skip the
+  questions* in your idea and it writes the prompt at once, with its assumptions listed. They show in the output box, the letters stay dark (the line says **Questions first**),
   nothing pops, and your text is left as it was. A pop-up opens over **Your thoughts**, `SCRIPT has 3 questions`,
   with each question and its own answer field (text with no numbered or bulleted items gets one field). **Answer and
   generate** (or Ctrl+Enter in it) needs at least one answer and sends your text, then `Answers to your questions:`,
