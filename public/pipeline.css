@@ -1,0 +1,147 @@
+/* The Agents page (#/agents): the orchestration diagram (pipeline-view.js), its details pane
+   (pipeline-details.js) and the pull-out panel (pipeline-panel.js). Minimal on purpose: neutral boxes with a
+   hairline, generous room, and colour only for meaning: green passed, red failed, and ONE accent for the
+   selected ticket's path. Every colour is a styles.css token, so light and dark both follow. */
+
+#agentsView { --pl-panel-w: 320px; --pl-edge: color-mix(in srgb, var(--muted) 55%, var(--line-strong)); }
+
+.pl-page { position: relative; }
+.pl-main { min-width: 0; }
+
+/* ─── the diagram ──────────────────────────────────────────────────────────── */
+
+/* It fits the width it is given (pipeline-layout.js); only five producers side by side on a phone are wider,
+   and then this box scrolls, never the page. */
+.pl-wrap { width: 100%; overflow-x: auto; overflow-y: hidden; padding: 4px 0 8px; }
+.pl-canvas { position: relative; margin: 0 auto; }
+.pl-svg { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+
+.pl-line { fill: none; stroke: var(--pl-edge); stroke-width: 1.5; transition: stroke .15s ease, opacity .15s ease; }
+.pl-head { fill: var(--pl-edge); stroke: none; transition: fill .15s ease; }
+.pl-edge { transition: opacity .15s ease; }
+.k-skip .pl-line { stroke-dasharray: 5 4; }
+.pl-label {
+  font: 500 11px var(--font); fill: var(--muted);
+  paint-order: stroke; stroke: var(--bg); stroke-width: 4px; stroke-linejoin: round;
+  transition: fill .15s ease, opacity .15s ease;
+}
+
+.pl-node {
+  position: absolute; display: flex; flex-direction: column;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  overflow: hidden; cursor: pointer;
+  transition: border-color .15s ease, opacity .15s ease;
+}
+.pl-node.n-start, .pl-node.n-step, .pl-node.n-end { background: var(--surface-2); }
+.pl-node:hover { border-color: var(--line-strong); }
+.pl-node.sel { border-color: var(--ink-2); }
+
+.pl-node-head {
+  flex: none; display: flex; align-items: center; gap: 7px; width: 100%; height: 36px; padding: 0 10px;
+  border: 0; border-radius: 0; background: none; color: var(--ink);
+  font-size: 13px; font-weight: 600; text-align: left; line-height: 1.2;
+}
+.pl-node-head:focus-visible { outline-offset: -2px; }
+.pl-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* pushed outside QA today: the one red mark a node can carry */
+.pl-mark, .pl-push-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--bad); }
+.pl-more { flex: none; color: var(--muted); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; }
+
+/* One chip per line (20 px + a 4 px gap: pipeline-layout.js CHIP_H), the title cut to fit. */
+.pl-chips { display: flex; flex-direction: column; gap: 4px; padding: 0 6px 6px; min-width: 0; }
+.pl-chip {
+  display: block; width: 100%; height: 20px; padding: 0 7px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--surface-2); color: var(--ink-2);
+  font-size: 12px; line-height: 18px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pl-node.n-start .pl-chip, .pl-node.n-step .pl-chip, .pl-node.n-end .pl-chip { background: var(--surface); }
+.pl-chip:hover { border-color: var(--muted); color: var(--ink); }
+.pl-chip.t-ok, .pl-node .pl-chip.t-ok { background: var(--add-bg); border-color: color-mix(in srgb, var(--add-edge) 45%, transparent); color: var(--add-ink); }
+.pl-chip.t-bad, .pl-node .pl-chip.t-bad { background: var(--del-bg); border-color: color-mix(in srgb, var(--del-edge) 45%, transparent); color: var(--del-ink); }
+
+/* A selected ticket's path: its nodes, arrows and labels in the accent, the rest dimmed a little. */
+.pl-canvas.has-path .pl-node:not(.on) { opacity: .5; }
+.pl-canvas.has-path .pl-edge:not(.on) { opacity: .35; }
+.pl-canvas.has-path .pl-label:not(.on) { opacity: .45; }
+.pl-node.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.pl-edge.on .pl-line { stroke: var(--accent); stroke-width: 2.25; }
+.pl-edge.on .pl-head { fill: var(--accent); }
+.pl-label.on { fill: var(--accent); }
+
+/* ─── the details pane ─────────────────────────────────────────────────────── */
+
+.pl-details { margin-top: 28px; max-width: 720px; }
+.pl-det-head { display: flex; align-items: baseline; gap: 16px; }
+.pl-det-x { margin-left: auto; }
+.pl-desc { margin: 6px 0 16px; color: var(--muted); font-size: 13px; }
+.pl-push-line { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; color: var(--bad); font-size: 13px; font-weight: 550; }
+.pl-card { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.pl-card.pl-missing { border-style: dashed; }
+.pl-det-sub { margin: 24px 0 6px; color: var(--ink-2); font-size: 13px; font-weight: 600; }
+.pl-hint, .pl-none { margin: 0; color: var(--muted); font-size: 13px; }
+
+/* ─── ticket rows (the panel and Here now) ─────────────────────────────────── */
+
+.pl-list { list-style: none; margin: 0; padding: 0; }
+.pl-row {
+  display: flex; flex-direction: column; align-items: stretch; gap: 2px; width: 100%; padding: 8px 10px;
+  border: 0; border-radius: var(--radius); background: none; text-align: left; font-size: 13px; line-height: 1.4;
+}
+.pl-row:hover { background: var(--surface-2); }
+.pl-row[aria-pressed="true"] { background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }
+.pl-row-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); font-weight: 500; }
+.pl-archived .pl-row-title { color: var(--muted); }
+.pl-row-meta { display: flex; gap: 10px; min-width: 0; color: var(--muted); font-size: 12px; }
+.pl-row-stage { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl-word.t-ok { color: var(--add-ink); }
+.pl-word.t-bad { color: var(--del-ink); }
+.pl-out-acts { display: flex; gap: 16px; padding: 0 10px 8px; font-size: 12.5px; }
+
+/* ─── the pull-out panel ───────────────────────────────────────────────────── */
+
+.pl-panel {
+  position: fixed; top: var(--header-h); right: 0; bottom: 0; z-index: 25;
+  width: min(var(--pl-panel-w), calc(100vw - 28px));
+  display: flex; flex-direction: column;
+  background: var(--surface); border-left: 1px solid var(--line);
+  transform: translateX(100%); transition: transform .22s ease;
+}
+.pl-panel.open { transform: none; }
+body.drawer-open .pl-panel { right: var(--drawer-w); }
+/* the slim tab: always at the panel's left edge, so it shows on the page edge while the panel is closed */
+.pl-tab {
+  position: absolute; left: -28px; top: 24px; width: 28px; height: 92px; padding: 0;
+  border: 1px solid var(--line); border-right: 0; border-radius: var(--radius) 0 0 var(--radius);
+  background: var(--surface); color: var(--muted); font-size: 12.5px; font-weight: 550;
+  writing-mode: vertical-rl;
+}
+.pl-tab:hover, .pl-tab[aria-expanded="true"] { color: var(--ink); border-color: var(--line); }
+.pl-tab:focus-visible { outline-offset: -2px; }
+.pl-panel-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.pl-panel-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 10px 10px 14px; border-bottom: 1px solid var(--line); }
+.pl-switch { display: inline-flex; border: 1px solid var(--line-strong); border-radius: var(--radius); overflow: hidden; }
+.pl-switch button { border: 0; border-radius: 0; background: none; padding: 4px 14px; color: var(--muted); }
+.pl-switch button + button { border-left: 1px solid var(--line-strong); }
+.pl-switch button:hover { color: var(--ink); }
+.pl-switch button[aria-pressed="true"] { background: var(--surface-3); color: var(--ink); font-weight: 550; }
+.pl-panel-x { width: 28px; height: 28px; padding: 0; border: 0; display: grid; place-items: center; background: none; color: var(--muted); }
+.pl-panel-x:hover { color: var(--ink); background: var(--surface-2); }
+.pl-panel-x svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; }
+.pl-arch { flex: none; padding: 10px 14px 6px; }
+.pl-panel-list { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 6px 20px; }
+
+/* A wide window makes room for the open panel, so it never covers the diagram (pipeline-layout.js lays
+   out again at the narrower width); a narrow one lets it cover the page, like the Ask drawer. */
+@media (min-width: 901px) {
+  .pl-page.panel-open { padding-right: calc(var(--pl-panel-w) - 16px); }
+}
+@media (max-width: 900px) {
+  body.drawer-open .pl-panel { right: 0; }
+}
+@media (max-width: 720px) {
+  .pl-panel { bottom: var(--rail-w); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pl-panel, .pl-node, .pl-edge, .pl-line, .pl-head, .pl-label { transition: none; }
+}
