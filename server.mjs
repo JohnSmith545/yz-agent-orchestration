@@ -29,6 +29,7 @@ import { makeSubagentRoutes } from './subagent-routes.mjs'
 import { makeScriptRoute } from './script-routes.mjs'
 import { findSkill } from './script-skill.mjs'
 import { makeContextGatherer, makeScriptContextRoute } from './script-context-routes.mjs'
+import { makeAgentSettingsRoute } from './agent-settings-routes.mjs'
 import { makeScriptLogRoute } from './script-log-routes.mjs'
 import { appendRun } from './script-log.mjs'
 import { orchestrationBrief } from './script-brief.mjs'
@@ -292,6 +293,7 @@ async function describeAgent(s, knownTrees) {
     recentWorktrees: scan ? newestKeys(scan.worktrees, 4) : [],
     recentTickets: scan ? newestKeys(scan.tickets, 6) : [],
     subagents: file ? await listSubagents(file, knownTrees) : [],
+    model: scan?.model || null, // the model its newest reply ran on (transcripts.mjs), for the agent window
     // only QA pushes (pipeline.mjs): git push commands any other agent ran in the last 24 h, for the page to flag
     pushesOutsideQa: scan && labelOf(s.name) !== CONFIG.pipeline.qa ? pushCount(scan.feed.events, Date.now() - 86_400_000) : 0,
     _worktreePos: worktreePos,
@@ -864,6 +866,8 @@ const projectRoute = makeProjectRoutes({
   gitTop: async dir => { const r = await git(['rev-parse', '--show-toplevel'], dir); return r.ok ? r.out : null },
   sessionNames: async () => (await liveSessions()).map(s => s.name),
 })
+/** Each agent's model, effort, files and notes, from its window on the Agents page (agent-settings-routes.mjs). */
+const agentSettingsRoute = makeAgentSettingsRoute({ port: PORT })
 /** The paths factory-routes.mjs answers. */
 const FACTORY_PREFIXES = ['/api/factory', '/api/chat', '/api/flows', '/api/trash', '/api/archive', '/api/human', '/api/commit', '/api/explain', '/api/glossary', '/api/since', '/api/spend', '/api/settings', '/api/pipeline', '/api/qa', '/api/agents/rules', '/api/score', '/api/log', '/evidence/']
 
@@ -877,11 +881,12 @@ const server = createServer(async (req, res) => {
     if (FACTORY_PREFIXES.some(prefix => url.pathname.startsWith(prefix))) {
       // `fetched`: Send reuses the server's own fetch of origin when it is under a minute old (pr-routes.mjs)
       const fetched = remote => (remote === 'origin' && fetchState.ok ? fetchState.at : null)
-      if (await factoryRoute(req, res, url, { git, gh, push, port: PORT, fetched, relay, getStatus })) return
+      if (await factoryRoute(req, res, url, { git, gh, push, port: PORT, fetched, relay, getStatus, pipelineConfig: CONFIG })) return
     }
     if (await scriptRoute(req, res, url)) return
     if (await scriptContextRoute(req, res, url)) return
     if (await scriptLogRoute(req, res, url)) return
+    if (await agentSettingsRoute(req, res, url)) return
     if (await subagentRoute(req, res, url)) return
     if (url.pathname === '/api/orchestration') {
       const data = await orchestration(url.searchParams.get('c'), url.searchParams.has('refresh'))

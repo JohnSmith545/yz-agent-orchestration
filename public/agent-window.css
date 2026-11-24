@@ -1,0 +1,126 @@
+/* The agent window on the Agents page (agent-window.js) and the green pill on an agent box (pipeline-view.js,
+   agent-window-view.js pillHtml). Every colour is a styles.css token, so light and dark both follow. */
+
+/* ─── the pill: the subagents running under an agent ──────────────────────── */
+
+/* Left to right, it sits on the bottom edge of the box, centred, half outside: the arrows there meet the boxes on
+   their left and right sides, so the bottom edge is free. The box keeps its size: the pill is placed, not laid out. */
+.pl-node.has-pill { overflow: visible; }
+.pl-pill {
+  position: absolute; left: 50%; bottom: 0; z-index: 1; transform: translate(-50%, 50%);
+  display: inline-flex; align-items: center; gap: 3px; height: 18px; padding: 0 8px; border-radius: 9px;
+  border: 1px solid var(--add-edge); background: var(--add-bg); color: var(--add-ink);
+  font-size: 11px; font-weight: 600; line-height: 1; white-space: nowrap; pointer-events: none;
+}
+/* Top to bottom (a narrow window, a phone) arrows leave and come back through the bottom edge, so the pill sits on
+   the top right corner instead, as the count alone; its label still says it in full. */
+.pl-canvas[data-dir="TB"] .pl-pill { left: auto; right: -6px; bottom: auto; top: 0; transform: translateY(-50%); padding: 0 6px; min-width: 18px; justify-content: center; }
+.pl-canvas[data-dir="TB"] .pl-pill-w { display: none; }
+
+/* ─── the window ─────────────────────────────────────────────────────────────── */
+
+html.aw-lock, html.aw-lock body { overflow: hidden; }
+
+.aw {
+  width: min(720px, calc(100vw - 32px)); max-width: none; max-height: calc(100dvh - 32px); margin: auto; padding: 0;
+  border: 1px solid var(--line-strong); border-radius: calc(var(--radius) + 4px);
+  background: var(--surface); color: var(--ink); box-shadow: var(--shadow); overflow: hidden;
+}
+.aw::backdrop { background: var(--overlay); }
+.aw[open] { display: flex; animation: aw-in .18s ease-out; }
+.aw[open]::backdrop { animation: aw-fade .18s ease-out; }
+@keyframes aw-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes aw-fade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .aw[open] { animation: aw-fade .12s linear; }
+}
+
+.aw-box { flex: 1; min-height: 0; display: flex; flex-direction: column; width: 100%; }
+.aw-head { flex: none; display: flex; align-items: center; gap: 10px; padding: 14px 14px 12px 20px; border-bottom: 1px solid var(--line); }
+.aw-title { margin: 0; font-size: 17px; font-weight: 650; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aw-role { color: var(--muted); font-size: 13px; }
+.aw-x { margin-left: auto; width: 32px; height: 32px; padding: 0; display: grid; place-items: center; border: 0; background: none; color: var(--muted); border-radius: var(--radius); }
+.aw-x:hover { color: var(--ink); background: var(--surface-2); }
+.aw-x svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; }
+
+/* the question before a close that would lose a draft: in the window, never a browser confirm() */
+.aw-ask { flex: none; padding: 12px 20px; border-bottom: 1px solid var(--line); background: var(--accent-soft); font-size: 13.5px; }
+.aw-ask p { margin: 0 0 8px; color: var(--ink); }
+.aw-ask-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.aw-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 4px 20px 24px; }
+.aw-sec { padding: 16px 0 4px; }
+.aw-sec + .aw-sec { border-top: 1px solid var(--line); margin-top: 12px; }
+.aw-card { padding-top: 14px; }
+.aw-card .ac { border: 1px solid var(--line); border-radius: var(--radius); }
+.aw-h { margin: 0 0 8px; color: var(--ink-2); font-size: 13px; font-weight: 600; }
+.aw-sec-head { display: flex; align-items: baseline; gap: 14px; }
+.aw-sec-head .aw-h { margin: 0; }
+.aw-sec-head .pl-det-set { display: inline-flex; align-items: center; gap: 5px; }
+/* the rules sections keep their own look (agent-rules.css); only their first heading loses its top room here */
+[data-aw-rules] .ar > .pl-det-sub:first-child, [data-aw-rules] .ar-edit > .ar-field:first-child .pl-det-sub { margin-top: 12px; }
+
+.aw-none, .aw-hint, .aw-sum { margin: 0; color: var(--muted); font-size: 13px; }
+.aw-hint { margin-top: 8px; max-width: 60ch; }
+.aw-sum { margin-top: 8px; font-variant-numeric: tabular-nums; }
+.aw-fixed { margin: 0; font-size: 14px; }
+/* a plain warning, not an error: the session runs on another model than the one wanted */
+.aw-warn { margin: 10px 0 0; padding: 8px 10px; border-left: 3px solid var(--warn); border-radius: 0 var(--radius) var(--radius) 0; background: var(--surface-2); color: var(--ink); font-size: 13px; }
+.aw-status { min-height: 1.4em; margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+
+.aw-model-row { display: flex; flex-wrap: wrap; gap: 12px 16px; }
+.aw-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 13px; color: var(--ink-2); }
+.aw-field > span { font-weight: 550; }
+.aw-model-row .aw-field { flex: 1 1 180px; }
+.aw-field select { width: 100%; }
+/* the same fields as the rules editor (agent-rules.css) */
+.aw-field input, .aw-field textarea {
+  display: block; width: 100%; box-sizing: border-box;
+  font: inherit; font-size: 13px; line-height: 1.5; color: var(--ink);
+  background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 7px 10px;
+}
+.aw-field textarea { min-height: 96px; resize: vertical; }
+.aw-field input:hover, .aw-field textarea:hover { border-color: var(--muted); }
+.aw-field input::placeholder, .aw-field textarea::placeholder { color: var(--faint); }
+
+.aw-subs, .aw-files, .aw-changes { list-style: none; margin: 0; padding: 0; }
+.aw-subs li { display: flex; flex-direction: column; gap: 2px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.aw-subs li:last-child { border-bottom: 0; }
+.aw-sub-name { font-size: 14px; color: var(--ink); overflow-wrap: anywhere; }
+.aw-sub-meta { font-size: 12.5px; color: var(--muted); }
+
+.aw-file { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.aw-file-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.aw-file-title { font-size: 14px; color: var(--ink); overflow-wrap: anywhere; }
+.aw-file-meta { font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+.aw-file.is-off .aw-file-title { color: var(--muted); }
+.aw-switch { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 2px 4px; border: 0; background: none; color: var(--ink-2); font-size: 12.5px; }
+.aw-knob { position: relative; width: 30px; height: 18px; border-radius: 9px; background: var(--surface-3); border: 1px solid var(--line-strong); transition: background .15s ease; }
+.aw-knob::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--muted); transition: transform .15s ease, background .15s ease; }
+.aw-switch[aria-checked="true"] .aw-knob { background: var(--add-bg); border-color: var(--add-edge); }
+.aw-switch[aria-checked="true"] .aw-knob::after { transform: translateX(12px); background: var(--add-edge); }
+.aw-switch-word { min-width: 2.2em; text-align: left; }
+.aw-remove { flex: none; font-size: 13px; }
+
+.aw-drop { margin-top: 12px; padding: 14px; border: 1px dashed var(--line-strong); border-radius: var(--radius); text-align: center; background: var(--surface-2); }
+.aw-drop.is-over { border-color: var(--accent); background: var(--accent-soft); }
+.aw-drop-text { margin: 0; color: var(--ink-2); font-size: 13.5px; }
+.aw-pick { cursor: pointer; text-decoration: underline; }
+/* the file input itself is hidden; its label is the visible, focusable control */
+.aw-file-input { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+.aw-file-input:focus-visible + * , .aw-drop:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.aw-note { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+.aw-note-acts { display: flex; justify-content: flex-end; }
+
+.aw-changes li { padding: 6px 0; font-size: 13px; color: var(--ink-2); border-bottom: 1px solid var(--line); }
+.aw-changes li:last-child { border-bottom: 0; }
+.aw-changes time { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: 6px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .aw-knob, .aw-knob::after { transition: none; }
+}
+@media (max-width: 480px) {
+  .aw-head { padding-left: 16px; }
+  .aw-body { padding: 4px 16px 20px; }
+  .aw-ask { padding: 12px 16px; }
+}

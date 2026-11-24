@@ -13,6 +13,12 @@
 //                        back to); or stalled: on its way    verdicts, not of flows
 //                        with no update for stallDays
 //
+// WITH SECURITY on the pipeline (config pipeline.security, flow-security.mjs), a code flow is DELIVERED only when QA
+// and Security both passed it (counted at Security's verdict); one that FINISHED (done) without a Security pass
+// SLIPPED THROUGH; one Security stopped (security-failed) is MISSED, stopped; and EACH Security failure verdict
+// (failed or security-failed) is a CATCH, like a QA failure, against the work it reviewed. Without Security on the
+// graph a QA pass is delivered as before and no Security verdict is counted, whatever the flow file holds.
+//
 // Not counted: flows still on their way (open or blocked, waiting at QA, being tested, or sent back for a fix) that
 // changed in the last stallDays (`inFlight`). Trashed flows have no file, so they never reach here; archived flows
 // count like any other.
@@ -29,7 +35,8 @@
 //   f[1], f[4]   fBeta of precision and recall: { value, beta }; null when either is null
 //   correctness  { value, right, judged }: of the flows QA gave a FINAL verdict on in the window (passed, or
 //                stopped), those that passed with NO failure verdict anywhere in their history. A flow that passed,
-//                then failed a later re-test, then passed again was not right the first time.
+//                then failed a later re-test, then passed again was not right the first time. With Security, the
+//                final pass is QA's and Security's together, and a Security failure is a failure in that history.
 // Per agent: `handed` QA attempts on that agent's work (attempt 1 is the flow's agent's; after a failure sent back
 // with rework.to, the next attempt is that producer's), `sentBack` failure verdicts on that agent's attempts (their
 // sum is `caught`), `firstTime` the flow agent's first-time-right flows (their sum is correctness.right).
@@ -38,6 +45,7 @@
 // MEANING is the page's too: MUST CHANGE IN LOCKSTEP with public/score-view.js MEANING (a test compares them).
 //
 //   scoreOf(flows, graph, { now, days, stallDays })   the whole scorecard
+//   securityVerdictsOf(flow)                          every Security verdict on a flow, oldest first
 //   fBeta(p, r, beta)                                 the F-score of a precision and a recall
 //   scoreText(score)                                  a few plain lines: the five scores with their counts
 
@@ -46,6 +54,8 @@ import { isCodeProducing, stageOf } from './pipeline.mjs'
 export const DAY = 86_400_000
 /** The failure verdicts: each one is a catch. */
 export const FAILED = new Set(['failed', 'qa-failed'])
+/** Security's failure verdicts (flow-security.mjs): each one is a catch too. */
+export const SECURITY_FAILED = new Set(['failed', 'security-failed'])
 const ON_ITS_WAY_AT_QA = new Set(['pending', 'testing'])
 
 /** What each score means, in one plain sentence. MUST CHANGE IN LOCKSTEP with public/score-view.js MEANING. */
@@ -95,18 +105,47 @@ export function windowOf(now, days, stallDays = 7) {
 export function verdictsOf(flow) {
   const qa = flow?.qa
   if (!isObject(qa)) return []
-  const list = [...(Array.isArray(qa.attempts) ? qa.attempts.filter(isObject) : []), qa]
-  let agent = isText(flow.agent) ? flow.agent : 'Unknown'
-  return list.map((a, i) => {
+  return attemptsOf(flow).map(({ a, i, agent }) => {
     const backTo = FAILED.has(a.status) && isText(a.rework?.to) ? a.rework.to : null
-    const out = {
+    return {
       attempt: Number.isInteger(a.attempt) ? a.attempt : i + 1, status: a.status, at: timeOf(a.at), startedAt: timeOf(a.startedAt),
       pushedAt: timeOf(a.pushedAt), pushError: isText(a.pushError) ? a.pushError : null, by: isText(a.by) ? a.by : null, backTo, agent,
     }
-    if (backTo) agent = backTo
+  })
+}
+
+/**
+ * Each QA attempt of a flow, oldest first, as { a, i, agent }: `agent` whose work it tested, the flow's agent first,
+ * then whoever a QA failure, or a Security failure of that attempt, went back to.
+ */
+function attemptsOf(flow) {
+  const qa = flow.qa
+  let agent = isText(flow.agent) ? flow.agent : 'Unknown'
+  return [...(Array.isArray(qa.attempts) ? qa.attempts.filter(isObject) : []), qa].map((a, i) => {
+    const out = { a, i, agent }
+    const back = FAILED.has(a.status) ? a.rework?.to : SECURITY_FAILED.has(a.security?.status) ? a.security.rework?.to : null
+    if (isText(back)) agent = back
     return out
   })
 }
+
+/**
+ * Every Security verdict on a flow (flow-security.mjs qa.security, at most one per QA attempt), oldest first:
+ * { attempt, status, at (ms or null), by, backTo, agent }, `agent` whose work it reviewed (that QA attempt's). A
+ * review still going (reviewing) is no verdict and is left out.
+ */
+export function securityVerdictsOf(flow) {
+  if (!isObject(flow?.qa)) return []
+  return attemptsOf(flow).flatMap(({ a, i, agent }) => {
+    const s = a.security
+    if (!isObject(s) || !(s.status === 'passed' || SECURITY_FAILED.has(s.status))) return []
+    const backTo = SECURITY_FAILED.has(s.status) && isText(s.rework?.to) ? s.rework.to : null
+    return [{ attempt: Number.isInteger(a.attempt) ? a.attempt : i + 1, status: s.status, at: timeOf(s.at), by: isText(s.by) ? s.by : null, backTo, agent }]
+  })
+}
+
+/** Whether the graph has Security between QA and Push (pipeline.mjs). Without it, Security data in a flow is not counted. */
+export const securityOn = graph => (graph?.nodes || []).some(n => n.role === 'security')
 
 /**
  * THE rule for the three flow cells, shared with the log: { cell: delivered | slipped | missed | null, why, kind,
@@ -122,8 +161,14 @@ export function cellOf(flow, graph, now, stallMs) {
   if (flow.status === 'dropped') return out('missed', 'dropped', updated, 'dropped')
   const qa = isObject(flow.qa) ? flow.qa : null
   const last = () => verdictsOf(flow).at(-1)?.at ?? null
-  if (qa?.status === 'passed') return out('delivered', 'passed', last())
-  if (qa && !ON_ITS_WAY_AT_QA.has(qa.status) && stageOf(flow, graph).status === 'failed') return out('missed', 'stopped', last(), 'stopped')
+  if (qa?.status === 'passed' && securityOn(graph)) {
+    // QA passed: delivered only once Security passed it too (flow-security.mjs); kind `security` is its verdict
+    const s = isObject(qa.security) ? qa.security : null
+    if (s?.status === 'passed') return out('delivered', 'security', timeOf(s.at))
+    if (s && SECURITY_FAILED.has(s.status) && stageOf(flow, graph).status === 'failed') return out('missed', 'stopped', timeOf(s.at), 'stopped')
+    if (flow.status === 'done') return out('slipped', 'done', updated)
+  } else if (qa?.status === 'passed') return out('delivered', 'passed', last())
+  else if (qa && !ON_ITS_WAY_AT_QA.has(qa.status) && stageOf(flow, graph).status === 'failed') return out('missed', 'stopped', last(), 'stopped')
   if (!qa && flow.status === 'done') return out(isCodeProducing(flow) ? 'slipped' : 'delivered', 'done', updated)
   // on its way: working, blocked, waiting at or tested by QA, or sent back for a fix
   if (updated !== null && now - updated >= stallMs) return out('missed', 'stalled', updated + stallMs, 'stalled')
@@ -164,12 +209,21 @@ export function scoreOf(flows, graph, { now = Date.now(), days = 30, stallDays =
         agent(a.agent).sentBack++
       }
     }
-    // a final verdict: passed, or stopped at QA (not a failure on its way back to a producer)
-    const final = flow.qa?.status === 'passed' || why === 'stopped'
+    // every Security failure verdict is one catch too, at its own time: the log's failed `security` events
+    const reviews = securityOn(graph) ? securityVerdictsOf(flow) : []
+    for (const r of reviews) {
+      if (SECURITY_FAILED.has(r.status) && inWindow(r.at)) {
+        counts.caught++
+        agent(r.agent).sentBack++
+      }
+    }
+    // a final verdict: passed (by QA, and by Security when it is on the graph), or stopped (not a failure on its way
+    // back to a producer), at the time cellOf counts the flow: without Security that is the last QA verdict's
+    const final = (flow.qa?.status === 'passed' && cell === 'delivered') || why === 'stopped'
     const last = attempts.at(-1)
-    if (final && last && inWindow(last.at)) {
+    if (final && last && inWindow(time)) {
       judged++
-      if (flow.qa.status === 'passed' && !attempts.some(a => FAILED.has(a.status))) {
+      if (why !== 'stopped' && !attempts.some(a => FAILED.has(a.status)) && !reviews.some(r => SECURITY_FAILED.has(r.status))) {
         right++
         agent(isText(flow.agent) ? flow.agent : 'Unknown').firstTime++
       }

@@ -84,7 +84,7 @@
       for (const b of el.querySelectorAll('[data-mode]')) b.setAttribute('aria-pressed', String(b.dataset.mode === m))
       arch.hidden = m === 'log' // the log already holds archived flows
       chipsBox.hidden = m !== 'log'
-      const chips = L.chipsHtml(log.filter)
+      const chips = L.chipsHtml(log.filter, { roles: (st.pipeline?.graph?.nodes || []).map(n => n.role) }) // Plans and Security only with those agents
       if (m === 'log' && chips !== log.chips) {
         const focused = chipsBox.contains(document.activeElement) ? document.activeElement.dataset.logChip : null
         chipsBox.innerHTML = chips

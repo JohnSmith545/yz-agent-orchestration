@@ -15,8 +15,11 @@
 //   click a panel row   select the ticket: its route lights up from its own progress (flow-route.js highlight):
 //                       done and current in the accent, the steps still ahead as a dashed accent outline; the
 //                       same row again, or Escape, clears it
-//   Settings (an agent's)  its specification and rules as an editor in the pane (agent-rules.js): kept as it is
-//                       through every redraw; Escape closes it before it clears anything else
+//   click an agent box  its settings as a WINDOW in the middle of the screen (agent-window.js): the card, Model,
+//                       Subagents, Specification and rules (the editor, agent-rules.js), Files and context, Changes.
+//                       The address says it (#/agents?agent=<label>), so the window opens from a link too, and
+//                       closing it takes that part off. Request, Push and Output keep the pane below.
+//   Settings (an agent's, in the pane a flow's step line opened)  opens that window
 //   AgentsPage.showNode(nodeId, flowId)   from a flow's step line (flow-route.js go): this page with that node's
 //                       details open and that flow selected
 ;(() => {
@@ -39,12 +42,14 @@
   const stepsAt = {} // id -> the updatedAt that count was read at
 
   // The legend behind the header chip's ?.
-  const AGENTS_HELP = '<p>Who hands work to whom: a request goes to the coordinator, who hands it to a producer; every code change goes to QA, ' +
-    'which pushes it on a pass or sends it back on a failure (the return arrows). Work with no code changes goes straight to the Output (dashed), ' +
+  const AGENTS_HELP = '<p>Who hands work to whom: a request goes to the coordinator, who hands it to a producer (through the planner, when there is one); every code change goes to QA ' +
+    '(then to Security, when there is one), and QA pushes it once it passed, or it goes back on a failure (the return arrows). Work with no code changes goes straight to the Output (dashed), ' +
     'and so does the chat agent\'s: it answers, explains and reviews, and changes no code.</p>' +
     '<p>Each chip is a ticket where it stands now: green passed, red failed, grey anything else. Click a step for its details, a chip for its explanation, ' +
     'and open Tickets on the right to light one ticket\'s route: the steps it has taken in the accent, those still ahead dashed. A red mark on an agent means it pushed outside QA today.</p>' +
-    '<p><b>Human review</b>, under the diagram, is everything waiting on you: questions (answer them there), work only you can do, blocked flows. Click a title to open it.</p>'
+    '<p><b>Human review</b>, under the diagram, is everything waiting on you: questions (answer them there), work only you can do, blocked flows. Click a title to open it.</p>' +
+    '<p>Click an agent for its settings: the model you want it on, its subagents, its specification and rules, and the files and notes it is given. ' +
+    'A green pill on an agent says how many subagents run under it now.</p>'
 
   const reduced = () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
@@ -62,12 +67,15 @@
     details = section.querySelector('#plDetails')
     view = window.PipelineView.create(section.querySelector('#plDiagram'), { onNode: pickNode, onChip: id => window.PipelineTickets.explain(id) })
     panel = window.PipelinePanel.create(section.querySelector('#plPanel'), { page: box, onSelect: pickTicket })
-    window.AgentRules?.bind(details, render)
+    // the agents' settings window (agent-window.js) holds the rules editor now; closing it clears the address
+    window.AgentWindow?.attach({ data: () => ({ graph: pipeline?.graph || null, status }), onClose: closedAgent })
     // the scorecard above the diagram (score-strip.js): read again with every pipeline read
     score = window.ScoreStrip?.create(section.querySelector('#plScore')) || null
     // Delegated: the agent card's Progress report (agent-cards.js leaves [data-report] to its page), a
     // subagent row (watch it live), the pane's Close, and the ticket rows of Here now.
     details.addEventListener('click', e => {
+      const set = e.target.closest('[data-ar-act="settings"]')
+      if (set && window.AgentWindow) return openAgent(pipeline?.graph?.nodes.find(n => n.label === set.dataset.arLabel)?.id, set)
       const rep = e.target.closest('[data-report]')
       if (rep) return window.OrchestrationGrid?.report(rep.dataset.report, rep.dataset.label)
       const sub = e.target.closest('[data-href]')
@@ -80,6 +88,7 @@
     // one a popover or the palette already took (they preventDefault, as shell.js expects).
     document.addEventListener('keydown', e => {
       if (!showing || e.key !== 'Escape' || e.defaultPrevented || e.target?.closest?.('#drawer')) return
+      if (window.AgentWindow?.isOpen()) return // the window takes its own Escape (agent-window.js)
       if (window.AgentRules?.escape()) return e.preventDefault() // an open Settings editor first
       if (selTicket) selTicket = null
       else if (selNode) selNode = null
@@ -89,7 +98,32 @@
     })
   }
 
+  /** The node `id`'s settings window, from `from` (the focus goes back there); the address says which agent. */
+  function openAgent(id, from) {
+    const node = id && pipeline?.graph?.nodes.find(n => n.id === id)
+    if (!node || node.kind !== 'agent') return
+    window.AgentWindow.open(id, from || box.querySelector(`[data-node="${CSS.escape(id)}"] .pl-node-head`))
+    view.setNode(id)
+    const want = `#/agents?agent=${encodeURIComponent(node.label)}`
+    if (location.hash !== want) history.replaceState(null, '', want)
+  }
+  function closedAgent() {
+    if (/^#\/agents\/?\?/.test(location.hash)) history.replaceState(null, '', '#/agents')
+    view?.setNode(selNode)
+  }
+  /** The address names an agent (#/agents?agent=<label>): open its window once the graph is known. */
+  function syncFromHash() {
+    if (!window.AgentWindow || !pipeline) return
+    const m = /^#\/agents\/?\?(.*)$/.exec(location.hash || '')
+    const label = m ? new URLSearchParams(m[1]).get('agent') : null
+    const node = label && pipeline.graph.nodes.find(n => n.kind === 'agent' && n.label === label)
+    if (node && window.AgentWindow.current() !== label) openAgent(node.id)
+    else if (!label && window.AgentWindow.isOpen()) window.AgentWindow.close()
+  }
+
   function pickNode(id) {
+    const node = window.AgentWindow && pipeline?.graph?.nodes.find(n => n.id === id)
+    if (node?.kind === 'agent') return openAgent(id)
     selNode = selNode === id ? null : id
     render()
     if (selNode && details.getBoundingClientRect().top > window.innerHeight - 80) details.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
@@ -115,6 +149,7 @@
       loading = false
     }
     render()
+    syncFromHash()
     if (pipeline) loadSteps(pipeline.tickets)
   }
 
@@ -141,11 +176,17 @@
     const node = selNode && pipeline.graph.nodes.find(n => n.id === selNode)
     const agent = node?.kind === 'agent' ? (status?.agents || []).find(a => a.label === node.label) || null : null
     const html = node
-      ? window.PipelineDetails.html(node, { agent, worktrees: status?.worktrees || [], tickets: groups[node.id] || [], labels, selected: selTicket, rules: node.kind === 'agent' ? window.AgentRules?.paneOpts(node) : null })
+      ? window.PipelineDetails.html(node, { agent, worktrees: status?.worktrees || [], tickets: groups[node.id] || [], labels, selected: selTicket, rules: node.kind === 'agent' ? paneRules(node) : null })
       : window.PipelineDetails.empty()
     // AgentRules.paint keeps a Settings editor in use where it is and swaps only what is around it
     if (!(window.AgentRules ? window.AgentRules.paint(details, html) : details._html !== html && ((details.innerHTML = details._html = html), true))) return
     if (!node || node.role === 'chat') window.AgentCards?.renderChat?.() // the default pane and the chat node hold its card
+  }
+
+  /** The pane shows an agent's rules read only: its editor is in the window (one editor per agent, one set of ids). */
+  function paneRules(node) {
+    const opts = window.AgentRules?.paneOpts(node)
+    return opts && window.AgentWindow ? { ...opts, draft: null } : opts
   }
 
   function renderStatus() {
@@ -173,6 +214,7 @@
     view.setNode(selNode)
     panel.update(pipeline, selTicket, steps)
     renderDetails(window.PipelineTickets.byNode(tickets), window.PipelineTickets.labelsOf(graph))
+    window.AgentWindow?.refresh()
   }
 
   /** Every /api/status load (and the 15 s redraw with the same data): a new load re-reads the pipeline. */
@@ -194,6 +236,7 @@
       statusSeen = status
       loadPipeline()
       render()
+      syncFromHash() // an address naming an agent opens its window (again once the pipeline is read)
     },
     close() {
       showing = false

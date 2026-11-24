@@ -175,7 +175,7 @@ refresh themselves; the Refresh button in the page header rebuilds at once.
 | `stopHour` | Local hour to stop at, or null |
 | `ticketPrefixes` | Ticket id prefixes in rank order, such as `["ABC", "XYZ"]` (see Assumptions about your repo and tracker). Left out: taken from the collections and the ticket sources |
 | `pr` | Send to the base branch, off by default: `{ "enabled": false, "remote": "origin", "bases": ["dev"], "gh": "gh" }`. `enabled` must be `true` to turn it on, and is honoured only with a `pinHash` (set it on the Settings page or with `node tools/factory.mjs pr-pin`, never by hand); these keys are read again whenever config.json changes, so no restart; `protect` lists the branches never sent from (default `["main", "master", "stage", "prod", "production", "release/*", "release-*"]`, `*` matches anything); `remote` is the remote to push to; `bases` are the branches a flow may be sent into; `gh` is the GitHub CLI command (signed in with `gh auth login`). A bad value turns the feature off with a warning in the server log |
-| `pipeline` | The orchestration (QA and the pipeline, below): `{ "qa": "QA", "producers": null, "protectedBranches": ["dev", "stage", "main", "master"], "maxReworks": 3 }`. `qa` is the dashboard label of the agent that tests every code change last and is the only one that pushes; `producers` the labels that write code (`null`: every `codingAgents` label but the coordinator's and QA's); `protectedBranches` the branches QA never pushes to (any case, `*` matches anything; `pr.protect` and `pr.bases` are refused too); `maxReworks` how many times a failure goes back to its producer before the flow stops. A bad key keeps its default, with a warning |
+| `pipeline` | The orchestration (QA and the pipeline, below): `{ "qa": "QA", "producers": null, "protectedBranches": ["dev", "stage", "main", "master"], "maxReworks": 3 }`. `qa` is the dashboard label of the agent that tests every code change last and is the only one that pushes; `producers` the labels that write code (`null`: every `codingAgents` label but the coordinator's and QA's); `protectedBranches` the branches QA never pushes to (any case, `*` matches anything; `pr.protect` and `pr.bases` are refused too); `maxReworks` how many times a failure goes back to its producer before the flow stops (QA and Security failures together). Two optional keys add agents: `planner` and `security`, each a dashboard label or null (left out is null: the graph is as before; see The planner and Security, below). A bad key keeps its default, with a warning |
 | `levels` | The branches the levels compare: `{ "work": "followup", "dev": "origin/dev", "stage": "origin/stage", "prod": "origin/main" }` (these are the defaults). A bad value keeps its default, with a warning |
 | `reminders` | Reminders at a local time, once a day: `[{ "at": "17:55", "days": "weekdays", "text": "Wrap up: commit or park your work." }]`. `days` is `weekdays` (Monday to Friday) or `daily`; `[]` turns them off. Left out, there are none. `at` is a real time, 00:00 to 23:59, and one reminder per time. A bad or repeated entry is left out with a warning in the server log |
 
@@ -923,6 +923,10 @@ flow pr <flow> --head <branch> --base <branch> --title "<title>" --body-file <pa
 flow qa-start <flow> [--commit <sha>] [--status testing|pending]                                  # QA only
 flow qa <flow> --status passed|failed --report <file.md> --commit <sha> [--summary "..."] [--shot <file>]... [--step "<do>" --expect "<see>" [--step-shot <file>]]...   # QA only
 flow qa-push <flow> [--branch <b>] [--remote origin] [--repo <path>]                              # QA only
+flow plan-start <flow>                                                                            # the planner only
+flow plan <flow> --file <plan.md> --to "<producer>"                                               # the planner only
+flow security-start <flow> [--commit <sha>]                                                       # Security only
+flow security <flow> --status passed|failed --report <file.md> --commit <sha> [--summary "..."]   # Security only
 term "<word>" "<plain explanation, 1 or 2 sentences, at most 300 characters>" [--more "..."] [--flow <id>]   # not under flow
 ```
 
@@ -1138,6 +1142,38 @@ flow's evidence folder as `<flow>/qa-<n>-report.md` (a `.md` or `.txt` file; HTM
 `.md` and every `.html` stays a 404. `flow show` says where QA stands (`qa: failed, attempt 1 at cd34ef5, back to
 Agent 3 (sent)`).
 
+#### The planner and Security
+
+Two optional agents, each an ordinary Claude Code session you open in the editor, matched to its label through
+`codingAgents` like the producers, and each drawn only when `pipeline.planner` or `pipeline.security` names it (a
+label that is already the coordinator, QA, a producer or the chat agent draws no second box). Neither is ever a
+producer. Both always run on Opus at high effort: the dashboard cannot switch an editor session, so their window on
+the Agents page shows it as fixed, their print says it every time they start, and the window warns when the
+session's newest reply ran on another model.
+
+```
+Request -> Coordinator -> Planner -> Agent 1 | Agent 2 | Agent 3 -> QA -> Security -> Push -> Output
+```
+
+- **The planner** (`docs/planner-agent-brief.md`, the skill `/superpowers:writing-plans`) sits between the
+  coordinator and the producers. It plans and hands out tasks and writes no code: `flow plan-start` (the flow stands
+  on the planner), then `flow plan <flow> --file plan.md --to "Agent 1"`, which copies the plan into the flow's
+  evidence as `<flow>/plan-<n>.md`, makes the flow that producer's (its answers and any failure go to it), and plans
+  a build route again through the planner. The record is `flow.plan = { status: planning|handed, by, startedAt, at,
+  to, file, history }` (`flow-plan.mjs`), the planner's alone. The coordinator's own changes still go straight to QA.
+- **Security** (`docs/security-agent-brief.md`, the skill `/superpowers:requesting-code-review`) sits after QA. A QA
+  pass no longer finishes the flow: Security reviews the very commit QA passed with `flow security-start` and
+  `flow security <flow> --status passed|failed --report security.md --commit <sha>`. Its verdict lives in the QA
+  attempt it reviewed (`qa.security`, `flow-security.mjs`), so a new QA attempt needs a new review. A pass finishes
+  the flow; `flow qa-push` and Send refuse, with one plain sentence, until Security passed that same commit. A failure
+  goes back to the producer by the same relay path as a QA failure (`qa.security.rework`), and QA and Security
+  failures share the one `pipeline.maxReworks`; past it the flow stops (`security-failed`, blocked). Security never
+  pushes and never changes the code: it reports, and the producer fixes.
+- A build route (`flow new --type build`) goes through both when they are configured; review and ask routes do not
+  change. The scorecard counts a Security failure as caught; with Security a code flow is delivered only when QA and
+  Security both passed it, and finished without a Security pass it slipped through. The Log tags Security verdicts
+  (`security`) and the planner's hand-outs (`planned`) as their own kinds, with Plans and Security filters.
+
 Where each flow stands is derived, never stored (`stageOf`): a dropped flow has no node; an open one sits on its
 agent (an agent not in the graph sits on the coordinator; the chat agent's flow sits on the chat agent, straight from
 the Request, and is at the Output once done); a done one that changed no code is at the Output by the
@@ -1178,6 +1214,17 @@ Routes:
   the store as it was. `agent-rules.mjs` also exports `rulesText(store, graph)` (every agent's specification and rules
   as plain text), `readLog()` and `ruleEvents(lines, { now, days })` (the log as events, newest first:
   `{ at, kind: 'rule', agent, flow: null, cell: null, text }`).
+- `GET /api/agents/settings` returns `{ agents: { "<label>": { role, model, effort, fixed, files: [{ id, title, kind:
+  file|note, name, chars, on, addedAt }], chars, updatedAt } }, changes: { "<label>": [{ at, text }] }, models, efforts,
+  fixed, limits: { chars: 20000, files: 20, total: 60000, title: 100 }, chat: { model } }`: what the user set in each
+  agent's window (`agent-settings.mjs`, `data/agent-settings.json`). `PUT /api/agents/settings/<label>` with
+  `{ model?, effort? }` (null clears one; the planner, Security and the chat agent refuse), `POST /api/agents/files/<label>`
+  with `{ title, text, kind: file|note, name? }`, and `PUT` (`{ on }`) or `DELETE /api/agents/files/<label>/<id>`
+  change it, each only from the dashboard page (its own Origin), each refusal one plain sentence (text only, 20,000
+  characters each, 20 per agent, 60,000 in all). Every change adds one sentence to `data/agent-settings-log.jsonl`,
+  shown under Changes. What is saved is printed to the agent after its rules (`flow new`, `flow qa-start`,
+  `flow plan-start`, `flow security-start`, `flow rules`): the wanted model and effort in one sentence, then each
+  switched-on file or note under its title, cut with a visible `[cut: N more characters]` line past 60,000.
 - `GET /api/score[?days=7|30|all]` returns the pipeline scorecard (`score.mjs`) over every flow file, archived ones
   too: `{ window: { days, from, stallDays }, counts: { delivered, slipped, missed, caught }, lists: { slipped: [{ id,
   title }], missed: [{ id, title, why: dropped|stopped|stalled }] }, precision, recall, accuracy (each { value, top,
@@ -1356,6 +1403,17 @@ read again with every status refresh without redrawing.
   tickets and branch, Progress report and its subagents. Request, Push and Output get a
   short description. An agent that ran `git push` outside QA in the last day gets a red
   dot and the line `Pushed N times outside QA today`.
+- **Click an agent** (the coordinator, the planner, a producer, QA, Security, the chat agent) and its settings
+  open as a WINDOW in the middle of the screen (`agent-window.js`, `agent-window-view.js`, `agent-window.css`):
+  its card, then **Model** (a Claude model and an effort, saved and told to the agent; the dashboard cannot switch
+  an editor session, so you switch it there; fixed at Opus, high effort, for the planner and Security; the config
+  model, read only, for the chat agent), **Subagents** (the ones running under it now, their kind and how long),
+  **Specification and rules** (the editor below, moved into the window), **Files and context** (text files picked
+  or dropped, and typed notes, each with a switch and Remove) and **Changes**. Esc or Close closes it; a click
+  outside closes it too, unless something is not saved, and then the window asks first. The address names it
+  (`#/agents?agent=Agent%201`), so it opens from a link. Request, Push and Output keep the pane.
+- **The green pill** on an agent box (`3 running`) counts the subagents running under it now; it sits on the box's
+  bottom edge, centred, and on its top corner as the count alone when the diagram runs top to bottom.
 - **Specification and Rules**: an agent's details also show what it is for, in your words, and a numbered list of
   rules. With no specification saved, its role line stands in, marked Default. **Settings** in the head (next to
   Watch live and Close; agents only, never Request, Push or Output) turns both into an editor in place: the

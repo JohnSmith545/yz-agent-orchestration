@@ -141,13 +141,13 @@ async function body(req) {
  */
 const sameOrigin = (req, port) => !req.headers.origin || originAllowed(req.headers.origin, port)
 
-export async function factoryRoute(req, res, url, { git, gh, push, pr, port = CONFIG.port, fetched, relay, explain = explainTurn, learn = learnTerms, getStatus, settings } = {}) {
+export async function factoryRoute(req, res, url, { git, gh, push, pr, port = CONFIG.port, fetched, relay, explain = explainTurn, learn = learnTerms, getStatus, settings, pipelineConfig = null } = {}) {
   const p = url.pathname
   const q = url.searchParams
   const post = req.method === 'POST'
   if (post && !sameOrigin(req, port)) return json(res, 403, { error: 'Cross-origin request refused.' }), true
   // the send settings as config.json says NOW (config.mjs prNow), unless a test passes its own
-  const send$ = { git, gh, push, pr: pr ?? prNow(), port, fetched }
+  const send$ = { git, gh, push, pr: pr ?? prNow(), port, fetched, config: pipelineConfig } // the server's: Send waits for Security too (pr-routes.mjs)
   const settings$ = { configFile: CONFIG_FILE, confirm: confirmNative, prNow, port, ...settings }
   const flowPath = FLOW_PATH.exec(p)
   const [, id, action] = flowPath || []

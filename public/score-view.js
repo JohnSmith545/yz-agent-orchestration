@@ -85,7 +85,7 @@
       .join('')
     return '<div class="psc-scroll"><table class="psc-agents"><thead><tr><th scope="col">Agent</th><th scope="col">Handed to QA</th><th scope="col">Passed first time</th><th scope="col">Sent back</th></tr></thead>' +
       `<tbody>${rows}</tbody></table></div>` +
-      '<p class="psc-foot">Handed to QA: times its work went to QA. Passed first time: flows QA passed with no failure on the way. Sent back: times QA failed its work.</p>'
+      '<p class="psc-foot">Handed to QA: times its work went to QA. Passed first time: flows QA passed with no failure on the way. Sent back: times QA or Security failed its work.</p>'
   }
 
   function howHtml(score) {
@@ -100,8 +100,8 @@
     return `<p class="psc-lede">The pipeline makes one call on each piece of work: let it through to the Output, or hold it back. Counted over ${esc(spanOf(score))}.</p>` +
       '<div class="psc-scroll"><table class="psc-four"><caption class="psc-sr">The four counts</caption>' +
       '<thead><tr><td></td><th scope="col">The work was good</th><th scope="col">The work was not good</th></tr></thead><tbody>' +
-      `<tr><th scope="row">Went to the Output</th>${cell(n.delivered, 'Right, delivered', 'QA passed it, or it finished with no code changes.', 'delivered')}${cell(n.slipped, 'Wrong, slipped through', 'It finished with code changes QA never tested.', 'slipped')}</tr>` +
-      `<tr><th scope="row">Held back</th>${cell(n.missed, 'Wrong, missed', `Dropped, stopped at QA, or no update for ${stall} days.`, 'missed')}${cell(n.caught, 'Right, caught', 'Each time QA failed the work and held it back.', 'caught')}</tr>` +
+      `<tr><th scope="row">Went to the Output</th>${cell(n.delivered, 'Right, delivered', 'QA passed it (and Security, when it is on the pipeline), or it finished with no code changes.', 'delivered')}${cell(n.slipped, 'Wrong, slipped through', 'It finished with code changes QA never tested, or that Security never passed.', 'slipped')}</tr>` +
+      `<tr><th scope="row">Held back</th>${cell(n.missed, 'Wrong, missed', `Dropped, stopped at QA or Security, or no update for ${stall} days.`, 'missed')}${cell(n.caught, 'Right, caught', 'Each time QA or Security failed the work and held it back.', 'caught')}</tr>` +
       '</tbody></table></div>' +
       `<p class="psc-way">${way}</p>` +
       `<div class="psc-lists"><div><h4 class="psc-h">Slipped through</h4>${flowList(score.lists?.slipped, stall)}</div>` +
@@ -111,7 +111,7 @@
       `<li>Recall: ${num(n.delivered)} ÷ (${num(n.delivered)} + ${num(n.missed)}), right delivered over everything that should have been.</li>` +
       '<li>F-score: precision and recall together. F1 weighs them the same; F4 treats recall as 4 times as important.</li>' +
       `<li>Accuracy: (${num(n.delivered)} + ${num(n.caught)}) ÷ ${num(n.delivered) + num(n.slipped) + num(n.missed) + num(n.caught)}, the right calls over all four counts.</li>` +
-      `<li>Correctness: ${num(c.right)} ÷ ${num(c.judged)}, flows QA passed with no failure over flows QA passed or stopped.</li></ul>` +
+      `<li>Correctness: ${num(c.right)} ÷ ${num(c.judged)}, flows passed (by QA, and by Security when it is on the pipeline) with no failure on the way, over flows passed or stopped.</li></ul>` +
       `<h4 class="psc-h">By agent</h4>${agentsTable(score.agents)}` +
       '<p class="psc-foot">Archived flows count. Deleted flows do not.</p>'
   }

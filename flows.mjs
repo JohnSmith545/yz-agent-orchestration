@@ -35,6 +35,8 @@
 // - `hand` (optional) is the by-hand steps an agent wrote for the user (hand-steps.mjs): each step's `done` is the
 //   USER'S tick, like `verified`, kept by mergeKeepingAnswers only from the stored file and only while the step asks
 //   the same thing (keepHand).
+// - `plan` (optional) is the planner's record of planning the flow and handing it to a producer (flow-plan.mjs):
+//   only the plan commands (tools/plan-cli.mjs) write it, and mergeKeepingAnswers takes it from the stored file only.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -43,6 +45,7 @@ import { writeAtomic } from './atomic-write.mjs'
 import { DIAGRAM_KINDS, DIAGRAM_MAX } from './diagram-text.mjs'
 import { hasBefore, validateChange } from './flow-change.mjs'
 import { mergeReady, validateSend } from './flow-merge.mjs'
+import { keepPlan, validatePlan } from './flow-plan.mjs'
 import { keepQa, validateQa } from './flow-qa.mjs'
 import { keepHand, validateHand } from './hand-steps.mjs'
 import { keepRoute, validateRoute } from './flow-route.mjs'
@@ -147,6 +150,7 @@ export function validateFlow(flow) {
   if (flow.qa !== undefined) problems.push(...validateQa(flow.qa, flow.id))
   if (flow.route !== undefined) problems.push(...validateRoute(flow.route))
   if (flow.hand !== undefined) problems.push(...validateHand(flow.hand))
+  if (flow.plan !== undefined) problems.push(...validatePlan(flow.plan, flow.id))
   return problems
 }
 
@@ -533,6 +537,7 @@ export function mergeKeepingAnswers(incoming, existing) {
   keepQa(incoming, existing) // QA's, like a tick is the user's: only ever from the stored file
   keepRoute(incoming, existing) // the plan: only `flow route` changes a stored one
   keepHand(incoming, existing) // the user's ticks on the by-hand steps: only ever from the stored file
+  keepPlan(incoming, existing) // the planner's hand-out: only the plan commands write it
   if (existing?.createdAt) incoming.createdAt = existing.createdAt
   delete incoming.derived
   return incoming
