@@ -152,3 +152,31 @@ test('followUp trims the outer blank lines of each part and never changes the or
   const out = T.followUp('  keep  my spacing  ', '\n\nQ1?\n\n', '\nA1\n')
   assert.equal(out, '  keep  my spacing  \n\nAnswers to your questions:\nQ1?\n\nA1')
 })
+
+// ═══ where the block sits, for the renderer (script-render.js) ═══
+
+test('blockSpan: the text before the block, the block, and the text after it, split at the fence lines', () => {
+  const s = T.blockSpan(FULL)
+  assert.equal(s.before, 'Here is your prompt.\n')
+  assert.equal(s.code, T.codeBlock(FULL).code, 'the same code Copy copies')
+  assert.equal(s.closed, true)
+  assert.equal(s.after, 'Assumptions: the bakery posts on Instagram only.')
+  assert.equal(T.blockSpan('No block here.'), null)
+})
+
+test('blockSpan: mid-stream the block is open and nothing follows it', () => {
+  const s = T.blockSpan('Intro\n```\nSituation: a\n`')
+  assert.equal(s.before, 'Intro')
+  assert.equal(s.code, 'Situation: a')
+  assert.equal(s.closed, false)
+  assert.equal(s.after, '')
+})
+
+test('labelOf: a label line gives its section and the rest of the line; any other line gives null', () => {
+  assert.deepEqual(plain(T.labelOf('Situation: a shop')), { name: 'Situation', rest: 'a shop' })
+  assert.deepEqual(plain(T.labelOf('**Tone:** warm')), { name: 'Tone', rest: 'warm' })
+  assert.deepEqual(plain(T.labelOf('  **Intent**: sell')), { name: 'Intent', rest: 'sell' })
+  assert.deepEqual(plain(T.labelOf('Request:')), { name: 'Request', rest: '' })
+  assert.equal(T.labelOf('The Tone: of it'), null)
+  assert.equal(T.labelOf('Situation'), null)
+})

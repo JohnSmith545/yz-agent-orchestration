@@ -6,6 +6,11 @@
 //                                   Mid-stream an unclosed block gives what has arrived so far,
 //                                   minus a closing fence still streaming in. `code` never holds
 //                                   the fences, the language tag, or anything after the block.
+//   ScriptText.blockSpan(text)      the same block with what is around it, for the renderer
+//                                   (script-render.js): { before, code, lang, closed, after }, or
+//                                   null. `before` ends at the opening fence line; `after` starts
+//                                   past the closing one ('' while the block is still open).
+//   ScriptText.labelOf(line)        { name, rest } when the line is a section label, else null.
 //   ScriptText.sectionsStarted(t)   the sections whose label line has started INSIDE the block,
 //                                   in SCRIPT order. A label is a line that starts with it,
 //                                   tolerating leading spaces and markdown bold, then a colon.
@@ -16,14 +21,14 @@
 //   ScriptText.followUp(o, q, a)    what Generate again sends after the questions.
 ;(() => {
   const SECTIONS = Object.freeze(['Situation', 'Character', 'Request', 'Intent', 'Presentation', 'Tone'])
-  // The brief's label rule, applied line by line inside the code block.
-  const LABEL = /^\s*(?:\*\*)?(Situation|Character|Request|Intent|Presentation|Tone)(?:\*\*)?\s*:/gm
+  // The brief's label rule, applied line by line inside the code block (labelOf).
+  const LABEL = /^\s*(?:\*\*)?(Situation|Character|Request|Intent|Presentation|Tone)(?:\*\*)?\s*:/
   const OPEN = /^ {0,3}(`{3,}|~{3,})([^\n]*)$/
   const ANSWERS = 'Answers to your questions:'
 
   const lines = text => String(text ?? '').replace(/\r\n?/g, '\n').split('\n')
 
-  function codeBlock(text) {
+  function blockSpan(text) {
     const all = lines(text)
     // Only a COMPLETE fence line opens a block: the last line has no newline after it yet.
     let at = -1
@@ -43,23 +48,36 @@
       const m = /^ {0,3}(`{3,}|~{3,})\s*$/.exec(l)
       return Boolean(m && m[1][0] === char && m[1].length >= fence.length)
     }
+    const before = all.slice(0, at).join('\n')
     const body = []
     for (let i = at + 1; i < all.length; i++) {
-      if (isClose(all[i])) return { code: body.join('\n'), lang, closed: true }
+      if (isClose(all[i])) return { before, code: body.join('\n'), lang, closed: true, after: all.slice(i + 1).join('\n') }
       body.push(all[i])
     }
     // Unclosed: drop the line still streaming when it is the start of a closing fence, and a trailing blank.
     const last = body.at(-1)
     const partialFence = new RegExp(`^ {0,3}\\${char}+$`)
     if (last !== undefined && (last === '' || partialFence.test(last))) body.pop()
-    return { code: body.join('\n'), lang, closed: false }
+    return { before, code: body.join('\n'), lang, closed: false, after: '' }
+  }
+
+  function codeBlock(text) {
+    const s = blockSpan(text)
+    return s && { code: s.code, lang: s.lang, closed: s.closed }
+  }
+
+  function labelOf(line) {
+    const m = LABEL.exec(String(line ?? ''))
+    if (!m) return null
+    // `**Situation:** text` leaves the closing ** after the colon: it belongs to the label, not the text.
+    return { name: m[1], rest: String(line).slice(m[0].length).replace(/^\*\*/, '').trimStart() }
   }
 
   function sectionsStarted(text) {
     const b = codeBlock(text)
     if (!b) return []
     const seen = new Set()
-    for (const m of b.code.matchAll(LABEL)) seen.add(m[1])
+    for (const l of b.code.split('\n')) seen.add(labelOf(l)?.name)
     return SECTIONS.filter(s => seen.has(s))
   }
 
@@ -83,5 +101,5 @@
     return `${String(original ?? '')}\n\n${ANSWERS}\n${trimLines(questions)}\n\n${trimLines(answers)}`
   }
 
-  window.ScriptText = { SECTIONS, codeBlock, sectionsStarted, finished, classify, followUp }
+  window.ScriptText = { SECTIONS, codeBlock, blockSpan, labelOf, sectionsStarted, finished, classify, followUp }
 })()
