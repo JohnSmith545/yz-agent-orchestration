@@ -124,6 +124,11 @@ button.pm-danger:hover { background: var(--bad); color: var(--accent-ink); }
 .bk-agent ol { margin: 0; padding-left: 20px; font-size: 13px; color: var(--ink-2); display: grid; gap: 3px; }
 .bk-agent .bk-spec { margin: 0; font-size: 13px; color: var(--ink-2); white-space: pre-wrap; }
 .bk-none { margin: 0; font-size: 12.5px; color: var(--faint); }
+.bk-agent .bk-model { margin: 0; font-size: 12px; color: var(--muted); }
+.bk-route { max-width: 72ch; }
+.bk-same { color: var(--muted); }
+.pm-status.bk-note { border-left-color: var(--ok); }
+.bk-confirm .bk-changes { margin: -4px 0 0; padding-left: 20px; display: grid; gap: 5px; font-size: 13.5px; color: var(--ink); font-weight: 500; }
 .bk-confirm { display: grid; gap: 10px; padding: 16px 18px; border-left: 3px solid var(--accent); }
 .bk-confirm h2 { margin: 0; font-size: 15px; }
 .bk-confirm ul { margin: 0; padding-left: 20px; display: grid; gap: 5px; font-size: 13.5px; color: var(--ink-2); }
@@ -131,11 +136,19 @@ button.pm-danger:hover { background: var(--bad); color: var(--accent-ink); }
 
 /* ─── phones ───────────────────────────────────────────────────────────────── */
 
+/* The bottom bar has no room for one more button (it crowded Home and the spend figure): on a phone the project
+   chip sits at the left of the page header instead, and its menu opens under it. Fixed, so the rail's own
+   overflow does not clip it. The header keeps room for it. */
 @media (max-width: 720px) {
-  .rail-project { display: contents; }
-  .rail-item.pm-button { height: var(--rail-w); }
-  .pm-menu, .rail-pinned .pm-menu, #rail.open ~ .pm-menu { left: 8px; right: 8px; top: auto !important; bottom: calc(var(--rail-w) + 8px); width: auto; }
+  .rail-project { position: fixed; top: calc((var(--header-h) - 36px) / 2); left: 10px; z-index: 31; }
+  .rail-project .rail-item.pm-button { flex: none; width: 36px; height: 36px; padding: 0; justify-content: center; }
+  .rail-project .rail-icon { margin: 0; }
+  #pageHead { padding-left: 54px; }
+  .pm-menu, .rail-pinned .pm-menu, #rail.open ~ .pm-menu { left: 8px; right: 8px; top: calc(var(--header-h) + 4px) !important; bottom: auto; width: auto; }
   .bk-btn { margin-left: 0; }
+  /* the bank's long title never pushes the header past the screen (it scrolled sideways by about 29 px) */
+  body:has(#bankView:not([hidden])) #pageTitle { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  body:has(#bankView:not([hidden])) #pageStatus { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

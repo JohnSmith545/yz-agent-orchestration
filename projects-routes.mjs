@@ -70,7 +70,7 @@ const joinAnd = parts => (parts.length < 2 ? parts.join('') : `${parts.slice(0, 
 
 /** What an unfinished write is, by its path, for the refusal sentence. */
 function writeKind(p) {
-  if (p.startsWith('/api/script')) return 'a SCRIPT run is still writing'
+  if (p.startsWith('/api/script')) return 'a Brainstorming run is still writing'
   if (/^\/api\/flows\/[^/]+\/pr$/.test(p)) return 'a Send is still pushing a branch'
   return 'a change is still being saved'
 }
@@ -223,7 +223,7 @@ export function makeProjectRoutes(deps) {
     const p = store.projects.find(x => x.id === id)
     if (!p) return answer(404, { error: 'That project is not in the list.' })
     if (p.id === current.id) return answer(409, { error: 'This is the project the dashboard shows now. Switch to another one first.' })
-    if (p.primary) return answer(409, { error: 'The first project comes from config.json and cannot be removed.' })
+    if (p.primary) return answer(409, { error: 'The first project is the one the dashboard was set up with, and it cannot be removed.' })
     writeProjects({ active: store.active === id ? current.id : store.active, projects: store.projects.filter(x => x.id !== id) }, files.projectsFile)
     return answer(200, { ok: true, kept: projectDataDir(p, files.root) })
   }

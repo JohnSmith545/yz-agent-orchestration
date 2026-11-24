@@ -68,7 +68,7 @@ before(async () => {
   server = createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost')
     route.track(req, res)
-    if (url.pathname === '/slow') return void setTimeout(() => res.end('ok'), 400) // a write still running
+    if (url.pathname === '/slow' || url.pathname === '/api/script/generate') return void setTimeout(() => res.end('ok'), 400) // a write still running
     if (!(await route(req, res, url))) res.writeHead(404).end('not found')
   })
   await new Promise(r => server.listen(0, '127.0.0.1', r))
@@ -194,7 +194,7 @@ test('remove: never the current one, never the first; another leaves the list an
   fs.writeFileSync(path.join(DATA, 'projects', 'repo-b', 'keep.txt'), 'x')
   assert.equal((await post('/api/projects/repo-a/remove')).body.error, 'This is the project the dashboard shows now. Switch to another one first.')
   makeRoute({ id: 'repo-b', name: 'Repo B' })
-  assert.equal((await post('/api/projects/repo-a/remove')).body.error, 'The first project comes from config.json and cannot be removed.')
+  assert.equal((await post('/api/projects/repo-a/remove')).body.error, 'The first project is the one the dashboard was set up with, and it cannot be removed.')
   makeRoute()
   const r = await post('/api/projects/repo-b/remove')
   assert.equal(r.status, 200)
@@ -253,6 +253,12 @@ test('switch is refused while something would be lost: a chat turn, an answer on
   r = await post('/api/projects/repo-b/switch')
   assert.equal(r.body.error, 'Not now: a change is still being saved. Try again once it has finished.')
   await slow
+  // the page that writes prompts is called Brainstorming: the sentence uses the name the user sees
+  const run = fetch(`${base}/api/script/generate`, { method: 'POST', headers: { origin: base } })
+  await new Promise(res => setTimeout(res, 80))
+  r = await post('/api/projects/repo-b/switch')
+  assert.equal(r.body.error, 'Not now: a Brainstorming run is still writing. Try again once it has finished.')
+  await run
   assert.equal((await post('/api/projects/repo-b/switch')).status, 202)
   assert.equal(projectsNow().active, 'repo-b')
 })
@@ -298,7 +304,8 @@ test('one entry opened: its graph, each agent with specification and rules, and 
   assert.equal(r.status, 200)
   assert.equal(r.body.entry.name, 'Now')
   assert.ok(r.body.view.graph.nodes.length > 3)
-  assert.deepEqual(r.body.view.agents.find(a => a.label === 'Agent 2'), { label: 'Agent 2', role: 'producer', spec: 'Writes the API.', rules: ['Tests first.'] })
+  const a2 = r.body.view.agents.find(a => a.label === 'Agent 2')
+  assert.deepEqual([a2.role, a2.roleWords, a2.spec, a2.rules], ['producer', 'writes code', 'Writes the API.', ['Tests first.']])
   assert.deepEqual(r.body.noSession, ['Agent 2', 'QA'])
   assert.equal(r.body.current.summary, 'Master hands to 2 agents, QA tests, 1 rule')
   assert.equal((await get('/api/orchestrations/o99999999')).status, 404)
@@ -328,18 +335,73 @@ test('use on this project: saves the style in use first under a dated name, writ
 })
 
 test('use: no second copy when the style in use is already in the bank; refused while busy or when the bank is full', async () => {
-  const s = await post('/api/orchestrations', { name: 'Same as now' })
-  const r = await post(`/api/orchestrations/${s.body.entry.id}/use`)
+  const a = await post('/api/orchestrations', { name: 'Same as now' })
+  fs.writeFileSync(CONFIG_FILE, CONFIG_TEXT.replace('"Master",\n  "codingAgents"', '"Lead",\n  "codingAgents"'))
+  const b = await post('/api/orchestrations', { name: 'Lead style' })
+  fs.writeFileSync(CONFIG_FILE, CONFIG_TEXT) // back to the style of Same as now
+  const r = await post(`/api/orchestrations/${b.body.entry.id}/use`)
   assert.equal(r.status, 202)
-  assert.deepEqual(r.body.autosaved, { id: s.body.entry.id, name: 'Same as now', existing: true })
+  assert.deepEqual(r.body.autosaved, { id: a.body.entry.id, name: 'Same as now', existing: true })
+  fs.writeFileSync(CONFIG_FILE, CONFIG_TEXT)
   state.chatBusy = true
-  assert.equal((await post(`/api/orchestrations/${s.body.entry.id}/use`)).status, 409)
+  assert.equal((await post(`/api/orchestrations/${b.body.entry.id}/use`)).status, 409)
   state.chatBusy = false
   let bank = B.readBank(BANK_FILE)
-  for (let i = 0; bank.entries.length < 50; i++) bank = B.addEntry(bank, { name: `Filler ${i}`, from: { id: 'x', name: 'x' }, snapshot: { parts: { agents: { ...s.body.entry } } } }).bank
+  for (let i = 0; bank.entries.length < 50; i++) bank = B.addEntry(bank, { name: `Filler ${i}`, from: { id: 'x', name: 'x' }, snapshot: { parts: { agents: { filler: i } } } }).bank
   B.writeBank(bank, BANK_FILE)
-  fs.writeFileSync(CONFIG_FILE, CONFIG_TEXT.replace('"Master",\n  "codingAgents"', '"Lead",\n  "codingAgents"'))
-  const full = await post(`/api/orchestrations/${s.body.entry.id}/use`)
+  fs.writeFileSync(CONFIG_FILE, CONFIG_TEXT.replace('"Agent 2": "Agent 2"', '"Agent 2": "Agent 2",\n    "Agent 3": "Agent 3"'))
+  const full = await post(`/api/orchestrations/${b.body.entry.id}/use`)
   assert.equal(full.status, 409)
   assert.equal(full.body.error, 'The bank is full, so the orchestration in use now cannot be saved first. Delete one, then try again.')
+})
+
+test('a style already in use is never offered again: the entry says so, and a second Use is refused', async () => {
+  const s = await post('/api/orchestrations', { name: 'Two builders' })
+  fs.writeFileSync(CONFIG_FILE, CONFIG_TEXT.replace('"Agent 2": "Agent 2"', '"Agent 2": "Agent 2",\n    "Agent 3": "Agent 3"'))
+  assert.equal((await post(`/api/orchestrations/${s.body.entry.id}/use`)).status, 202)
+  const one = await get(`/api/orchestrations/${s.body.entry.id}`)
+  assert.equal(one.body.same, true)
+  assert.equal(one.body.inUse, true)
+  assert.deepEqual(one.body.changes, [])
+  const again = await post(`/api/orchestrations/${s.body.entry.id}/use`)
+  assert.equal(again.status, 409)
+  assert.equal(again.body.error, 'Two builders is already the orchestration in use on Repo a. There is nothing to change.')
+  assert.equal(B.readBank(BANK_FILE).entries.length, 2) // no second dated copy
+})
+
+test('In use here shows only while the style of the project still equals the entry', async () => {
+  const s = await post('/api/orchestrations', { name: 'Two builders' })
+  fs.writeFileSync(CONFIG_FILE, CONFIG_TEXT.replace('"Agent 2": "Agent 2"', '"Agent 2": "Agent 2",\n    "Agent 3": "Agent 3"'))
+  await post(`/api/orchestrations/${s.body.entry.id}/use`)
+  assert.equal((await get('/api/orchestrations')).body.inUse, s.body.entry.id)
+  R.writeRules(R.applyChange({ agents: {} }, 'Agent 1', { spec: 'Edited since.', rules: [] }), path.join(DATA, 'agent-rules.json'))
+  const list = await get('/api/orchestrations')
+  assert.equal(list.body.inUse, null)
+  assert.equal(list.body.used.id, s.body.entry.id) // still the one it last took from the bank
+  assert.equal((await get(`/api/orchestrations/${s.body.entry.id}`)).body.inUse, false)
+})
+
+test('one entry opened lists exactly what using it changes: agents, rules per agent, models', async () => {
+  const { applyModel, readAgentSettings, writeAgentSettings } = await import('../agent-settings.mjs')
+  const file = path.join(DATA, 'agent-settings.json')
+  writeAgentSettings(applyModel(readAgentSettings(file), 'Agent 2', { model: 'claude-opus-5-5', effort: 'high' }).store, file)
+  const now = await post('/api/orchestrations', { name: 'Now' })
+  fs.writeFileSync(CONFIG_FILE, CONFIG_TEXT.replace('"coordinator": "Master",', '"coordinator": "Master",\n  "pipeline": { "qa": "QA", "planner": "Planner" },'))
+  writeAgentSettings(applyModel(readAgentSettings(file), 'Agent 2', { model: 'claude-haiku-5-5', effort: 'low' }).store, file)
+  R.writeRules(R.applyChange({ agents: {} }, 'Agent 1', { spec: '', rules: ['New one.', 'New two.'] }), path.join(DATA, 'agent-rules.json'))
+  const next = await post('/api/orchestrations', { name: 'Next' })
+  fs.writeFileSync(CONFIG_FILE, CONFIG_TEXT)
+  writeAgentSettings(applyModel(readAgentSettings(file), 'Agent 2', { model: 'claude-opus-5-5', effort: 'high' }).store, file)
+  R.writeRules({ agents: {} }, path.join(DATA, 'agent-rules.json'))
+  const r = await get(`/api/orchestrations/${next.body.entry.id}`)
+  assert.equal(r.body.same, false)
+  assert.deepEqual(r.body.changes, [
+    'Planner is added: plans the work and hands it out.',
+    'Agent 1: 2 rules added.',
+    'Agent 2 runs on Haiku 5.5 at low effort instead of Opus 5.5 at high effort.',
+  ])
+  assert.match(r.body.view.route, /^Master hands each request to Planner, who plans it and hands it to Agent 1 and Agent 2;/)
+  assert.equal(r.body.view.agents.find(a => a.label === 'Planner').modelWords, 'Opus 5.5, high effort (fixed)')
+  assert.equal(r.body.view.summary, 'Master hands to 2 agents through Planner, QA tests, 2 rules')
+  assert.equal((await get(`/api/orchestrations/${now.body.entry.id}`)).body.same, true)
 })

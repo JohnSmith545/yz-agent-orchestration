@@ -22,7 +22,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 
 import { writeAtomic } from './atomic-write.mjs'
-import { summaryOf } from './orchestration-parts.mjs'
+import { summaryOf } from './style-words.mjs'
 import { DATA_ROOT, PROJECT_ID } from './project-store.mjs'
 
 export const BANK_FILE = path.join(DATA_ROOT, 'orchestration-bank.json')

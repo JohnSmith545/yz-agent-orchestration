@@ -7,8 +7,8 @@
 //   takeSnapshot(target, parts)      { parts: { <key>: value } }: the style a project has now
 //   checkSnapshot(snapshot, parts)   one plain sentence for what is wrong, or null
 //   applySnapshot(snapshot, target, parts)   writes each part the snapshot has; { applied, skipped }
-//   styleView(snapshot)              { graph, agents: [{ label, role, spec, rules }], summary } for the page
-//   summaryOf / sameStyle / noSessionFor
+//   graphOf / sameStyle / noSessionFor
+//   (a style in plain words, for the page: style-words.mjs)
 //
 // ═══ PLUGGING IN ONE MORE PER-AGENT STORE ═══ A part is one line in STYLE_PARTS. For a store kept in the
 // project's data folder as <name>.json, with read(file) and write(value, file) functions:
@@ -252,32 +252,6 @@ export function applySnapshot(snapshot, target, parts = STYLE_PARTS) {
     }
   }
   return { applied, skipped }
-}
-
-const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
-
-/** "Master hands to 3 agents, QA tests, 6 rules": one line read from the snapshot. */
-export function summaryOf(snapshot) {
-  const graph = graphOf(snapshot?.parts?.agents)
-  const nodes = graph.nodes || []
-  const coord = nodes.find(n => n.role === 'coordinator')?.label || 'The coordinator'
-  const qa = nodes.find(n => n.role === 'qa')?.label
-  const producers = nodes.filter(n => n.role === 'producer').length
-  const rules = Object.values(snapshot?.parts?.rules?.agents || {}).reduce((sum, e) => sum + (Array.isArray(e?.rules) ? e.rules.length : 0), 0)
-  return [`${coord} hands to ${plural(producers, 'agent')}`, ...(qa ? [`${qa} tests`] : []), rules ? plural(rules, 'rule') : 'no rules'].join(', ')
-}
-
-/** What the page draws: the graph, each agent with its role and its saved specification and rules, the summary. */
-export function styleView(snapshot) {
-  const graph = graphOf(snapshot?.parts?.agents)
-  const rules = snapshot?.parts?.rules?.agents || {}
-  const agents = (graph.nodes || []).filter(n => n.kind === 'agent').map(n => ({
-    label: n.label,
-    role: n.role,
-    spec: typeof rules[n.label]?.spec === 'string' ? rules[n.label].spec : '',
-    rules: Array.isArray(rules[n.label]?.rules) ? rules[n.label].rules.filter(r => typeof r === 'string') : [],
-  }))
-  return { graph, agents, summary: summaryOf(snapshot) }
 }
 
 function sorted(v) {

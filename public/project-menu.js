@@ -95,14 +95,14 @@
           'Only the list changes: its flows, rules and evidence stay on disk, and its repository is not touched.</p>' +
           `<div class="pm-actions"><button type="button" data-pm-cancel>Cancel</button><button type="button" class="pm-danger" data-pm-remove-yes="${esc(p.id)}">Remove</button></div></li>`
       }
-      const why = p.current ? 'Shown now' : p.primary ? 'From config.json' : ''
+      const why = p.current ? 'Shown now' : p.primary ? 'First project' : ''
       return `<li class="pm-row"><div class="pm-row-text"><span class="pm-item-name">${name}</span><span class="pm-item-sub">${esc(p.repo)}</span></div>` +
         `<div class="pm-row-acts">${why ? `<span class="pm-note">${why}</span>` : ''}<button type="button" class="link" data-pm-rename="${esc(p.id)}" aria-label="Rename ${name}">Rename</button>` +
         (p.current || p.primary ? '' : `<button type="button" class="link" data-pm-remove="${esc(p.id)}" aria-label="Remove ${name}">Remove</button>`) + '</div></li>'
     }).join('')
     return `<h2 id="pm-dialog-title">Rename or remove projects</h2><ul class="pm-rows">${rows}</ul>` +
       (s.status ? `<p class="pm-status" role="status">${esc(s.status)}</p>` : '') +
-      '<p class="pm-hint">The project shown now cannot be removed, nor the first one, which comes from config.json.</p>' +
+      '<p class="pm-hint">The project shown now cannot be removed, nor the first project, the one the dashboard was set up with.</p>' +
       '<div class="pm-actions"><button type="button" data-pm-close>Close</button></div>'
   }
 
@@ -357,7 +357,8 @@
   })
 
   /** Waits for the server to come back (a NEW bootId, and `target` when given), then reloads; says so after 45 s. */
-  async function watchRestart({ title, sub, target = '', bootId, log = '', lateTitle }) {
+  /** `landAt` (a hash such as #/bank): where the page reloads to, so it never comes back on the question it just answered. */
+  async function watchRestart({ title, sub, target = '', bootId, log = '', lateTitle, landAt = '' }) {
     showWait({ state: 'wait', title, sub })
     const until = Date.now() + WAIT_MS
     while (Date.now() < until) {
@@ -365,7 +366,10 @@
       try {
         const r = await fetch('/api/projects', { cache: 'no-store' })
         const body = await r.json()
-        if (switchDone(body, target, bootId)) return window.location.reload()
+        if (switchDone(body, target, bootId)) {
+          if (landAt) window.history.replaceState(null, '', landAt)
+          return window.location.reload()
+        }
         if (body.bootId === bootId && body.restartError) {
           return showWait({ state: 'refused', failTitle: 'The dashboard did not restart', error: body.restartError })
         }
