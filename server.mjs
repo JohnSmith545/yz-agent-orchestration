@@ -28,6 +28,7 @@ import { makePrStates } from './subagent-prs.mjs'
 import { makeSubagentRoutes } from './subagent-routes.mjs'
 import { makeScriptRoute } from './script-routes.mjs'
 import { makeContextGatherer, makeScriptContextRoute } from './script-context-routes.mjs'
+import { makeAgentSettingsRoute } from './agent-settings-routes.mjs'
 import { makeScriptLogRoute } from './script-log-routes.mjs'
 import { appendRun } from './script-log.mjs'
 import { orchestrationBrief } from './script-brief.mjs'
@@ -866,6 +867,8 @@ const scriptRoute = makeScriptRoute({ port: PORT, gather: makeContextGatherer(sc
 const scriptContextRoute = makeScriptContextRoute({ port: PORT, ...scriptContext })
 /** The SCRIPT run log (script-log-routes.mjs): the newest 50 runs, for the page's History list. */
 const scriptLogRoute = makeScriptLogRoute({ port: PORT })
+/** Each agent's model, effort, files and notes, from its window on the Agents page (agent-settings-routes.mjs). */
+const agentSettingsRoute = makeAgentSettingsRoute({ port: PORT })
 /** The paths factory-routes.mjs answers. */
 const FACTORY_PREFIXES = ['/api/factory', '/api/chat', '/api/flows', '/api/trash', '/api/commit', '/api/explain', '/api/glossary', '/api/since', '/api/spend', '/api/settings', '/api/pipeline', '/api/qa', '/api/agents/rules', '/api/score', '/api/log', '/evidence/']
 
@@ -882,6 +885,7 @@ const server = createServer(async (req, res) => {
     if (await scriptRoute(req, res, url)) return
     if (await scriptContextRoute(req, res, url)) return
     if (await scriptLogRoute(req, res, url)) return
+    if (await agentSettingsRoute(req, res, url)) return
     if (await subagentRoute(req, res, url)) return
     if (url.pathname === '/api/orchestration') {
       const data = await orchestration(url.searchParams.get('c'), url.searchParams.has('refresh'))
