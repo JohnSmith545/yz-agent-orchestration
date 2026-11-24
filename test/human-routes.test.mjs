@@ -38,6 +38,7 @@ beforeEach(() => {
   calls.length = 0
   fs.rmSync(F.FLOWS_DIR, { recursive: true, force: true })
   fs.rmSync(S.STATE_FILE, { force: true })
+  fs.rmSync(path.join(F.DATA_DIR, 'trash'), { recursive: true, force: true })
   F.createFlow({ id: 'ci', title: 'Set up the deploy pipeline', agent: 'Agent 2' })
   const f = F.readFlow('ci')
   f.hand = { steps: structuredClone(STEPS) }
@@ -157,4 +158,71 @@ test('an agent rewrite keeps when a question was asked while it is the same ques
   assert.equal(same.nodes[0].at, '2026-11-20T00:00:00.000Z')
   const reworded = mergeKeepingAnswers({ ...stored, nodes: [{ id: 'q1', type: 'ask', title: 'Go now?', kind: 'yesno' }] }, stored)
   assert.ok(reworded.nodes[0].at > '2026-11-20T00:00:00.000Z')
+})
+
+// ═══ Ask for steps on a ticket with no flow (QA F1: a ticket row had no next step) ═══
+
+const { agentForTicket } = await import('../human-routes.mjs')
+const { pipelineGraph } = await import('../pipeline.mjs')
+const { moveToTrash } = await import('../trash.mjs')
+
+test('Ask for steps on a marked ticket starts ONE flow for it with the right agent and asks through the same relay path', async () => {
+  S.updateState(s => S.setMark(s, 'FLA-826', { review: 'not-codebase', note: 'A person triggers the pipeline.', by: 'you' }))
+  const r = await post('/api/tickets/FLA-826/request-hand', { note: 'The deploy part' })
+  assert.equal(r.status, 200)
+  const j = await r.json()
+  assert.deepEqual([j.ok, j.via, j.flowId, j.created], [true, 'relay', 'fla-826-by-hand', true])
+  const f = F.readFlow('fla-826-by-hand')
+  assert.deepEqual(f.tickets, ['FLA-826'])
+  assert.equal(f.agent, agentForTicket({ by: 'you' }, pipelineGraph(CONFIG)))
+  assert.equal(f.route.type, 'ask')
+  assert.equal(f.hand.requestedAt, j.requestedAt)
+  assert.deepEqual(f.hand.steps, [], 'the page invents no step')
+  assert.deepEqual(calls, [['queueHandRequest', 'fla-826-by-hand', 'The deploy part']])
+  const again = await (await post('/api/tickets/FLA-826/request-hand')).json()
+  assert.deepEqual([again.flowId, again.created], ['fla-826-by-hand', false], 'asked again on the same flow, never a second one')
+  const human = await (await get('/api/human')).json()
+  assert.ok(!human.items.some(i => i.key === 'ticket:FLA-826'), 'the ticket row gives way to its flow')
+  assert.ok(human.items.some(i => i.key === 'hand:fla-826-by-hand'))
+})
+
+test('a live flow that already carries the ticket is the one asked', async () => {
+  S.updateState(s => S.setMark(s, 'FLA-815', { review: 'not-codebase', by: 'you' }))
+  const f = F.readFlow('ci')
+  f.tickets = ['FLA-815']
+  F.writeFlow(f)
+  const j = await (await post('/api/tickets/FLA-815/request-hand')).json()
+  assert.deepEqual([j.flowId, j.created], ['ci', false])
+  assert.equal(F.readFlow('fla-815-by-hand'), null)
+})
+
+test('Ask for steps refuses in plain words: a bad id, a ticket not marked, a deleted or finished flow of that id', async () => {
+  assert.equal((await (await post('/api/tickets/nope/request-hand')).json()).error, 'A ticket id looks like FLA-815.')
+  S.updateState(s => S.setMark(s, 'FLA-1', { review: 'reviewed', verdict: 'now' }))
+  assert.match((await (await post('/api/tickets/FLA-1/request-hand')).json()).error, /FLA-1 is not marked as work only you can do/)
+  S.updateState(s => S.setMark(s, 'FLA-777', { review: 'not-codebase', by: 'you' }))
+  await post('/api/tickets/FLA-777/request-hand')
+  moveToTrash('fla-777-by-hand')
+  const del = await post('/api/tickets/FLA-777/request-hand')
+  assert.equal(del.status, 409)
+  assert.equal((await del.json()).error, 'The flow for FLA-777 was deleted. Restore it from the flow archive, then ask again.')
+  S.updateState(s => S.setMark(s, 'FLA-778', { review: 'no-code', by: 'you' }))
+  F.createFlow({ id: 'fla-778-by-hand', title: 'Done one', agent: 'Agent 2' })
+  const done = F.readFlow('fla-778-by-hand')
+  done.status = 'done'
+  F.writeFlow(done)
+  assert.match((await (await post('/api/tickets/FLA-778/request-hand')).json()).error, /is done\. Open it from the Flows page/)
+  assert.equal((await post('/api/tickets/FLA-777/request-hand', {}, { origin: 'http://evil.example' })).status, 403)
+})
+
+test('the agent asked: the one who marked the ticket when it does the work (coordinator, producer, chat), else the coordinator', () => {
+  const graph = { nodes: [
+    { kind: 'agent', label: 'Master', role: 'coordinator' }, { kind: 'agent', label: 'Agent 2', role: 'producer' },
+    { kind: 'agent', label: 'QA', role: 'qa' }, { kind: 'agent', label: 'Independent', role: 'chat' },
+  ] }
+  assert.equal(agentForTicket({ by: 'Agent 2' }, graph), 'Agent 2')
+  assert.equal(agentForTicket({ by: 'Independent' }, graph), 'Independent')
+  assert.equal(agentForTicket({ by: 'QA' }, graph), 'Master', 'a checker never writes the work')
+  assert.equal(agentForTicket({ by: 'you' }, graph), 'Master')
+  assert.equal(agentForTicket(undefined, graph), 'Master')
 })
