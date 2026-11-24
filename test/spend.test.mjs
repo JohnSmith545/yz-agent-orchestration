@@ -43,7 +43,9 @@ test('recordCost writes nothing for a missing, zero, negative or non-number cost
 test('recordCost refuses an unknown kind, and never throws', () => {
   assert.equal(recordCost('lunch', 1), false)
   assert.equal(fs.existsSync(SPEND_FILE), false)
-  assert.deepEqual([...KINDS], ['chat', 'relay', 'explain', 'refresh'])
+  assert.deepEqual([...KINDS], ['chat', 'relay', 'explain', 'refresh', 'script'])
+  assert.equal(recordCost('script', 0.2, at(13, 11)), true, 'a SCRIPT Generator run is a kind of its own')
+  fs.rmSync(SPEND_FILE, { force: true })
 })
 
 test('recordCost never throws when the file cannot be written: it logs and returns false', () => {
@@ -113,7 +115,7 @@ test('recent is the last 20 lines, newest first, whatever their day', () => {
 })
 
 test('no file yet is zero, every kind at zero, nothing recent', () => {
-  assert.deepEqual(JSON.parse(JSON.stringify(readSpend(at(13, 9)))), { today: 0, byKind: { chat: 0, relay: 0, explain: 0, refresh: 0 }, recent: [] })
+  assert.deepEqual(JSON.parse(JSON.stringify(readSpend(at(13, 9)))), { today: 0, byKind: { chat: 0, relay: 0, explain: 0, refresh: 0, script: 0 }, recent: [] })
 })
 
 // ═══ parseTurn: a `-p --output-format json` reply ═══

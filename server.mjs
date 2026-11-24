@@ -26,6 +26,7 @@ import { collections, readSource, startAutoRefresh } from './factory.mjs'
 import { factoryRoute } from './factory-routes.mjs'
 import { makePrStates } from './subagent-prs.mjs'
 import { makeSubagentRoutes } from './subagent-routes.mjs'
+import { makeScriptRoute } from './script-routes.mjs'
 import { listRepoSubagents, oneSubagent, sessionFile, ticketBuilders, windowStart } from './subagents.mjs'
 import { listFlows } from './flows.mjs'
 import { pinnedSessions } from './pinned-agents.mjs'
@@ -841,6 +842,8 @@ const subagentRoute = makeSubagentRoutes({
   flows: () => listFlows({ archived: 'any' }).flows, // an archived flow is still its subagent's flow
   prStates: makePrStates({ gh }),
 })
+/** The SCRIPT Generator (script-routes.mjs): POST /api/script/generate, one paid Opus run at a time, streamed. */
+const scriptRoute = makeScriptRoute({ port: PORT })
 /** The paths factory-routes.mjs answers. */
 const FACTORY_PREFIXES = ['/api/factory', '/api/chat', '/api/flows', '/api/trash', '/api/commit', '/api/explain', '/api/glossary', '/api/since', '/api/spend', '/api/settings', '/api/pipeline', '/api/qa', '/evidence/']
 
@@ -854,6 +857,7 @@ const server = createServer(async (req, res) => {
       const fetched = remote => (remote === 'origin' && fetchState.ok ? fetchState.at : null)
       if (await factoryRoute(req, res, url, { git, gh, push, port: PORT, fetched, relay, getStatus })) return
     }
+    if (await scriptRoute(req, res, url)) return
     if (await subagentRoute(req, res, url)) return
     if (url.pathname === '/api/orchestration') {
       const data = await orchestration(url.searchParams.get('c'), url.searchParams.has('refresh'))
