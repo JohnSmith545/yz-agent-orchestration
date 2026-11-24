@@ -125,7 +125,7 @@ test('each card and tile carries its own Archive and Delete; a Delete waiting on
   assert.ok(B.card({ ...f, id: 'other' }, { asking }).includes('data-card-archive="other"'), 'only the asked card changes')
 })
 
-test('archived and deleted flows are left off the board and out of Waiting on you', () => {
+test('archived and deleted flows are left off the board', () => {
   const window = { Shell: { ago: () => '2m' } }
   vm.runInNewContext(read('flow-board.js'), { window })
   const B = window.FlowBoard
@@ -134,7 +134,6 @@ test('archived and deleted flows are left off the board and out of Waiting on yo
   const away = { ...live, id: 'away', archivedAt: '2026-11-14T09:00:00Z' }
   const gone = { ...live, id: 'gone', deletedAt: '2026-11-14T09:00:00Z' }
   assert.deepEqual(plain(B.shown([live, away, gone]).map(f => f.id)), ['live'], 'a deleted flow opened read-only is never on the board')
-  assert.deepEqual(plain(B.stripRows([live, away], new Set()).map(r => r.f.id)), ['live'])
 })
 
 // ═══ the palette and the wiring ═══

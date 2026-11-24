@@ -274,10 +274,10 @@
     const count = Math.max(0, Number(n) || 0)
     b.hidden = !count
     b.innerHTML = count ? `<i class="wait-dot" aria-hidden="true"></i>${count} waiting on you` : ''
-    b.title = count ? 'Open the asks on the Flows page' : ''
+    b.title = count ? 'Open Human review on the Agents page' : ''
   }
-  // Through FlowsView.gotoFlow, so the strip scrolls into view even when #/flows already shows (a flow opened below it).
-  $('pageWaiting')?.addEventListener('click', () => (window.FlowsView?.gotoFlow ? window.FlowsView.gotoFlow() : go('#/flows')))
+  // The questions live in the Human review box (human-review.js), which also scrolls it into view when #/agents already shows.
+  $('pageWaiting')?.addEventListener('click', () => (window.HumanReview?.show ? window.HumanReview.show() : go('#/agents?human')))
 
   // ─── the chat drawer ───
   // ONE head: #drawerHead holds Ask until the chat mounts, then the chat writes

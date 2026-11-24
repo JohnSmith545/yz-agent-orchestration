@@ -1,6 +1,6 @@
 // Tests for public/flow-board.js, the pure pieces of the Flows board (flows.js
 // draws them): a card shows only the title, one line of story, a thin progress
-// bar, one state chip and the agent; and the Waiting on you rows, without the
+// bar, one state chip and the agent; and the ask controls the Human review box uses, without the
 // rows of the flow that is open. Browser script, run in a vm with a bare window.
 // FACTORY_DATA_DIR points at a fresh temp folder BEFORE flows.mjs is imported.
 
@@ -155,16 +155,14 @@ test('the card escapes its title, story and agent', () => {
   assert.doesNotMatch(h, /<img src=x|<script>/)
 })
 
-// ═══ the strip rows ═══
+// ═══ the ask controls (the Human review box) ═══
 
-test('the strip leaves out the asks of the flow that is open; with none left it is empty', () => {
-  const a = fx(DARK)
-  const b = fx(NOVIS, f => { f.id = 'other' })
-  const ids = (...args) => JSON.parse(JSON.stringify(B.stripRows(...args).map(r => r.f.id)))
-  assert.deepEqual(ids([a, b], new Set()).sort(), ['dark-mode', 'other'])
-  assert.deepEqual(ids([a, b], new Set(), 'dark-mode'), ['other'])
-  assert.deepEqual(ids([a], new Set(), 'dark-mode'), [])
-  assert.deepEqual(ids([fx(DARK, f => { f.status = 'dropped' })], new Set()), [], 'a dropped flow asks nothing')
+test('askControls: Yes and No on a yes or no ask, a text field with a kept value on a text one; no strip rows any more', () => {
+  const f = { id: 'dark-mode' }
+  assert.match(B.askControls(f, { id: 'n3', kind: 'yesno', yes: 'Ship <it>', no: 'Wait' }), /<button type="button" class="fl-yes" data-answer="yes" data-node="n3" title="Ship &lt;it&gt;">Yes<\/button>/)
+  assert.match(B.askControls(f, { id: 'n4', kind: 'text' }, 'hr'), /<form class="fl-text" data-text="n4"><input name="answer" data-key="hr:dark-mode:n4"/)
+  assert.equal(B.stripRows, undefined)
+  assert.equal(B.stripRow, undefined)
 })
 
 test('fit cuts a story line again, a word at a time, until it fits its card, never inside a word', () => {

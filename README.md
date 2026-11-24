@@ -384,7 +384,8 @@ last pressed its `Mark read`: flows that changed status, answers delivered,
 tickets that reached a new level or changed on their source, commits per agent;
 at most eight lines, no model involved; it stays across reloads until marked
 read, and a new browser starts from its first visit; see `since.mjs`),
-**Waiting on you** (only while an ask is open: answer it inline), **Agents · N** (the agent cards in a compact form: name,
+one line of how many things need you, from Human review (`#homeHuman`, `human-review.js`: `N things need you`, what
+they are, and **Open Human review**, which opens the box on the Agents page), **Agents · N** (the agent cards in a compact form: name,
 state, last action, up to four tickets; click one to watch it live), **Subagents · N running** (only when a subagent ran
 today: N is how many have not finished; the rows are the subagents still running, six at most, then the latest
 four finished, each a link to its live view with its state, model, time and pull request; **All subagents** opens
@@ -400,14 +401,10 @@ the Output (Flow types and routes, below), and this page shows each one as that 
 agents do and what waits on you. Every agent narrates its work as a flow, one JSON
 file per flow in `data/flows/`, written with the `flow` commands below. Top to bottom on the page:
 
-- **Waiting on you**, one strip across all flows: every unanswered ask, newest first, one line each (agent,
-  flow title, the question) with Yes and No (or a text box) inline and a link to show it in its flow.
-  Under each question is **why** it is asked: the agent's `--why`, or, when it gave none, a fainter line
-  saying which flow and step the ask follows. The same `Why?` line sits under the question wherever an ask
-  shows: the opened flow's Story, Status and node drawer, the chart's tooltip, and the alert toast.
-  Answering here is the same as answering on the node. While a flow is open, its own asks leave the strip
-  (its Story and Status ask them), and the strip disappears when nothing is left in it. On the Flows page no
-  `N asks waiting` toast is raised: the header dot and the strip already say it.
+- The questions across flows are not on this page: they are in the **Human review** box on the Agents page
+  (below). Under each question, everywhere an ask shows, is **why** it is asked: the agent's `--why`, or, when
+  it gave none, a fainter line saying which flow and step the ask follows (the opened flow's Story, Status and
+  node drawer, the chart's tooltip, the alert toast, and Human review).
 - **The board**, a card per flow still on its way, grouped by agent in the grid's column order. On its way is
   by **route, not status** (`FlowBoard.groups`): open and blocked flows, and a done flow whose route has a current
   step (QA passed and Push waiting is done by status and still at Push), which keeps its full card and `at Push`.
@@ -1282,6 +1279,18 @@ Read only: the only command that writes anything is `git fetch origin`
 written inside the repo or any worktree.
 
 ## Agents (#/agents): the pipeline diagram
+
+Under the diagram sits the **Human review** box (`human-review.js`, `GET /api/human`, `human.mjs`): everything
+that cannot go on without the user, newest first, each row with the flow (or ticket) title, the agent waiting,
+how long it has waited and one reason: an unanswered **question** (answered in the box with the usual controls, on
+the usual answer route), **by hand** work (a flow with by-hand steps that is not finished, or an open flow for a
+ticket marked `no-code` or `not-codebase`), a **blocked** flow, and a marked **ticket** no live flow carries. It is
+not a node of any route: `pipeline-view.js` hands it each layout and it places itself under every box, arrow and
+label, its left and right edges on the outermost boxes, inside the canvas; with many rows it scrolls inside
+itself. Its count is also on the rail's Agents entry and on Home; the page head's `N waiting on you` and
+`#/agents?human` bring it into view. A title opens the flow at the question (`gotoFlow` at its node), at its
+by-hand steps (`#/flows?flow=<id>&at=hand`), or the ticket on Tickets. On the Agents page no `N asks waiting`
+toast is raised: the box already says it.
 
 The Agents page draws the orchestration as a diagram, from a **Request** node to an
 **Output** node, built only from the `pipeline` setting and the chat agent's name (see QA and the pipeline):

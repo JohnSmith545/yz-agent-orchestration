@@ -1,9 +1,6 @@
-// Flows (spec 5 and 7.3). Two boxes, mounted independently:
-//   the strip  `Waiting on you`: every open ask across flows, answerable inline.
-//              Home mounts it alone (mountStrip, from app.js); the Flows page
-//              mounts it with the board (mount, from flows-page.js). Only one
-//              page shows at a time, so there is ONE strip slot: whichever page
-//              mounts last owns it.
+// Flows (spec 5 and 7.3): the board, mounted by the Flows page (flows-page.js).
+// The questions agents ask across flows are not here: they are in the Human
+// review box on the Agents page (human-review.js), answered through `answer`.
 //   the board  a card per open flow (flow-board.js), grouped by agent in the grid's
 //              column order, a `Done` row, dropped flows behind a toggle; or, once a
 //              card is clicked, that flow opened: header, then one of four views
@@ -15,16 +12,16 @@
 //              for Status too). Above the views, on every tab: Do this by hand, the
 //              by-hand steps as a checklist (flow-hand.js), when the flow has any or
 //              Human review says it needs the user (human-review.js)
-// Polls /api/flows every 15 s while either box is mounted. An opened flow
+// Polls /api/flows every 15 s while the board is mounted. An opened flow
 // refreshes IN PLACE: the chart keeps its scroll, the drawer is redrawn only
 // when its node changed, and text typed into an answer box survives a redraw.
 // gotoFlow opens a flow from anywhere: it goes to #/flows first when the board
-// is not mounted (notify.js toasts, the grid hover card, the strip on Home).
+// is not mounted (notify.js toasts, the grid hover card, Human review).
 // Archive and Delete (flow-trash.js): on each card and in an opened flow's ⋯ menu.
 // Under the board a quiet line links to the flow archive (#/archive,
 // archive-page.js). An archived or deleted flow is left out of /api/flows, so
 // one opened from the archive (or by link) is fetched on its own after each poll
-// and kept (never on the board or in the strip: FlowBoard.shown). It opens
+// and kept (never on the board: FlowBoard.shown). It opens
 // READ-ONLY: a banner says it is archived or deleted, with Restore, and every
 // control that would change it is hidden (archive.css) and refused here.
 ;(() => {
@@ -46,21 +43,17 @@
   const NO_FLOWS_HELP = '<p>A flow is the plan an agent writes as it works: steps, checks, and the asks that wait on you.</p>' +
     '<p>Agents start one with <code>node tools/factory.mjs flow write</code>. Done and dropped flows stay below the open ones.</p>'
 
-  let strip = null
   let board = null
   let timer = null
   let gen = 0
   let data = { flows: [], invalid: [] }
   let showDropped = false
-  let stripHtml = '' // what the strip shows now, so a poll with nothing new leaves it (and any typing) alone
-  /** asks answered from this page since the last poll: they stay in the strip, showing their delivery, until then */
-  const recent = new Set()
   /** the opened flow: its id, the node in the drawer, and what was last drawn (to redraw only on change) */
   let opened = null
   /** A card whose Delete waits on the server's question: { id, message } (FlowBoard.card shows it inline) */
   let cardAsking = null
   let zoom = store.get('zoom', 1) // a number, or 'fit'
-  let view = window.FlowTabs?.view.get() || 'output' // or 'status' / 'process'; `?.`: the strip-only tests load no flow-tabs.js
+  let view = window.FlowTabs?.view.get() || 'output' // or 'status' / 'process'; `?.`: a test may load no flow-tabs.js
   let z = 1 // the scale in effect
   /** called with the data after every load (flows-page.js writes the page head from it) */
   const loaded = []
@@ -68,11 +61,11 @@
   const flowOf = id => data.flows.find(f => f.id === id)
   /** An archived or deleted flow (opened from the archive): shown, never changed. */
   const readonly = f => !!(f?.archivedAt || f?.deletedAt)
-  const mounted = () => !!(strip || board)
+  const mounted = () => !!board
 
   // ═══ load and post ═══
 
-  async function load(fromPoll = false) {
+  async function load() {
     const mine = ++gen
     try {
       const r = await fetch('/api/flows')
@@ -84,7 +77,6 @@
         if (mine !== gen || !mounted()) return
         if (one) j = { ...j, flows: [...j.flows, one] }
       }
-      if (fromPoll) recent.clear()
       data = j
       render()
       for (const fn of loaded) fn(data)
@@ -119,14 +111,13 @@
       return null
     }
   }
-  /** `fromStrip`: the row stays in the strip, showing its delivery, until the next poll. */
-  async function answer(flowId, nodeId, value, note, fromStrip = false) {
+  /** The ONE way an ask is answered on the page: here, in an opened flow, and in the Human review box. */
+  async function answer(flowId, nodeId, value, note) {
     const body = { node: nodeId, answer: value }
     if (note) body.note = note
     if (!(await post(flowId, 'answer', body))) return
-    const key = `${flowId}:${nodeId}`
-    value !== null && fromStrip ? recent.add(key) : recent.delete(key)
-    load()
+    if (board) load()
+    window.HumanReview?.refresh()
   }
   async function deliver(flowId, nodeId) {
     const r = await post(flowId, 'deliver', { node: nodeId })
@@ -148,23 +139,6 @@
   const envPill = env => (env ? `<span class="fl-env env-${esc(env)}">${esc(env)}</span>` : '')
   const tickets = f => (f.tickets || []).map(t => `<button type="button" class="fl-tk id" data-ticket="${esc(t)}" title="Open ${esc(t)} in the table">${esc(t)}</button>`).join('')
   const statusPill = s => `<span class="fl-status fs-${esc(s)}">${esc(s)}</span>`
-
-  // ═══ the strip: Waiting on you (each row, its why under the question, is FlowBoard.stripRow) ═══
-
-  function renderStrip() {
-    // the flow open on the board asks its own questions (its Story and Status): its rows leave the strip
-    // (and an archived flow's never show: FlowBoard.stripRows leaves them out)
-    const rows = window.FlowBoard.stripRows(data.flows, recent, board && opened ? opened.id : null)
-    const open = rows.filter(r => r.n.answer == null).length
-    // the header dot on every page counts every open ask, the open flow's too (notify.js keeps it current elsewhere)
-    window.Shell?.setWaiting(window.FlowBoard.stripRows(data.flows, new Set()).length)
-    strip.hidden = !rows.length
-    const html = rows.length
-      ? `<section class="card fl-wait"><div class="card-head"><h3>${window.FlowBoard.stripHead(open, board && opened ? opened.id : null)} <span class="faint">· ${open}</span></h3></div>
-          <div class="fl-wait-list">${rows.map(r => window.FlowBoard.stripRow(r)).join('')}</div></section>`
-      : ''
-    if (html !== stripHtml) keepingInputs(strip, () => { strip.innerHTML = html; stripHtml = html })
-  }
 
   // ═══ the board ═══
 
@@ -401,29 +375,17 @@
   }
 
   function render() {
-    if (strip) renderStrip()
     if (board) opened ? renderOpened() : renderBoard()
   }
 
-  // ═══ events: one delegated listener per box, bound at mount ═══
+  // ═══ events: one delegated listener per type on the board, bound at mount ═══
 
-  function onStripClick(e) {
-    const row = e.target.closest('.fl-wait-row')
-    if (!row) return
-    const flowId = row.dataset.flow
-    const b = e.target.closest('[data-answer], [data-show], [data-retry]')
-    if (!b) return
-    if (b.dataset.answer) answer(flowId, b.dataset.node, b.dataset.answer, undefined, true)
-    else if (b.dataset.show) gotoFlow(flowId, b.dataset.show)
-    else deliver(flowId, b.dataset.retry)
-  }
   function onSubmit(e) {
     const form = e.target.closest('form[data-text]')
     if (!form) return
     e.preventDefault()
-    const row = form.closest('.fl-wait-row')
     const value = new FormData(form).get('answer').trim()
-    if (value) answer(row?.dataset.flow || opened?.id, form.dataset.text, value, undefined, !!row)
+    if (value && opened && !readonly(flowOf(opened.id))) answer(opened.id, form.dataset.text, value)
   }
   function onBoardClick(e) {
     const t = e.target.closest('[data-ticket]')
@@ -574,50 +536,29 @@
   }
   function close() {
     opened = null
-    if (strip) renderStrip() // the closed flow's asks come back to the strip
     if (board) renderBoard()
   }
   /**
    * Open a flow (at a node) from any page: on #/flows straight away, else go there and open it
-   * once the board mounts. Without a flow (the header dot, a summary toast), the strip in view:
-   * a flow opened below it has scrolled the strip under the header.
+   * once the board mounts. Without a flow (a summary toast), what waits on the user: the Human
+   * review box on the Agents page (human-review.js).
    */
   function gotoFlow(flowId, nodeId, as) {
-    if (board) return flowId ? open(flowId, nodeId, as) : strip && scrollTo(strip)
+    if (!flowId) return window.HumanReview?.show()
+    if (board) return open(flowId, nodeId, as)
     window.Shell.go('#/flows')
-    if (flowId) window.Shell.whenReady('#flowsView #fxFlows', () => open(flowId, nodeId, as))
-    else window.Shell.whenReady('#flowsView #fxWaiting:not([hidden])', scrollTo) // shown once the first load finds an ask
+    window.Shell.whenReady('#flowsView #fxFlows', () => open(flowId, nodeId, as))
   }
 
-  // ═══ mounting: each box binds its listeners on mount and drops them on unmount ═══
-  // Home's strip box lives as long as the page, so a listener left behind would fire twice.
+  // ═══ mounting: the board binds its listeners on mount and drops them on unmount ═══
 
-  const STRIP_ON = { click: onStripClick, submit: onSubmit }
   const BOARD_ON = { click: onBoardClick, submit: onSubmit, change: onBoardChange, keydown: onBoardKey }
   const bind = (el, on) => { for (const [type, fn] of Object.entries(on)) el.addEventListener(type, fn) }
   const unbind = (el, on) => { for (const [type, fn] of Object.entries(on)) el.removeEventListener(type, fn) }
 
-  function attachStrip(el) {
-    if (strip === el) return
-    detachStrip()
-    strip = el
-    stripHtml = ''
-    recent.clear()
-    strip.innerHTML = ''
-    strip.hidden = true
-    bind(strip, STRIP_ON)
-  }
-  function detachStrip() {
-    if (!strip) return
-    unbind(strip, STRIP_ON)
-    strip.innerHTML = ''
-    strip.hidden = true
-    strip = null
-    stripHtml = ''
-  }
   /** Poll while anything is mounted; a box mounted fresh loads at once. */
   function startPolling() {
-    if (!timer) timer = setInterval(() => load(true), POLL_MS)
+    if (!timer) timer = setInterval(() => load(), POLL_MS)
     load()
   }
   function stopPollingIfIdle() {
@@ -628,9 +569,8 @@
   }
 
   window.FlowsView = {
-    /** The Flows page: the strip and the board (flows-page.js). */
-    mount(stripEl, boardEl) {
-      attachStrip(stripEl)
+    /** The Flows page: the board (flows-page.js). */
+    mount(boardEl) {
       if (board !== boardEl) {
         if (board) unbind(board, BOARD_ON)
         board = boardEl
@@ -639,23 +579,10 @@
       startPolling()
     },
     unmount() {
-      detachStrip()
       if (board) unbind(board, BOARD_ON)
       board = null
       opened = null
       cardAsking = null
-      stopPollingIfIdle()
-    },
-    /** Home: the strip alone, same handlers and the same poll. Idempotent. */
-    mountStrip(el) {
-      if (!el || strip === el) return
-      attachStrip(el)
-      startPolling()
-    },
-    /** Drop the strip; with `el`, only if that box still holds it (the Flows page may have taken it since). */
-    unmountStrip(el) {
-      if (el && strip !== el) return
-      detachStrip()
       stopPollingIfIdle()
     },
     /** `fn(data)` after every load while mounted. */

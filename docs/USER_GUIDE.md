@@ -82,7 +82,8 @@ Home is at `#/home` (the brand mark at the top of the rail); the dashboard opens
 
 - **Since** (only when something happened since you last pressed **Mark read**): flows that changed status,
   answers delivered, tickets that reached a new level or changed in the tracker, and commits per agent.
-- **Waiting on you** (only while an agent has asked something): answer it right there.
+- One line saying how many things need you (questions, work only you can do, blocked flows), with **Open Human
+  review**, which takes you to the box on the Agents page.
 - **Agents**: one compact card per agent with its state, last action and tickets. Click a card to watch it live.
 - **Subagents** (only when a subagent ran today): the subagents still running and the latest finished, each a link
   to its live view; **All subagents** opens the page.
@@ -98,9 +99,8 @@ steps, done, current (in the accent) and upcoming, and an opened flow shows it u
 it on Agents, on the QA page, or on the Output. A flow started before routes says **route not set** until its agent
 sets one.
 
-- **Waiting on you** at the top lists every open question across all flows, with Yes and No (or a text box).
-  The questions of the flow you have open leave the list while it is open (the flow itself asks them), and
-  the list disappears when it is empty.
+- The questions agents ask are not listed here: they are in **Human review** on the Agents page. An open flow
+  still asks its own questions on its Output and Status.
 - **The board** has a card per open flow, grouped by agent. A card is short on purpose: the title, one line
   of what happened last, one word for where it stands (**waiting on you**, **blocked**, **ready to send**,
   **PR open**, **merged** or **done**), the agent and a thin progress bar. Click one to open it.
@@ -215,6 +215,21 @@ an agent's card on Home, or a subagent row in its details card, for its **live v
 edit as a diff, the uncommitted changes in its worktree, and **Draft report**, a Markdown summary of a time
 window built from the transcript and git (no model writes it).
 
+#### Human review
+
+Under the diagram, the **Human review** box lists everything that cannot go on without you, newest first. Its
+number is how many; the same number sits on **Agents** in the rail, and the page head's **N waiting on you** opens
+the box.
+
+- **Question**: an agent asked something. Answer it right in the box with Yes and No (or type an answer).
+- **By hand**: work only you can do (CI/CD, cloud setup, a console setting), with how many steps are done.
+- **Blocked**: a flow its agent marked blocked.
+- **Ticket**: a ticket marked no code yet or not codebase work that no flow covers yet.
+
+Each row says which agent waits, for how long, and why in one line. Click a title to open it at the right place:
+the question in its flow, the by-hand steps, or the ticket. When nothing waits on you the box says so in one line.
+With many rows it scrolls inside itself.
+
 ### Subagents
 
 Every subagent a session started to do one task, from sessions that still run and ones that have
@@ -322,7 +337,7 @@ CLI flow ask dark-mode "Ship dark mode to dev now?" --yes "Turn it on for everyo
 ```
 
 Each command prints one line, such as `dark-mode n3: waiting on the user`. On the page, the question appears
-under **Waiting on you** on Home and Flows. Click **Yes**: the dashboard sends "Agent 1" a message with the
+in **Human review** on the Agents page (and in the flow itself). Click **Yes**: the dashboard sends "Agent 1" a message with the
 question and your answer, and the agent carries on. It can read everything back with `CLI flow show dark-mode`.
 
 When the work is done, the agent records its **output**, which is what you see first when you open the flow

@@ -1,7 +1,6 @@
-// The Flows page (spec 5, #/flows): the Waiting on you strip above the flows
-// board, both drawn by flows.js. The shell calls open and close as the route
-// comes and goes; this file only builds the two boxes, mounts FlowsView into
-// them, opens the flow a link names (`#/flows?flow=<id>[&node=<id>][&at=hand]`,
+// The Flows page (spec 5, #/flows): the flows board, drawn by flows.js (the questions agents ask are in the
+// Human review box on the Agents page, human-review.js). The shell calls open and close as the route comes and
+// goes; this file only builds the box, mounts FlowsView into it, opens the flow a link names (`#/flows?flow=<id>[&node=<id>][&at=hand]`,
 // openFromQuery), and writes the page head (`Flows · N`, N the cards on the board: FlowBoard.groups live)
 // and the status chip (when the newest flow changed, the rest behind its ?,
 // which also says what Archive and Delete do) from each poll.
@@ -35,8 +34,8 @@
     if (on) return paint(), openFromQuery(query)
     on = true
     const el = view()
-    el.innerHTML = '<div id="fxWaiting"></div><div id="fxFlows"></div>'
-    window.FlowsView.mount(document.getElementById('fxWaiting'), document.getElementById('fxFlows'))
+    el.innerHTML = '<div id="fxFlows"></div>'
+    window.FlowsView.mount(document.getElementById('fxFlows'))
     paint() // the last poll's head straight away; the mount's own load repaints it
     openFromQuery(query)
   }

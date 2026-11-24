@@ -150,14 +150,10 @@ test('the Story shows the why under the question, and the fallback (marked auto)
   assert.match(q2, /<p class="st-why fl-ask-why is-auto"><span class="st-why-k">Why\?<\/span> Part of Ship the login fix, after: Deploy the fix to dev\?<\/p>/)
 })
 
-test('the Waiting on you strip (Home and Flows) shows the why under the question in each row, not only on hover', () => {
-  const f = flow()
-  const rows = window.FlowBoard.stripRows([f], new Set()).map(r => window.FlowBoard.stripRow(r))
-  const q1 = rows.find(r => r.includes('data-node="q1"'))
-  const q2 = rows.find(r => r.includes('data-text="q2"'))
-  assert.match(q1, /<div class="fl-wait-q">[\s\S]*Deploy the fix to dev\?[\s\S]*<\/div>\s*<p class="fl-wait-why fl-ask-why"><span class="st-why-k">Why\?<\/span> The test passes/)
-  assert.match(q2, /<p class="fl-wait-why fl-ask-why is-auto"><span class="st-why-k">Why\?<\/span> Part of Ship the login fix/)
-  assert.match(read('flows.js'), /window\.FlowBoard\.stripRow\b/, 'flows.js draws its rows with FlowBoard.stripRow')
+test('the Waiting on you strip is gone from Home and Flows: the questions, each with its why, are in Human review on the Agents page', () => {
+  for (const f of ['flows.js', 'flow-board.js', 'app.js', 'flows-page.js']) assert.doesNotMatch(read(f), /stripRows?\b|stripHead|fl-wait|fxWaiting|homeWaiting/, f)
+  assert.doesNotMatch(read('index.html'), /homeWaiting/)
+  assert.match(read('human-review.js'), /<span class="hr-why-k">Why\?<\/span> \$\{esc\(i\.reason\)\}/, 'the box shows the why under the question')
 })
 
 test('Status shows the reason on every decision row, the fallback too', () => {

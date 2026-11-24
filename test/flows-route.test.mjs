@@ -55,10 +55,11 @@ test('a box of the Output chart opens that step on Status, by click or by Enter,
   assert.match(src, /if \(e\.target\.closest\('\.fl-out \[data-goto\]'\)\) return onBoardClick\(e\)/)
 })
 
-test('flows.js mounts the strip alone for Home, and Home mounts it', () => {
-  assert.match(read('flows.js'), /mountStrip\(/)
-  assert.match(read('flows.js'), /unmountStrip\(/)
-  assert.match(read('app.js'), /FlowsView\??\.mountStrip\(/)
+test('Home no longer holds a copy of the questions: one line from Human review, and flows.js mounts the board alone', () => {
+  assert.doesNotMatch(read('flows.js'), /mountStrip|unmountStrip/)
+  assert.doesNotMatch(read('app.js'), /mountStrip|homeWaiting/)
+  assert.match(read('index.html'), /<div id="homeHuman" hidden><\/div>/)
+  assert.match(read('human-review.js'), /doc\.getElementById\('homeHuman'\)/)
 })
 
 test('the grid hover card and the toasts open a flow through FlowsView.gotoFlow', () => {
@@ -111,10 +112,11 @@ test('Shell.whenReady gives up after its timeout without calling back', async ()
   assert.ok(Date.now() - t0 >= 140, 'it waited for the timeout')
 })
 
-// ═══ fix round 1: the header dot brings the strip into view, below the sticky header ═══
+// ═══ the header dot opens Human review, the box in view below the sticky header ═══
 
-test('the header dot goes through FlowsView.gotoFlow, so it scrolls the strip even on #/flows', () => {
-  assert.match(read('shell.js'), /pageWaiting'\)\?\.addEventListener\('click', \(\) => \(window\.FlowsView\?\.gotoFlow \? window\.FlowsView\.gotoFlow\(\) : go\('#\/flows'\)\)\)/)
+test('the header dot opens the Human review box on the Agents page (HumanReview.show scrolls it into view even when #/agents shows)', () => {
+  assert.match(read('shell.js'), /pageWaiting'\)\?\.addEventListener\('click', \(\) => \(window\.HumanReview\?\.show \? window\.HumanReview\.show\(\) : go\('#\/agents\?human'\)\)\)/)
+  assert.match(read('shell.js'), /Open Human review on the Agents page/)
 })
 
 test('the Timeline page error says timeline, not flow', () => {
@@ -127,13 +129,14 @@ test('the Timeline page error says timeline, not flow', () => {
  * The page head is 48 px tall; a box records where it was scrolled.
  */
 function loadFlows() {
-  const calls = { go: [], ready: [] }
+  const calls = { go: [], ready: [], show: [] }
   const window = {
     Shell: {
       go: h => calls.go.push(h),
       whenReady: (sel, fn) => calls.ready.push({ sel, fn }),
       setWaiting() {},
     },
+    HumanReview: { show: () => calls.show.push(1) },
   }
   const document = { querySelector: s => (s === '#pageHead' ? { offsetHeight: 48 } : null), activeElement: null }
   const box = () => ({ style: {}, innerHTML: '', hidden: false, addEventListener() {}, removeEventListener() {}, querySelectorAll: () => [], scrollIntoView(o) { this.scrolled = o } })
@@ -142,21 +145,18 @@ function loadFlows() {
   return { FlowsView: window.FlowsView, calls, box }
 }
 
-test('gotoFlow() off the Flows page goes there and waits for a strip that is showing', () => {
-  const { FlowsView, calls } = loadFlows()
-  FlowsView.gotoFlow()
-  assert.deepEqual(calls.go, ['#/flows'])
-  assert.equal(calls.ready.length, 1)
-  assert.equal(calls.ready[0].sel, '#flowsView #fxWaiting:not([hidden])')
-})
-
-test('gotoFlow() on the Flows page scrolls the strip into view, clear of the sticky header', () => {
+test('gotoFlow() with no flow (a summary toast) opens Human review, from any page', () => {
   const { FlowsView, calls, box } = loadFlows()
-  const strip = box()
-  FlowsView.mount(strip, box())
-  strip.hidden = false
+  FlowsView.gotoFlow()
+  FlowsView.mount(box())
   FlowsView.gotoFlow()
   assert.deepEqual(calls.go, [])
-  assert.equal(strip.style.scrollMarginTop, '64px')
-  assert.equal(strip.scrolled?.block, 'start')
+  assert.equal(calls.show.length, 2)
+})
+
+test('gotoFlow(id) off the Flows page goes there and opens the flow once the board mounts', () => {
+  const { FlowsView, calls } = loadFlows()
+  FlowsView.gotoFlow('dark-mode', 'n3')
+  assert.deepEqual(calls.go, ['#/flows'])
+  assert.equal(calls.ready[0].sel, '#flowsView #fxFlows')
 })
