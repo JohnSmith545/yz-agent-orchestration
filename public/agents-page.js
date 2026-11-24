@@ -150,10 +150,13 @@
     renderStatus()
     if (!pipeline) return
     const { graph, tickets } = pipeline
-    // a selection outlives a refresh while what it points at still exists
-    if (selNode && !graph.nodes.some(n => n.id === selNode)) selNode = null
+    // A selection outlives a refresh while what it points at still exists. It is dropped only against a
+    // pipeline read NOW: open() draws at once with the one an earlier visit read, and a flow started since
+    // (showNode from its head) would lose its selection before the fresh list arrived (QA, 2026-11-24).
+    const fresh = !loading
+    if (fresh && selNode && !graph.nodes.some(n => n.id === selNode)) selNode = null
     const ticket = selTicket ? tickets.find(t => t.id === selTicket) : null
-    if (!ticket) selTicket = null
+    if (fresh && !ticket) selTicket = null
     view.update({ graph, tickets, agents: status?.agents || [] })
     view.setPath(ticket ? window.FlowRoute.highlight(graph, ticket.progress) : null)
     view.setNode(selNode)
