@@ -1,5 +1,6 @@
-// The details pane under the Agents page diagram (#/agents). Click a node and it shows:
-//   - an agent (the coordinator, a producer, QA): THAT agent's card exactly as the old tree drew it
+// The details pane under the Agents page diagram (#/agents). A click on an agent box opens its settings WINDOW
+// (agent-window.js); this pane holds a step, or an agent a flow's step line pointed at (AgentsPage.showNode):
+//   - an agent (the coordinator, the planner, a producer, QA, Security): THAT agent's card exactly as the old tree drew it
 //     (agent-cards.js card(): state, what it is doing, who it last talked to, recent tickets, branch,
 //     subagents and the Progress report button, which agents-page.js wires to OrchestrationGrid.report),
 //     what its role is, a line when it pushed outside QA, and the tickets standing on it;
@@ -14,12 +15,14 @@
   /** What each role does, in a line. */
   const ROLE = {
     request: 'Where work starts: a request you give the coordinator, who hands it out.',
-    coordinator: 'Hands each request to a producer, or does it itself. Its own code changes go to QA too.',
+    coordinator: 'Hands each request to a producer (through the planner when there is one), or does it itself. Its own code changes go to QA too.',
+    planner: 'Plans each task the coordinator hands it and gives it to a producer. It writes no code. Always on Opus at high effort.',
     producer: 'Writes the code. Finished code goes to QA; work with no code changes goes straight to the Output.',
     chat: 'The chat agent in the Ask drawer: answers questions, explains tickets and reviews code. It changes no code, so its work goes straight to the Output.',
-    qa: 'Tests every code change. A pass goes on to Push; a failure goes back to the producer that made it.',
-    push: 'QA pushes the branch at the exact commit it tested: never forced, never a protected branch.',
-    outcome: 'Where work ends: pushed after a QA pass, or done with no code changes. You open the pull request with Send.',
+    qa: 'Tests every code change. A pass goes on to Push (through Security when there is one); a failure goes back to the producer that made it.',
+    security: 'Reviews every change QA passed, at the same commit. A pass lets QA push it; a failure goes back to the producer that made it. Always on Opus at high effort.',
+    push: 'QA pushes the branch at the exact commit it tested (and Security passed, when there is Security): never forced, never a protected branch.',
+    outcome: 'Where work ends: pushed after a QA pass (and a Security pass, when there is Security), or done with no code changes. You open the pull request with Send.',
   }
 
   const pushes = a => Math.max(0, Number(a?.pushesOutsideQa) || 0)

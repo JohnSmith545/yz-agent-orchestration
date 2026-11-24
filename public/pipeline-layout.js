@@ -16,7 +16,8 @@
 //   - anything longer (skip edges, the coordinator's own changes): out into the gap beside its source,
 //     along a corridor outside all the boxes (skips on one side, the rest on the other), and in through the
 //     gap before its target, each on a lane of its own. Arrows sharing a label and a target (every
-//     `no code changes`) carry that label once, on the outermost lane.
+//     `no code changes`) carry that label once, on the outermost lane; so do return arrows sharing a label and
+//     a SOURCE (Security's `failed` back to every producer, pipeline.mjs).
 // Every box spreads the arrows on each side along that side, ordered by where their other end is, so no
 // two arrow heads share a point. Pure: no DOM, so test/pipeline-layout.test.mjs runs it in a vm.
 ;(() => {
@@ -267,7 +268,7 @@
         const c = lane.get(e)
         d = rounded(lr, [p0, [g1, p0[1]], [g1, c], [g2, c], [g2, tail[1]], tail])
         if (e.label) {
-          const key = `${e.side}|${e.to}|${e.label}`
+          const key = e.kind === 'rework' ? `${e.side}|from ${e.from}|${e.label}` : `${e.side}|${e.to}|${e.label}`
           const at = (g1 + g2) / 2
           const off = e.side === 'neg' ? -5 : 13
           const spot = lr ? { x: r1(at), y: r1(c + off), rotate: 0 } : { x: r1(c + (e.side === 'neg' ? -4 : 13)), y: r1(at), rotate: -90 }

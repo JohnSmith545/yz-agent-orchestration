@@ -27,14 +27,16 @@ const CUT_NOTE = '\n[The rest was cut to fit 8,000 characters.]'
 /** MUST CHANGE IN LOCKSTEP with public/pipeline-details.js ROLE (test/script-brief.test.mjs checks it). */
 export const ROLE = Object.freeze({
   request: 'Where work starts: a request you give the coordinator, who hands it out.',
-  coordinator: 'Hands each request to a producer, or does it itself. Its own code changes go to QA too.',
+  coordinator: 'Hands each request to a producer (through the planner when there is one), or does it itself. Its own code changes go to QA too.',
+  planner: 'Plans each task the coordinator hands it and gives it to a producer. It writes no code. Always on Opus at high effort.',
   producer: 'Writes the code. Finished code goes to QA; work with no code changes goes straight to the Output.',
   chat: 'The chat agent in the Ask drawer: answers questions, explains tickets and reviews code. It changes no code, so its work goes straight to the Output.',
-  qa: 'Tests every code change. A pass goes on to Push; a failure goes back to the producer that made it.',
-  push: 'QA pushes the branch at the exact commit it tested: never forced, never a protected branch.',
-  outcome: 'Where work ends: pushed after a QA pass, or done with no code changes. You open the pull request with Send.',
+  qa: 'Tests every code change. A pass goes on to Push (through Security when there is one); a failure goes back to the producer that made it.',
+  security: 'Reviews every change QA passed, at the same commit. A pass lets QA push it; a failure goes back to the producer that made it. Always on Opus at high effort.',
+  push: 'QA pushes the branch at the exact commit it tested (and Security passed, when there is Security): never forced, never a protected branch.',
+  outcome: 'Where work ends: pushed after a QA pass (and a Security pass, when there is Security), or done with no code changes. You open the pull request with Send.',
 })
-const ROLE_NAME = { coordinator: 'coordinator', producer: 'producer', chat: 'chat agent', qa: 'tester' }
+const ROLE_NAME = { coordinator: 'coordinator', planner: 'planner', producer: 'producer', chat: 'chat agent', qa: 'tester', security: 'security reviewer' }
 
 /** The dashboard's pages, one line each (README "A quick tour"). */
 const PAGES = [
