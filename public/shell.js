@@ -13,6 +13,7 @@
 // in a vm with a bare window.
 ;(() => {
   const VIEWS = ['home', 'flows', 'qa', 'script', 'tickets', 'timeline', 'agents', 'subagents', 'glossary', 'settings', 'agent']
+  VIEWS.push('bank') // the Orchestration bank (bank-page.js): #/bank, #/bank/<id>, #/bank/<id>/use
   const OLD = { factory: 'tickets', flow: 'timeline' }
   const route = (view, params = {}, redirect = null) => ({ view, params, redirect })
   const decode = s => {
@@ -31,6 +32,8 @@
     if (agent) return route('agent', { id: decode(agent[1]), sub: agent[2] ? decode(agent[2]) : null })
     const qa = /^#\/qa\/([^/]+)\/?$/.exec(h) // one ticket opened on the QA page
     if (qa) return route('qa', { id: decode(qa[1]) })
+    const bank = /^#\/bank\/([^/]+)(?:\/(use))?\/?$/.exec(h) // one saved orchestration opened, or its Use confirmation
+    if (bank) return route('bank', { id: decode(bank[1]), mode: bank[2] || null })
     const page = /^#\/([a-z]+)\/?$/.exec(h)?.[1]
     if (page && page !== 'agent' && VIEWS.includes(page)) return route(page)
     const old = /^#\/(factory|flow)\b/.exec(h)?.[1]
@@ -128,6 +131,7 @@
   // Which section each view shows, and which page object it opens and closes.
   const SECTION = { home: 'home', flows: 'flowsView', qa: 'qaView', script: 'scriptView', tickets: 'factoryView', timeline: 'flowView', agents: 'agentsView', subagents: 'subagentsView', glossary: 'glossaryView', settings: 'settingsView', agent: 'agentView' }
   const PAGE = { flows: 'FlowsPage', qa: 'QaPage', script: 'ScriptPage', tickets: 'FactoryView', timeline: 'FlowView', agents: 'AgentsPage', subagents: 'SubagentsPage', glossary: 'GlossaryPage', settings: 'SettingsPage', agent: 'AgentView' }
+  Object.assign(TITLE, { bank: 'Orchestration bank' }), Object.assign(SECTION, { bank: 'bankView' }), Object.assign(PAGE, { bank: 'BankPage' })
 
   // ─── icons: 24-unit boxes drawn at 20 px, 1.75 stroke (shell.css) ───
   const svg = d => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`
@@ -146,6 +150,8 @@
     glossary: svg('<path d="M5 5a2 2 0 0 1 2-2h12v14H7a2 2 0 0 0-2 2Z"/><path d="M5 19a2 2 0 0 0 2 2h12v-4"/><path d="M9 7.5h6M9 11h4"/>'),
     // a gear: a ring with eight short teeth around a small hub
     settings: svg('<circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2.2"/><path d="M12 3.5v2.5M12 18v2.5M3.5 12H6M18 12h2.5M6 6l1.8 1.8M16.2 16.2 18 18M6 18l1.8-1.8M16.2 7.8 18 6"/>'),
+    // the Orchestration bank: three stacked layers (saved ways of working)
+    bank: svg('<path d="m12 3.5 8.5 4.25L12 12 3.5 7.75Z"/><path d="m3.5 12 8.5 4.25L20.5 12"/><path d="m3.5 16.25 8.5 4.25 8.5-4.25"/>'),
     ask: svg('<path d="M12 3.5a8.5 8.5 0 0 0-7.4 12.7L3.5 20.5l4.3-1.1A8.5 8.5 0 1 0 12 3.5Z"/>'),
     sun: svg('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>'),
     moon: svg('<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>'),
@@ -175,6 +181,10 @@
       ${link('settings', '#/settings', 'Settings')}
       <button type="button" class="rail-item" id="themeToggle" title="Theme"><span class="rail-icon"><span class="theme-sun">${ICON.sun}</span><span class="theme-moon">${ICON.moon}</span><i class="theme-dot" aria-hidden="true"></i></span><span class="rail-label">Theme</span></button>
     </div>`
+  // The Project menu's slot under the brand (project-menu.js fills it), and the Orchestration bank after Agents.
+  // (Added after the template, not in it, so the rail's one long line stays as it was; ?. for the tests' bare DOM.)
+  rail.querySelector('.rail-top')?.insertAdjacentHTML?.('afterend', '<div class="rail-project" id="railProject"></div>')
+  rail.querySelector('a.rail-item[data-view="agents"]')?.insertAdjacentHTML?.('afterend', link('bank', '#/bank', 'Orchestration bank'))
 
   // Labels as tooltips by default; after a 300 ms hover the rail opens to
   // 200 px over the page. Pinned, it stays open and pushes the page instead.
@@ -351,6 +361,7 @@
     const page = window[PAGE[r.view]]
     if (r.view === 'agent') page?.open?.(r.params.id, r.params.sub)
     else if (r.view === 'qa') page?.open?.(r.params.id)
+    else if (r.view === 'bank') page?.open?.(r.params.id, r.params.mode)
     else page?.open?.()
     const lit = railFor(r)
     rail.querySelectorAll('a.rail-item').forEach(a => (a.dataset.view === lit ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')))
