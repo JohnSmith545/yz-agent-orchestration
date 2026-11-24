@@ -22,12 +22,12 @@
 // two arrow heads share a point. Pure: no DOM, so test/pipeline-layout.test.mjs runs it in a vm.
 ;(() => {
   const LR = { pad: 12, wMin: 100, wMax: 200, gMin: 44, gPref: 64, gMax: 120, gc: 24 }
-  const TB = { pad: 8, wMin: 88, wMax: 220, gm: 56, gc: 16 }
+  const TB = { pad: 8, wMin: 72, wMax: 220, roomy: 160, gm: 56, gc: 16 }
   const HEAD_H = 36 // a box's name line
   const CHIP_H = 24 // one ticket chip
   const MIN_H = 48
   const LANE = 8 // between two arrows in a gap or a corridor
-  const CORR_OFF = 18 // from the boxes to the first corridor lane
+  const CORR_OFF = { LR: 18, TB: 12 } // from the boxes to the first corridor lane (tighter top to bottom: a phone)
   const LABEL_ROOM = 16 // beyond the outermost lane, for its label
   const PORT = 10 // between two arrows on one side of a box
   const ARROW = 7 // an arrow head's length
@@ -137,20 +137,20 @@
       e.type = span === 1 ? 'adj' : span === -1 ? 'ret' : 'long'
       e.side = e.kind === 'skip' ? 'neg' : 'pos'
     }
-    const longs = side => edges.filter(e => e.type === 'long' && e.side === side)
-    const margin = side => {
-      const list = longs(side)
-      return list.length ? CORR_OFF + (list.length - 1) * LANE + (list.some(e => e.label) ? LABEL_ROOM : 4) : 0
-    }
-    const mNeg = margin('neg')
-    const mPos = margin('pos')
-
     // left to right when every layer gets a column of at least WMIN, else top to bottom
     const availLR = width - 2 * LR.pad
     // a roomy gap first (its arrow labels read whole), narrowed to the minimum before the boxes go below WMIN
     const widthAt = gap => Math.min(LR.wMax, Math.floor((availLR - (L - 1) * gap) / L))
     const wLR = L > 1 ? (widthAt(LR.gPref) >= LR.wMin ? widthAt(LR.gPref) : Math.max(LR.wMin, Math.floor((availLR - (L - 1) * LR.gMin) / L))) : Math.min(LR.wMax, availLR)
     const lr = L <= 1 || availLR - L * wLR >= (L - 1) * LR.gMin
+    const corrOff = CORR_OFF[lr ? 'LR' : 'TB']
+    const longs = side => edges.filter(e => e.type === 'long' && e.side === side)
+    const margin = side => {
+      const list = longs(side)
+      return list.length ? corrOff + (list.length - 1) * LANE + (list.some(e => e.label) ? LABEL_ROOM : 4) : 0
+    }
+    const mNeg = margin('neg')
+    const mPos = margin('pos')
     let S
     if (lr) {
       const gm = L > 1 ? Math.min(LR.gMax, Math.floor((availLR - L * wLR) / (L - 1))) : 0
@@ -160,18 +160,24 @@
       const w = Math.max(TB.wMin, Math.min(TB.wMax, Math.floor(free / kMax)))
       S = { pad: TB.pad, main: H, cross: w, gm: TB.gm, gc: TB.gc, w }
     }
-    const crossSpan = kMax * S.cross + (kMax - 1) * S.gc
+    // Top to bottom, a layer with fewer boxes may give each more room (up to ROOMY, never less than the
+    // widest layer's): on a phone the three producers share the width while Master and Outcome keep their names.
+    const roomy = Math.max(S.cross, TB.roomy)
+    const freeTB = width - 2 * TB.pad - mNeg - mPos
+    const crossOf = k => (lr ? S.cross : Math.max(S.cross, Math.min(roomy, Math.floor((freeTB - (k - 1) * S.gc) / Math.max(1, k)))))
+    const spanOf = k => k * crossOf(k) + Math.max(0, k - 1) * S.gc
+    const crossSpan = Math.max(spanOf(kMax), ...layers.map(l => spanOf(l.length)))
     const c0 = S.pad + mNeg
     const mainOf = r => S.pad + r * (S.main + S.gm)
 
     // every box: main is its layer, cross its place in the layer, the layer centred
     const box = new Map()
     layers.forEach((layer, r) => {
-      const span = layer.length * S.cross + (layer.length - 1) * S.gc
-      const start = c0 + (crossSpan - span) / 2
+      const cs = crossOf(layer.length)
+      const start = c0 + (crossSpan - spanOf(layer.length)) / 2
       layer.forEach((n, i) => {
-        const c = start + i * (S.cross + S.gc)
-        box.set(n.id, { id: n.id, layer: r, m: mainOf(r), c, mid: c + S.cross / 2 })
+        const c = start + i * (cs + S.gc)
+        box.set(n.id, { id: n.id, layer: r, m: mainOf(r), c, cs, mid: c + cs / 2 })
       })
     })
 
@@ -181,7 +187,7 @@
       const list = longs(side).sort((a, b) => Math.abs(b.span) - Math.abs(a.span) || (side === 'neg' ? 1 : -1) * (box.get(a.from).mid - box.get(b.from).mid) || a.i - b.i)
       list.forEach((e, p) => {
         const depth = list.length - 1 - p // 0 is the inner lane
-        lane.set(e, side === 'neg' ? c0 - CORR_OFF - depth * LANE : c0 + crossSpan + CORR_OFF + depth * LANE)
+        lane.set(e, side === 'neg' ? c0 - corrOff - depth * LANE : c0 + crossSpan + corrOff + depth * LANE)
       })
     }
 
@@ -207,7 +213,7 @@
       list.sort((a, b) => a.other - b.other || a.order - b.order || a.e.i - b.e.i)
       const b = box.get(list[0].node)
       const k = list.length
-      const step = k > 1 ? Math.min(PORT, (S.cross - 12) / (k - 1)) : 0
+      const step = k > 1 ? Math.min(PORT, (b.cs - 12) / (k - 1)) : 0
       list.forEach((x, i) => {
         const m = x.side === 'end' ? b.m + S.main : b.m
         port.set(`${x.e.i}:${x.end}`, [m, b.mid + (i - (k - 1) / 2) * step])
@@ -286,7 +292,7 @@
     const crossLen = 2 * S.pad + mNeg + crossSpan + mPos
     const placed = [...box.values()].map(b => {
       const [x, y] = xy(lr, b.m, b.c)
-      return { id: b.id, x: r1(x), y: r1(y), w: lr ? S.main : S.cross, h: lr ? S.cross : S.main, layer: b.layer }
+      return { id: b.id, x: r1(x), y: r1(y), w: lr ? S.main : b.cs, h: lr ? b.cs : S.main, layer: b.layer }
     })
     const [W, Ht] = lr ? [mainLen, crossLen] : [crossLen, mainLen]
     return { dir: lr ? 'LR' : 'TB', width: Math.ceil(W), height: Math.ceil(Ht), nodes: placed, edges: out, labels }

@@ -77,6 +77,20 @@ test('it never needs more than the width it is given, left to right or top to bo
   }
 })
 
+test('a phone (a 358 px box, QA 2026-11-24: it drew 404 px and scrolled inside) fits three producers with no inner scroll', () => {
+  for (const n of [0, 1, 2, 3]) {
+    const lay = L.layout(graphWith(n), { width: 358, rows: 2 })
+    assert.ok(lay.width <= 358, `${n} producers: ${lay.width}`)
+  }
+})
+
+test('on a phone a step with the row to itself is wider than the producers sharing theirs, so its name is not cut', () => {
+  const at = byId(L.layout(G3, { width: 358, rows: 2 }))
+  assert.ok(at.get('master').w >= 140 && at.get('outcome').w >= 140, `${at.get('master').w}`)
+  assert.ok(at.get('agent-1').w < at.get('master').w)
+  assert.equal(at.get('master').x + at.get('master').w / 2, at.get('agent-2').x + at.get('agent-2').w / 2, 'centred on one line')
+})
+
 test('narrow: top to bottom, one row per layer, the producers side by side', () => {
   const lay = L.layout(G3, { width: 480 })
   assert.equal(lay.dir, 'TB')
@@ -144,7 +158,7 @@ const inside = (p, b, inset = 1) => p[0] > b.x + inset && p[0] < b.x + b.w - ins
 
 test('no arrow runs through a box, for 0, 1, 3 and 5 producers, both ways', () => {
   for (const n of [0, 1, 3, 5]) {
-    for (const width of [1600, 1160, 560]) {
+    for (const width of [1600, 1160, 560, 358]) {
       const lay = L.layout(graphWith(n), { width, rows: 2 })
       for (const e of lay.edges) {
         for (const p of samples(e.d)) {
@@ -158,7 +172,7 @@ test('no arrow runs through a box, for 0, 1, 3 and 5 producers, both ways', () =
 
 test('every arrow fits inside the drawing', () => {
   for (const n of [0, 1, 3, 5]) {
-    for (const width of [1160, 560]) {
+    for (const width of [1160, 560, 358]) {
       const lay = L.layout(graphWith(n), { width })
       for (const e of lay.edges) for (const [x, y] of samples(e.d)) assert.ok(x >= 0 && y >= 0 && x <= lay.width && y <= lay.height, `${e.from}->${e.to} at ${x},${y} (${lay.width}x${lay.height})`)
     }
@@ -203,7 +217,7 @@ test('every label is drawn: each failed, own changes, passed, and no code change
 
 test('no label sits on a box, both ways, for 1, 3 and 5 producers', () => {
   for (const n of [1, 3, 5]) {
-    for (const width of [1600, 1160, 560]) {
+    for (const width of [1600, 1160, 560, 358]) {
       const lay = L.layout(graphWith(n), { width, rows: 1 })
       for (const l of lay.labels) {
         const hit = lay.nodes.find(b => overlaps(textBox(l), b))
