@@ -12,6 +12,7 @@ const ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'orch-parts-test-'))
 process.env.FACTORY_DATA_DIR = ROOT
 const O = await import('../orchestration-parts.mjs')
 const R = await import('../agent-rules.mjs')
+const W = await import('../style-words.mjs')
 const S = await import('../agent-settings.mjs')
 after(() => fs.rmSync(ROOT, { recursive: true, force: true }))
 
@@ -199,18 +200,19 @@ test('the view of a style: its graph, each agent with its role, specification an
   const w = world()
   seedRules(w.primary.file('agent-rules.json'), 'Agent 1', 'Builds.', ['One.', 'Two.'])
   seedRules(w.primary.file('agent-rules.json'), 'QA', '', ['Three.'])
-  const v = O.styleView(O.takeSnapshot(w.primary))
+  const v = W.styleView(O.takeSnapshot(w.primary))
   assert.ok(v.graph.nodes.some(nd => nd.role === 'qa' && nd.label === 'QA'))
   assert.deepEqual(v.agents.map(a => [a.label, a.role]), [['Master', 'coordinator'], ['Agent 1', 'producer'], ['Agent 3', 'producer'], ['Independent', 'chat'], ['QA', 'qa']])
-  assert.deepEqual(v.agents[1], { label: 'Agent 1', role: 'producer', spec: 'Builds.', rules: ['One.', 'Two.'] })
+  const a1 = v.agents[1]
+  assert.deepEqual({ label: a1.label, role: a1.role, spec: a1.spec, rules: a1.rules }, { label: 'Agent 1', role: 'producer', spec: 'Builds.', rules: ['One.', 'Two.'] })
   assert.equal(v.summary, 'Master hands to 2 agents, QA tests, 3 rules')
 })
 
 test('summary wording: one agent, one rule, no rules', () => {
   const one = { parts: { agents: { coordinator: 'M', coordinatorLabel: 'M', codingAgents: { M: 'M', A: 'A' }, pipeline: { qa: 'QA' }, chatName: '' }, rules: { agents: { A: { spec: '', rules: ['x'] } } } } }
-  assert.equal(O.summaryOf(one), 'M hands to 1 agent, QA tests, 1 rule')
+  assert.equal(W.summaryOf(one), 'M hands to 1 agent, QA tests, 1 rule')
   delete one.parts.rules
-  assert.equal(O.summaryOf(one), 'M hands to 1 agent, QA tests, no rules')
+  assert.equal(W.summaryOf(one), 'M hands to 1 agent, QA tests, no rules')
 })
 
 test('two styles are the same when their parts are, whatever the key order', () => {
