@@ -1,6 +1,8 @@
-// Tests for the Human review box (public/human-review.js): its rows, its count and its calm empty line, where the
-// layout puts it in the Agents diagram (under every box and arrow, lined up with the outermost boxes, at 1440, 1024
-// and 390 wide with the real pipeline-layout.js), Home's one line, and the wiring. The pure parts run in a vm.
+// Tests for the Human review box (public/human-review.js): the split in its head, the filter chips, its rows, the
+// one next step of a ticket with no flow, where the layout puts it in the Agents diagram (under every box, arrow and
+// label: lined up with the outermost boxes left to right, the whole width top to bottom, with the real
+// pipeline-layout.js and the Planner and Security boxes), the counts it hands the rail, the page head and Home, and
+// the wiring. The pure parts run in a vm.
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -27,47 +29,84 @@ const ASK = { key: 'ask:dark:n3', kind: 'ask', flowId: 'dark', nodeId: 'n3', tit
 const HAND = { key: 'hand:ci', kind: 'hand', flowId: 'ci', title: 'Production deploy needs its secrets', agent: 'Agent 2', since: '2026-11-24T07:00:00Z', reason: '1 of 4 done. Next: Add the deploy token', progress: { done: 1, total: 4 } }
 const TICKET = { key: 'ticket:FLA-820', kind: 'ticket', ticketId: 'FLA-820', title: 'Cloud Hosting: Billing account linked', agent: '', since: '2026-11-10T00:00:00Z', reason: 'Marked not codebase work: a person, console or process task.' }
 const BLOCKED = { key: 'blocked:b', kind: 'blocked', flowId: 'b', title: 'Deploy', agent: 'Agent 1', since: '2026-11-09T00:00:00Z', reason: 'Blocked at: Deploy to stage' }
+const DATA = { items: [ASK, HAND, TICKET, BLOCKED], counts: { total: 4, ask: 1, hand: 1, blocked: 1, ticket: 1 } }
 
-test('the box: Human review, the count on its face, then a row per thing, each its title, kind, agent and how long it has waited, and one reason', () => {
+test('the head shows the split, never one mixed number; the chips carry the counts, All first, the one in effect pressed', () => {
   const H = load().HumanReview
-  const h = H.html({ items: [ASK, HAND, TICKET, BLOCKED], counts: { total: 4 } })
-  assert.match(h, /<h3 class="hr-h" id="hrHead" tabindex="-1"><i class="hr-dot" aria-hidden="true"><\/i>Human review<\/h3><span class="hr-count" aria-label="4 things waiting on you">4<\/span><span class="hr-sub">waiting on you<\/span>/)
-  assert.match(text(h), /Add a &lt;dark&gt; mode toggle Question · Agent 3 · waiting 3h Deploy the fix to dev\? Yes No Why\? The test passes; dev is where QA can try it/)
-  assert.match(text(h), /Production deploy needs its secrets By hand · 1 of 4 · Agent 2 · waiting 3h 1 of 4 done\. Next: Add the deploy token/)
-  assert.match(text(h), /Cloud Hosting: Billing account linked Ticket FLA-820 · waiting 3h Marked not codebase work/)
-  assert.match(text(h), /Deploy Blocked · Agent 1 · waiting 3h Blocked at: Deploy to stage/)
-  assert.match(h, /<ol class="hr-rows" tabindex="0" aria-label="What waits on you, newest first">/, 'the rows scroll inside the box, by keyboard too')
+  const h = H.html(DATA, 'all')
+  assert.match(h, /<h3 class="hr-h" id="hrHead" tabindex="-1"><i class="hr-dot" aria-hidden="true"><\/i>Human review<\/h3><span class="hr-split">1 question · 1 by hand · 1 blocked · 1 ticket<\/span>/)
+  assert.doesNotMatch(h, /hr-count/, 'no single mixed number')
+  assert.equal(H.splitText({ ask: 13, hand: 2, blocked: 0, ticket: 60 }), '13 questions · 2 by hand · 60 tickets')
+  assert.equal(H.splitText({ ask: 0 }), '')
+  assert.match(h, /<div class="lg-chips hr-chips" role="group" aria-label="Show in Human review">/)
+  assert.deepEqual([...h.matchAll(/data-hr-chip="(\w+)" aria-pressed="(\w+)">(\w[\w ]*) <span class="hr-chip-n">(\d+)<\/span>/g)].map(m => m.slice(1).join(' ')),
+    ['all true All 4', 'ask false Questions 1', 'hand false By hand 1', 'blocked false Blocked 1', 'ticket false Tickets 1'])
 })
 
-test('a question is answered in the box with the same controls as everywhere: Yes and No (data-answer, data-node), or a text field', () => {
+test('a chip shows only its kind; with none of it, one calm line; the default is Questions while there are any, else All; a stored choice wins', () => {
   const H = load().HumanReview
-  const h = H.rowHtml(ASK)
-  assert.match(h, /<div class="hr-ask" data-flow="dark">/)
-  assert.match(h, /<button type="button" class="fl-yes" data-answer="yes" data-node="n3" title="Deploy it">Yes<\/button>/)
-  const t = H.rowHtml({ ...ASK, ask: { ...ASK.ask, kind: 'text' } })
-  assert.match(t, /<form class="fl-text" data-text="n3"><input name="answer" data-key="hr:dark:n3"/)
+  const asks = H.html(DATA, 'ask')
+  assert.match(asks, /data-hr-chip="ask" aria-pressed="true"/)
+  assert.match(asks, /Deploy the fix to dev\?/)
+  assert.doesNotMatch(asks, /Billing account linked|Production deploy/)
+  assert.match(H.html({ items: [TICKET], counts: { total: 1, ask: 0, hand: 0, blocked: 0, ticket: 1 } }, 'ask'), /<p class="hr-empty">No questions wait on you\.<\/p>/)
+  assert.equal(H.filterOf(null, { ask: 3 }), 'ask')
+  assert.equal(H.filterOf(null, { ask: 0 }), 'all')
+  assert.equal(H.filterOf('ticket', { ask: 3 }), 'ticket')
+  assert.equal(H.filterOf('nonsense', { ask: 0 }), 'all')
+  const src = read('human-review.js')
+  assert.match(src, /try \{ return window\.localStorage\.getItem\(FILTER_KEY\) \} catch \{ return null \}/, 'remembered per browser, never a throw')
+  assert.match(src, /const FILTER_KEY = 'human\.filter'/)
+})
+
+test('a row: its title, kind, agent, how long it has waited and one reason; a question answered right here with the usual controls', () => {
+  const H = load().HumanReview
+  const h = H.html(DATA, 'all')
+  assert.match(text(h), /Add a &lt;dark&gt; mode toggle Question · Agent 3 · waiting 3h Deploy the fix to dev\? Yes No Why\? The test passes; dev is where QA can try it/)
+  assert.match(text(h), /Production deploy needs its secrets By hand · 1 of 4 · Agent 2 · waiting 3h 1 of 4 done\. Next: Add the deploy token/)
+  assert.match(text(h), /Deploy Blocked · Agent 1 · waiting 3h Blocked at: Deploy to stage/)
+  assert.match(H.rowHtml(ASK), /<button type="button" class="fl-yes" data-answer="yes" data-node="n3" title="Deploy it">Yes<\/button>/)
+  assert.match(H.rowHtml({ ...ASK, ask: { ...ASK.ask, kind: 'text' } }), /<form class="fl-text" data-text="n3"><input name="answer" data-key="hr:dark:n3"/)
   assert.match(read('human-review.js'), /window\.FlowsView\?\.answer\(/, 'the one answer path')
-  assert.doesNotMatch(read('human-review.js'), /\/answer`/, 'never a second POST of its own')
+})
+
+test('a ticket with no flow has one honest next step: Ask for steps, posted to the ticket route; no step is ever made up here', () => {
+  const H = load().HumanReview
+  const h = H.rowHtml(TICKET)
+  assert.match(text(h), /Cloud Hosting: Billing account linked Ticket FLA-820 · waiting 3h Marked not codebase work: a person, console or process task\. No one has written the steps yet\. Ask for steps/)
+  assert.match(h, /<button type="button" class="hr-steps" data-hr-steps="FLA-820">Ask for steps<\/button>/)
+  assert.doesNotMatch(H.rowHtml(HAND), /data-hr-steps/)
+  const src = read('human-review.js')
+  assert.match(src, /fetch\(`\/api\/tickets\/\$\{enc\(btn\.dataset\.hrSteps\)\}\/request-hand`/)
+  assert.doesNotMatch(src, /hand-step|do: '/, 'the page never invents a step')
 })
 
 test('a title opens the right place: the question at its node, the by-hand steps, the flow, or the ticket', () => {
   const H = load().HumanReview
   assert.match(H.rowHtml(ASK), /data-hr-open="dark" data-hr-kind="ask" data-hr-node="n3" title="Open the question in its flow"/)
   assert.match(H.rowHtml(HAND), /data-hr-open="ci" data-hr-kind="hand" title="Open the steps in its flow"/)
-  assert.match(H.rowHtml(BLOCKED), /data-hr-open="b" data-hr-kind="blocked" title="Open the flow"/)
   assert.match(H.rowHtml(TICKET), /data-hr-ticket="FLA-820" title="Open the ticket"/)
   const src = read('human-review.js')
   assert.match(src, /kind === 'hand' \? window\.FlowsView\?\.gotoHand\(id\) : window\.FlowsView\?\.gotoFlow\(id, node \|\| undefined\)/)
-  assert.match(src, /window\.FactoryView\?\.gotoTicket\(ticket\.dataset\.hrTicket\)/)
   assert.match(src, /box\.addEventListener\('click', async e => \{\s*e\.stopPropagation\(\)/, 'a click in the box is never a click on a diagram node')
 })
 
-test('empty: the count says 0 and one calm line; loading and a failure say so too', () => {
+test('the rail and the page head count what keeps an agent waiting (questions and by-hand work), so they agree; the help says so', () => {
   const H = load().HumanReview
-  const h = H.html({ items: [], counts: { total: 0 } })
-  assert.match(h, /<span class="hr-count is-zero" aria-label="0 things waiting on you">0<\/span>/)
+  assert.equal(H.waiting({ ask: 13, hand: 2, blocked: 1, ticket: 60 }), 15)
+  assert.equal(H.waiting(undefined), 0)
+  const src = read('human-review.js')
+  assert.match(src, /const n = waiting\(data\?\.counts\)/)
+  assert.match(src, /window\.Shell\?\.setWaiting\(n\)/)
+  assert.doesNotMatch(read('notify.js'), /setWaiting\(/, 'one owner of the pill')
+  assert.match(read('agents-page.js'), /questions and by-hand work/)
+})
+
+test('empty: one calm line; loading and a failure say so too', () => {
+  const H = load().HumanReview
+  const h = H.html({ items: [], counts: { total: 0, ask: 0, hand: 0, blocked: 0, ticket: 0 } })
   assert.match(h, /<p class="hr-empty">Nothing waits on you\. The agents can go on by themselves\.<\/p>/)
-  assert.doesNotMatch(h, /hr-rows/)
+  assert.doesNotMatch(h, /hr-rows|hr-chips/)
   assert.match(H.html(null), /Loading…/)
   assert.match(H.html({ error: 'offline' }), /Could not load what waits on you: offline/)
 })
@@ -80,45 +119,48 @@ function occupied(lay) {
   return rects
 }
 
-test('placed by the layout under every box, arrow and label, its edges on the outermost boxes, at 1440, 1024 and 390 wide, with two more agents too', () => {
+test('placed by the layout under every box, arrow and label, lined up left to right and the whole width top to bottom, with Planner and Security too', () => {
   const w = load()
   const base = { coordinatorLabel: 'Master', codingAgents: { a: 'Master', b: 'Agent 1', c: 'Agent 2', d: 'Agent 3' }, factory: { chat: { name: 'Independent' } }, pipeline: { qa: 'QA' } }
-  const more = { ...base, codingAgents: { ...base.codingAgents, e: 'Planner', f: 'Security' } }
+  const more = { ...base, pipeline: { qa: 'QA', planner: 'Planner', security: 'Security' } }
   for (const config of [base, more]) {
     for (const width of [1440 - 120, 1024 - 120, 390 - 32]) {
       const lay = w.PipelineLayout.layout(pipelineGraph(config), { width, rows: 4 })
       const s = w.HumanReview.spot(lay)
-      const left = Math.min(...lay.nodes.map(n => n.x))
-      const right = Math.max(...lay.nodes.map(n => n.x + n.w))
-      assert.equal(s.x, left, `left edge on the boxes at ${width}`)
-      assert.equal(s.x + s.w, right, `right edge on the boxes at ${width}`)
+      if (lay.dir === 'TB') assert.deepEqual([s.x, s.w], [0, Math.floor(lay.width)], `the whole width on a phone at ${width}`)
+      else {
+        assert.equal(s.x, Math.min(...lay.nodes.map(n => n.x)), `left edge on the boxes at ${width}`)
+        assert.equal(s.x + s.w, Math.max(...lay.nodes.map(n => n.x + n.w)), `right edge on the boxes at ${width}`)
+      }
       assert.ok(s.y >= lay.height, `below the whole layout at ${width}`)
       for (const [, , , y2] of occupied(lay)) assert.ok(y2 < s.y, `nothing drawn reaches into the box at ${width} (y ${y2} vs ${s.y})`)
     }
   }
-  assert.deepEqual(JSON.parse(JSON.stringify(w.HumanReview.spot({ nodes: [], width: 300, height: 0 }))), { x: 12, y: 6, w: 276 })
+  const phone = w.PipelineLayout.layout(pipelineGraph(base), { width: 358, rows: 4 })
+  assert.equal(phone.dir, 'TB')
+  assert.ok(w.HumanReview.spot(phone).w >= 350, 'never squeezed to the middle boxes on a phone (QA measured 244 px)')
 })
 
-test('Home says how many things need you, what they are, and links to the box; or that nothing does', () => {
+test('Home says what needs you now, the tickets apart, and links to the box; or that nothing does', () => {
   const H = load().HumanReview
-  const h = H.homeHtml({ counts: { total: 5, ask: 2, hand: 1, blocked: 0, ticket: 2 } })
-  assert.match(text(h), /^5 things need you 2 questions, 1 by-hand task, 2 tickets only you can do Open Human review$/)
+  const h = H.homeHtml({ counts: { total: 75, ask: 13, hand: 2, blocked: 0, ticket: 60 } })
+  assert.match(text(h), /^15 things need you now 13 questions, 2 by-hand tasks 60 tickets only you can do Open Human review$/)
   assert.match(h, /<a class="link" href="#\/agents\?human" data-hr-show>Open Human review<\/a>/)
-  assert.match(text(H.homeHtml({ counts: { total: 1, ask: 1, hand: 0, blocked: 0, ticket: 0 } })), /^1 thing needs you 1 question/)
+  assert.match(text(H.homeHtml({ counts: { total: 5, ask: 0, hand: 0, blocked: 0, ticket: 5 } })), /^Nothing blocks an agent 5 tickets only you can do/)
   assert.match(H.homeHtml({ counts: { total: 0 } }), /Nothing needs you right now\./)
   assert.equal(H.homeHtml(null), '')
 })
 
-test('wired: pipeline-view.js hands the box each layout (one line), index.html loads it and its stylesheet, npm run check covers it', () => {
+test('wired: one line in pipeline-view.js, the box tall when the screen has room but never past it, loaded, checked', () => {
   const view = read('pipeline-view.js')
   assert.match(view, /window\.HumanReview\?\.place\(st\.canvas, lay\)/)
-  assert.equal(view.split('HumanReview').length - 1, 1, 'one call, nothing else in the shared file')
+  assert.equal(view.split('HumanReview').length - 1, 1)
   assert.doesNotMatch(fs.readFileSync(path.join(HERE, '..', 'pipeline.mjs'), 'utf8'), /human/i, 'not a node or an edge of any route')
+  const css = read('human.css')
+  assert.match(css, /\.hr-box \{ position: absolute;/)
+  assert.match(css, /border-left: 3px solid var\(--warn\)/)
+  assert.match(css, /max-height: clamp\(340px, calc\(100vh - var\(--header-h\) - 56px\), 760px\)/, 'about five questions at 1440 by 900, the rows scroll inside')
   const html = read('index.html')
   assert.match(html, /<script src="human-review.js"><\/script>/)
-  assert.match(html, /<link rel="stylesheet" href="human.css">/)
-  assert.match(read('human.css'), /\.hr-box \{ position: absolute;[^}]*border-left: 3px solid var\(--warn\)/)
-  assert.match(read('human.css'), /max-height: 340px/, 'it never grows the diagram past this: the rows scroll inside it')
-  const pkg = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'package.json'), 'utf8'))
-  assert.ok(pkg.scripts.check.includes('node --check public/human-review.js'))
+  assert.ok(JSON.parse(fs.readFileSync(path.join(HERE, '..', 'package.json'), 'utf8')).scripts.check.includes('node --check public/human-review.js'))
 })

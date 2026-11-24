@@ -118,6 +118,7 @@
     if (!(await post(flowId, 'answer', body))) return
     if (board) load()
     window.HumanReview?.refresh()
+    window.Notifier?.poll() // the bell and the tab title count the open asks now, not 15 s later
   }
   async function deliver(flowId, nodeId) {
     const r = await post(flowId, 'deliver', { node: nodeId })
@@ -504,6 +505,7 @@
   async function open(flowId, nodeId, as) {
     if (!board) return
     cardAsking = null
+    if (!as) mark(addressOf(flowId, nodeId))
     opened = { id: flowId, node: nodeId || null, built: false, reveal: nodeId || null } // reveal: once, on Status
     view = as || window.FlowTabs.view.get()
     if (nodeId && (view === 'output' || view === 'explain')) view = 'status' // no row per node there: Status, for this open only (not remembered)
@@ -536,18 +538,29 @@
   }
   function close() {
     opened = null
+    mark('#/flows')
     if (board) renderBoard()
   }
   /**
-   * Open a flow (at a node) from any page: on #/flows straight away, else go there and open it
-   * once the board mounts. Without a flow (a summary toast), what waits on the user: the Human
-   * review box on the Agents page (human-review.js).
+   * Open a flow (at a node) from any page: on #/flows straight away, else through its own address,
+   * `#/flows?flow=<id>&node=<node>` (flows-page.js opens it), so the address always says which flow
+   * is open. Without a flow (a summary toast), what waits on the user: the Human review box on the
+   * Agents page (human-review.js). `as` (a view for this open only) cannot ride on the address.
    */
   function gotoFlow(flowId, nodeId, as) {
     if (!flowId) return window.HumanReview?.show()
     if (board) return open(flowId, nodeId, as)
+    if (!as) return window.Shell.go(addressOf(flowId, nodeId))
     window.Shell.go('#/flows')
     window.Shell.whenReady('#flowsView #fxFlows', () => open(flowId, nodeId, as))
+  }
+  /** The address of an opened flow (at a node): what a reload or a shared link opens again. */
+  const addressOf = (flowId, nodeId) => `#/flows?flow=${enc(flowId)}${nodeId ? `&node=${enc(nodeId)}` : ''}`
+  /** Say in the address bar which flow is open (or none), without a new history entry or a route change. */
+  function mark(hash) {
+    const loc = window.location
+    if (!loc || !window.history?.replaceState || !/^#\/flows(\?|$)/.test(loc.hash || '') || loc.hash === hash) return
+    window.history.replaceState(window.history.state, '', hash)
   }
 
   // ═══ mounting: the board binds its listeners on mount and drops them on unmount ═══

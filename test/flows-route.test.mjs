@@ -154,9 +154,27 @@ test('gotoFlow() with no flow (a summary toast) opens Human review, from any pag
   assert.equal(calls.show.length, 2)
 })
 
-test('gotoFlow(id) off the Flows page goes there and opens the flow once the board mounts', () => {
+test('gotoFlow(id) off the Flows page goes to the flow own address, which flows-page.js opens (QA nit: a question had none)', () => {
   const { FlowsView, calls } = loadFlows()
   FlowsView.gotoFlow('dark-mode', 'n3')
-  assert.deepEqual(calls.go, ['#/flows'])
-  assert.equal(calls.ready[0].sel, '#flowsView #fxFlows')
+  assert.deepEqual(calls.go, ['#/flows?flow=dark-mode&node=n3'])
+  FlowsView.gotoFlow('a b')
+  assert.equal(calls.go[1], '#/flows?flow=a%20b')
+  FlowsView.gotoFlow('dark-mode', null, 'explain')
+  assert.deepEqual([calls.go[2], calls.ready[0].sel], ['#/flows', '#flowsView #fxFlows'], 'a view for this open only cannot ride on the address')
+  assert.match(read('flows-page.js'), /window\.FlowsView\.open\(id, typeof q\.node === 'string' && q\.node \? q\.node : undefined\)/)
+})
+
+test('a flow opened on the board says so in the address, and closing it takes that off, with no new history entry', () => {
+  const src = read('flows.js')
+  assert.match(src, /if \(!as\) mark\(addressOf\(flowId, nodeId\)\)/)
+  assert.match(src, /function close\(\) \{\s*opened = null\s*mark\('#\/flows'\)/)
+  assert.match(src, /window\.history\.replaceState\(window\.history\.state, '', hash\)/)
+})
+
+test('an answer refreshes the bell and the tab title at once, not one poll later (QA nit 4)', () => {
+  const src = read('flows.js')
+  const body = /async function answer\(flowId, nodeId, value, note\) \{([\s\S]*?)\n  \}/.exec(src)?.[1] || ''
+  assert.match(body, /window\.Notifier\?\.poll\(\)/)
+  assert.match(read('notify.js'), /window\.Notifier = \{ poll,/)
 })

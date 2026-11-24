@@ -432,7 +432,7 @@
     const seen = store.get('seenAsks', [])
     const r = alerts(prevFlows, p, { seen, first, onFlows: onFlows(), onBox: onBox() })
     lastOpen = r.open
-    window.Shell?.setWaiting(r.open)
+    // the page head's pill is Human review's (human-review.js): questions and by-hand work, the rail's number too
     document.title = r.open ? `(${r.open}) ${baseTitle}` : baseTitle
     paintBell(r.open)
     r.alerts.forEach(raise)
