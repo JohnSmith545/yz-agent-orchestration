@@ -1,0 +1,90 @@
+/* What waits on the user: the by-hand checklist of an opened flow (flow-hand.js) and the Human review box on the
+   Agents diagram (human-review.js). Both wear the page's ONE colour for "this one is yours": --warn, the amber of
+   the waiting-on-you pill and of a card waiting on you. Every colour is a styles.css token, so light and dark both
+   follow; nothing here moves, so reduced motion needs nothing. */
+
+/* ─── Do this by hand (an opened flow, above the views) ────────────────────── */
+
+.fl-open > .fl-hand { padding: 14px 24px 16px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--warn) 5%, var(--surface)); }
+.fh-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+.fh-h { margin: 0; font-size: 14.5px; font-weight: 600; color: var(--ink); }
+.fh-h .faint { font-weight: 400; }
+.fh-h:focus { outline: none; }
+.fh-h:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+.fh-h::before { content: ''; display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; background: var(--warn); vertical-align: 1px; }
+.fh.is-all .fh-h::before { background: var(--ok); }
+.fh-steps { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 2px; }
+.fh-step { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); }
+.fh-step:first-child { border-top: 0; }
+.fh-tick { margin-top: 3px; width: 16px; height: 16px; }
+.fh-body { min-width: 0; display: grid; gap: 3px; }
+.fh-do { display: flex; gap: 8px; color: var(--ink); font-weight: 550; font-size: 13.5px; line-height: 1.45; cursor: pointer; overflow-wrap: anywhere; }
+.fh-n { flex: none; min-width: 1.4em; color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+.fh-step.is-done .fh-do { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line-strong); }
+.fh-field { margin: 0; padding-left: calc(1.4em + 8px); color: var(--ink-2); font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+.fh-k { color: var(--muted); font-weight: 550; }
+.fh-copy { display: flex; align-items: flex-start; gap: 8px; margin: 2px 0; padding-left: calc(1.4em + 8px); min-width: 0; }
+.fh-copy-v { flex: 1 1 auto; min-width: 0; max-height: 180px; overflow: auto; margin: 0; padding: 7px 10px; border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--surface-2); color: var(--ink); font: 12.5px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.fh-copy-b { flex: none; font-size: 12.5px; }
+.fh-none { margin: 6px 0 10px; color: var(--ink-2); font-size: 13.5px; }
+.fh-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.fh-asked { color: var(--muted); font-size: 12.5px; }
+.fh-asked.is-bad { color: var(--bad); }
+.fl-open.is-readonly .fh-tick { cursor: default; }
+
+@media (max-width: 600px) {
+  .fl-open > .fl-hand { padding: 12px 16px 14px; }
+  .fh-field, .fh-copy { padding-left: 0; }
+}
+
+/* ─── Human review (the Agents diagram, human-review.js) ───────────────────── */
+
+/* Inside the diagram canvas, placed by the layout under the boxes and arrows; it looks like a box of the diagram
+   (the same surface, hairline and radius as .pl-node), with the waiting-on-you amber on its left edge. */
+.hr-box { position: absolute; display: flex; flex-direction: column; max-height: 340px; min-width: 0; overflow: hidden;
+  background: var(--surface); border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--line)); border-left: 3px solid var(--warn);
+  border-radius: var(--radius); }
+.hr-head { flex: none; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 10px 14px 8px; border-bottom: 1px solid var(--line); }
+.hr-h { margin: 0; white-space: nowrap; font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.hr-h:focus { outline: none; }
+.hr-h:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+.hr-dot { display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; background: var(--warn); vertical-align: 1px; }
+.hr-dot.is-calm { background: var(--line-strong); }
+.hr-count { color: var(--warn); font-size: 18px; font-weight: 650; line-height: 1; font-variant-numeric: tabular-nums; }
+.hr-count.is-zero { color: var(--muted); }
+.hr-sub { color: var(--muted); font-size: 12.5px; }
+.hr-empty { margin: 0; padding: 12px 14px; color: var(--muted); font-size: 13px; }
+.hr-rows { list-style: none; margin: 0; padding: 0 14px; overflow-y: auto; min-height: 0; }
+.hr-rows:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.hr-row { padding: 9px 0; border-top: 1px solid var(--line); }
+.hr-row:first-child { border-top: 0; }
+.hr-top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 14px; }
+.hr-box .hr-title { min-width: 0; max-width: 100%; color: var(--ink); font-weight: 600; font-size: 13.5px; text-align: left; overflow-wrap: anywhere; }
+.hr-meta { display: flex; flex-wrap: wrap; gap: 2px 6px; color: var(--muted); font-size: 12px; }
+.hr-kind { color: var(--ink-2); font-weight: 550; }
+.hr-kind.k-ask, .hr-kind.k-hand, .hr-kind.k-ticket { color: var(--warn); }
+.hr-kind.k-blocked { color: var(--bad); }
+.hr-why-k { font-weight: 550; }
+.hr-why { margin: 2px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.45; overflow-wrap: anywhere; }
+.hr-ask { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 14px; margin-top: 6px; }
+.hr-q { flex: 1 1 260px; margin: 0; color: var(--ink); font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
+.hr-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.hr-acts .fl-text { display: flex; gap: 6px; flex-wrap: wrap; }
+.hr-acts .fl-text input { min-width: 0; width: 220px; max-width: 100%; }
+
+/* the count on the rail's Agents entry */
+.hr-rail-count { position: absolute; top: -3px; right: -5px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 999px;
+  background: var(--warn); color: var(--bg); font-size: 10.5px; font-weight: 700; line-height: 17px; text-align: center; font-variant-numeric: tabular-nums; }
+
+/* Home's one line (app.js, #homeHuman) */
+.hr-home { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 0; padding: 12px 16px; border: 1px solid var(--line);
+  border-left: 3px solid var(--warn); border-radius: var(--radius); background: var(--surface); font-size: 13.5px; color: var(--ink-2); }
+.hr-home b { color: var(--ink); }
+.hr-home-parts { color: var(--muted); }
+.hr-home .link { margin-left: auto; }
+
+@media (max-width: 600px) {
+  .hr-box { max-height: 420px; }
+  .hr-acts .fl-text input { width: 100%; }
+}

@@ -1,6 +1,7 @@
 // Notifier, on every view (spec 7.4): polls /api/pulse and tells the user when
 //   - an ask is waiting for them (the count on the bell, the header dot, the tab
-//     title, a toast with Answer that opens the flow at that node);
+//     title, a toast with Answer that opens the flow at that node; the questions
+//     themselves live in the Human review box on the Agents page, human-review.js);
 //   - a flow turns blocked or done;
 //   - an agent adds proof to a flow while the user is on another view (quiet);
 //   - an answer could not be delivered to the agent that asked (Retry delivers again);
@@ -34,12 +35,13 @@
    *              flows: [{ id, title, agent, status, evidence, undelivered }] }
    *   seen       ask keys (`flowId:nodeId`) already alerted, kept across reloads.
    *   first      the first poll since the page loaded: several new asks become one summary.
-   *   onFlows    the user is on the Flows page, where new proof and the waiting asks are already in view.
+   *   onFlows    the user is on the Flows page, where new proof is already in view.
+   *   onBox      the user is on the Agents page, where the Human review box already lists the waiting asks.
    * Returns { open, seen, flows, alerts }: `seen` is every open ask's key, to add to the
    * kept set; `flows` is the next baseline (a flow gone from the pulse stays in it, see below).
    * Each alert has a `type` and a plain `text`.
    */
-  function alerts(prevFlows, p, { seen = [], first = false, onFlows = false } = {}) {
+  function alerts(prevFlows, p, { seen = [], first = false, onFlows = false, onBox = false } = {}) {
     const waiting = p.waiting || []
     const lines = p.flows || []
     const out = []
@@ -48,8 +50,8 @@
     const fresh = waiting.filter(a => !known.has(keyOf(a)))
 
     if (first && waiting.length && fresh.length !== 1) {
-      // on the Flows page the header dot and the Waiting on you strip already say it: no summary there
-      if (!onFlows) out.push({ type: 'summary', count: waiting.length, text: `${plural(waiting.length, 'ask')} waiting for you on the Flows page.`, desktop: fresh.length > 0 })
+      // on the Agents page the header dot and the Human review box already say it: no summary there
+      if (!onBox) out.push({ type: 'summary', count: waiting.length, text: `${plural(waiting.length, 'ask')} waiting for you in Human review.`, desktop: fresh.length > 0 })
     } else {
       for (const a of fresh) {
         out.push({ type: 'waiting', flowId: a.flowId, nodeId: a.nodeId, agent: a.agent, title: a.flowTitle, text: `Waiting on you: ${a.flowTitle}`, body: a.question, why: a.why || '' })
@@ -172,6 +174,7 @@
   const raw = () => window.localStorage
   const baseTitle = document.title
   const onFlows = () => window.Shell?.current?.view === 'flows'
+  const onBox = () => window.Shell?.current?.view === 'agents'
   let prevAgents = null
   let prevFlows = null
   let prevChatBusy = null
@@ -307,7 +310,7 @@
   const act = (label, kind, flowId, nodeId) => ({ label, kind, flowId, nodeId })
   function runAction(a) {
     switch (a.kind) {
-      // the Flows page with the flow open at that node, or the strip in view without a flow:
+      // the Flows page with the flow open at that node, or the Human review box without a flow:
       // FlowsView.gotoFlow goes to #/flows and waits for the board to mount (Shell.whenReady)
       case 'answer':
       case 'open': return window.FlowsView?.gotoFlow(a.flowId, a.nodeId)
@@ -385,7 +388,7 @@
       case 'summary': {
         const open = act('Open', 'open')
         toast(`<b>${esc(a.text)}</b>`, { kind: 'decision', action: open, sticky: true, keep: false })
-        if (a.desktop) desktop(`${plural(a.count, 'ask')} waiting`, 'Open the Flows page to answer them.', go(open))
+        if (a.desktop) desktop(`${plural(a.count, 'ask')} waiting`, 'Open Human review on the Agents page to answer them.', go(open))
         break
       }
       case 'waiting': {
@@ -427,7 +430,7 @@
 
     // asks waiting, flows that changed
     const seen = store.get('seenAsks', [])
-    const r = alerts(prevFlows, p, { seen, first, onFlows: onFlows() })
+    const r = alerts(prevFlows, p, { seen, first, onFlows: onFlows(), onBox: onBox() })
     lastOpen = r.open
     window.Shell?.setWaiting(r.open)
     document.title = r.open ? `(${r.open}) ${baseTitle}` : baseTitle

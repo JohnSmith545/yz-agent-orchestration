@@ -1,6 +1,7 @@
 // Home (spec 5): stacked zones. Since you were away (#homeSince, since.js, spec
-// F2), Waiting on you (#homeWaiting, the flows strip, drawn by flows.js), both
-// mounted here while Home shows, then Agents (agent-cards.js, compact) and Messages.
+// F2), mounted here while Home shows; one line of how many things need you, with a
+// link to the Human review box on the Agents page (#homeHuman, human-review.js
+// keeps it current on every poll); then Agents (agent-cards.js, compact) and Messages.
 // Routing lives in shell.js (Shell.resolve): #/home Home (#/ is Flows), #/agents the pipeline
 // diagram (agents-page.js), #/timeline the flowchart (flow.js), #/tickets the
 // ticket factory (factory.js), #/agent/<sessionId>[/<subagentId>] one agent
@@ -206,16 +207,10 @@ function boot() {
     UI.fade(document.getElementById('talk'))
   })
   // The header chip is shared by every page; coming back Home puts Home's status line back.
-  // The Waiting on you strip (flows.js) polls only while Home shows; the Flows page mounts its own.
-  const strip = document.getElementById('homeWaiting')
   const since = document.getElementById('homeSince')
   window.Shell.onRoute(r => {
-    if (r.view !== 'home') {
-      window.Since?.unmount(since)
-      return window.FlowsView?.unmountStrip(strip)
-    }
+    if (r.view !== 'home') return window.Since?.unmount(since)
     window.Since?.mount(since)
-    window.FlowsView?.mountStrip(strip)
     if (data) renderMeta()
     else window.Shell.setStatus('Loading…')
   })

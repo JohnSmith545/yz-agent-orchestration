@@ -1,6 +1,6 @@
 // Tests for public/flow-board.js, the pure pieces of the Flows board (flows.js
 // draws them): a card shows only the title, one line of story, a thin progress
-// bar, one state chip and the agent; and the Waiting on you rows, without the
+// bar, one state chip and the agent; and the ask controls the Human review box uses, without the
 // rows of the flow that is open. Browser script, run in a vm with a bare window.
 // FACTORY_DATA_DIR points at a fresh temp folder BEFORE flows.mjs is imported.
 
@@ -40,11 +40,11 @@ const PR = { url: 'https://example.com/acme/app/pull/12', number: 12, state: 'op
 
 // ═══ the card ═══
 
-test('a card is the title, one story line, the progress bar with done/total, one state chip and the agent; nothing else', () => {
+test('a card is the title, one story line, the progress bar with done/total, one state chip, the agent, then Archive and Delete; nothing else', () => {
   const f = fx(DARK)
   const h = B.card(f)
   const { done, total } = f.derived.progress
-  assert.equal(text(h), `${f.title} waiting on you ${text(B.storyLine(f))} ${f.agent} ${done}/${total}`)
+  assert.equal(text(h), `${f.title} waiting on you ${text(B.storyLine(f))} ${f.agent} ${done}/${total} Archive Delete`)
   assert.match(h, /<div class="fl-bar"><i style="width:\d+%"><\/i><\/div>/)
   assert.doesNotMatch(h, /ABC-101|data-ticket|fl-env|fl-ago|ago|updated/, 'no tickets, env or updated on the card')
   assert.match(h, /data-open="dark-mode"/)
@@ -54,7 +54,7 @@ test('a card shows its route as a compact strip: the type, where it is now, ever
   const f = fx(DARK, x => { x.route = { type: 'build', steps: ['request', 'master', 'agent-3', 'qa', 'push', 'outcome'], at: '2026-11-12T08:00:00Z', by: 'Agent 3' } })
   Object.assign(f, withRoute(f, GRAPH))
   const h = B.card(f)
-  assert.match(text(h), /build · at Agent 3 Request Master Agent 3 QA Push Output Agent 3 \d+\/\d+$/)
+  assert.match(text(h), /build · at Agent 3 Request Master Agent 3 QA Push Output Agent 3 \d+\/\d+ Archive Delete$/)
   assert.ok(h.indexOf('rt-strip') > h.indexOf('fl-card-story') && h.indexOf('rt-strip') < h.indexOf('fl-prog'))
   assert.doesNotMatch(h, /route not set/)
   const legacy = fx(DARK)
@@ -155,16 +155,22 @@ test('the card escapes its title, story and agent', () => {
   assert.doesNotMatch(h, /<img src=x|<script>/)
 })
 
-// ═══ the strip rows ═══
+test('a live flow with by-hand steps not all ticked says yours by hand, after waiting on you; ticked or finished, it does not', () => {
+  const steps = [{ id: 'h1', do: 'x', expect: 'y', done: null }]
+  assert.deepEqual(JSON.parse(JSON.stringify(B.state({ status: 'open', hand: { steps } }))), { word: 'yours by hand', cls: 'warn' })
+  assert.equal(B.state({ status: 'open', hand: { steps: [{ ...steps[0], done: { by: 'you', at: 'x' } }] } }), null)
+  assert.equal(B.state({ status: 'done', hand: { steps } }).word, 'done')
+  assert.equal(B.state({ status: 'open', derived: { waiting: ['n1'] }, hand: { steps } }).word, 'waiting on you')
+})
 
-test('the strip leaves out the asks of the flow that is open; with none left it is empty', () => {
-  const a = fx(DARK)
-  const b = fx(NOVIS, f => { f.id = 'other' })
-  const ids = (...args) => JSON.parse(JSON.stringify(B.stripRows(...args).map(r => r.f.id)))
-  assert.deepEqual(ids([a, b], new Set()).sort(), ['dark-mode', 'other'])
-  assert.deepEqual(ids([a, b], new Set(), 'dark-mode'), ['other'])
-  assert.deepEqual(ids([a], new Set(), 'dark-mode'), [])
-  assert.deepEqual(ids([fx(DARK, f => { f.status = 'dropped' })], new Set()), [], 'a dropped flow asks nothing')
+// ═══ the ask controls (the Human review box) ═══
+
+test('askControls: Yes and No on a yes or no ask, a text field with a kept value on a text one; no strip rows any more', () => {
+  const f = { id: 'dark-mode' }
+  assert.match(B.askControls(f, { id: 'n3', kind: 'yesno', yes: 'Ship <it>', no: 'Wait' }), /<button type="button" class="fl-yes" data-answer="yes" data-node="n3" title="Ship &lt;it&gt;">Yes<\/button>/)
+  assert.match(B.askControls(f, { id: 'n4', kind: 'text' }, 'hr'), /<form class="fl-text" data-text="n4"><input name="answer" data-key="hr:dark-mode:n4"/)
+  assert.equal(B.stripRows, undefined)
+  assert.equal(B.stripRow, undefined)
 })
 
 test('fit cuts a story line again, a word at a time, until it fits its card, never inside a word', () => {

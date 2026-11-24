@@ -1,9 +1,9 @@
-// The Flows page (spec 5, #/flows): the Waiting on you strip above the flows
-// board, both drawn by flows.js. The shell calls open and close as the route
-// comes and goes; this file only builds the two boxes, mounts FlowsView into
-// them, and writes the page head (`Flows · N`, N the cards on the board: FlowBoard.groups live)
+// The Flows page (spec 5, #/flows): the flows board, drawn by flows.js (the questions agents ask are in the
+// Human review box on the Agents page, human-review.js). The shell calls open and close as the route comes and
+// goes; this file only builds the box, mounts FlowsView into it, opens the flow a link names (`#/flows?flow=<id>[&node=<id>][&at=hand]`,
+// openFromQuery), and writes the page head (`Flows · N`, N the cards on the board: FlowBoard.groups live)
 // and the status chip (when the newest flow changed, the rest behind its ?,
-// which also says what Archive and the Trash do) from each poll.
+// which also says what Archive and Delete do) from each poll.
 ;(() => {
   const view = () => document.getElementById('flowsView')
   let on = false
@@ -26,17 +26,25 @@
       `<p>The number is the flows still on their way: <b>${n}</b> of <b>${all}</b>, open and blocked ones, and done ones whose route has not reached the Output yet (QA passed, Push waiting). ` +
       'Flows that reached the Output sit below them under Done; dropped ones behind Show dropped.</p>' +
       '<p>Updated is the newest change to any flow. The page reads them again every 15 seconds.</p>' +
-      '<p><b>Archive</b> (a flow\'s ⋯ menu) puts a flow away without deleting it: Archived, under the board, lists them.</p>' +
-      '<p><b>Trash</b>: a deleted flow waits there for 24 hours, then it is gone for good, its screenshots with it.</p>')
+      '<p><b>Archive</b> and <b>Delete</b> (on each card, and in an open flow\'s ⋯ menu) take a flow off the board. Both keep it in the <b>flow archive</b> (the link under the board): ' +
+      'an archived flow is put away, a deleted one waits there until you choose Delete for good. Nothing leaves by a timer.</p>')
   }
 
-  function open() {
-    if (on) return paint()
+  function open(query = {}) {
+    if (on) return paint(), openFromQuery(query)
     on = true
     const el = view()
-    el.innerHTML = '<div id="fxWaiting"></div><div id="fxFlows"></div>'
-    window.FlowsView.mount(document.getElementById('fxWaiting'), document.getElementById('fxFlows'))
+    el.innerHTML = '<div id="fxFlows"></div>'
+    window.FlowsView.mount(document.getElementById('fxFlows'))
     paint() // the last poll's head straight away; the mount's own load repaints it
+    openFromQuery(query)
+  }
+  /** A link that names a flow opens it: at a node (its row on Status), or at its by-hand steps (`at=hand`). */
+  function openFromQuery(q) {
+    const id = typeof q?.flow === 'string' && /^[a-z0-9-]+$/.test(q.flow) ? q.flow : ''
+    if (!id) return
+    if (q.at === 'hand') return window.FlowsView.gotoHand?.(id)
+    window.FlowsView.open(id, typeof q.node === 'string' && q.node ? q.node : undefined)
   }
   function close() {
     if (!on) return

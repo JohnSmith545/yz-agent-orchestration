@@ -1,5 +1,5 @@
-// Tests for the Archive and Trash routes (trash-routes.mjs, mounted by factory-routes.mjs): Archive
-// and Delete on a flow, the Trash list, Restore and Delete forever. A real http server on port 0
+// Tests for the flow archive routes (trash-routes.mjs, mounted by factory-routes.mjs): Archive and Delete
+// on a flow, the archive list (Archived and Deleted), Restore and Delete for good, and the read-only view. A real http server on port 0
 // calls factoryRoute with a recording relay (one test swaps in the real queue). FACTORY_DATA_DIR
 // points at a fresh temp folder BEFORE the imports, so no test ever touches the real data/ folder.
 
@@ -82,12 +82,13 @@ test('deleting an open flow without confirm asks first (409 needsConfirm) and ch
   assert.equal((await post('/api/flows/dark/delete', { confirm: 'yes' })).status, 409, 'blocked too, and only true confirms')
 })
 
-test('deleting an open flow with confirm: queued items dropped, the agent told once, the flow in the Trash', async () => {
+test('deleting an open flow with confirm: queued items dropped, the agent told once, the flow in Deleted', async () => {
   const r = await post('/api/flows/dark/delete', { confirm: true })
   assert.equal(r.status, 200)
   const j = await r.json()
+  assert.deepEqual(Object.keys(j), ['ok', 'deletedAt'], 'no expiry any more')
   assert.equal(j.ok, true)
-  assert.equal(Date.parse(j.expiresAt) - Date.parse(j.deletedAt), T.TRASH_MS)
+  assert.ok(Date.parse(j.deletedAt))
   assert.deepEqual(plain(calls), [['drop', 'dark'], ['queueDeleted', 'dark', 'Add a dark mode toggle', 'Agent 3']])
   assert.equal(F.readFlow('dark'), null)
   assert.equal(T.inTrash('dark'), true)
@@ -132,24 +133,42 @@ test('deleting an unknown flow is 404', async () => {
   assert.match((await r.json()).error, /No flow nope/)
 })
 
-// ═══ A trashed id ═══
+// ═══ A deleted id ═══
 
-test('every other flow route on a trashed id answers 404: <id> is in the Trash.', async () => {
+test('every flow route that would change a deleted flow answers 404: <id> was deleted: it is in the flow archive.', async () => {
   await post('/api/flows/dark/delete', { confirm: true })
-  for (const [p, body] of [['/api/flows/dark'], ['/api/flows/dark/answer', { node: 'n3', answer: 'yes' }], ['/api/flows/dark/archive', { archived: true }], ['/api/flows/dark/delete', { confirm: true }]]) {
+  for (const [p, body] of [['/api/flows/dark/answer', { node: 'n3', answer: 'yes' }], ['/api/flows/dark/archive', { archived: true }], ['/api/flows/dark/delete', { confirm: true }], ['/api/flows/dark/verify', { node: 'n1', verified: true }], ['/api/flows/dark/pr']]) {
     const r = body ? await post(p, body) : await get(p)
     assert.equal(r.status, 404, p)
-    assert.deepEqual(await r.json(), { error: 'dark is in the Trash.' }, p)
+    assert.deepEqual(await r.json(), { error: 'dark was deleted: it is in the flow archive.' }, p)
   }
+  assert.equal(T.inTrash('dark'), true)
 })
 
-// ═══ The Trash ═══
-
-test('GET /api/trash lists the deleted flows; restore puts one back; again it is 404', async () => {
+test('GET /api/flows/<id> on a deleted flow opens it read-only: the flow as stored, with derived, its route and deletedAt', async () => {
   await post('/api/flows/dark/delete', { confirm: true })
-  const { items } = await (await get('/api/trash')).json()
-  assert.deepEqual(items.map(i => [i.id, i.title, i.agent, i.status]), [['dark', 'Add a dark mode toggle', 'Agent 3', 'open']])
-  assert.ok(items[0].leftMs > T.TRASH_MS - 60_000)
+  const r = await get('/api/flows/dark')
+  assert.equal(r.status, 200)
+  const j = await r.json()
+  assert.equal(j.title, 'Add a dark mode toggle')
+  assert.ok(Date.parse(j.deletedAt))
+  assert.ok(j.derived && Array.isArray(j.derived.waiting))
+  assert.ok(j.route && Array.isArray(j.progress))
+  assert.equal(F.readFlow('dark'), null, 'reading never brings it back')
+})
+
+// ═══ The flow archive ═══
+
+test('GET /api/archive: Archived and Deleted, each row with title, agent, status, tickets and its time; restore puts one back; again it is 404', async () => {
+  fs.writeFileSync(path.join(F.FLOWS_DIR, 'kept.json'), JSON.stringify({ ...darkFixture(), id: 'kept', title: 'Kept away', output: undefined }))
+  await post('/api/flows/kept/archive', { archived: true })
+  await post('/api/flows/dark/delete', { confirm: true })
+  const j = await (await get('/api/archive')).json()
+  assert.deepEqual(Object.keys(j), ['archived', 'deleted'])
+  assert.deepEqual(j.archived.map(i => [i.id, i.title, i.agent, i.status, i.tickets]), [['kept', 'Kept away', 'Agent 3', 'open', FIXTURE.tickets]])
+  assert.ok(Date.parse(j.archived[0].archivedAt))
+  assert.deepEqual(j.deleted.map(i => [i.id, i.title, i.agent, i.status, i.tickets]), [['dark', 'Add a dark mode toggle', 'Agent 3', 'open', FIXTURE.tickets]])
+  assert.ok(Date.parse(j.deleted[0].deletedAt))
   const r = await post('/api/trash/dark/restore')
   assert.equal(r.status, 200)
   assert.deepEqual(await r.json(), { ok: true, archived: false })
@@ -165,7 +184,7 @@ test('restoring a flow that was archived says so: { ok, archived: true }, and it
   assert.deepEqual((await (await get('/api/flows?archived=1')).json()).flows.map(f => f.id), ['dark'])
 })
 
-test('a Trash that cannot be read never breaks the flows list: the trash count is left out', async () => {
+test('deleted flows that cannot be read never break the flows list (the count is left out) or the archive (an empty group and a sentence)', async () => {
   fs.writeFileSync(T.TRASH_DIR, 'not a folder')
   try {
     const r = await get('/api/flows')
@@ -173,12 +192,15 @@ test('a Trash that cannot be read never breaks the flows list: the trash count i
     const j = await r.json()
     assert.deepEqual(j.flows.map(f => f.id), ['dark'])
     assert.deepEqual(j.counts, { archived: 0 })
+    const a = await (await get('/api/archive')).json()
+    assert.deepEqual(a.deleted, [])
+    assert.match(a.deletedError, /^The deleted flows could not be read: /)
   } finally {
     fs.rmSync(T.TRASH_DIR, { force: true })
   }
 })
 
-test('an entry left behind beside a live flow of that id is not the Trash: the live flow answers', async () => {
+test('an entry left behind beside a live flow of that id is not a deleted flow: the live flow answers', async () => {
   await post('/api/flows/dark/delete', { confirm: true })
   fs.writeFileSync(path.join(F.FLOWS_DIR, 'dark.json'), JSON.stringify(darkFixture(f => { f.title = 'A new one' })))
   const r = await get('/api/flows/dark')
@@ -194,7 +216,7 @@ test('restore when a flow with that id exists again is 409 with the plain refusa
   assert.deepEqual(await r.json(), { error: 'A flow called dark exists again. Delete or rename that one first.' })
 })
 
-test('purge (Delete forever) removes the entry and the evidence; an unknown id is 404; a bad id is 400', async () => {
+test('purge (Delete for good) removes the entry and the evidence; an unknown id is 404; a bad id is 400', async () => {
   await post('/api/flows/dark/delete', { confirm: true })
   const r = await post('/api/trash/dark/purge')
   assert.equal(r.status, 200)
@@ -215,7 +237,7 @@ test('archive hides the flow from /api/flows, counts it, lists it under ?archive
   assert.ok(Date.parse(j.archivedAt))
   const list = await (await get('/api/flows')).json()
   assert.deepEqual(list.flows, [])
-  assert.deepEqual(list.counts, { archived: 1, trash: 0 })
+  assert.deepEqual(list.counts, { archived: 1, deleted: 0 })
   assert.deepEqual((await (await get('/api/flows?archived=1')).json()).flows.map(f => f.id), ['dark'])
   assert.equal((await get('/api/flows/dark')).status, 200)
   const back = await post('/api/flows/dark/archive', { archived: false })
@@ -230,11 +252,11 @@ test('archive needs archived true or false', async () => {
   assert.equal('archivedAt' in F.readFlow('dark'), false)
 })
 
-test('the plain /api/flows answer counts the Trash too, and keeps flows and invalid', async () => {
+test('the plain /api/flows answer counts the deleted flows too, and keeps flows and invalid', async () => {
   await post('/api/flows/dark/delete', { confirm: true })
   const j = await (await get('/api/flows')).json()
   assert.deepEqual(Object.keys(j), ['flows', 'invalid', 'counts'])
-  assert.deepEqual(j.counts, { archived: 0, trash: 1 })
+  assert.deepEqual(j.counts, { archived: 0, deleted: 1 })
 })
 
 // ═══ Same origin ═══
@@ -252,11 +274,9 @@ test('a cross-origin POST to archive, delete, restore or purge is refused and ch
 
 // ═══ server.mjs wiring (it starts a server on import, so it is read, not run) ═══
 
-test('server.mjs routes /api/trash and purges the expired Trash at startup and every 10 minutes, never stopping on an error', () => {
+test('server.mjs routes /api/trash and /api/archive, and no longer sweeps anything away on a timer', () => {
   const src = fs.readFileSync(path.join(HERE, '..', 'server.mjs'), 'utf8')
   assert.match(src, /const FACTORY_PREFIXES = \[[^\]]*'\/api\/trash'/)
-  assert.match(src, /import \{ purgeExpired \} from '\.\/trash\.mjs'/)
-  assert.match(src, /function sweepTrash\(\) \{\s*try \{[^}]*purgeExpired\(\)/)
-  assert.match(src, /\nsweepTrash\(\)\r?\n/)
-  assert.match(src, /setInterval\(sweepTrash, 10 \* 60_000\)\.unref\(\)/)
+  assert.match(src, /const FACTORY_PREFIXES = \[[^\]]*'\/api\/archive'/)
+  assert.doesNotMatch(src, /purgeExpired|sweepTrash/)
 })

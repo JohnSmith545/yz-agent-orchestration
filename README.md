@@ -385,7 +385,8 @@ last pressed its `Mark read`: flows that changed status, answers delivered,
 tickets that reached a new level or changed on their source, commits per agent;
 at most eight lines, no model involved; it stays across reloads until marked
 read, and a new browser starts from its first visit; see `since.mjs`),
-**Waiting on you** (only while an ask is open: answer it inline), **Agents · N** (the agent cards in a compact form: name,
+one line of how many things need you, from Human review (`#homeHuman`, `human-review.js`: `N things need you`, what
+they are, and **Open Human review**, which opens the box on the Agents page), **Agents · N** (the agent cards in a compact form: name,
 state, last action, up to four tickets; click one to watch it live), **Subagents · N running** (only when a subagent ran
 today: N is how many have not finished; the rows are the subagents still running, six at most, then the latest
 four finished, each a link to its live view with its state, model, time and pull request; **All subagents** opens
@@ -401,14 +402,10 @@ the Output (Flow types and routes, below), and this page shows each one as that 
 agents do and what waits on you. Every agent narrates its work as a flow, one JSON
 file per flow in `data/flows/`, written with the `flow` commands below. Top to bottom on the page:
 
-- **Waiting on you**, one strip across all flows: every unanswered ask, newest first, one line each (agent,
-  flow title, the question) with Yes and No (or a text box) inline and a link to show it in its flow.
-  Under each question is **why** it is asked: the agent's `--why`, or, when it gave none, a fainter line
-  saying which flow and step the ask follows. The same `Why?` line sits under the question wherever an ask
-  shows: the opened flow's Story, Status and node drawer, the chart's tooltip, and the alert toast.
-  Answering here is the same as answering on the node. While a flow is open, its own asks leave the strip
-  (its Story and Status ask them), and the strip disappears when nothing is left in it. On the Flows page no
-  `N asks waiting` toast is raised: the header dot and the strip already say it.
+- The questions across flows are not on this page: they are in the **Human review** box on the Agents page
+  (below). Under each question, everywhere an ask shows, is **why** it is asked: the agent's `--why`, or, when
+  it gave none, a fainter line saying which flow and step the ask follows (the opened flow's Story, Status and
+  node drawer, the chart's tooltip, the alert toast, and Human review).
 - **The board**, a card per flow still on its way, grouped by agent in the grid's column order. On its way is
   by **route, not status** (`FlowBoard.groups`): open and blocked flows, and a done flow whose route has a current
   step (QA passed and Push waiting is done by status and still at Push), which keeps its full card and `at Push`.
@@ -551,15 +548,18 @@ file per flow in `data/flows/`, written with the `flow` commands below. Top to b
   **Request test steps** from the Output view (one line per flow, with your note). Each delivery
   costs roughly $0.30 and ten seconds.
 
-### Archive and Trash
+### Archive, Delete and the flow archive (#/archive)
 
-Flows are the one thing the dashboard keeps of its own, so they are the one thing you can put away. In an opened
-flow's `⋯` menu, **Archive** hides it from the board, Waiting on you, Home, the palette and the alerts without deleting
-it; a direct link still opens it, and a new question from its agent brings it back. **Delete** moves it to the Trash
-(`data/trash/<id>.json`); a flow its agent may still be working on asks first, and that agent is told to stop. A flow
-24 hours in the Trash is removed for good with its evidence files, decided from its stored time at startup and every
-10 minutes. **Archived · N** and **Trash · N** under the board list them, with Unarchive, Restore and Delete forever.
-Only you archive or delete: agents have no command for either, and any command on a trashed flow is refused.
+Flows are the one thing the dashboard keeps of its own, so they are the one thing you can put away. Each card on the
+board, and an opened flow's `⋯` menu, has **Archive** and **Delete**. **Archive** hides a flow from the board, the
+palette and the alerts without changing it; a new question from its agent brings it back. **Delete** moves it to
+`data/trash/<id>.json` (the folder keeps its old name, so entries an older version wrote still show); a flow its agent
+may still be working on asks first, and that agent is told to stop. Nothing is removed by a timer: both wait in the
+**flow archive** (`#/archive`, `archive-page.js`, `GET /api/archive`), in an Archived and a Deleted group with a search
+by title or ticket id. A title opens the flow read-only (a banner, every control that would change it hidden and
+refused); **Restore** puts it back, and **Delete for good** (Deleted only, asked in the row) removes it with its
+evidence files. Archived flows count in the pipeline score; deleted ones do not. Only you archive or delete: agents
+have no command for either, and any command on a deleted flow is refused.
 
 ### QA (#/qa)
 
@@ -886,6 +886,8 @@ flow change <flow> --before "<how it was>" --after "<how it is now>" | --clear
 flow summary <flow> "<markdown>" [--commit <sha>]... [--diff <worktree>]...
 flow test-step <flow> "<do this>" --expect "<you should see>" [--shot <path>] [--id t3] [--replace]
 flow test-clear <flow>
+flow hand-step <flow> "<do this>" --expect "<you should see>" [--where "<path or click path>"] [--copy "<value to paste>"] [--why "..."] [--id h3] [--replace]
+flow hand-clear <flow>
 flow say <flow> "<what was done>" [--why "<the reason>"] [--who "<label>"] [--id s2 --replace]
 flow say-clear <flow>
 flow pr <flow> --head <branch> --base <branch> --title "<title>" --body-file <path> | --clear
@@ -941,6 +943,14 @@ flow summary dark-mode "Every colour is now a **theme token**, so one switch cha
 flow test-step dark-mode "Open Settings and click the moon next to Theme." --expect "The page turns dark at once." --shot moon.png --by "Agent 3"
 flow test-step dark-mode "Reload the page." --expect "It is still dark." --shot reload.png --by "Agent 3"
 ```
+
+`hand-step` records work only the user can do (a human decision, CI/CD, cloud setup, a console setting) as an
+ordered checklist on the flow's `hand` block (`hand-steps.mjs`): what to do (200 characters, one line), what they
+should see when it worked (`--expect`, 200), the exact place (`--where`, 300), a value to paste shown with a Copy
+button (`--copy`, 2000, may run over several lines) and why (`--why`, 160), at most 20 steps with ids `h1`, `h2`….
+The agent records the steps and stops; it never runs that work. The user ticks each step on the flow's page (each
+tick is `{ by: 'you', at }`, kept through a reload and an agent rewrite only while the step asks the same thing),
+and once all are ticked marks the flow done. `--id h2 --replace` rewrites one; `hand-clear` empties them.
 
 `flow show` prints the JSON alone on stdout (so `flow show x > x.json`, an edit, then `flow write x.json`
 round-trips) and an Output block on stderr: it counts the result shots, the diagram's boxes and arrows (or says
@@ -1113,7 +1123,7 @@ Routes:
   request|coordinator|producer|chat|qa|push|outcome }], edges: [{ from, to, label?, kind: main|branch|rework|skip }] },
   tickets: [{ id, title, agent, tickets, status, stage: { node, status, path, reworks }, route, progress, qa, codeProducing,
   hasOutput, archived, updatedAt }], builtAt }`. Open and blocked flows always, done and dropped ones changed in the
-  last 14 days, archived ones flagged, the Trash never. `qa` is the current attempt in full and the earlier ones as
+  last 14 days, archived ones flagged, deleted ones never. `qa` is the current attempt in full and the earlier ones as
   an outline. Node ids are slugs of the labels (`agent-1`); the edges also carry the coordinator's own changes going
   to QA and its `no code changes` skip.
 - `GET /api/qa[?status=passed]` returns `{ qa: <label>, flows: [{ id, title, agent, tickets, status, archived,
@@ -1289,6 +1299,18 @@ written inside the repo or any worktree.
 
 ## Agents (#/agents): the pipeline diagram
 
+Under the diagram sits the **Human review** box (`human-review.js`, `GET /api/human`, `human.mjs`): everything
+that cannot go on without the user, newest first, each row with the flow (or ticket) title, the agent waiting,
+how long it has waited and one reason: an unanswered **question** (answered in the box with the usual controls, on
+the usual answer route), **by hand** work (a flow with by-hand steps that is not finished, or an open flow for a
+ticket marked `no-code` or `not-codebase`), a **blocked** flow, and a marked **ticket** no live flow carries. It is
+not a node of any route: `pipeline-view.js` hands it each layout and it places itself under every box, arrow and
+label, its left and right edges on the outermost boxes, inside the canvas; with many rows it scrolls inside
+itself. Its count is also on the rail's Agents entry and on Home; the page head's `N waiting on you` and
+`#/agents?human` bring it into view. A title opens the flow at the question (`gotoFlow` at its node), at its
+by-hand steps (`#/flows?flow=<id>&at=hand`), or the ticket on Tickets. On the Agents page no `N asks waiting`
+toast is raised: the box already says it.
+
 The Agents page draws the orchestration as a diagram, from a **Request** node to an
 **Output** node, built only from the `pipeline` setting and the chat agent's name (see QA and the pipeline):
 Request, the coordinator and the chat agent (Independent), each producing agent, **QA**, **Push**, Output. Arrows
@@ -1340,7 +1362,7 @@ read again with every status refresh without redrawing.
   Not enough data yet. A window switch counts the last 7 days, 30 days (the default) or all time: a QA verdict by
   its own time (so a flow QA passed or stopped counts at that final verdict), a stalled flow from the day it
   stalled, any other flow by its last update; anything with no stored time is never counted. Flows still on their
-  way are not counted; archived ones are, the Trash never. **How it is counted** opens the four boxes with the live
+  way are not counted; archived ones are, deleted ones never. **How it is counted** opens the four boxes with the live
   counts, each with **See these in the log** (the side panel opens on Log with that filter), the flows that slipped
   through or were missed (each a link to the flow), the sums, and a By agent table (handed to QA, passed first
   time, sent back). The window, F1 or F4, and the strip collapsed to one line are remembered in this browser; the

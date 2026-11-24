@@ -9,10 +9,11 @@
 // Only the user sets `verified` or answers an ask: there is no verify command,
 // and `write` merges the user's ticks and answers back in (mergeKeepingAnswers).
 // Only the user archives or deletes a flow, too: no command sets `archivedAt`,
-// and any command on a flow in the Trash (trash.mjs) fails with one line telling
-// the agent to stop (TRASHED), so nothing writes into a flow the user deleted,
-// and `write` or `new` can never bring one back under the same id. In the Trash
-// means what the server means (trash.mjs isTrashed): an entry and no live file.
+// and any command on a flow the user deleted (trash.mjs: it waits in the flow
+// archive) fails with one line telling the agent to stop (TRASHED), so nothing
+// writes into a flow the user deleted, and `write` or `new` can never bring one
+// back under the same id. Deleted means what the server means (trash.mjs
+// isTrashed): an entry and no live file.
 //
 // Agents run on two Claude accounts with different working folders, so any
 // path printed here is absolute.
@@ -26,6 +27,7 @@ import {
 } from '../flows.mjs'
 import { isTrashed } from '../trash.mjs'
 import { changeBlock, changeCommands } from './change-cli.mjs'
+import { handBlock, handCommands } from './hand-cli.mjs'
 import { prBlock, prCommands } from './pr-cli.mjs'
 import { qaBlock, qaCommands } from './qa-cli.mjs'
 import { newRoute, routeBlock, routeCommands, settleRoute } from './route-cli.mjs'
@@ -90,7 +92,7 @@ export const USAGE = `usage: flow <command>
   show <flow>           the JSON with derived, to read back answers (stdout); what its Output holds (stderr)
   list [--open] [--waiting] [--agent X] [--ticket ABC-1] [--archived]   archived flows only with --archived
   rules [--by "<label>"]   your specification and rules, set by the user on the dashboard (new and qa-start print them too)
-  Only the user archives or deletes a flow. A command refused with "in the Trash" means stop work on that flow.
+  Only the user archives or deletes a flow. A command refused with "deleted" means stop work on that flow.
 The Output, what the user sees first: when a piece of work is finished, record
   say <flow> "<what was done>" [--why "<the reason>"] [--who "<label>"] [--id s2 --replace]   one story line
   say-clear <flow>      empties the story, to tell it again
@@ -105,6 +107,12 @@ The Output, what the user sees first: when a piece of work is finished, record
   summary <flow> "<markdown>" [--commit <sha>]... [--diff <worktree>]...   what changed and why; replaces the changes
   test-step <flow> "<do this>" --expect "<you should see>" [--shot <path>] [--id t3] [--replace]
   test-clear <flow>     empties the test steps, to record them again
+Work only the user can do (a human decision, CI/CD, cloud setup, a console setting): record the steps, then STOP;
+never do that work yourself. The user ticks each step off on the dashboard.
+  hand-step <flow> "<do this>" --expect "<you should see>" [--where "<path or click path>"] [--copy "<value to paste>"]
+   [--why "<one line>"] [--id h3] [--replace]   one step each, in order; at most 20 steps, a line of 200 (where 300,
+   copy 2000, why 160); --replace rewrites a step, and a changed step loses the user tick
+  hand-clear <flow>     empties the by-hand steps, to record them again
   pr <flow> --head <branch> --base <branch> --title "<title>" --body-file <path>   when the work is ready for the
    base branch: a plain-English title and a body that follows the repo pull request template; never push or open
    the pull request yourself: hand the flow to QA, which tests it and pushes it on a pass; the user then sends it.
@@ -135,10 +143,10 @@ export const NO_NAME = 'say who you are with --by <your dashboard label> (or set
 const fail = (out) => ({ out, code: 1 })
 const ok = (out) => ({ out, code: 0 })
 
-/** What every command on a flow in the Trash answers: one line, so the agent stops (trash.mjs). */
-export const TRASHED = id => `Flow ${id} is in the Trash: the user deleted it. Stop work on it; it can be restored from the Trash for 24 hours.`
-/** `flow new` on an id in the Trash: the deleted flow keeps its id for its 24 hours. */
-const TRASHED_NEW = id => `Flow ${id} is in the Trash. Pick another id.`
+/** What every command on a deleted flow answers: one line, so the agent stops (trash.mjs). */
+export const TRASHED = id => `Flow ${id} was deleted by the user: it is in the flow archive. Stop work on it; only the user can restore it.`
+/** `flow new` on a deleted id: the deleted flow keeps its id while it waits in the flow archive. */
+const TRASHED_NEW = id => `Flow ${id} was deleted and is in the flow archive. Pick another id.`
 
 /**
  * The dashboard shows why the user is asked under every question (flows.mjs askReason). An ask with no
@@ -318,6 +326,7 @@ function outputBlock(flow, config) {
     `  summary: ${isText(out.summary) ? `yes, ${count(out.changes?.length || 0, 'change')}` : 'none yet'}`,
     `  test steps: ${steps.length || 'none yet'}`,
     ...steps.map((t, i) => `    ${i + 1}. [${t.id}] ${t.do} -> ${t.expect}${t.shot ? '' : ' (no shot)'}`),
+    ...handBlock(flow),
     ...prBlock(flow),
     ...qaBlock(flow),
   ]
@@ -461,6 +470,7 @@ const COMMANDS = {
   'test-clear': cmdTestClear,
   ...sayCommands(NO_NAME),
   ...changeCommands(NO_NAME),
+  ...handCommands(NO_NAME),
   ...prCommands(NO_NAME),
   ...routeCommands(NO_NAME),
   ...withQaRules(qaCommands({ noName: NO_NAME, evidenceTarget, copyEvidence, shotExt: SHOT_EXT, shotError: SHOT_ERROR })),

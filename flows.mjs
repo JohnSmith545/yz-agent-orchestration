@@ -32,6 +32,9 @@
 // - `route` (optional on the file, required of a NEW flow by the CLI) is the planned way through the
 //   pipeline (flow-route.mjs): its shape is checked here, the graph when an agent sets it, and a rewrite
 //   keeps the stored one (keepRoute); only `flow route` changes it, keeping the old one in its history.
+// - `hand` (optional) is the by-hand steps an agent wrote for the user (hand-steps.mjs): each step's `done` is the
+//   USER'S tick, like `verified`, kept by mergeKeepingAnswers only from the stored file and only while the step asks
+//   the same thing (keepHand).
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -42,6 +45,7 @@ import { DIAGRAM_KINDS, DIAGRAM_MAX } from './diagram-text.mjs'
 import { hasBefore, validateChange } from './flow-change.mjs'
 import { mergeReady, validateSend } from './flow-merge.mjs'
 import { keepQa, validateQa } from './flow-qa.mjs'
+import { keepHand, validateHand } from './hand-steps.mjs'
 import { keepRoute, validateRoute } from './flow-route.mjs'
 import { sayShorter, STORY_ID, STORY_MAX, storyOf, YOU } from './flow-story.mjs'
 import { lookup } from './glossary.mjs'
@@ -140,6 +144,7 @@ export function validateFlow(flow) {
   if (flow.output !== undefined) problems.push(...validateOutput(flow.output, flow.id))
   if (flow.qa !== undefined) problems.push(...validateQa(flow.qa, flow.id))
   if (flow.route !== undefined) problems.push(...validateRoute(flow.route))
+  if (flow.hand !== undefined) problems.push(...validateHand(flow.hand))
   return problems
 }
 
@@ -525,6 +530,7 @@ export function mergeKeepingAnswers(incoming, existing) {
   else delete incoming.archivedAt
   keepQa(incoming, existing) // QA's, like a tick is the user's: only ever from the stored file
   keepRoute(incoming, existing) // the plan: only `flow route` changes a stored one
+  keepHand(incoming, existing) // the user's ticks on the by-hand steps: only ever from the stored file
   if (existing?.createdAt) incoming.createdAt = existing.createdAt
   delete incoming.derived
   return incoming

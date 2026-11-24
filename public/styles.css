@@ -276,7 +276,7 @@ h2 { font-size: 16px; font-weight: 650; letter-spacing: -0.01em; color: var(--in
 
 /* ─── overview ─────────────────────────────────────────────────────────────── */
 
-.home-zone + .home-zone, #homeWaiting:not(:empty) + .home-zone { margin-top: 32px; }
+.home-zone + .home-zone, #homeHuman:not([hidden]) + .home-zone { margin-top: 32px; }
 
 /* Since you were away (since.js): one fact per line, the time on the right. */
 #homeSince:not(:empty) { margin-bottom: 32px; }

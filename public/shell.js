@@ -5,14 +5,16 @@
 //
 // Routes: #/ Flows (the landing page: every request is a flow), #/flows (the same page, so old links
 // keep working), #/home Home, #/qa[/<flow id>], #/brainstorming, #/tickets, #/timeline, #/agents, #/subagents,
-// #/glossary, #/settings, #/agent/<id>[/<sub>]. Old links redirect (#/factory → #/tickets,
+// #/glossary, #/settings, #/archive (the flow archive), #/agent/<id>[/<sub>]. Old links redirect (#/factory → #/tickets,
 // #/flow → #/timeline, #/script → #/brainstorming) and anything unknown goes to the landing page.
+// A page route may carry a query, `#/flows?flow=dark-mode&at=hand`, handed to the page as params.query (an
+// object of strings): a link that opens a page in a given state (archive-page.js, flows-page.js, human-review.js).
 //
 // Shell.resolve is pure and is attached BEFORE the DOM code, which returns
 // early when there is no document, so test/shell.test.mjs can load this file
 // in a vm with a bare window.
 ;(() => {
-  const VIEWS = ['home', 'flows', 'qa', 'script', 'tickets', 'timeline', 'agents', 'subagents', 'glossary', 'settings', 'agent']
+  const VIEWS = ['home', 'flows', 'qa', 'script', 'tickets', 'timeline', 'agents', 'subagents', 'glossary', 'settings', 'archive', 'agent']
   const OLD = { factory: 'tickets', flow: 'timeline' }
   const route = (view, params = {}, redirect = null) => ({ view, params, redirect })
   const decode = s => {
@@ -31,14 +33,27 @@
     if (agent) return route('agent', { id: decode(agent[1]), sub: agent[2] ? decode(agent[2]) : null })
     const qa = /^#\/qa\/([^/]+)\/?$/.exec(h) // one ticket opened on the QA page
     if (qa) return route('qa', { id: decode(qa[1]) })
-    const page = /^#\/([a-z]+)\/?$/.exec(h)?.[1]
+    const [, page, query] = /^#\/([a-z]+)\/?(?:\?([^#]*))?$/.exec(h) || []
+    const params = query ? { query: queryOf(query) } : {}
     // Brainstorming was SCRIPT: its view keeps the old name (script-page.js says why); old links still land on it.
-    if (page === 'brainstorming') return route('script')
-    if (page === 'script') return route('script', {}, '#/brainstorming')
-    if (page && page !== 'agent' && VIEWS.includes(page)) return route(page)
+    if (page === 'brainstorming') return route('script', params)
+    if (page === 'script') return route('script', params, '#/brainstorming')
+    if (page && page !== 'agent' && VIEWS.includes(page)) return route(page, params)
     const old = /^#\/(factory|flow)\b/.exec(h)?.[1]
     if (old) return route(OLD[old], {}, `#/${OLD[old]}`)
     return route('flows', {}, '#/')
+  }
+
+  /** Pure: `flow=a&at=hand` → { flow: 'a', at: 'hand' } (strings, decoded; a malformed escape kept raw; the last of a repeat wins). */
+  function queryOf(s) {
+    const out = {}
+    for (const part of String(s).split('&')) {
+      if (!part) continue
+      const at = part.indexOf('=')
+      const key = decode((at < 0 ? part : part.slice(0, at)).replace(/\+/g, ' '))
+      if (key) out[key] = at < 0 ? '' : decode(part.slice(at + 1).replace(/\+/g, ' '))
+    }
+    return out
   }
 
   /**
@@ -127,10 +142,10 @@
   const $ = id => doc.getElementById(id)
   const PIN_KEY = 'shell.railPinned'
   const HOVER_MS = 300
-  const TITLE = { home: 'Home', flows: 'Flows', qa: 'QA', script: 'Brainstorming', tickets: 'Tickets', timeline: 'Timeline', agents: 'Agents', subagents: 'Subagents', glossary: 'Glossary', settings: 'Settings', agent: 'Agent' }
+  const TITLE = { home: 'Home', flows: 'Flows', qa: 'QA', script: 'Brainstorming', tickets: 'Tickets', timeline: 'Timeline', agents: 'Agents', subagents: 'Subagents', glossary: 'Glossary', settings: 'Settings', archive: 'Flow archive', agent: 'Agent' }
   // Which section each view shows, and which page object it opens and closes.
-  const SECTION = { home: 'home', flows: 'flowsView', qa: 'qaView', script: 'scriptView', tickets: 'factoryView', timeline: 'flowView', agents: 'agentsView', subagents: 'subagentsView', glossary: 'glossaryView', settings: 'settingsView', agent: 'agentView' }
-  const PAGE = { flows: 'FlowsPage', qa: 'QaPage', script: 'ScriptPage', tickets: 'FactoryView', timeline: 'FlowView', agents: 'AgentsPage', subagents: 'SubagentsPage', glossary: 'GlossaryPage', settings: 'SettingsPage', agent: 'AgentView' }
+  const SECTION = { home: 'home', flows: 'flowsView', qa: 'qaView', script: 'scriptView', tickets: 'factoryView', timeline: 'flowView', agents: 'agentsView', subagents: 'subagentsView', glossary: 'glossaryView', settings: 'settingsView', archive: 'archiveView', agent: 'agentView' }
+  const PAGE = { flows: 'FlowsPage', qa: 'QaPage', script: 'ScriptPage', tickets: 'FactoryView', timeline: 'FlowView', agents: 'AgentsPage', subagents: 'SubagentsPage', glossary: 'GlossaryPage', settings: 'SettingsPage', archive: 'ArchivePage', agent: 'AgentView' }
 
   // ─── icons: 24-unit boxes drawn at 20 px, 1.75 stroke (shell.css) ───
   const svg = d => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`
@@ -147,6 +162,8 @@
     // a subagent: one small figure with a spark beside it (work handed to it)
     subagents: svg('<circle cx="10" cy="8" r="3.5"/><path d="M4 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M18.5 3v4M16.5 5h4"/><path d="M19.5 10.5v2M18.5 11.5h2"/>'),
     glossary: svg('<path d="M5 5a2 2 0 0 1 2-2h12v14H7a2 2 0 0 0-2 2Z"/><path d="M5 19a2 2 0 0 0 2 2h12v-4"/><path d="M9 7.5h6M9 11h4"/>'),
+    // the flow archive: a box with its lid and a slot to pull it open by
+    archive: svg('<path d="M3.5 4.5h17v4h-17Z"/><path d="M5 8.5V19a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19V8.5"/><path d="M10 12.5h4"/>'),
     // a gear: a ring with eight short teeth around a small hub
     settings: svg('<circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2.2"/><path d="M12 3.5v2.5M12 18v2.5M3.5 12H6M18 12h2.5M6 6l1.8 1.8M16.2 16.2 18 18M6 18l1.8-1.8M16.2 7.8 18 6"/>'),
     ask: svg('<path d="M12 3.5a8.5 8.5 0 0 0-7.4 12.7L3.5 20.5l4.3-1.1A8.5 8.5 0 1 0 12 3.5Z"/>'),
@@ -169,7 +186,7 @@
       <button type="button" class="rail-pin" id="railPin" aria-pressed="false" title="Keep the rail open">${ICON.pin}</button>
     </div>
     <nav class="rail-nav" aria-label="Pages">
-      ${link('flows', '#/flows', 'Flows')}${link('qa', '#/qa', 'QA')}${link('script', '#/brainstorming', 'Brainstorming')}${link('tickets', '#/tickets', 'Tickets')}${link('timeline', '#/timeline', 'Timeline')}${link('agents', '#/agents', 'Agents')}${link('subagents', '#/subagents', 'Subagents')}${link('glossary', '#/glossary', 'Glossary')}
+      ${link('flows', '#/flows', 'Flows')}${link('qa', '#/qa', 'QA')}${link('script', '#/brainstorming', 'Brainstorming')}${link('tickets', '#/tickets', 'Tickets')}${link('timeline', '#/timeline', 'Timeline')}${link('agents', '#/agents', 'Agents')}${link('subagents', '#/subagents', 'Subagents')}${link('glossary', '#/glossary', 'Glossary')}${link('archive', '#/archive', 'Flow archive')}
     </nav>
     <div class="rail-bottom">
       <button type="button" class="rail-item" id="railAsk" aria-controls="drawer" aria-expanded="false" title="${ASK_TIP}"><span class="rail-icon">${ICON.ask}</span><span class="rail-label">Ask</span></button>
@@ -261,10 +278,10 @@
     const count = Math.max(0, Number(n) || 0)
     b.hidden = !count
     b.innerHTML = count ? `<i class="wait-dot" aria-hidden="true"></i>${count} waiting on you` : ''
-    b.title = count ? 'Open the asks on the Flows page' : ''
+    b.title = count ? 'Open Human review on the Agents page' : ''
   }
-  // Through FlowsView.gotoFlow, so the strip scrolls into view even when #/flows already shows (a flow opened below it).
-  $('pageWaiting')?.addEventListener('click', () => (window.FlowsView?.gotoFlow ? window.FlowsView.gotoFlow() : go('#/flows')))
+  // The questions live in the Human review box (human-review.js), which also scrolls it into view when #/agents already shows.
+  $('pageWaiting')?.addEventListener('click', () => (window.HumanReview?.show ? window.HumanReview.show() : go('#/agents?human')))
 
   // ─── the chat drawer ───
   // ONE head: #drawerHead holds Ask until the chat mounts, then the chat writes
@@ -354,7 +371,7 @@
     const page = window[PAGE[r.view]]
     if (r.view === 'agent') page?.open?.(r.params.id, r.params.sub)
     else if (r.view === 'qa') page?.open?.(r.params.id)
-    else page?.open?.()
+    else page?.open?.(r.params.query || {})
     const lit = railFor(r)
     rail.querySelectorAll('a.rail-item').forEach(a => (a.dataset.view === lit ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')))
     for (const fn of listeners) fn(r)

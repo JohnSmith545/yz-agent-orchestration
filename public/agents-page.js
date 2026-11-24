@@ -43,7 +43,8 @@
     'which pushes it on a pass or sends it back on a failure (the return arrows). Work with no code changes goes straight to the Output (dashed), ' +
     'and so does the chat agent\'s: it answers, explains and reviews, and changes no code.</p>' +
     '<p>Each chip is a ticket where it stands now: green passed, red failed, grey anything else. Click a step for its details, a chip for its explanation, ' +
-    'and open Tickets on the right to light one ticket\'s route: the steps it has taken in the accent, those still ahead dashed. A red mark on an agent means it pushed outside QA today.</p>'
+    'and open Tickets on the right to light one ticket\'s route: the steps it has taken in the accent, those still ahead dashed. A red mark on an agent means it pushed outside QA today.</p>' +
+    '<p><b>Human review</b>, under the diagram, is everything waiting on you: questions (answer them there), work only you can do, blocked flows. Click a title to open it.</p>'
 
   const reduced = () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 

@@ -49,7 +49,12 @@ so a relative path would not resolve.
 > it again. The user then reviews the Output and sends the pull request.
 > The pull request text must not credit an AI tool: no Co-Authored-By line, no Generated with line, no tool named as an author.
 > Only the user archives or deletes a flow; never try to do either yourself.
-> A command refused with "in the Trash" means the user deleted that flow: stop work on it and do not write to it again.
+> When a ticket needs a human decision, or is work the user must do by hand (CI/CD, cloud setup, a console
+> setting, an account or a billing change), record that work as by-hand steps and stop: one
+> `flow hand-step <flow> "<do this>" --expect "<what they should see>" --where "<the exact path, page or click path>"`
+> per step, in order, with `--copy "<the value to paste>"` and `--why "<one line>"` when they help. You never run
+> that work yourself. The user ticks each step off on the dashboard; a message asking for steps means record them.
+> A command refused with "deleted" means the user deleted that flow (it waits in the flow archive): stop work on it and do not write to it again.
 > When the user asks you to give the Brainstorming page some context, add it as a note with
 > `context add "<title>" --text "..."` (or `--file <path>`); `context list` and `context remove <id>` manage them.
 > The rules that `flow new`, `flow qa-start` and `flow rules` print are the user's own, set on the dashboard: follow them.
@@ -97,6 +102,6 @@ node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow diagram acme-repor
 
 The QA agent has its own brief: `docs/qa-agent-brief.md`.
 
-What the user sees: the flow as a card on the Flows page (`#/flows`), and each `flow ask` in **Waiting on you** with your `--why` under the question and Yes and No; the answer is sent back to the agent as a message. An opened flow lands on **Output**: the result screenshot (or your diagram, or with neither a summary chart the dashboard draws from your steps), the summary with its commits, and the numbered test steps. If the user presses **Request test steps**, a message arrives asking for those steps: drive the app, then record each step with `flow test-step`. **Request visuals** (a flow with no screenshot and no diagram) asks for a screenshot or a diagram first.
+What the user sees: the flow as a card on the Flows page (`#/flows`), and each `flow ask` in the **Human review** box on the Agents page with your `--why` under the question and Yes and No; the answer is sent back to the agent as a message. An opened flow lands on **Output**: the result screenshot (or your diagram, or with neither a summary chart the dashboard draws from your steps), the summary with its commits, and the numbered test steps. If the user presses **Request test steps**, a message arrives asking for those steps: drive the app, then record each step with `flow test-step`. **Request visuals** (a flow with no screenshot and no diagram) asks for a screenshot or a diagram first.
 
 The full command list is in the README, under "Agents writing flows".

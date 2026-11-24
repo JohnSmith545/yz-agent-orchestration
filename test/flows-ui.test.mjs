@@ -1,6 +1,6 @@
 // Tests for the review's UI fixes on the Flows page: the open flow's decision is
-// answered on its Story line (U1), the strip says Also waiting while a flow is open
-// (U2), Status rows say verified once (U3), a card shows what most needs you (U4),
+// answered on its Story line (U1; the Waiting on you strip of U2 is gone, its asks are
+// in Human review on the Agents page), Status rows say verified once (U3), a card shows what most needs you (U4),
 // the Picture is just the picture (U7), chart labels get a third line and diamonds
 // more room (U8), and the send chip is neutral (S9). Browser scripts in a vm.
 // FACTORY_DATA_DIR points at a fresh temp folder BEFORE flows.mjs is imported.
@@ -61,18 +61,11 @@ test('U1: a text ask gets the text field and Save; a derived story has ONE decis
   assert.doesNotMatch(block(window.FlowOutput.html(fx(DARK, answerAll)), 'Story'), /st-ask|data-answer/, 'nothing to decide: no controls')
 })
 
-test('U1: Output answers through the same path as the strip (flows.js answer), and the strip still hides the open flow', () => {
+test('U1: Output answers through the same path as the Human review box (flows.js answer, which FlowsView exposes)', () => {
   const src = read('flows.js')
   assert.match(src, /:is\(\.fl-drawer, \.fl-stat, \.fl-out\) :is\(\[data-answer\]/)
-  assert.match(src, /window\.FlowBoard\.stripRows\(data\.flows, recent, board && opened \? opened\.id : null\)/)
-})
-
-// ═══ U2: one count per screen ═══
-
-test('U2: the strip head reads Also waiting while a flow is open, Waiting on you otherwise', () => {
-  assert.equal(window.FlowBoard.stripHead(2, 'dark-mode'), 'Also waiting')
-  assert.equal(window.FlowBoard.stripHead(3, null), 'Waiting on you')
-  assert.match(read('flows.js'), /FlowBoard\.stripHead\(open, board && opened \? opened\.id : null\)/)
+  assert.match(src, /answer: \(flowId, nodeId, value\) => answer\(flowId, nodeId, value\)/)
+  assert.doesNotMatch(src, /stripRows|stripHead/, 'the strip and its Also waiting head are gone')
 })
 
 // ═══ U3: Status says verified once ═══

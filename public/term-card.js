@@ -29,7 +29,7 @@
   const OPEN_MS = 250
   const CLOSE_MS = 200
   const COST = 'about $0.30' // one relay turn (spec 7.4a)
-  const BLOCK = 'p, li, dd, td, h2, h3, figcaption, summary, .st-text, .sv-row-head, .fl-wait-q' // where a word's sentence is read from
+  const BLOCK = 'p, li, dd, td, h2, h3, figcaption, summary, .st-text, .sv-row-head' // where a word's sentence is read from
   const SOURCE = { 'built-in': 'built-in', learned: 'learned', agent: 'from the agent', you: 'yours' }
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
   const X = () => window.Explain
