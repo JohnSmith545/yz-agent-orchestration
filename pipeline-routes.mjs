@@ -14,7 +14,12 @@
 //                                repo's remote and of the dashboard's own, or null.
 //   POST /api/flows/<id>/rework  send a QA failure back again after it was not delivered (qa-rework.mjs reworkRetry)
 //
-// The links come from `git remote get-url <remote>` (a read), turned into a GitHub web address (webUrlOf), never
+// The links name the repo that HOLDS the tested commit, never just the watched one: QA tests the dashboard's own
+// changes too, and a dashboard commit linked under the watched repo's remote is a dead link. `qa.repo` (set by
+// `flow qa-push --repo`) when there is one; else the watched repo (config.repo) when `git -C <repo> cat-file -e
+// <sha>^{commit}` finds the commit there; else the dashboard's own folder; else no commit and no branch link.
+// The answer is cached per sha (a commit never moves; a miss is asked again after a minute, it may be fetched).
+// The address comes from `git remote get-url <remote>` (a read), turned into a GitHub web address (webUrlOf), never
 // the raw address: a remote URL may carry a token, and nothing returned here may (pr-check.mjs repoOf drops any
 // user:token@). Read at most once a minute per repo and remote. A report is read as text, at most 64 KB.
 //
@@ -38,9 +43,12 @@ const REPORT_MAX = 64 * 1024
 const QA_LISTED = 100
 const remotes = new Map() // `${repo}\0${remote}` -> { at, web }
 
-/** Tests start clean: no remote address remembered. */
+const holders = new Map() // [sha, repos] as JSON -> { at, repo }: which repo holds a commit (null: none of them)
+
+/** Tests start clean: no remote address and no commit's repo remembered. */
 export function resetPipelineState() {
   remotes.clear()
+  holders.clear()
 }
 
 /** A remote address as its GitHub web page (`https://github.com/owner/name`), or null for anything else. */
@@ -63,6 +71,42 @@ async function webOf(git, repo, remote) {
   }
   remotes.set(key, { at: Date.now(), web })
   return web
+}
+
+/**
+ * The first of `repos` that has commit `sha` (`git -C <repo> cat-file -e <sha>^{commit}`, a read), or null. A hit is
+ * kept for good, since a commit never moves; a miss for a minute only, since the commit may be fetched later.
+ */
+async function repoHolding(git, sha, repos) {
+  const key = JSON.stringify([String(sha).toLowerCase(), repos])
+  const hit = holders.get(key)
+  if (hit && (hit.repo || Date.now() - hit.at < REMOTE_MS)) return hit.repo
+  let repo = null
+  for (const r of repos) {
+    try {
+      if ((await git(['-C', r, 'cat-file', '-e', `${sha}^{commit}`])).ok) {
+        repo = r
+        break
+      }
+    } catch {
+      // a repo git cannot read does not hold it
+    }
+  }
+  holders.set(key, { at: Date.now(), repo })
+  return repo
+}
+
+/**
+ * Where QA's commit lives, as { repo, remote }, or null when no repo has it: qa.repo when QA pushed with --repo;
+ * else the watched repo, else the dashboard's own folder, whichever holds the commit; with no commit recorded, the
+ * watched repo. The dashboard folder's remote is always origin.
+ */
+async function commitHome(git, view, config, remote) {
+  if (view.repo) return { repo: view.repo, remote: view.remote || remote }
+  if (!view.commit) return { repo: config.repo, remote: view.remote || remote }
+  const repo = await repoHolding(git, view.commit, [config.repo, HERE])
+  if (!repo) return null
+  return { repo, remote: repo === config.repo ? view.remote || remote : 'origin' }
 }
 
 const evidenceUrl = ref => `/evidence/${String(ref).split('/').map(encodeURIComponent).join('/')}`
@@ -112,7 +156,8 @@ export async function qaGet(status, { git, config = CONFIG } = {}) {
   for (const f of listed) {
     const view = qaView(f.qa)
     view.steps = (view.steps || []).map(s => (s.shot ? { ...s, url: evidenceUrl(s.shot) } : s))
-    const web = await webOf(git, view.repo || config.repo, view.remote || remote)
+    const home = await commitHome(git, view, config, remote)
+    const web = home ? await webOf(git, home.repo, home.remote) : null
     flows.push({
       id: f.id, title: f.title, agent: f.agent, tickets: f.tickets || [], status: f.status, archived: !!f.archivedAt,
       updatedAt: f.updatedAt ?? null, stage: stageOf(f, graph), qa: view,

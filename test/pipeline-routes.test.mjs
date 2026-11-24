@@ -26,13 +26,26 @@ const QA = CONFIG.pipeline.qa
 const SHA = 'cd34ef5000000000000000000000000000000000'
 const DAY = 86_400_000
 
-/** The stub git: `remote get-url` answers a GitHub address with a token in it; every call recorded. */
+/** The dashboard's own folder, as pipeline-routes.mjs names it (forward slashes). */
+const DASHBOARD = path.resolve(HERE, '..').replace(/\\/g, '/')
+const OTHER = 'C:/repos/other'
+/** Each repo's remote (the watched one with a token in it) and the commits each holds. */
+const REMOTE_OF = {
+  [CONFIG.repo]: 'https://bob:ghp_abcdefghijklmnop@github.com/acme/app.git',
+  [DASHBOARD]: 'git@github.com:yz/dashboard.git',
+  [OTHER]: 'https://github.com/acme/other.git',
+}
+let holds = {}
+/** The stub git (`git -C <repo> …`): get-url from REMOTE_OF, cat-file -e from `holds`; every call recorded. */
 const gitCalls = []
 async function git(args) {
   gitCalls.push(args)
-  if (args.includes('get-url')) return { ok: true, out: 'https://bob:ghp_abcdefghijklmnop@github.com/acme/app.git', err: '' }
+  const repo = args[1]
+  if (args.includes('get-url')) return REMOTE_OF[repo] ? { ok: true, out: REMOTE_OF[repo], err: '' } : { ok: false, out: '', err: 'no remote' }
+  if (args[2] === 'cat-file') return (holds[repo] || []).includes(args.at(-1).replace('^{commit}', '')) ? { ok: true, out: '', err: '' } : { ok: false, out: '', err: 'fatal' }
   return { ok: false, out: '', err: 'no' }
 }
+const catFiles = () => gitCalls.filter(a => a[2] === 'cat-file')
 const queued = []
 const relay = { queueRework: id => queued.push(id) }
 
@@ -64,6 +77,7 @@ const passed = id => ({
 
 beforeEach(() => {
   gitCalls.length = queued.length = 0
+  holds = { [CONFIG.repo]: [SHA] }
   resetPipelineState()
   fs.rmSync(F.FLOWS_DIR, { recursive: true, force: true })
   fs.rmSync(F.EVIDENCE_DIR, { recursive: true, force: true })
@@ -121,7 +135,7 @@ test('GET /api/qa: each flow QA recorded, with the report text, the evidence lin
   assert.doesNotMatch(text, /ghp_|bob/)
   const j = JSON.parse(text)
   assert.equal(j.qa, QA)
-  assert.deepEqual(j.remotes, { repo: 'https://github.com/acme/app', dashboard: 'https://github.com/acme/app' })
+  assert.deepEqual(j.remotes, { repo: 'https://github.com/acme/app', dashboard: 'https://github.com/yz/dashboard' })
   assert.deepEqual(j.flows.map(f => f.id), ['shipped'])
   const f = j.flows[0]
   assert.deepEqual(f.report, { ref: 'shipped/qa-1-report.md', url: '/evidence/shipped/qa-1-report.md', text: '# QA\n\n1340 tests pass.', truncated: false })
@@ -140,6 +154,46 @@ test('GET /api/qa?status=passed lists only the passed ones; a missing report is 
   const j = await (await get('/api/qa?status=passed')).json()
   assert.deepEqual(j.flows.map(f => f.id), ['shipped'])
   assert.equal(j.flows[0].report.text, null)
+})
+
+// ═══ the commit link names the repo that HOLDS the tested commit (regression: QA attempt 2 of qa-pipeline) ═══
+
+/** The links of flow `id` on /api/qa. */
+const linksOf = async id => (await (await get('/api/qa')).json()).flows.find(f => f.id === id).links
+
+test('the commit is in the watched repo: the commit and branch link to its remote, checked with cat-file -e', async () => {
+  put('shipped', { status: 'done', qa: passed('shipped') })
+  assert.deepEqual(await linksOf('shipped'), { repo: 'https://github.com/acme/app', commit: `https://github.com/acme/app/commit/${SHA}`, branch: 'https://github.com/acme/app/tree/feature/card' })
+  assert.deepEqual(catFiles()[0], ['-C', CONFIG.repo, 'cat-file', '-e', `${SHA}^{commit}`])
+})
+
+test('the commit is only in the dashboard repo: the links name the dashboard remote, never the watched repo', async () => {
+  holds = { [DASHBOARD]: [SHA] }
+  put('shipped', { status: 'done', qa: passed('shipped') })
+  assert.deepEqual(await linksOf('shipped'), { repo: 'https://github.com/yz/dashboard', commit: `https://github.com/yz/dashboard/commit/${SHA}`, branch: 'https://github.com/yz/dashboard/tree/feature/card' })
+})
+
+test('the commit is in neither repo: no commit link and no branch link', async () => {
+  holds = {}
+  put('shipped', { status: 'done', qa: passed('shipped') })
+  assert.deepEqual(await linksOf('shipped'), { repo: null, commit: null, branch: null })
+})
+
+test('qa.repo is set (qa-push --repo): that repo is used, with no cat-file guess', async () => {
+  holds = { [CONFIG.repo]: [SHA], [DASHBOARD]: [SHA] }
+  put('shipped', { status: 'done', qa: { ...passed('shipped'), repo: OTHER } })
+  assert.deepEqual(await linksOf('shipped'), { repo: 'https://github.com/acme/other', commit: `https://github.com/acme/other/commit/${SHA}`, branch: 'https://github.com/acme/other/tree/feature/card' })
+  assert.equal(catFiles().length, 0)
+})
+
+test('the repo holding a commit is cached per sha: a second /api/qa runs no cat-file', async () => {
+  holds = { [DASHBOARD]: [SHA] }
+  put('shipped', { status: 'done', qa: passed('shipped') })
+  await linksOf('shipped')
+  const n = catFiles().length
+  assert.equal(n, 2, 'the watched repo first, then the dashboard')
+  await linksOf('shipped')
+  assert.equal(catFiles().length, n)
 })
 
 test('webUrlOf: GitHub https and git@ addresses become the web page; anything else is null', () => {
