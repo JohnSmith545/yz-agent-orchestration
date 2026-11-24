@@ -81,7 +81,7 @@ test('after a Use the list says, in one calm line, what is in use now and where 
     'Careful is now in use on Flinki v2. The orchestration used before was already in the bank as Flinki default.')
   assert.equal(P.afterUseLine(null), '')
   assert.equal(P.afterUseLine({ entry: 7 }), '')
-  assert.match(P.listHtml({ entries: ENTRIES, status: P.afterUseLine({ entry: 'Careful', project: 'P', autosaved: 'A' }) }), /role="status">Careful is now in use on P\./)
+  assert.match(P.listHtml({ entries: ENTRIES, note: P.afterUseLine({ entry: 'Careful', project: 'P', autosaved: 'A' }) }), /class="pm-status bk-note" role="status">Careful is now in use on P\./)
 })
 
 test('an empty bank says what to do; the seeded entry is named once', () => {

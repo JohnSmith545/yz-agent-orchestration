@@ -72,7 +72,9 @@
     const list = (v.entries || []).length
       ? `<ul class="bk-list">${v.entries.map(e => cardHtml(e, v)).join('')}</ul>`
       : '<div class="card bk-empty"><p class="bk-p">Nothing saved yet. Save the current orchestration to keep a copy you can switch back to.</p></div>'
-    return `<div class="bk-page">${bar}${seeded}${status(v.status)}${list}</div>`
+    // the line after a Use is news, not a problem: its own calm look (bk-note), apart from a refusal's status
+    const note = v.note ? `<p class="pm-status bk-note" role="status">${esc(v.note)}</p>` : ''
+    return `<div class="bk-page">${bar}${seeded}${note}${status(v.status)}${list}</div>`
   }
 
   function agentHtml(a) {
@@ -90,7 +92,7 @@
     return '<div class="bk-page"><header class="bk-head"><a class="link bk-back" href="#/bank">All saved orchestrations</a>' +
       `<div class="bk-card-head"><h2 class="bk-name">${name}</h2>${v.inUse ? '<span class="bk-tag">In use here</span>' : ''}</div>` +
       `<p class="bk-meta">Saved ${esc(whenText(e.savedAt))}${e.from?.name ? ` from ${esc(e.from.name)}` : ''} · ${esc(v.view.summary)}</p>` +
-      `<p class="bk-p bk-route">${esc(v.view.route || '')}</p></header>` +
+      (v.confirm ? '' : `<p class="bk-p bk-route">${esc(v.view.route || '')}</p>`) + '</header>' + // the confirmation says the route itself
       (v.confirm ? confirmHtml(v)
         : v.same ? '<p class="bk-p bk-same">This is the orchestration in use on this project now.</p>'
           : `<div class="bk-acts bk-acts-start"><a class="bk-btn" href="#/bank/${enc(e.id)}/use">Use on this project</a></div>`) +
@@ -199,7 +201,7 @@
         await loadList()
         if (mine !== token) return
         const note = takeNote()
-        if (note) v.status = afterUseLine(note)
+        v.note = note ? afterUseLine(note) : ''
         paint()
       }
     } catch (e) {
