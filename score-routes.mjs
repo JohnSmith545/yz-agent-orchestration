@@ -8,7 +8,9 @@
 //                                    orchestrationLog over the same flows, newest first, at most LOG_MAX events;
 //                                    `cell` keeps the events that put a count in that scorecard cell (delivered,
 //                                    caught, missed, slipped), `kind` one kind (the panel's Rules filter is
-//                                    kind=rule). `total` is how many matched before the cut.
+//                                    kind=rule). `total` is how many matched before the cut. The kinds of the
+//                                    optional agents (score-log.mjs GATE_KINDS: security, planned) are accepted
+//                                    only on a pipeline that has that agent, and only then named in the refusal.
 // Any other value is a 400 with one plain sentence. The log also carries every saved change to an agent's rules
 // (agent-rules.mjs readLog and ruleEvents) as `rule` events; orchestrationLog keeps the ones inside the window.
 //
@@ -18,7 +20,7 @@ import { readLog, ruleEvents } from './agent-rules.mjs'
 import { CONFIG } from './config.mjs'
 import { listFlows } from './flows.mjs'
 import { pipelineGraph } from './pipeline.mjs'
-import { LOG_CELLS, LOG_KINDS, orchestrationLog } from './score-log.mjs'
+import { GATE_KINDS, LOG_CELLS, LOG_KINDS, orchestrationLog } from './score-log.mjs'
 import { scoreOf, windowOf } from './score.mjs'
 
 /** The windows the page offers, by their query value: a number of days, or null for all time. */
@@ -46,10 +48,13 @@ export function logGet({ days: rawDays, cell, kind } = {}, { config = CONFIG, no
   const days = daysOf(rawDays)
   if (days === undefined) return BAD_WINDOW
   if (cell && !LOG_CELLS.includes(cell)) return { status: 400, body: { error: 'The cell must be delivered, caught, missed or slipped.' } }
-  if (kind && !LOG_KINDS.includes(kind)) {
-    return { status: 400, body: { error: `The kind must be one of ${LOG_KINDS.slice(0, -1).join(', ')} or ${LOG_KINDS.at(-1)}.` } }
+  const graph = pipelineGraph(config)
+  const roles = new Set(graph.nodes.map(n => n.role))
+  const kinds = [...LOG_KINDS, ...GATE_KINDS.filter(k => roles.has(k === 'planned' ? 'planner' : 'security'))]
+  if (kind && !kinds.includes(kind)) {
+    return { status: 400, body: { error: `The kind must be one of ${kinds.slice(0, -1).join(', ')} or ${kinds.at(-1)}.` } }
   }
-  const all = orchestrationLog(listFlows({ archived: 'any' }).flows, pipelineGraph(config), { now, days, extra })
+  const all = orchestrationLog(listFlows({ archived: 'any' }).flows, graph, { now, days, extra })
   const events = all.filter(e => (!cell || e.cell === cell) && (!kind || e.kind === kind))
   return { status: 200, body: { events: events.slice(0, LOG_MAX), total: events.length, window: windowOf(now, days).view, builtAt: new Date(now).toISOString() } }
 }
