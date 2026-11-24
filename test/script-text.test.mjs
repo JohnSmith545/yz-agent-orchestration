@@ -153,6 +153,23 @@ test('followUp trims the outer blank lines of each part and never changes the or
   assert.equal(out, '  keep  my spacing  \n\nAnswers to your questions:\nQ1?\n\nA1')
 })
 
+// A second round of questions (the brainstorm may ask twice): the model is stateless, so round two must
+// carry round one's answers too. `previous` is what the last run sent.
+test('regression: followUp on a second round keeps the first round answers, then adds the new ones', () => {
+  const first = T.followUp('Write a launch email', '1. Who reads it?', '1. Customers')
+  const second = T.followUp('Write a launch email', '1. Which product?', '1. The new plan', first)
+  assert.equal(second, `${first}\n\nAnswers to your questions:\n1. Which product?\n\n1. The new plan`)
+  assert.equal(second.split('Answers to your questions:').length - 1, 2, 'both rounds are there')
+})
+
+test('followUp ignores a previous run that is not a follow-up of the same idea', () => {
+  const plainRun = T.followUp('Write a launch email', '1. Who?', '1. Me', 'Write a launch email')
+  assert.equal(plainRun, T.followUp('Write a launch email', '1. Who?', '1. Me'), 'the first round: previous is the idea itself')
+  const edited = T.followUp('Write a short launch email', '1. Who?', '1. Me', T.followUp('Write a launch email', '1. A?', '1. B'))
+  assert.equal(edited, T.followUp('Write a short launch email', '1. Who?', '1. Me'), 'the user changed the idea: start the chain again')
+  for (const junk of [undefined, null, 42, '']) assert.equal(T.followUp('Idea', 'Q', 'A', junk), T.followUp('Idea', 'Q', 'A'))
+})
+
 // ═══ where the block sits, for the renderer (script-render.js) ═══
 
 test('blockSpan: the text before the block, the block, and the text after it, split at the fence lines', () => {

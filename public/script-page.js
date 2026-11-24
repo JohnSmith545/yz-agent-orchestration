@@ -243,7 +243,7 @@
     let followUp = false
     if (St().view(state).showAnswers) {
       if (!els.answers.value.trim()) return hint('Answer the questions first.', els.answers)
-      text = T().followUp(original, state.questions, els.answers.value)
+      text = T().followUp(original, state.questions, els.answers.value, state.askedBy) // a second round keeps the first's answers
       followUp = true
     }
     if (text.length > MAX) return hint(`That is over ${MAX} characters with the answers. Shorten it a little.`, followUp ? els.answers : els.input)

@@ -18,7 +18,10 @@
 //                                   closed, or the stream ended well (`ended`) with all six seen.
 //   ScriptText.classify(t)          a finished answer: 'prompt' (it has a code block),
 //                                   'questions' (it has none: the model asked first), or 'empty'.
-//   ScriptText.followUp(o, q, a)    what Generate again sends after the questions.
+//   ScriptText.followUp(o, q, a, p) what Generate again sends after the questions. `p` is what the last
+//                                   run sent: when it was already a follow-up of the same idea `o`, the
+//                                   new answers go after it, so a SECOND round of questions keeps the
+//                                   first round's answers (the model remembers nothing between runs).
 ;(() => {
   const SECTIONS = Object.freeze(['Situation', 'Character', 'Request', 'Intent', 'Presentation', 'Tone'])
   // The brief's label rule, applied line by line inside the code block (labelOf).
@@ -97,8 +100,11 @@
   /** Trim blank lines (and the spaces on them) from both ends, keeping everything between. */
   const trimLines = s => String(s ?? '').replace(/^(?:[ \t]*\n)+/, '').replace(/(?:\n[ \t]*)+$/, '')
 
-  function followUp(original, questions, answers) {
-    return `${String(original ?? '')}\n\n${ANSWERS}\n${trimLines(questions)}\n\n${trimLines(answers)}`
+  function followUp(original, questions, answers, previous = '') {
+    const idea = String(original ?? '')
+    // ⚠️ Only a chain that starts with THIS idea goes on: an edited idea starts the answers over.
+    const chained = typeof previous === 'string' && previous.startsWith(`${idea}\n\n${ANSWERS}\n`)
+    return `${chained ? previous : idea}\n\n${ANSWERS}\n${trimLines(questions)}\n\n${trimLines(answers)}`
   }
 
   window.ScriptText = { SECTIONS, codeBlock, blockSpan, labelOf, sectionsStarted, finished, classify, followUp }
