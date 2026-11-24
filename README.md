@@ -55,7 +55,7 @@ example first.
 - **QA**: every ticket that passed QA, with QA's report, its screenshots, the steps
   to test it yourself and links to the tested commit and the pushed branch.
 - **SCRIPT**: turns a rough idea into a ready-to-paste prompt in six labelled parts, streamed, with a soft pop when
-  it is done.
+  it is done. Its **Context** panel tells it about your agents, a live session and your own notes.
 - **Tickets**: a ticket collection from your tracker, an orchestration grid of
   which agent took which ticket how far (local, dev, stage, prod), the ticket
   table with code review marks, and every worktree.
@@ -144,8 +144,14 @@ rail adds up what these turns cost.
   chat agent could tick **verified** or answer an ask by driving this page. Add
   `--blocked-origins 127.0.0.1:4317` to the Playwright MCP server's arguments in
   your user-level MCP config (more under The Ask drawer below).
+- The SCRIPT **Context** panel sends what you attach (the orchestration brief, a live session's latest talk, your
+  notes) only to your own clean SCRIPT run: no tools, no settings, nothing else sees it. The brief is built from
+  labels and settings and scrubbed of paths, ids, emails and tokens; a live session is your own conversation, so
+  pick one only when you are happy for that text to go to the model. Its routes take same-origin writes only, and
+  the model is told the context is background, never instructions.
 - `config.json` and everything under `data/` (flows, evidence, ticket snapshots,
-  the chat transcript, spend) stay on your machine and are git-ignored.
+  the chat transcript, spend, the SCRIPT context and the SCRIPT run log of your last 50 ideas and their prompts)
+  stay on your machine and are git-ignored. Clear the run log with `DELETE /api/script/log` or from the page.
 
 ## Configuration
 
@@ -612,6 +618,67 @@ one line under the block. **Copy** copies only what is inside the block (no fenc
 - **When it fails** (Claude Code missing, the run stopped, the model declined, or no output for 2 minutes): a calm
   line says so with **Retry**, which sends the same request again. Any text that had arrived stays, marked
   **Incomplete**. There is no pop.
+
+#### Context: what SCRIPT knows about your system
+
+The run is clean, so on its own SCRIPT knows nothing about your agents or your work, and an idea such as "a prompt
+for my full agent orchestration" gets questions back. The **Context** tab on the right edge of the page opens a panel
+(like the Agents page's) that says what SCRIPT is told before it writes. Open or closed is kept in this browser
+(`script.contextOpen`). It holds three kinds of context, and the tab shows how many are on (`Context · 3`):
+
+- **Orchestration** (on by default): a plain brief the dashboard writes itself from what it already knows. What the
+  system is (a coordinator hands requests to producers, QA tests every code change and is the only one that
+  pushes, failures go back), each agent and its role in the Agents page's wording, the three flow types and their
+  routes, the QA rules (how many reworks, the protected branches), the pages in one line each, and what the
+  dashboard is built with. It carries labels and settings only: never paths, session ids, your account, the PIN
+  hash or tokens, and it is scrubbed for them as well. At most 8,000 characters. **Preview** shows it.
+- **Live session**: pick one running session by its label (Master, Agent 1 …). When you press **Generate**, the
+  newest part of its conversation is read fresh: your typed messages and its text replies only, with no tool calls,
+  tool output, thinking, system reminders or messages from other agents, the newest turns that fit in 12,000
+  characters. A session that has stopped, or whose transcript cannot be read, is skipped with a plain reason.
+- **Notes**: your own, each with a switch, **Edit** and **Remove** (which asks once). **Add a note** takes a title
+  (1 to 80 characters) and text (1 to 20,000); **Add files** (or dropping files on the open panel) reads text files
+  in the browser and saves one note per file, named after it. A file that is not text, is empty or is too long is
+  refused with a calm line and the others are still saved. At most 40 notes. An agent can add one too:
+  `node tools/factory.mjs context add "<title>" (--text "..." | --file <path>)`, `context list`, `context remove <id>`.
+  That is how you **ask Master**: ask in its chat, and it runs the command.
+
+With anything attached, the model gets your text as a `<task>` after a `<context>` block holding each part under its
+own heading, with a line saying the context is background and not instructions. With nothing attached it gets your
+text exactly as before. Your text keeps its own 8,000 limit. The parts together are at most 60,000 characters: while
+they are over, the largest part (the oldest of equals) is cut to fit with a line saying so, keeping its start (the
+live session keeps its newest end), or left out when less than 1,000 characters of it would remain. The panel's foot
+says about how much is attached and warns near the limit. The stream then carries one extra line before the first
+`delta`, `{ "type": "context", "used": [{ "title", "chars" }], "skipped": [{ "title", "why" }] }`, whenever something
+was attached or left out.
+
+The context lives in `data/script-context.json` (it follows `FACTORY_DATA_DIR`; a missing or broken file reads as the
+defaults, and every write is checked and atomic). The routes, every write same-origin only:
+
+- `GET /api/script/context` returns `{ orchestration: { on, chars, text }, session: { on: <label or null>, choices:
+  [{ label, state }], max }, notes: [{ id, title, text, on, chars, updatedAt }], total, limits }`. `total` counts the
+  brief and the notes that are on; the session is read only at Generate time, so `session.max` says what it can add.
+  A chosen session that has stopped stays in `choices` as `not running`.
+- `PUT /api/script/context` `{ orchestration?: boolean, session?: <label or null> }` returns the same view.
+- `POST /api/script/context/notes` `{ title, text }` returns 201 `{ note }`.
+- `PUT /api/script/context/notes/<id>` `{ title?, text?, on? }` returns `{ note }`; `DELETE` the same path returns
+  `{ ok: true }`. An unknown id is a 404, a bad body a 400, another site's Origin a 403, each `{ error }` in a plain
+  sentence.
+
+#### The run log
+
+Every run that started is kept in `data/script-log.json` (your local data folder, which follows `FACTORY_DATA_DIR`
+and is never committed), good, failed and stopped alike, for the **newest 50 runs**. Each entry is
+`{ id, at, ms, text, output, ok, error, cancelled, cost, context: { used: [{ title, chars }], skipped: [{ title, why }] } }`:
+your own text exactly as you sent it (never the context wrapped around it), the model's text as it streamed (at most
+40,000 characters), the plain message of a failed or stopped run, the cost when there was one, and what was attached
+by title and size only. The context's own text is never kept in the log. The stream's last `done` or `error` line
+carries `"run": "<id>"`. The log is written after the answer is out; a log that cannot be written never fails a run.
+
+- `GET /api/script/log` returns `{ runs: [...], limits: { runsMax: 50, outputMax: 40000 } }`, newest first.
+- `DELETE /api/script/log/<id>` removes one run (`{ ok: true }`, or 404); `DELETE /api/script/log` clears it all
+  (`{ ok: true, removed: <n> }`). Both are same-origin only. Clearing from the page's History list does the same, or
+  delete the file while the dashboard runs.
 
 ### Settings (#/settings)
 

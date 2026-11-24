@@ -27,6 +27,11 @@ import { factoryRoute } from './factory-routes.mjs'
 import { makePrStates } from './subagent-prs.mjs'
 import { makeSubagentRoutes } from './subagent-routes.mjs'
 import { makeScriptRoute } from './script-routes.mjs'
+import { makeContextGatherer, makeScriptContextRoute } from './script-context-routes.mjs'
+import { makeScriptLogRoute } from './script-log-routes.mjs'
+import { appendRun } from './script-log.mjs'
+import { orchestrationBrief } from './script-brief.mjs'
+import { pipelineGraph } from './pipeline.mjs'
 import { listRepoSubagents, oneSubagent, sessionFile, ticketBuilders, windowStart } from './subagents.mjs'
 import { listFlows } from './flows.mjs'
 import { pinnedSessions } from './pinned-agents.mjs'
@@ -843,7 +848,19 @@ const subagentRoute = makeSubagentRoutes({
   prStates: makePrStates({ gh }),
 })
 /** The SCRIPT Generator (script-routes.mjs): POST /api/script/generate, one paid Opus run at a time, streamed. */
-const scriptRoute = makeScriptRoute({ port: PORT })
+/**
+ * What SCRIPT can be told (script-context-routes.mjs): the orchestration brief, written fresh from the config on
+ * each read, and the RUNNING sessions by dashboard label (a pinned session that is closed is not running), each
+ * with its transcript, read only when the user presses Generate.
+ */
+const scriptContext = {
+  brief: () => orchestrationBrief({ config: CONFIG, graph: pipelineGraph(CONFIG) }),
+  sessions: async () => (await liveSessions()).filter(s => !s.pinned).map(s => ({ label: labelOf(s.name), state: s.status === 'busy' ? 'working' : 'idle', transcript: () => transcriptFile(s) })),
+}
+const scriptRoute = makeScriptRoute({ port: PORT, gather: makeContextGatherer(scriptContext), log: appendRun })
+const scriptContextRoute = makeScriptContextRoute({ port: PORT, ...scriptContext })
+/** The SCRIPT run log (script-log-routes.mjs): the newest 50 runs, for the page's History list. */
+const scriptLogRoute = makeScriptLogRoute({ port: PORT })
 /** The paths factory-routes.mjs answers. */
 const FACTORY_PREFIXES = ['/api/factory', '/api/chat', '/api/flows', '/api/trash', '/api/commit', '/api/explain', '/api/glossary', '/api/since', '/api/spend', '/api/settings', '/api/pipeline', '/api/qa', '/evidence/']
 
@@ -858,6 +875,8 @@ const server = createServer(async (req, res) => {
       if (await factoryRoute(req, res, url, { git, gh, push, port: PORT, fetched, relay, getStatus })) return
     }
     if (await scriptRoute(req, res, url)) return
+    if (await scriptContextRoute(req, res, url)) return
+    if (await scriptLogRoute(req, res, url)) return
     if (await subagentRoute(req, res, url)) return
     if (url.pathname === '/api/orchestration') {
       const data = await orchestration(url.searchParams.get('c'), url.searchParams.has('refresh'))

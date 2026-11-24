@@ -5,7 +5,11 @@
 //         { "type": "delta", "text": "..." }                          as each text delta arrives
 //         { "type": "done", "ok": true, "stopReason": "...", "cost": 0.2 }   the last line of a good run
 //         { "type": "error", "error": "<plain message>", "cost"?: 0.05 }    the last line of a failed one
-//       Exactly ONE of done or error ends the stream.
+//         { "type": "context", "used": [{ "title", "chars" }], "skipped": [{ "title", "why" }] }
+//             at most ONE, before the first delta, when context was attached or left out (below)
+//       Exactly ONE of done or error ends the stream. With the run log on (server.mjs), it carries
+//       "run": "<id>", the run's entry in GET /api/script/log (script-log.mjs, script-log-routes.mjs),
+//       written AFTER the response ends and never able to fail it.
 //       403 { error } for another site's Origin, 400 { error } for a bad body, and
 //       409 { error } while another run is going: ONE run at a time, across every tab.
 //
@@ -13,13 +17,23 @@
 // that started it (nothing is broadcast to other tabs), and EventSource cannot POST a body.
 // A browser that goes away (the tab closed, the fetch aborted) closes the response before the
 // end line was written; the route then cancels the run, which kills the child process.
+//
+// Context (the page's Context panel, script-context-routes.mjs): after the checks, `gather()` reads what the
+// user attached (the orchestration brief, a live session's latest talk, their notes) and composeInput
+// (script-compose.mjs) wraps the text in it. The text alone keeps its 8,000 limit and checkText. With nothing
+// attached the text goes exactly as before, and no context line is written. A gatherer that fails never stops
+// the run: it goes with the plain text, and the context line says why.
 
 import { originAllowed } from './local-origin.mjs'
+import { composeInput } from './script-compose.mjs'
+import { LOG_LIMITS, newRunId } from './script-log.mjs'
 import { checkText, generate as realGenerate } from './script.mjs'
 
 const PATH = '/api/script/generate'
 const BODY_MAX = 64_000 // the 8000-character text, JSON-escaped, with room to spare
 const BUSY = 'A prompt is already being written. Wait for it to finish, then try again.'
+const NO_CONTEXT = async () => ({ parts: [], skipped: [] })
+const UNREAD = { title: 'Context', why: 'It could not be read, so none was sent.' }
 
 function json(res, status, body) {
   res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' })
@@ -41,9 +55,11 @@ async function readBody(req) {
 
 /**
  * `route(req, res, url)` answers POST /api/script/generate and resolves true, or false for anything
- * else. `generate` is script.mjs's (tests pass a stub); `port` is the dashboard's, for the Origin rule.
+ * else. `generate` is script.mjs's (tests pass a stub); `port` is the dashboard's, for the Origin rule;
+ * `gather` reads the attached context (script-context-routes.mjs makeContextGatherer; none by default);
+ * `log(entry)` records each run that started (script-log.mjs appendRun; none by default, so tests write nothing).
  */
-export function makeScriptRoute({ generate = realGenerate, port }) {
+export function makeScriptRoute({ generate = realGenerate, port, gather = NO_CONTEXT, log = null }) {
   let busy = false
 
   return async function scriptRoute(req, res, url) {
@@ -62,6 +78,15 @@ export function makeScriptRoute({ generate = realGenerate, port }) {
     if (busy) return json(res, 409, { error: BUSY }), true
     busy = true
 
+    let composed
+    try {
+      const got = await gather()
+      const c = composeInput(text, got?.parts || [])
+      composed = { input: c.input, used: c.used, skipped: [...(got?.skipped || []), ...c.skipped] }
+    } catch {
+      composed = { input: text, used: [], skipped: [UNREAD] }
+    }
+
     res.writeHead(200, { 'content-type': 'application/x-ndjson; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' })
     let ended = false
     const write = obj => {
@@ -71,9 +96,19 @@ export function makeScriptRoute({ generate = realGenerate, port }) {
     res.on('close', () => {
       if (!ended) run?.cancel() // the browser left before the end line: stop the child
     })
+    if (composed.used.length || composed.skipped.length) write({ type: 'context', used: composed.used, skipped: composed.skipped })
     let out
+    let output = '' // a copy of what was streamed, for the run log, capped as the log keeps it
+    const at = new Date()
+    let started = false
     try {
-      run = generate(text, { onDelta: t => write({ type: 'delta', text: t }) })
+      run = generate(composed.input, {
+        onDelta: t => {
+          if (output.length < LOG_LIMITS.outputMax) output += String(t).slice(0, LOG_LIMITS.outputMax - output.length)
+          write({ type: 'delta', text: t })
+        },
+      })
+      started = true
       if (res.destroyed) run.cancel() // it left while the run was starting
       out = await run.done
     } catch {
@@ -81,10 +116,29 @@ export function makeScriptRoute({ generate = realGenerate, port }) {
     } finally {
       busy = false
     }
-    if (out?.ok) write({ type: 'done', ok: true, stopReason: out.stopReason ?? null, cost: out.cost ?? null })
-    else write({ type: 'error', error: out?.error || 'The model run stopped before it finished.', ...(typeof out?.cost === 'number' ? { cost: out.cost } : {}) })
+    // a run that started is logged, good, failed or stopped alike; the end line names it
+    const runId = log && started ? newRunId() : null
+    const named = runId ? { run: runId } : {}
+    if (out?.ok) write({ type: 'done', ok: true, stopReason: out.stopReason ?? null, cost: out.cost ?? null, ...named })
+    else write({ type: 'error', error: out?.error || 'The model run stopped before it finished.', ...(typeof out?.cost === 'number' ? { cost: out.cost } : {}), ...named })
     ended = true
     res.end()
+    if (runId) {
+      const entry = {
+        id: runId, at: at.toISOString(), ms: Date.now() - at.getTime(), text, output,
+        ok: !!out?.ok, error: out?.ok ? null : out?.error || 'The model run stopped before it finished.',
+        cancelled: out?.cancelled === true, cost: typeof out?.cost === 'number' ? out.cost : null,
+        context: { used: composed.used, skipped: composed.skipped },
+      }
+      // after the answer is out, and never able to fail it: the log is a side note
+      setImmediate(() => {
+        try {
+          log(entry)
+        } catch (err) {
+          console.error(`script: the run log could not be written: ${err?.message || err}`)
+        }
+      })
+    }
     return true
   }
 }

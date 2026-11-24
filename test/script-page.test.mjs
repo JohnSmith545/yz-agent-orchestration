@@ -76,7 +76,7 @@ test('npm run check covers every new file, and the palette and glossary know the
 test('the server mounts the route with its own port', () => {
   const server = fs.readFileSync(path.join(ROOT, 'server.mjs'), 'utf8')
   assert.match(server, /import \{ makeScriptRoute \} from '\.\/script-routes\.mjs'/)
-  assert.match(server, /makeScriptRoute\(\{ port: PORT \}\)/)
+  assert.match(server, /makeScriptRoute\(\{ port: PORT[ ,}]/) // further deps (the context gatherer) may follow
   assert.match(server, /if \(await scriptRoute\(req, res, url\)\) return/)
 })
 

@@ -10,6 +10,8 @@
 //   node tools/factory.mjs show ABC-123
 //   node tools/factory.mjs term "<word>" "<plain explanation>" [--more "..."] [--flow <id>]   (see tools/term-cli.mjs)
 //   node tools/factory.mjs pr-pin                         the person sets the send PIN, typed in a terminal (tools/pr-pin.mjs)
+//   node tools/factory.mjs context add "<title>" (--text "..." | --file <path>) | list | remove <id>
+//                                                         what the SCRIPT Generator is told (tools/context-cli.mjs)
 //
 // Marks go to data/factory-state.json; flows to data/flows/<id>.json; words to data/glossary.json. The page
 // picks either up on its next poll. `decide` is the old command kept for
@@ -19,6 +21,7 @@ import { randomInt } from 'node:crypto'
 import { readState, REVIEW, setMark, updateState, VERDICT } from '../factory-state.mjs'
 import { AGENT_LABEL, AGENT_RULE, listFlows } from '../flows.mjs'
 import { ANY_BOOLEAN, flags, NO_NAME, runFlow } from './flow-cli.mjs'
+import { runContext } from './context-cli.mjs'
 import { runPinCli } from './pr-pin.mjs'
 import { runTerm } from './term-cli.mjs'
 
@@ -70,6 +73,8 @@ try {
     finish(decide())
   } else if (cmd === 'term') {
     finish(runTerm(rest))
+  } else if (cmd === 'context') {
+    finish(runContext(rest))
   } else if (cmd === 'show') {
     const id = String(f._[0] || '').toUpperCase()
     const flows = listFlows({ ticket: id }).flows.map(fl => fl.id)
@@ -81,7 +86,9 @@ try {
   flow <command> ...    run flow with no command for its usage
   term "<word>" "<plain explanation, 1 or 2 sentences, at most 300 characters>" [--more "..."] [--flow <id>]
   show <ID>
-  pr-pin                set the send PIN (typed by you in a terminal, never piped)`)
+  context add "<title>" (--text "..." | --file <path>) | context list | context remove <id>
+                        what the SCRIPT Generator is told before it writes
+  pr-pin               set the send PIN (typed by you in a terminal, never piped)`)
     process.exitCode = cmd ? 1 : 0
   }
 } catch (e) {
