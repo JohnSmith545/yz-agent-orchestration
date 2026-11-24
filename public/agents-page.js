@@ -2,7 +2,8 @@
 // Output, drawn from /api/pipeline's graph (pipeline-layout.js, pipeline-view.js), every ticket as a chip on
 // the node it stands at now, a details pane below (pipeline-details.js: the clicked agent's card from
 // agent-cards.js, Progress report and all), and a pull-out panel on the right (pipeline-panel.js) whose
-// Tickets and Outputs lists select a ticket and light its path through the diagram.
+// Tickets and Outputs lists select a ticket and light its path through the diagram. Above the diagram, the
+// pipeline score (score-strip.js), read again with every pipeline read.
 //
 // shell.js calls AgentsPage.open/close; app.js hands every /api/status load to AgentsPage.update(data)
 // (and the same data again every 15 s, to refresh the times). A NEW /api/status load also re-reads
@@ -24,6 +25,7 @@
   let view = null
   let panel = null
   let details = null
+  let score = null
   let pipeline = null
   let failure = null
   let status = null // the last /api/status data
@@ -49,6 +51,7 @@
     const section = document.getElementById('agentsView')
     section.innerHTML = `<div class="pl-page">
       <div class="pl-main">
+        <div class="psc" id="plScore"></div>
         <div class="pl-wrap" id="plDiagram"></div>
         <div class="pl-details" id="plDetails"></div>
       </div>
@@ -59,6 +62,8 @@
     view = window.PipelineView.create(section.querySelector('#plDiagram'), { onNode: pickNode, onChip: id => window.PipelineTickets.explain(id) })
     panel = window.PipelinePanel.create(section.querySelector('#plPanel'), { page: box, onSelect: pickTicket })
     window.AgentRules?.bind(details, render)
+    // the scorecard above the diagram (score-strip.js): read again with every pipeline read
+    score = window.ScoreStrip?.create(section.querySelector('#plScore')) || null
     // Delegated: the agent card's Progress report (agent-cards.js leaves [data-report] to its page), a
     // subagent row (watch it live), the pane's Close, and the ticket rows of Here now.
     details.addEventListener('click', e => {
@@ -97,6 +102,7 @@
     if (loading) return
     loading = true
     window.AgentRules?.load() // the saved specifications and rules, at the same cadence
+    score?.refresh()
     try {
       const r = await fetch('/api/pipeline')
       if (!r.ok) throw new Error(await r.text())

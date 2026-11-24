@@ -61,7 +61,8 @@ example first.
   table with code review marks, and every worktree.
 - **Timeline**: what each agent did on each task as a zoomable flowchart, built
   from the transcripts and git.
-- **Agents**: the orchestration as a pipeline diagram, from request to outcome, with
+- **Agents**: the orchestration as a pipeline diagram, from request to outcome, under a
+  pipeline score (precision, recall, F-score, accuracy and correctness), with
   a live view of one agent (its feed, its edits as diffs, its uncommitted changes)
   and a draft progress report.
 - **Subagents**: every subagent the sessions started, live or ended: what each one is working on, how it
@@ -1117,6 +1118,18 @@ Routes:
   the store as it was. `agent-rules.mjs` also exports `rulesText(store, graph)` (every agent's specification and rules
   as plain text), `readLog()` and `ruleEvents(lines, { now, days })` (the log as events, newest first:
   `{ at, kind: 'rule', agent, flow: null, cell: null, text }`).
+- `GET /api/score[?days=7|30|all]` returns the pipeline scorecard (`score.mjs`) over every flow file, archived ones
+  too: `{ window: { days, from, stallDays }, counts: { delivered, slipped, missed, caught }, lists: { slipped: [{ id,
+  title }], missed: [{ id, title, why: dropped|stopped|stalled }] }, precision, recall, accuracy (each { value, top,
+  bottom }), f: { 1: { value, beta }, 4: { value, beta } }, correctness: { value, right, judged }, agents: [{ label,
+  handed, firstTime, sentBack }], inFlight, builtAt }`. A value is null when its bottom number is 0. Left out, the
+  window is 30 days; any other value is a 400 with one plain sentence.
+- `GET /api/log[?days=7|30|all&cell=delivered|caught|missed|slipped&kind=<kind>]` returns `{ events: [{ at, kind,
+  flow: { id, title } | null, agent, text, cell }], total, window, builtAt }`: the orchestration log (`score-log.mjs`),
+  newest first, at most 300 events (`total` counts every match). `kind` is started, route, handed, passed, failed,
+  pushed, done, dropped, stopped, stalled or rule. `cell` marks the event that put a count in that scorecard cell,
+  from the same rule as `/api/score` (`score.mjs cellOf`), so the `total` for each cell equals that window's count.
+  Left out, the window is 30 days; a bad window, cell or kind is a 400 with one plain sentence.
 
 Each agent on `/api/status` carries `pushesOutsideQa`: how many `git push` commands it ran in the last 24 hours,
 read from the same transcript scan (0 for QA), so a page can flag a push that did not go through QA.
@@ -1283,11 +1296,44 @@ read again with every status refresh without redrawing.
 - **The side panel** slides out from the right edge (the slim tab, remembered in this
   browser). **Tickets** lists every flow with its type, its current step (`build · QA`) and its
   status, the ones needing attention first. **Outputs** lists finished ones with **Explain** (Flows) and
-  **How to test** (QA). Select a row to light that flow's route from its own `progress`: the steps
+  **How to test** (QA). **Log** is the orchestration log (below). Select a row to light that flow's route from its own `progress`: the steps
   it has taken and the one it is on in the accent colour, a rework's return arrow too, and the steps
   still ahead as a dashed accent outline; select it again, or press Escape, to clear. The chips sit
   on each flow's current step from the same `progress`. A step clicked in a flow's head opens this
   page on that node, with that flow lit (`AgentsPage.showNode`).
+- **Pipeline score**, a strip above the diagram (`score.mjs`, `GET /api/score`, `score-strip.js`, `score-view.js`):
+  the whole orchestration scored the way a machine-learning model is. The pipeline makes one call on each piece of
+  work, let it through to the Output or hold it back, and four counts follow:
+
+  |                    | The work was good                                      | The work was not good                                       |
+  | ------------------ | ------------------------------------------------------ | ----------------------------------------------------------- |
+  | Went to the Output | **Right, delivered**: QA passed it, or it finished with no code changes | **Wrong, slipped through**: it finished with code changes QA never tested |
+  | Held back          | **Wrong, missed**: dropped, stopped at QA, or no update for 7 days | **Right, caught**: each time QA failed the work (every attempt) |
+
+  Five tiles: **Precision** (delivered over delivered plus slipped: of everything delivered, how much was checked
+  and right), **Recall** (delivered over delivered plus missed: of everything that should have been delivered, how
+  much was), **F-score** (both in one number; a switch picks F1, both the same, or F4, recall far more),
+  **Accuracy** (delivered plus caught over all four: how often the pipeline made the right call) and
+  **Correctness** (flows QA passed with no failure on the way, over flows QA passed or stopped: right the first
+  time). Each tile shows the percent, the fraction it came from and its plain meaning; with nothing to count it says
+  Not enough data yet. A window switch counts the last 7 days, 30 days (the default) or all time: a QA verdict by
+  its own time (so a flow QA passed or stopped counts at that final verdict), a stalled flow from the day it
+  stalled, any other flow by its last update; anything with no stored time is never counted. Flows still on their
+  way are not counted; archived ones are, the Trash never. **How it is counted** opens the four boxes with the live
+  counts, each with **See these in the log** (the side panel opens on Log with that filter), the flows that slipped
+  through or were missed (each a link to the flow), the sums, and a By agent table (handed to QA, passed first
+  time, sent back). The window, F1 or F4, and the strip collapsed to one line are remembered in this browser; the
+  strip is read again with the diagram.
+- **Log**, the side panel's third choice (`score-log.mjs`, `GET /api/log`, `pipeline-log.js`): one timeline of what
+  happened, newest first. Each event is a time (as the pages show times, the exact one on hover), one plain
+  sentence ("QA failed this and sent it back to Agent 1."), the flow's title, and, when it put a count in a score, a
+  quiet tag such as **Counted: right, caught**. The events: a flow started, its route planned or changed, work handed
+  to QA, each pass and failure (earlier attempts too), QA's push, a flow finished with no QA record, dropped, stopped
+  at QA, stalled, and rule changes once a rule store is wired in. A refused push is not shown: the flow file keeps
+  no time for it. The tags sit on the very events the scorecard counts, so the events tagged in a window add up to
+  its four counts. Chips filter it: All, Delivered, Caught, Missed, Slipped through, Rules. It counts over the
+  scorecard's window. Click an event to select its flow, as on Tickets. A refresh reads it again with the diagram
+  and keeps the filter, the scroll position and the focused row.
 
 Home still shows the agents as compact cards. A state is a dot and one word
 (hover it for the detail, click the word for its meaning):
