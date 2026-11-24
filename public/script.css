@@ -55,6 +55,9 @@
 .sc-ask-list > li::marker { color: var(--muted); }
 .sc-ask-q { margin: 0 0 6px; color: var(--ink); }
 .sc-ask-q strong { font-weight: 600; }
+/* a question's choices (nested bullets, script-questions.js): small, under the question, before its field */
+.sc-ask-choices { margin: -2px 0 8px; padding-left: 1.2em; font-size: 13px; color: var(--ink-2); }
+.sc-ask-choices > li + li { margin-top: 2px; }
 .sc-ask-q code { font: 12.5px/1.5 var(--mono); padding: 1px 5px; border-radius: 4px; background: var(--surface-2); border: 1px solid var(--line); }
 .sc-ask .sc-text { flex: none; min-height: 64px; resize: vertical; padding: 8px 10px; }
 .sc-ask-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 14px 12px; border-top: 1px solid var(--line); }
@@ -108,6 +111,8 @@
 .sc-list { margin: 0; padding-left: 1.6em; }
 .sc-list > li { padding-left: .3em; animation: sc-rise 240ms ease-out both; }
 .sc-list > li + li { margin-top: 8px; }
+/* choices nested under a numbered item sit indented under it, not as a list of their own */
+.sc-out > .sc-list.sc-sub { margin-top: 6px; padding-left: 3.2em; }
 .sc-list > li::marker { color: var(--muted); font-variant-numeric: tabular-nums; }
 .sc-note { font-size: 12.5px; color: var(--muted); }
 .sc-out > .sc-para + *, .sc-out > .sc-list + *, .sc-out > .sc-card + * { margin-top: 12px; } /* after the margin: 0 rules above */

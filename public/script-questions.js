@@ -2,9 +2,10 @@
 // test/script-questions.test.mjs runs it in a vm). Needs script-text.js and script-render.js.
 //
 //   ScriptQuestions.split(text)       { lead, items, tail } or null. `items` are the questions, in
-//                                     order, each { n, spans }: numbered or bulleted lines from the
-//                                     renderer, `n` the number the answer gets (the list's own number,
-//                                     or 1, 2, 3 for bullets). `lead` and `tail` are the renderer's
+//                                     order, each { n, spans, choices? }: numbered or bulleted lines from
+//                                     the renderer, `n` the number the answer gets (the list's own number,
+//                                     or 1, 2, 3 for bullets); `choices`, the bullets nested under it (a
+//                                     list of spans), shown under the question and given no field. `lead` and `tail` are the renderer's
 //                                     paragraph parts around them, shown as quiet text. null when there
 //                                     are no items: the pop-up then shows the whole text with ONE field.
 //   ScriptQuestions.title(split)      the pop-up's head: "Brainstorming has 3 questions".
@@ -25,7 +26,9 @@
     const items = []
     for (const p of parts) {
       if (p.kind !== 'list') continue
-      p.items.forEach((spans, k) => items.push({ n: p.ordered ? p.start + k : items.length + 1, spans }))
+      // ⚠️ Bullets nested under a numbered question are its choices, not questions of their own.
+      if (p.nested && items.length) (items.at(-1).choices ||= []).push(...p.items)
+      else p.items.forEach((spans, k) => items.push({ n: p.ordered ? p.start + k : items.length + 1, spans }))
     }
     return { lead: parts.slice(0, first), items, tail: parts.slice(first).filter(p => p.kind !== 'list') }
   }

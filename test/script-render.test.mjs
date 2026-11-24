@@ -194,3 +194,14 @@ test('parts are stable as text grows: earlier parts keep the same shape when mor
   assert.deepEqual(a[0], b[0], 'the lead-in paragraph is unchanged')
   assert.deepEqual(a[1].sections.slice(0, 4), b[1].sections.slice(0, 4))
 })
+
+// The brainstorm offers choices under a question as sub-bullets (seen in a real run, 2026-11-25): they must stay the
+// choices of that question, not become questions of their own in the pop-up.
+test('regression: bullets indented under a numbered item, or right under it, are marked nested', () => {
+  const p = parts('1. Which?\n   - a) One\n   - b) Two\n2. Next?')
+  assert.deepEqual(p.map(x => [x.kind, x.ordered, x.nested ?? false]), [['list', true, false], ['list', false, true], ['list', true, false]])
+  assert.equal(p[2].start, 2)
+  assert.equal(parts('1. Which?\n- a) One\n- b) Two')[1].nested, true, 'right under it, no blank line')
+  assert.equal(parts('1. Which?\n\n- a note').at(-1).nested, undefined, 'after a blank line, a bullet list of its own')
+  assert.equal(parts('- Who?\n- Why?')[0].nested, undefined, 'a plain bullet list is unchanged')
+})
