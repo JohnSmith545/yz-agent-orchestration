@@ -870,6 +870,8 @@ flow change <flow> --before "<how it was>" --after "<how it is now>" | --clear
 flow summary <flow> "<markdown>" [--commit <sha>]... [--diff <worktree>]...
 flow test-step <flow> "<do this>" --expect "<you should see>" [--shot <path>] [--id t3] [--replace]
 flow test-clear <flow>
+flow hand-step <flow> "<do this>" --expect "<you should see>" [--where "<path or click path>"] [--copy "<value to paste>"] [--why "..."] [--id h3] [--replace]
+flow hand-clear <flow>
 flow say <flow> "<what was done>" [--why "<the reason>"] [--who "<label>"] [--id s2 --replace]
 flow say-clear <flow>
 flow pr <flow> --head <branch> --base <branch> --title "<title>" --body-file <path> | --clear
@@ -925,6 +927,14 @@ flow summary dark-mode "Every colour is now a **theme token**, so one switch cha
 flow test-step dark-mode "Open Settings and click the moon next to Theme." --expect "The page turns dark at once." --shot moon.png --by "Agent 3"
 flow test-step dark-mode "Reload the page." --expect "It is still dark." --shot reload.png --by "Agent 3"
 ```
+
+`hand-step` records work only the user can do (a human decision, CI/CD, cloud setup, a console setting) as an
+ordered checklist on the flow's `hand` block (`hand-steps.mjs`): what to do (200 characters, one line), what they
+should see when it worked (`--expect`, 200), the exact place (`--where`, 300), a value to paste shown with a Copy
+button (`--copy`, 2000, may run over several lines) and why (`--why`, 160), at most 20 steps with ids `h1`, `h2`….
+The agent records the steps and stops; it never runs that work. The user ticks each step on the flow's page (each
+tick is `{ by: 'you', at }`, kept through a reload and an agent rewrite only while the step asks the same thing),
+and once all are ticked marks the flow done. `--id h2 --replace` rewrites one; `hand-clear` empties them.
 
 `flow show` prints the JSON alone on stdout (so `flow show x > x.json`, an edit, then `flow write x.json`
 round-trips) and an Output block on stderr: it counts the result shots, the diagram's boxes and arrows (or says

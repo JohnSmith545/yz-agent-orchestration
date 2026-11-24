@@ -27,6 +27,7 @@ import {
 } from '../flows.mjs'
 import { isTrashed } from '../trash.mjs'
 import { changeBlock, changeCommands } from './change-cli.mjs'
+import { handBlock, handCommands } from './hand-cli.mjs'
 import { prBlock, prCommands } from './pr-cli.mjs'
 import { qaBlock, qaCommands } from './qa-cli.mjs'
 import { newRoute, routeBlock, routeCommands, settleRoute } from './route-cli.mjs'
@@ -106,6 +107,12 @@ The Output, what the user sees first: when a piece of work is finished, record
   summary <flow> "<markdown>" [--commit <sha>]... [--diff <worktree>]...   what changed and why; replaces the changes
   test-step <flow> "<do this>" --expect "<you should see>" [--shot <path>] [--id t3] [--replace]
   test-clear <flow>     empties the test steps, to record them again
+Work only the user can do (a human decision, CI/CD, cloud setup, a console setting): record the steps, then STOP;
+never do that work yourself. The user ticks each step off on the dashboard.
+  hand-step <flow> "<do this>" --expect "<you should see>" [--where "<path or click path>"] [--copy "<value to paste>"]
+   [--why "<one line>"] [--id h3] [--replace]   one step each, in order; at most 20 steps, a line of 200 (where 300,
+   copy 2000, why 160); --replace rewrites a step, and a changed step loses the user tick
+  hand-clear <flow>     empties the by-hand steps, to record them again
   pr <flow> --head <branch> --base <branch> --title "<title>" --body-file <path>   when the work is ready for the
    base branch: a plain-English title and a body that follows the repo pull request template; never push or open
    the pull request yourself: hand the flow to QA, which tests it and pushes it on a pass; the user then sends it.
@@ -319,6 +326,7 @@ function outputBlock(flow, config) {
     `  summary: ${isText(out.summary) ? `yes, ${count(out.changes?.length || 0, 'change')}` : 'none yet'}`,
     `  test steps: ${steps.length || 'none yet'}`,
     ...steps.map((t, i) => `    ${i + 1}. [${t.id}] ${t.do} -> ${t.expect}${t.shot ? '' : ' (no shot)'}`),
+    ...handBlock(flow),
     ...prBlock(flow),
     ...qaBlock(flow),
   ]
@@ -462,6 +470,7 @@ const COMMANDS = {
   'test-clear': cmdTestClear,
   ...sayCommands(NO_NAME),
   ...changeCommands(NO_NAME),
+  ...handCommands(NO_NAME),
   ...prCommands(NO_NAME),
   ...routeCommands(NO_NAME),
   ...withQaRules(qaCommands({ noName: NO_NAME, evidenceTarget, copyEvidence, shotExt: SHOT_EXT, shotError: SHOT_ERROR })),
