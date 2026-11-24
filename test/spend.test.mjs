@@ -44,7 +44,7 @@ test('recordCost refuses an unknown kind, and never throws', () => {
   assert.equal(recordCost('lunch', 1), false)
   assert.equal(fs.existsSync(SPEND_FILE), false)
   assert.deepEqual([...KINDS], ['chat', 'relay', 'explain', 'refresh', 'script'])
-  assert.equal(recordCost('script', 0.2, at(13, 11)), true, 'a SCRIPT Generator run is a kind of its own')
+  assert.equal(recordCost('script', 0.2, at(13, 11)), true, 'a Brainstorming run is a kind of its own')
   fs.rmSync(SPEND_FILE, { force: true })
 })
 

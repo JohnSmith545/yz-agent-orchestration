@@ -1,6 +1,13 @@
-// The SCRIPT Generator page (#/script). The user writes a rough idea; one Opus run
+// The Brainstorming page (#/brainstorming). The user writes a rough idea; one Opus run
 // (POST /api/script/generate, script-routes.mjs) streams back a ready-to-paste prompt
-// in six labelled sections, Situation, Character, Request, Intent, Presentation, Tone.
+// in six labelled sections, Situation, Character, Request, Intent, Presentation, Tone
+// (the SCRIPT method), using the brainstorming skill when it is installed (script.mjs).
+//
+// ⚠️ The page was called SCRIPT until 2026-11-25. Only the words the user reads changed: the
+// file names, the window.Script* names, the /api/script/ routes and the data files keep the old
+// word on purpose. Renaming them would touch files other work is in, and the saved History
+// (data/script-log.json) and Context (data/script-context.json) must keep opening. The address
+// is #/brainstorming, and #/script still lands here (shell.js resolve).
 //
 // This file is the DOM glue only. What to draw comes from ScriptState (script-state.js),
 // the text rules from ScriptText (script-text.js), the answer's parts from ScriptRender
@@ -243,7 +250,7 @@
     let followUp = false
     if (St().view(state).showAnswers) {
       if (!els.answers.value.trim()) return hint('Answer the questions first.', els.answers)
-      text = T().followUp(original, state.questions, els.answers.value)
+      text = T().followUp(original, state.questions, els.answers.value, state.askedBy) // a second round keeps the first's answers
       followUp = true
     }
     if (text.length > MAX) return hint(`That is over ${MAX} characters with the answers. Shorten it a little.`, followUp ? els.answers : els.input)
@@ -340,9 +347,9 @@
 
   function open() {
     if (!els) mount()
-    window.Shell.setTitle('SCRIPT', 'script')
+    window.Shell.setTitle('Brainstorming', 'script')
     window.Shell.setStatus('Opus 5.5 · high effort',
-      '<p>Each <b>Generate</b> is one Claude Code run on Opus 5.5 at high effort, with no tools and none of your settings, CLAUDE.md or memory. It is billed to your Claude account and counted in <b>Spend today</b>.</p>' +
+      '<p>Each <b>Generate</b> is one Claude Code run on Opus 5.5 at high effort, with no tools and none of your settings, CLAUDE.md or memory. It uses the brainstorming skill when it is installed. It is billed to your Claude account and counted in <b>Spend today</b>.</p>' +
       '<p>One run goes at a time. When the model asks questions first, answer them in the pop-up and press <b>Answer and generate</b>. <b>Restart</b> stops a run and starts the page over. <b>History</b>, under the boxes, brings back an earlier run.</p>')
     if (state.phase === 'idle') els.input.focus({ preventScroll: true })
   }

@@ -19,6 +19,9 @@
 //                                       showAnswers, button, error, incomplete, canRetry,
 //                                       canRestart, asking, progress, context }
 //
+// `askedBy` is the text of the run that asked the current questions: a second round of answers is
+// chained onto it (ScriptText.followUp), never onto a follow-up that failed, which holds those answers already.
+//
 // Phases: idle → running → prompt | questions | error, and reset → idle from any of them. The
 // completion moment can come while still running (Tone, then the closing fence) or at a good end
 // (all six seen); never on the questions path, a failure or a reset.
@@ -33,7 +36,7 @@
 
   const STOPPED = 'This run was stopped before it finished.'
   const initial = () => ({
-    phase: 'idle', output: '', error: '', completed: false, request: '', followUp: false, questions: '', run: 0, context: null,
+    phase: 'idle', output: '', error: '', completed: false, request: '', followUp: false, questions: '', askedBy: '', run: 0, context: null,
     restored: false, asking: false,
   })
 
@@ -66,7 +69,7 @@
       if (!ev.ok) return { ...s, phase: 'error', error: String(ev.error || 'The run stopped before it finished.') }
       const kind = T.classify(s.output)
       if (kind === 'empty') return { ...s, phase: 'error', error: EMPTY }
-      if (kind === 'questions') return { ...s, phase: 'questions', questions: s.output, asking: true }
+      if (kind === 'questions') return { ...s, phase: 'questions', questions: s.output, askedBy: s.request, asking: true }
       return { ...s, phase: 'prompt', followUp: false, completed: s.completed || T.finished(s.output, true) }
     }
     return s
@@ -84,7 +87,7 @@
     if (!ev.ok) return { ...base, phase: 'error', error: String(ev.error || 'The run stopped before it finished.') }
     const kind = T.classify(output)
     if (kind === 'empty') return { ...base, phase: 'error', error: EMPTY }
-    if (kind === 'questions') return { ...base, phase: 'questions', questions: output }
+    if (kind === 'questions') return { ...base, phase: 'questions', questions: output, askedBy: base.request }
     return { ...base, phase: 'prompt', completed: true }
   }
 

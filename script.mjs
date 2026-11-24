@@ -1,6 +1,24 @@
-// The SCRIPT Generator's model turn (#/script, public/script-page.js): ONE headless
+// The Brainstorming page's model turn (#/brainstorming, public/script-page.js): ONE headless
 // Claude Code turn that turns the user's rough idea into a prompt with six labelled
 // sections (Situation, Character, Request, Intent, Presentation, Tone), streamed.
+// (The page was called SCRIPT; its files, routes and names here keep that word, see shell.js.)
+//
+// The brainstorming skill (/superpowers:brainstorming), when script-skill.mjs finds it installed:
+// its text is READ FROM THE INSTALLED PLUGIN AT RUN TIME and goes in the system prompt, after the
+// rules and a mapping of its steps onto this page (script-prompt.mjs systemPrompt). Never copied here.
+// ⚠️ Why not the slash command, the supported way (measured on 2.1.330, 2026-11-25, a local stub
+// for the request bodies and real runs for the cost):
+// - It works: `--plugin-dir` loads the plugin for one run, `--settings {"disableAllHooks":true}`
+//   stops its SessionStart hook adding a second whole skill, and stdin starting with
+//   `/superpowers:brainstorming` is expanded into the skill in the same request, tools still off.
+// - But it DOUBLED the cost: $0.103 against $0.051 on main for the same idea and context. The skill
+//   then sits in the user turn after the arguments, which change every run, so it is written to the
+//   prompt cache every run; and the CLI sends the user's text (context included) twice, as the
+//   command's arguments and again after the skill. Two content blocks, or two messages, do not help:
+//   the first is not expanded, the second is two paid turns.
+// - In the system prompt the skill is the same on every run, so the CLI's one-hour prompt cache
+//   reads it at a tenth of the price after the first run, and the text goes once. Costs: README.
+// Without the skill the run is the built-in rules alone, and the route says so in one Left out line.
 //
 // Rules this file keeps:
 // - It goes through the Claude Code CLI (claudeBin), like the chat, never the raw API:
@@ -38,7 +56,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { claudeBin } from './claude-cli.mjs'
-import { SCRIPT_SYSTEM_PROMPT } from './script-prompt.mjs'
+import { systemPrompt } from './script-prompt.mjs'
 import { recordCost } from './spend.mjs'
 
 export const SCRIPT_MODEL = 'claude-opus-5-5'
@@ -56,10 +74,13 @@ export const MESSAGES = Object.freeze({
   cancelled: 'Stopped.',
 })
 
-/** The argv of one run: headless, streamed, no tools, no MCP, no settings, no session. The text goes on stdin. */
-export function scriptArgs(systemPrompt = SCRIPT_SYSTEM_PROMPT) {
+/**
+ * The argv of one run: headless, streamed, no tools, no MCP, no settings, no session. The text goes on stdin.
+ * With `skill` ({ text }, script-skill.mjs) the system prompt also carries the skill, after its mapping.
+ */
+export function scriptArgs(skill = null) {
   return [
-    '-p', '--model', SCRIPT_MODEL, '--effort', SCRIPT_EFFORT, '--system-prompt', systemPrompt,
+    '-p', '--model', SCRIPT_MODEL, '--effort', SCRIPT_EFFORT, '--system-prompt', systemPrompt(skill?.text),
     '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
     '--tools', '', '--strict-mcp-config', '--setting-sources', '', '--no-session-persistence', '--name', 'SCRIPT',
   ]
@@ -117,11 +138,12 @@ function dropDir(dir) {
 /**
  * Run one generation for `text` (already checked). `onDelta(text)` hears each text delta as it
  * arrives. Returns { done, cancel }: `done` resolves once the child has closed (never rejects),
- * `cancel()` kills it (the browser went away).
+ * `cancel()` kills it (the browser went away). `skill` ({ text } from script-skill.mjs, or null)
+ * makes the run carry the brainstorming skill.
  */
 export function generate(text, {
   onDelta = () => {}, spawn = nodeSpawn, bin = claudeBin, record = recordCost,
-  idleMs = SCRIPT_IDLE_MS, makeDir = tempDir, removeDir = dropDir,
+  idleMs = SCRIPT_IDLE_MS, makeDir = tempDir, removeDir = dropDir, skill = null,
 } = {}) {
   let child = null
   let cancelled = false
@@ -153,7 +175,7 @@ export function generate(text, {
     let dir = ''
     try {
       dir = makeDir()
-      child = spawn(binPath, scriptArgs(), { cwd: dir, windowsHide: true, env: { ...process.env } })
+      child = spawn(binPath, scriptArgs(skill), { cwd: dir, windowsHide: true, env: { ...process.env } })
     } catch {
       if (dir) removeDir(dir)
       return finish({ error: MESSAGES.missing })

@@ -3,7 +3,10 @@
 //
 //   ScriptRender.parts(text, { live })  → a list of parts, in order:
 //       { kind: 'para', note, spans }                     a paragraph of prose
-//       { kind: 'list', ordered, start, note, items }     a numbered or bulleted list, items are spans
+//       { kind: 'list', ordered, start, note, items }     a numbered or bulleted list, items are spans;
+//                                                         `nested: true` on a bulleted list indented under,
+//                                                         or right under, a numbered item (a question's
+//                                                         choices: script-questions.js keeps them with it)
 //       { kind: 'prompt', lead, sections, closed }        the code block as a card: `lead` is plain text
 //                                                         before the first label, `sections` are
 //                                                         { name, letter, text } in the order written
@@ -98,7 +101,11 @@
       if (!line.trim()) cur = null
       else if (ol || ul) {
         const ordered = Boolean(ol)
-        if (cur?.kind !== 'list' || cur.ordered !== ordered) groups.push((cur = { kind: 'list', ordered, start: ordered ? Number(ol[1]) : 1, items: [] }))
+        if (cur?.kind !== 'list' || cur.ordered !== ordered) {
+          const under = groups.at(-1)?.kind === 'list' && groups.at(-1).ordered // the last group is a numbered list
+          const nested = !ordered && under && (/^\s/.test(line) || cur === groups.at(-1)) // indented, or no blank line between
+          groups.push((cur = { kind: 'list', ordered, start: ordered ? Number(ol[1]) : 1, items: [], ...(nested ? { nested } : {}) }))
+        }
         cur.items.push(ordered ? ol[2] : ul[1])
       } else if (cur?.kind === 'list' && /^\s+\S/.test(line)) {
         cur.items[cur.items.length - 1] += ' ' + line.trim() // an indented line continues its item
@@ -108,7 +115,7 @@
     groups.forEach((g, n) => {
       const tail = live && n === groups.length - 1
       if (g.kind === 'para') out.push({ kind: 'para', note, spans: inline(trimLines(g.lines.join('\n')).trim(), tail) })
-      else out.push({ kind: 'list', ordered: g.ordered, start: g.start, note, items: g.items.map((t, k) => inline(t.trim(), tail && k === g.items.length - 1)) })
+      else out.push({ kind: 'list', ordered: g.ordered, start: g.start, note, items: g.items.map((t, k) => inline(t.trim(), tail && k === g.items.length - 1)), ...(g.nested ? { nested: true } : {}) })
     })
   }
 

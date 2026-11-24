@@ -52,7 +52,7 @@
     }
 
     function list(p) {
-      const n = { key: keyOf(p), el: make(p.ordered ? 'ol' : 'ul', p.note ? 'sc-list sc-note' : 'sc-list'), items: [] }
+      const n = { key: keyOf(p), el: make(p.ordered ? 'ol' : 'ul', `sc-list${p.note ? ' sc-note' : ''}${p.nested ? ' sc-sub' : ''}`), items: [] }
       patchList(n, p)
       return n
     }

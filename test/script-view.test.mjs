@@ -227,3 +227,13 @@ test('while live, the caret (sc-live) sits on the last thing being written, and 
   draw(view, '1. one\n2. two\n\n```\nSituation: a\n```', false)
   assert.deepEqual(live(), [], 'no caret once the run is over')
 })
+
+test('choices nested under a numbered question are drawn as an indented sub-list (sc-sub)', () => {
+  const { root, view } = make()
+  draw(view, '1. Which?\n   - a) One\n   - b) Two\n2. Next?')
+  const [ol, ul, ol2] = root.children
+  assert.equal(ul.tagName, 'UL')
+  assert.ok(ul.classList.contains('sc-sub'))
+  assert.ok(!ol.classList.contains('sc-sub') && !ol2.classList.contains('sc-sub'))
+  assert.equal(ol2.getAttribute('start'), '2')
+})

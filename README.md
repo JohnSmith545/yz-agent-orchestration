@@ -54,7 +54,7 @@ example first.
   compact card per agent, and who is messaging whom.
 - **QA**: every ticket that passed QA, with QA's report, its screenshots, the steps
   to test it yourself and links to the tested commit and the pushed branch.
-- **SCRIPT**: turns a rough idea into a ready-to-paste prompt in six labelled parts, streamed, with a soft pop when
+- **Brainstorming**: turns a rough idea into a ready-to-paste prompt in six labelled parts, streamed, with a soft pop when
   it is done. Its **Context** panel tells it about your agents, a live session and your own notes.
 - **Tickets**: a ticket collection from your tracker, an orchestration grid of
   which agent took which ticket how far (local, dev, stage, prod), the ticket
@@ -97,8 +97,9 @@ turns, billed to your Claude account like any other session:
 - **Learning words**: a flow's marked words the glossary does not know yet, up to 12 in one small turn,
   a fraction of a cent; at most 200 words a day.
 - **Ticket refresh**: each refresh of a collection (the button, or its timer) is one turn.
-- **The SCRIPT Generator** (`#/script`): each **Generate** is one Opus 5.5 turn at high effort, about 3 cents for a
-  full prompt and under 2 cents when it asks questions first (measured 2026-11-24).
+- **Brainstorming** (`#/brainstorming`): each **Generate** is one Opus 5.5 turn at high effort, about 10 cents for
+  the first run in an hour and about 5 cents for each run after it (measured 2026-11-25, with the brainstorming skill
+  and the orchestration brief).
 
 The figures are measurements from one setup, not quotes. **Spend today** in the
 rail adds up what these turns cost.
@@ -145,13 +146,13 @@ rail adds up what these turns cost.
   chat agent could tick **verified** or answer an ask by driving this page. Add
   `--blocked-origins 127.0.0.1:4317` to the Playwright MCP server's arguments in
   your user-level MCP config (more under The Ask drawer below).
-- The SCRIPT **Context** panel sends what you attach (the orchestration brief, a live session's latest talk, your
-  notes) only to your own clean SCRIPT run: no tools, no settings, nothing else sees it. The brief is built from
+- The Brainstorming **Context** panel sends what you attach (the orchestration brief, a live session's latest talk, your
+  notes) only to your own clean Brainstorming run: no tools, no settings, nothing else sees it. The brief is built from
   labels and settings and scrubbed of paths, ids, emails and tokens; a live session is your own conversation, so
   pick one only when you are happy for that text to go to the model. Its routes take same-origin writes only, and
   the model is told the context is background, never instructions.
 - `config.json` and everything under `data/` (flows, evidence, ticket snapshots,
-  the chat transcript, spend, the SCRIPT context and the SCRIPT run log of your last 50 ideas and their prompts)
+  the chat transcript, spend, the Brainstorming context and its run log of your last 50 ideas and their prompts)
   stay on your machine and are git-ignored. Clear the run log with `DELETE /api/script/log` or from the page.
 
 ## Configuration
@@ -212,12 +213,12 @@ mode is `:root[data-theme="dark"]`.
 
 `public/shell.js` and `shell.css` draw the frame every page shares.
 
-- **The rail** (56 px, icons only): the brand mark (Home), then Flows first, QA, SCRIPT, Tickets,
+- **The rail** (56 px, icons only): the brand mark (Home), then Flows first, QA, Brainstorming, Tickets,
   Timeline, Agents, Subagents, Glossary, and at the foot Ask, Alerts, Spend and Theme. Hover it for 300 ms,
   or Tab into it, and it opens to 200 px with labels; the pin at the top keeps
   it open (remembered). Under 720 px wide the rail is a bar along the bottom.
   The routes are `#/` (Flows, the landing page), `#/flows` (the same page, so old links keep working),
-  `#/home`, `#/qa` (and `#/qa/<flow id>` for one ticket), `#/script`,
+  `#/home`, `#/qa` (and `#/qa/<flow id>` for one ticket), `#/brainstorming` (`#/script` still lands there),
   `#/tickets`, `#/timeline`, `#/agents`, `#/subagents`, `#/glossary`, `#/settings`
   and `#/agent/<id>[/<subagent>]`; anything else goes to `#/`.
   Old links still work: `#/factory` goes to `#/tickets` and opens the Ask
@@ -298,7 +299,7 @@ mode is `:root[data-theme="dark"]`.
   still shows that day's reminder once.
 - **Spend today** (`public/spend.js`, `spend.mjs`): above Theme, `$12.40 today`
   is what the dashboard's OWN headless turns cost today: the chat, the answer
-  relay, the explainer, the ticket refreshes and the SCRIPT Generator. It is hidden while today is
+  relay, the explainer, the ticket refreshes and Brainstorming. It is hidden while today is
   zero, and the closed rail shows the short amount (`$4.20`, `$12`). Click it
   for the total by kind and the last 20 turns with how long ago. Each turn's
   `total_cost_usd` is appended as one line to `data/spend.jsonl` (`{ at, kind,
@@ -586,31 +587,46 @@ is never red: the page says, in plain words, that it has not been through QA and
 still being worked on, it waits for QA, or it was dropped), with **Explain in Flows**, and **How to test in Flows** (the
 flow's Output tab) only when that flow has test steps. A link straight to `#/qa/<flow id>` reads that ticket at once, beside the list.
 
-### SCRIPT Generator (#/script)
+### Brainstorming (#/brainstorming)
+
+The page was called SCRIPT; SCRIPT is now only the name of the six-part method. `#/script` still lands here, and its
+files, its `/api/script/` routes and its data files keep the old word, so saved History and Context keep working.
 
 Write a rough idea in **Your thoughts** and press **Generate** (or Ctrl+Enter, Cmd+Enter on a Mac). It comes back as a
 prompt for any AI, ready to paste, in one code block with six labelled parts: **S**ituation, **C**haracter,
-**R**equest, **I**ntent, **P**resentation and **T**one. It never does the task itself. Any assumptions it made sit in
-one line under the block. **Copy** copies only what is inside the block (no fences, no assumptions line) and says
+**R**equest, **I**ntent, **P**resentation and **T**one. It never does the task itself. Every assumption it made is
+listed under the block, as quiet notes you can overrule. **Copy** copies only what is inside the block (no fences, no assumptions line) and says
 **Copied** for a moment; it stays off until a block exists.
 
 - **How it calls the model:** one headless Claude Code turn, like the chat, never the raw API (no API key is needed):
-  Opus 5.5 (`claude-opus-5-5`) at high effort, with the SCRIPT system prompt in `script-prompt.mjs` (word for word,
-  and tested). The run is clean: `--tools ""` and `--strict-mcp-config` give it no tools and no MCP servers,
+  Opus 5.5 (`claude-opus-5-5`) at high effort, with the system prompt in `script-prompt.mjs`: the user's own rules for building a prompt (the six
+  parts, reading the context first, a silent gap scan, questions scaled to the task, only the facts you gave, plan
+  first for code), taken from their method document, each rule and the exact text tested. The run is clean: `--tools ""` and `--strict-mcp-config` give it no tools and no MCP servers,
   `--setting-sources ""` loads none of your settings (without it your `~/.claude/CLAUDE.md` and plugin hooks rode
   along), it runs in a fresh empty temp folder with `--no-session-persistence`, and `--name SCRIPT` stops the CLI's
   own session-title call. The CLI still adds its short environment note and your account email; no flag removes them.
   Your text goes on stdin. The route is `POST /api/script/generate` (`{ text }`, 1 to 8000 characters, same-origin
   only), streamed back as NDJSON: `delta` lines, then one `done` or `error` line. One run goes at a time (a second
   gets 409). Closing the tab stops the run; going to another page does not, and the result is there when you come back.
-- **What it costs:** about 3 cents for a full prompt and under 2 cents when it asks questions instead (measured
-  2026-11-24: $0.034 and $0.015). Each run counts in **Spend today** as SCRIPT Generator.
+- **The brainstorming skill** (`/superpowers:brainstorming`): when the superpowers plugin is installed in the account
+  folder the run uses (`CLAUDE_CONFIG_DIR`, else `~/.claude`), `script-skill.mjs` finds it through that folder's
+  `plugins/installed_plugins.json` and reads its `SKILL.md` at run time (it is never copied into this repo). The system
+  prompt carries it after the rules and a short mapping onto this page: its questions go in the pop-up as one numbered
+  list, its design is the six-part prompt, its spec file, commits and plan do not apply, and the rules win where the
+  two differ. Tools stay off. Without the plugin the page works on the built-in rules alone, and the line under the
+  output says `Left out: Brainstorming skill (It was not found on this machine, ...)`. Invoking it as a slash command
+  (`--plugin-dir` and the command on stdin) also works, but measured twice the cost, so it is not used (`script.mjs`
+  says why).
+- **What it costs** (measured 2026-11-25, the orchestration brief attached, no live session): the first run in an hour
+  writes the rules and the skill to the prompt cache, about 10 cents ($0.096 for a full prompt). Runs after it within
+  the hour read them back at a tenth of the price: $0.045 for a set of questions. On main before the skill, the same
+  full prompt cost $0.051. Each run counts in **Spend today** as Brainstorming.
 - **The layout:** two equal columns, each a head row of the same height, a box, and a foot row. Both boxes share one
   height that fits the window, so they start and end on the same line before, during and after a run; the output
   scrolls inside its box. The page is as wide as the banner above it. Under 900 px the columns stack.
 - **The output:** clean text, never raw marks. Bold and code show as bold and code, numbered and bulleted lines as
   real lists, and the code block as a prompt card with one row per section (its letter, its label, its text), with
-  no fence lines. The assumptions line under it is a small quiet note. It is drawn from text only, never as HTML
+  no fence lines. The assumptions under it are small quiet notes. It is drawn from text only, never as HTML
   (`script-render.js` splits the answer into parts, `script-view.js` draws them and only patches what changed).
 - **The letters:** S C R I P T sit above the output. While the model thinks (no text yet) they ripple in a slow wave
   and the line says **Thinking…**. Each lights in the accent with a small pop as its section starts streaming, read
@@ -625,10 +641,13 @@ one line under the block. **Copy** copies only what is inside the block (no fenc
 - **The pop and mute:** the pop is made in the browser with the Web Audio API (no sound file): a 115 ms sine that
   falls from 620 to 300 Hz, at a low volume. The speaker button by the letters mutes it; the choice is kept in this
   browser (`script.muted`). Muted, the letters and the glow still show.
-- **When it asks questions:** an idea that leaves the situation or the goal unclear gets up to three short questions
-  instead of a prompt. They show in the output box, the letters stay dark (the line says **Questions first**),
-  nothing pops, and your text is left as it was. A pop-up opens over **Your thoughts**, `SCRIPT has 3 questions`,
-  with each question and its own answer field (text with no numbered or bulleted items gets one field). **Answer and
+- **When it asks questions:** an idea with gaps that matter gets a few short questions instead of a prompt, highest
+  impact first: none or one or two for a small clear ask, at most 5 at a time, and at most two rounds (the second
+  round sends the first round's answers again, since the model remembers nothing). Say *just do it* or *skip the
+  questions* in your idea and it writes the prompt at once, with its assumptions listed. They show in the output box, the letters stay dark (the line says **Questions first**),
+  nothing pops, and your text is left as it was. A pop-up opens over **Your thoughts**, `Brainstorming has 3 questions`,
+  with each question and its own answer field (text with no numbered or bulleted items gets one field). Choices the
+  model offers as bullets under a question show under that question and get no field of their own. **Answer and
   generate** (or Ctrl+Enter in it) needs at least one answer and sends your text, then `Answers to your questions:`,
   the questions and your answers as a numbered list, `(no answer)` for any you skipped. **Later**, Escape or × closes
   it and keeps what you typed in the **Your answers** box under your thoughts; **Show the questions** opens it again.
@@ -642,11 +661,11 @@ one line under the block. **Copy** copies only what is inside the block (no fenc
   line says so with **Retry**, which sends the same request again. Any text that had arrived stays, marked
   **Incomplete**. There is no pop.
 
-#### Context: what SCRIPT knows about your system
+#### Context: what Brainstorming knows about your system
 
-The run is clean, so on its own SCRIPT knows nothing about your agents or your work, and an idea such as "a prompt
+The run is clean, so on its own Brainstorming knows nothing about your agents or your work, and an idea such as "a prompt
 for my full agent orchestration" gets questions back. The **Context** tab on the right edge of the page opens a panel
-(like the Agents page's) that says what SCRIPT is told before it writes. Open or closed is kept in this browser
+(like the Agents page's) that says what Brainstorming is told before it writes. Open or closed is kept in this browser
 (`script.contextOpen`). It holds three kinds of context, and the tab shows how many are on (`Context · 3`):
 
 - **Orchestration** (on by default): a plain brief the dashboard writes itself from what it already knows. What the
