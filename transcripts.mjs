@@ -111,6 +111,7 @@ function newScan() {
     tickets: new Map(),
     feed: { events: [], seq: 0, byToolId: new Map() },
     mtime: null,
+    model: null, // the model of the newest reply read (the agent window warns when the planner or Security is not on Opus)
   }
 }
 
@@ -158,6 +159,8 @@ function handleLine(line, scan, ownCwd, knownTrees, inFeed) {
     return
   }
   noteMentions(rec, scan, ownCwd, knownTrees)
+  // the model the session really runs on: its newest reply says (a <synthetic> one is the CLI's own, not a model)
+  if (rec.type === 'assistant' && typeof rec.message?.model === 'string' && /^[a-z]/i.test(rec.message.model)) scan.model = rec.message.model
   if (inFeed) noteFeed(rec, scan.feed)
 }
 
@@ -468,9 +471,11 @@ export async function listSubagents(sessionFile, knownTrees) {
     const file = path.join(dir, `agent-${id}.jsonl`)
     let meta
     let st
+    let born
     try {
       meta = JSON.parse(await fs.readFile(path.join(dir, n), 'utf8'))
       st = await fs.stat(file)
+      born = await fs.stat(path.join(dir, n)) // the meta file is written when the subagent starts
     } catch {
       continue
     }
@@ -488,6 +493,7 @@ export async function listSubagents(sessionFile, knownTrees) {
       finished: Boolean(meta.finished),
       state: meta.finished ? 'done' : state,
       lastTool,
+      startedAt: new Date(Math.min(born.birthtimeMs || born.mtimeMs, born.mtimeMs, st.mtimeMs)).toISOString(),
       updatedAt: st.mtime.toISOString(),
       worktree: newestKey(scan.worktrees),
       tickets: newestKeys(scan.tickets, 4),

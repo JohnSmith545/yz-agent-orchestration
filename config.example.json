@@ -57,7 +57,9 @@
     "qa": "QA",
     "producers": null,
     "protectedBranches": ["dev", "stage", "main", "master"],
-    "maxReworks": 3
+    "maxReworks": 3,
+    "planner": null,
+    "security": null
   },
   "pr": {
     "enabled": false,

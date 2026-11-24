@@ -41,7 +41,7 @@ test('one new ask on a later poll is one Answer alert naming the flow and node',
 
 test('an ask already seen raises nothing again, even after a reload', () => {
   const r = run(null, pulse({ waiting: [ask('a', 'n1')] }), { seen: ['a:n1'], first: true })
-  assert.deepEqual(r.alerts, [{ type: 'summary', count: 1, text: '1 ask waiting for you on the Flows page.', desktop: false }])
+  assert.deepEqual(r.alerts, [{ type: 'summary', count: 1, text: '1 ask waiting for you in Human review.', desktop: false }])
   const later = run(new Map(), pulse({ waiting: [ask('a', 'n1')] }), { seen: ['a:n1'] })
   assert.deepEqual(later.alerts, [])
 })
@@ -53,7 +53,7 @@ test('the same node id in two flows is two different asks', () => {
 
 test('the first poll with several new asks is one summary, with a desktop alert', () => {
   const r = run(null, pulse({ waiting: [ask('a', 'n1'), ask('b', 'n1')] }), { first: true })
-  assert.deepEqual(r.alerts, [{ type: 'summary', count: 2, text: '2 asks waiting for you on the Flows page.', desktop: true }])
+  assert.deepEqual(r.alerts, [{ type: 'summary', count: 2, text: '2 asks waiting for you in Human review.', desktop: true }])
 })
 
 test('the first poll with exactly one new ask names it', () => {
@@ -342,9 +342,9 @@ test('Escape closes the alerts panel only when it is open, nothing took the key,
   assert.equal(takesEscape(esc(), true, { Palette: { isOpen: false } }), true)
 })
 
-test('on the Flows page the first poll raises no N asks waiting summary: the header dot and the strip already say it', () => {
+test('on the Agents page the first poll raises no N asks waiting summary: the header dot and the Human review box already say it', () => {
   const several = pulse({ waiting: [ask('a', 'n1'), ask('b', 'n1')] })
-  assert.deepEqual(types(run(null, several, { first: true, onFlows: true })), [])
-  assert.deepEqual(run(null, several, { first: true, onFlows: true }).seen, ['a:n1', 'b:n1'], 'still seen, so they never pop later')
-  assert.deepEqual(types(run(null, several, { first: true, onFlows: false })), ['summary'], 'other pages keep it')
+  assert.deepEqual(types(run(null, several, { first: true, onBox: true })), [])
+  assert.deepEqual(run(null, several, { first: true, onBox: true }).seen, ['a:n1', 'b:n1'], 'still seen, so they never pop later')
+  assert.deepEqual(types(run(null, several, { first: true, onFlows: true })), ['summary'], 'the Flows page no longer lists them, so it keeps the summary')
 })

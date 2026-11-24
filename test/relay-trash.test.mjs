@@ -36,7 +36,7 @@ function recorder() {
   const prompts = []
   return { prompts, run: async p => (prompts.push(p), SENT) }
 }
-const LINE = 'The user deleted the flow "Add a dark mode toggle" (dark-mode). Stop work on it and do not write to it again. It can be restored from the Trash for 24 hours.'
+const LINE = 'The user deleted the flow "Add a dark mode toggle" (dark-mode). Stop work on it and do not write to it again. It is in the flow archive, and only the user can restore it.'
 
 test('the deleted line, word for word', () => {
   const p = buildPrompt('Agent 3', [{ deleted: true, flow: { id: 'dark-mode', title: 'Add a dark mode toggle' } }])

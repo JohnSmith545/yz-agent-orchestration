@@ -1,23 +1,21 @@
-// The Trash: where a flow the USER deleted waits 24 hours before it is gone for good.
+// Deleted flows: where a flow the USER deleted waits in the flow archive (its Deleted group) until the user
+// restores it or chooses Delete for good. Nothing leaves by a timer: there is no expiry and no sweep.
 //
 // One entry per flow, data/trash/<id>.json = { deletedAt, flow }: the flow exactly as it was
-// stored, written with writeAtomic like every other data file. The flow's evidence
-// (data/evidence/<id>/) is NOT moved: it stays where the flow's refs point, so a restore is whole,
-// and it is removed with the entry when the entry is purged.
+// stored, written with writeAtomic like every other data file. The folder keeps its old name, so an entry an
+// earlier version wrote (when this was a 24-hour Trash) is read as it is: no migration ever moves a file. The
+// flow's evidence (data/evidence/<id>/) is NOT moved: it stays where the flow's refs point, so a restore is
+// whole, and it is removed only by Delete for good (purge).
 //
 // Rules this file keeps:
-// - Expiry is decided from the STORED deletedAt (an unreadable entry: its file time), never from a
-//   timer in memory, so it survives a restart: server.mjs calls purgeExpired at startup and every
-//   10 minutes, and listTrash purges first. An entry exactly TRASH_MS old is expired; one
-//   millisecond younger is not.
 // - A restore writes the flow back EXACTLY as stored, its updatedAt included: it does not go
 //   through writeFlow, which would restamp it and note a status change for Home. It is validated
 //   first, and refused when a flow with that id exists again (the new one is never overwritten).
-// - Only the person on the page deletes, restores or purges (trash-routes.mjs). An agent is told
-//   (relay.mjs queueDeleted) and its CLI refuses a trashed flow (tools/flow-cli.mjs).
-// - Every id is held to the slug rule BEFORE a path is built, and the evidence folder purge
+// - Only the person on the page deletes, restores or deletes for good (trash-routes.mjs). An agent is
+//   told (relay.mjs queueDeleted) and its CLI refuses a deleted flow (tools/flow-cli.mjs).
+// - Every id is held to the slug rule BEFORE a path is built, and the evidence folder removal
 //   resolves its path and checks it stays inside EVIDENCE_DIR.
-// - Every function takes `now` (a Date or ms) so tests never wait a day.
+// - `now` (a Date or ms) is taken where a time is stamped, so tests never depend on the clock.
 
 import { existsSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs'
 import path from 'node:path'
@@ -26,8 +24,6 @@ import { writeAtomic } from './atomic-write.mjs'
 import { DATA_DIR, EVIDENCE_DIR, FLOWS_DIR, validateFlow } from './flows.mjs'
 
 export const TRASH_DIR = path.join(DATA_DIR, 'trash')
-/** How long a deleted flow can be restored: 24 hours. */
-export const TRASH_MS = 24 * 60 * 60 * 1000
 
 const SLUG = /^[a-z0-9-]+$/
 const entryFile = id => path.join(TRASH_DIR, `${id}.json`)
@@ -45,7 +41,7 @@ function slug(id) {
   return id
 }
 
-/** True when `id` (a slug) has an entry in the Trash. Never throws: anything else is false. */
+/** True when `id` (a slug) has an entry among the deleted flows. Never throws: anything else is false. */
 export function inTrash(id) {
   return typeof id === 'string' && SLUG.test(id) && existsSync(entryFile(id))
 }
@@ -58,7 +54,7 @@ function entryIds() {
 
 /**
  * One entry, read: { deletedAt (ms), flow } or { broken: true, deletedAt (the file time) } when it
- * does not parse or holds no time. null when it is gone (a purge in between).
+ * does not parse or holds no time. null when it is gone (a Delete for good in between).
  */
 function readEntry(id) {
   let mtime
@@ -78,9 +74,9 @@ function readEntry(id) {
 }
 
 /**
- * Move flow `id` to the Trash: write the entry, then remove the flow file. Its evidence stays.
+ * Move flow `id` to the deleted flows: write the entry, then remove the flow file. Its evidence stays.
  * A stale entry with the same id is replaced. Throws a plain error when there is no such flow (or
- * its file is not JSON). Returns { deletedAt, expiresAt }.
+ * its file is not JSON). Returns { deletedAt }.
  */
 export function moveToTrash(id, { now } = {}) {
   slug(id)
@@ -100,58 +96,67 @@ export function moveToTrash(id, { now } = {}) {
     rmSync(entryFile(id), { force: true }) // never both: the flow stays live, the delete failed
     throw err
   }
-  return { deletedAt: iso(at), expiresAt: iso(at + TRASH_MS) }
+  return { deletedAt: iso(at) }
 }
 
 /**
- * Every entry, soonest to expire first: [{ id, title, agent, status, deletedAt, expiresAt, leftMs }],
- * after purging the expired ones. An unreadable entry is listed as { id, title: id, broken: true, … }.
+ * Every entry, the most recently deleted first: [{ id, title, agent, status, tickets, deletedAt }]. An unreadable
+ * entry is listed as { id, title: id, agent: '', status: '', tickets: [], deletedAt (its file time), broken: true }.
+ * Reads only: nothing is ever removed here.
  */
-export function listTrash({ now } = {}) {
-  const at = msOf(now)
-  purgeExpired({ now: at })
+export function listTrash() {
   const items = []
   for (const id of entryIds()) {
     const e = readEntry(id)
     if (!e) continue
-    const times = { deletedAt: iso(e.deletedAt), expiresAt: iso(e.deletedAt + TRASH_MS), leftMs: e.deletedAt + TRASH_MS - at }
-    if (e.broken) items.push({ id, title: id, agent: '', status: '', ...times, broken: true })
-    else items.push({ id, title: String(e.flow.title || id), agent: String(e.flow.agent || ''), status: String(e.flow.status || ''), ...times })
+    if (e.broken) items.push({ id, title: id, agent: '', status: '', tickets: [], deletedAt: iso(e.deletedAt), broken: true })
+    else {
+      const f = e.flow
+      const tickets = Array.isArray(f.tickets) ? f.tickets.filter(t => typeof t === 'string') : []
+      items.push({ id, title: String(f.title || id), agent: String(f.agent || ''), status: String(f.status || ''), tickets, deletedAt: iso(e.deletedAt) })
+    }
   }
-  return items.sort((a, b) => a.leftMs - b.leftMs || a.id.localeCompare(b.id))
+  return items.sort((a, b) => b.deletedAt.localeCompare(a.deletedAt) || a.id.localeCompare(b.id))
+}
+
+/**
+ * The deleted flow `id` as it was stored, with `deletedAt` (an ISO time) added, for the page's read-only view; null
+ * when there is no readable entry, or a live flow has that id again (isTrashed). Never throws for a bad id.
+ */
+export function readTrashed(id) {
+  if (!isTrashed(id)) return null
+  const e = readEntry(id)
+  if (!e || e.broken) return null
+  return { ...e.flow, deletedAt: iso(e.deletedAt) }
 }
 
 /**
  * Put flow `id` back exactly as it was stored. Refuses (plain message, with a status for the route):
- * no entry (404); an expired one, which is purged (404); one that cannot be read (400); a flow with
- * that id exists again (409); a stored flow that no longer validates (400).
+ * no entry (404); one that cannot be read (400); a flow with that id exists again (409); a stored flow
+ * that no longer validates (400).
  */
-export function restoreFromTrash(id, { now, remove: rm = remove } = {}) {
+export function restoreFromTrash(id, { remove: rm = remove } = {}) {
   slug(id)
   const e = readEntry(id)
-  if (!e) throw refusal(`No flow ${id} in the Trash.`, 404)
-  if (e.deletedAt + TRASH_MS <= msOf(now)) {
-    purge(id, { remove: rm })
-    throw refusal(`${id} was in the Trash for 24 hours and is gone for good.`, 404)
-  }
-  if (e.broken) throw refusal(`The Trash copy of ${id} cannot be read.`, 400)
+  if (!e) throw refusal(`No deleted flow ${id} in the archive.`, 404)
+  if (e.broken) throw refusal(`The archived copy of ${id} cannot be read.`, 400)
   if (existsSync(flowFile(id))) throw refusal(`A flow called ${id} exists again. Delete or rename that one first.`, 409)
-  const problems = e.flow.id === id ? validateFlow(e.flow) : [`the Trash copy is flow ${e.flow.id}, not ${id}`]
+  const problems = e.flow.id === id ? validateFlow(e.flow) : [`the archived copy is flow ${e.flow.id}, not ${id}`]
   if (problems.length) throw refusal(`${id} cannot be restored: ${problems.join('; ')}`, 400)
   // The same serialisation writeFlow uses, so a flow it wrote comes back byte for byte.
   writeAtomic(flowFile(id), JSON.stringify(e.flow, null, 1))
   try {
     rm(entryFile(id))
   } catch (err) {
-    rmSync(flowFile(id), { force: true }) // never in both places: the flow stays in the Trash, the restore failed
+    rmSync(flowFile(id), { force: true }) // never in both places: the flow stays deleted, the restore failed
     throw err
   }
   return { archived: Boolean(e.flow.archivedAt) }
 }
 
 /**
- * Delete forever: the flow's evidence folder FIRST, then the entry, so a removal that fails (a file held open)
- * leaves the entry and the next purge tries again. Safe when either is missing. ⚠️ The evidence is left alone
+ * Delete for good: the flow's evidence folder FIRST, then the entry, so a removal that fails (a file held open)
+ * leaves the entry and the next try starts again. Safe when either is missing. ⚠️ The evidence is left alone
  * when a live flow has that id again: those screenshots are the new flow's. `remove` is for tests only.
  */
 export function purge(id, { remove: rm = remove } = {}) {
@@ -166,28 +171,8 @@ export function purge(id, { remove: rm = remove } = {}) {
 }
 
 /**
- * Purge every entry 24 hours old or older (an unreadable one by its file time). One entry that fails is logged
- * and skipped, never stopping the rest; it stays for the next sweep. Returns only the ids really purged.
- */
-export function purgeExpired({ now, remove: rm = remove } = {}) {
-  const at = msOf(now)
-  const gone = []
-  for (const id of entryIds()) {
-    try {
-      const e = readEntry(id)
-      if (!e || e.deletedAt + TRASH_MS > at) continue
-      purge(id, { remove: rm })
-      gone.push(id)
-    } catch (err) {
-      console.error(`trash: could not purge ${id}, trying again at the next sweep: ${err?.message || err}`)
-    }
-  }
-  return gone
-}
-
-/**
- * What every route and CLI command treats as deleted: an entry in the Trash AND no live flow file with that id
- * (a live one wins: it is a new flow, and an entry left behind is only that). Never throws.
+ * What every route and CLI command treats as deleted: an entry AND no live flow file with that id (a live one
+ * wins: it is a new flow, and an entry left behind is only that). Never throws.
  */
 export function isTrashed(id) {
   return inTrash(id) && !existsSync(flowFile(id))

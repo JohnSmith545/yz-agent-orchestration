@@ -21,7 +21,7 @@
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
   const MAX = 4
 
-  const WORD = { working: 'Working', blocked: 'Blocked', waiting: 'Waiting', pending: 'Queued', testing: 'Being tested', rework: 'Sent back', failed: 'Failed', passed: 'Passed', done: 'Done', dropped: 'Dropped' }
+  const WORD = { working: 'Working', blocked: 'Blocked', waiting: 'Waiting', pending: 'Queued', testing: 'Being tested', reviewing: 'Being reviewed', rework: 'Sent back', failed: 'Failed', passed: 'Passed', done: 'Done', dropped: 'Dropped' }
   const QA_WORD = { passed: 'Passed', failed: 'Failed', 'qa-failed': 'Failed', testing: 'Being tested', pending: 'Queued' }
   /** Lower comes first in Tickets: what needs you. */
   const ATTENTION = { failed: 0, rework: 1, blocked: 2, waiting: 3 }

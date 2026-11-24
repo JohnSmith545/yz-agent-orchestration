@@ -60,9 +60,9 @@ test('text with no items cannot be split: null, and the pop-up shows it whole wi
 })
 
 test('the head says how many questions there are', () => {
-  assert.equal(Q.title(Q.split(REAL)), 'SCRIPT has 3 questions')
-  assert.equal(Q.title(Q.split('1. Only one?')), 'SCRIPT has 1 question')
-  assert.equal(Q.title(null), 'SCRIPT has a question')
+  assert.equal(Q.title(Q.split(REAL)), 'Brainstorming has 3 questions')
+  assert.equal(Q.title(Q.split('1. Only one?')), 'Brainstorming has 1 question')
+  assert.equal(Q.title(null), 'Brainstorming has a question')
 })
 
 test('answers: a numbered list matching the questions, an empty one as (no answer)', () => {
@@ -87,4 +87,34 @@ test('what Answer and generate sends is exactly what Generate again sends with t
   const sent = T.followUp('my idea', REAL, answers)
   assert.ok(sent.startsWith('my idea\n\nAnswers to your questions:\n'))
   assert.ok(sent.endsWith('\n\n1. a\n2. b\n3. c'))
+})
+
+// A real reply (2026-11-25, the brainstorming skill on): choices as sub-bullets under question 1. The pop-up once
+// counted 8 questions here and gave each choice its own answer field.
+const CHOICES = [
+  'Your context covers the agent setup but not who writes what. Answer briefly, in any order, or skip any.',
+  '',
+  '1. **What to build:** Which of these do you want?',
+  '   - a) A reusable prompt for an AI editor (my recommendation)',
+  '   - b) A team writing style guide',
+  '   - c) A dashboard feature. This is code work and a larger job.',
+  '2. **Who writes:** Is it the people on your team, or the agents?',
+  '3. **What kind of writing:** Which writing matters most?',
+].join('\n')
+
+test('regression: sub-bullets under a question are its choices, not questions: one field per real question', () => {
+  const s = Q.split(CHOICES)
+  assert.deepEqual(plain(s.items.map(i => i.n)), [1, 2, 3])
+  assert.equal(Q.title(s), 'Brainstorming has 3 questions')
+  assert.deepEqual(plain(s.items[0].choices.map(flat)), ['a) A reusable prompt for an AI editor (my recommendation)', 'b) A team writing style guide', 'c) A dashboard feature. This is code work and a larger job.'])
+  assert.equal(s.items[1].choices, undefined, 'a question with no choices has none')
+  assert.equal(Q.answersText(s, ['a', '', 'emails']), '1. a\n2. (no answer)\n3. emails')
+  assert.equal(s.tail.length, 0, 'the choices are not quiet text either')
+})
+
+test('the pop-up draws a question choices as a small list under it, as text', () => {
+  const ask = fs.readFileSync(path.join(HERE, '..', 'public', 'script-ask.js'), 'utf8')
+  assert.match(ask, /it\.choices/)
+  assert.match(ask, /'sc-ask-choices'/)
+  assert.match(fs.readFileSync(path.join(HERE, '..', 'public', 'script.css'), 'utf8'), /\.sc-ask-choices \{/)
 })

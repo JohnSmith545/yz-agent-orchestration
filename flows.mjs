@@ -32,27 +32,36 @@
 // - `route` (optional on the file, required of a NEW flow by the CLI) is the planned way through the
 //   pipeline (flow-route.mjs): its shape is checked here, the graph when an agent sets it, and a rewrite
 //   keeps the stored one (keepRoute); only `flow route` changes it, keeping the old one in its history.
+// - `hand` (optional) is the by-hand steps an agent wrote for the user (hand-steps.mjs): each step's `done` is the
+//   USER'S tick, like `verified`, kept by mergeKeepingAnswers only from the stored file and only while the step asks
+//   the same thing (keepHand).
+// - `plan` (optional) is the planner's record of planning the flow and handing it to a producer (flow-plan.mjs):
+//   only the plan commands (tools/plan-cli.mjs) write it, and mergeKeepingAnswers takes it from the stored file only.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 import { writeAtomic } from './atomic-write.mjs'
 import { DIAGRAM_KINDS, DIAGRAM_MAX } from './diagram-text.mjs'
 import { hasBefore, validateChange } from './flow-change.mjs'
 import { mergeReady, validateSend } from './flow-merge.mjs'
+import { keepPlan, validatePlan } from './flow-plan.mjs'
 import { keepQa, validateQa } from './flow-qa.mjs'
+import { keepHand, validateHand } from './hand-steps.mjs'
 import { keepRoute, validateRoute } from './flow-route.mjs'
 import { sayShorter, STORY_ID, STORY_MAX, storyOf, YOU } from './flow-story.mjs'
 import { lookup } from './glossary.mjs'
+import { DATA_DIR } from './project-store.mjs'
 import { recordFlowStatus } from './since-store.mjs'
 import { termsOfFlow } from './terms.mjs'
 
 export { clip, sayShorter, STORY_MAX, storyOf } from './flow-story.mjs'
 
-const HERE = path.dirname(fileURLToPath(import.meta.url))
-/** Data root. Tests point FACTORY_DATA_DIR at a temp folder before importing. */
-export const DATA_DIR = process.env.FACTORY_DATA_DIR || path.join(HERE, 'data')
+/**
+ * The CURRENT PROJECT's data folder (project-store.mjs): data/ (or FACTORY_DATA_DIR) for the first project,
+ * data/projects/<id> for any other. Tests point FACTORY_DATA_DIR at a temp folder before importing.
+ */
+export { DATA_DIR }
 export const FLOWS_DIR = path.join(DATA_DIR, 'flows')
 export const EVIDENCE_DIR = path.join(DATA_DIR, 'evidence')
 
@@ -140,6 +149,8 @@ export function validateFlow(flow) {
   if (flow.output !== undefined) problems.push(...validateOutput(flow.output, flow.id))
   if (flow.qa !== undefined) problems.push(...validateQa(flow.qa, flow.id))
   if (flow.route !== undefined) problems.push(...validateRoute(flow.route))
+  if (flow.hand !== undefined) problems.push(...validateHand(flow.hand))
+  if (flow.plan !== undefined) problems.push(...validatePlan(flow.plan, flow.id))
   return problems
 }
 
@@ -422,7 +433,7 @@ export function addNode(flow, { type, title, id, why, env, after, status, yes, n
   node.after = after || []
   if (WORK.has(type)) Object.assign(node, { status: status || 'todo', evidence: [], verified: null })
   if (type === 'ask') {
-    Object.assign(node, { kind: kind || 'yesno', yes: yes || '', no: no || '', answer: null, answeredAt: null, note: '', sentAt: null, deliveryError: null })
+    Object.assign(node, { kind: kind || 'yesno', yes: yes || '', no: no || '', answer: null, answeredAt: null, note: '', sentAt: null, deliveryError: null, at: now() })
   }
   flow.nodes.push(node)
   return node
@@ -461,6 +472,10 @@ export function applyAnswer(flow, nodeId, answer, note) {
       throw new Error(`answer must be ${node.kind === 'text' ? 'non-empty text' : 'yes, no'} or null`)
     }
   }
+  // ⚠️ How long a question has waited counts from when IT was asked (`at`, Human review and the pulse): an ask
+  // written before asks carried a time falls back to the flow's last write, which this very write moves. So every
+  // other open ask with no time keeps the one it was shown with, the flow's updatedAt as stored, before it moves.
+  for (const n of flow.nodes || []) if (n.type === 'ask' && n !== node && n.answer == null && !isText(n.at) && isText(flow.updatedAt)) n.at = flow.updatedAt
   node.answer = answer
   node.answeredAt = answer === null ? null : now()
   if (note !== undefined) node.note = String(note)
@@ -506,6 +521,8 @@ export function mergeKeepingAnswers(incoming, existing) {
       const kept = askKept ? old : {}
       for (const key of ['answer', 'answeredAt', 'sentAt', 'deliveryError']) n[key] = kept[key] ?? null
       n.note = askKept ? old.note ?? '' : ''
+      // when it was asked: the stored time while it is the same question, else the agent's, else the time of this write
+      n.at = askKept && isText(old.at) ? old.at : isText(n.at) ? n.at : now()
     }
   }
   // The storyboard: a rewrite that leaves `output` out keeps the stored one whole (an agent that
@@ -525,6 +542,8 @@ export function mergeKeepingAnswers(incoming, existing) {
   else delete incoming.archivedAt
   keepQa(incoming, existing) // QA's, like a tick is the user's: only ever from the stored file
   keepRoute(incoming, existing) // the plan: only `flow route` changes a stored one
+  keepHand(incoming, existing) // the user's ticks on the by-hand steps: only ever from the stored file
+  keepPlan(incoming, existing) // the planner's hand-out: only the plan commands write it
   if (existing?.createdAt) incoming.createdAt = existing.createdAt
   delete incoming.derived
   return incoming

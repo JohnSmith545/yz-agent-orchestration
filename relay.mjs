@@ -22,8 +22,11 @@
 // nothing is stamped on the flow, and like the rest it lives only in memory.
 // So does the user's delete of a flow (`queueDeleted`, trash-routes.mjs): one line telling the agent
 // to stop. ⚠️ It is the one item that needs NO flow file, at queue time or when the batch goes: the
-// flow is in the Trash by then, so the item carries the agent and the title itself. `drop` forgets
+// flow is in the flow archive by then, so the item carries the agent and the title itself. `drop` forgets
 // everything else queued for that flow at delete time.
+// So does the user's Ask the agent for steps (`queueHandRequest`, human-routes.mjs): the same path as a request
+// for test steps, one line per flow, the latest note winning, its outcome stamped on `hand.requestSentAt` or
+// `hand.requestError` (hand-steps.mjs) instead of the output's.
 // So does a QA failure going back to its producer (`queueRework`, qa-rework.mjs): one line per flow,
 // sent to `qa.rework.to` (not necessarily the flow's agent), stamped as `qa.rework.sentAt` or `.error`,
 // and marked by the startup sweep like a request when the restart lost it.
@@ -52,6 +55,7 @@ import { claudeBin } from './claude-cli.mjs'
 import { CONFIG } from './config.mjs'
 import { hasBefore } from './flow-change.mjs'
 import { listFlowIds, NODE_STATUS, readFlow, validateFlow, visualOf, writeFlow } from './flows.mjs'
+import { handRequestText } from './hand-steps.mjs'
 import { lostRework, lookupRework, reworkLine, stampRework } from './qa-rework.mjs'
 import { parseTurn, recordCost } from './spend.mjs'
 
@@ -160,6 +164,9 @@ export function requestText(flow, note = '') {
   )
 }
 
+/** The user's Ask the agent for steps, one line (hand-steps.mjs handRequestText); also what the chat agent's own flow hands the page. */
+export const handText = (flow, note = '') => handRequestText(flow, note, { quoted, cli: FACTORY_CLI })
+
 /**
  * One line for the user's question about a word the agent marked (queueQuestion): what it means here and why it
  * mattered. The word and its sentence go in as JSON strings; the agent answers with `term`, which the page shows.
@@ -178,17 +185,17 @@ export function questionLine(flow, term, sentence = '') {
 
 /**
  * One line for a flow the user deleted (queueDeleted): stop, and do not write to it again. `flow` is
- * only { id, title } (the file is in the Trash); the title goes in as one JSON string like every field.
+ * only { id, title } (the file is in the flow archive); the title goes in as one JSON string like every field.
  */
 function deletedLine(flow) {
-  return `The user deleted the flow ${quoted(flow.title)} (${flow.id}). Stop work on it and do not write to it again. It can be restored from the Trash for 24 hours.`
+  return `The user deleted the flow ${quoted(flow.title)} (${flow.id}). Stop work on it and do not write to it again. It is in the flow archive, and only the user can restore it.`
 }
 
 /** The relay turn's prompt for `agent`; `entries` is [{ flow, node?, status?, request?, note?, question?, term?, sentence?, deleted? }], one line each in the message. */
 export function buildPrompt(agent, entries) {
   return [
     `Send the session named ${JSON.stringify(String(agent))} ONE message with SendMessage (use ListAgents first to resolve the exact name; if two match, pick the one whose cwd is in ${CONFIG.repo}). The message, verbatim:`,
-    ...entries.map(e => (e.deleted ? deletedLine(e.flow) : e.rework ? reworkLine(e.flow, CONFIG.pipeline.qa) : e.question ? questionLine(e.flow, e.term, e.sentence) : e.request ? requestText(e.flow, e.note) : e.status ? statusLine(e.flow, e.node) : askLine(e.flow, e.node))),
+    ...entries.map(e => (e.deleted ? deletedLine(e.flow) : e.rework ? reworkLine(e.flow, CONFIG.pipeline.qa) : e.question ? questionLine(e.flow, e.term, e.sentence) : e.hand ? handText(e.flow, e.note) : e.request ? requestText(e.flow, e.note) : e.status ? statusLine(e.flow, e.node) : askLine(e.flow, e.node))),
     'Reply with only SENT or FAILED: <reason>.',
   ].join('\n')
 }
@@ -248,6 +255,13 @@ function lookupRequest(flowId, note) {
   return { flow, request: true, note, requestedAt: flow.output?.requestedAt ?? null }
 }
 
+/** The flow, read fresh, for a request for by-hand steps; throws a one-line reason when it is gone. */
+function lookupHand(flowId, note) {
+  const flow = readFlow(flowId)
+  if (!flow) throw new Error(`Flow ${flowId} is gone`)
+  return { flow, hand: true, note, requestedAt: flow.hand?.requestedAt ?? null }
+}
+
 /** The flow, read fresh, for a question about a marked word; throws a one-line reason when it is gone. */
 function lookupQuestion(flowId, term, sentence) {
   const flow = readFlow(flowId)
@@ -257,13 +271,14 @@ function lookupQuestion(flowId, term, sentence) {
 
 /**
  * The item's entry, read fresh: an answered ask, a node whose status the user set, a request for test steps, or a
- * question. A deleted flow is NOT read (its file is in the Trash): its entry is built from what the item carries.
+ * question. A deleted flow is NOT read (its file is in the flow archive): its entry is built from what the item carries.
  */
 const lookupItem = ({ flowId, nodeId, kind, note, term, sentence, title }) =>
   kind === 'deleted' ? { flow: { id: flowId, title }, deleted: true }
     : kind === 'rework' ? lookupRework(flowId)
     : kind === 'status' ? lookupStatus(flowId, nodeId)
     : kind === 'request' ? lookupRequest(flowId, note)
+    : kind === 'hand' ? lookupHand(flowId, note)
     : kind === 'question' ? lookupQuestion(flowId, term, sentence)
     : lookup(flowId, nodeId)
 
@@ -286,10 +301,18 @@ function stamp(entries, outcome, at) {
       if (!flow) continue
       let changed = false
       for (const entry of list) {
-        const { node: sent, status, request, question, deleted, requestedAt, rework } = entry
+        const { node: sent, status, request, question, deleted, requestedAt, rework, hand } = entry
         if (status || question || deleted) continue // a status line, a question or a delete has no delivery record on the flow
         if (rework) {
           changed = stampRework(flow, entry, outcome, at) || changed
+          continue
+        }
+        if (hand) {
+          const h = flow.hand
+          if (!h || !requestedAt || h.requestedAt !== requestedAt) continue
+          if (outcome.ok) Object.assign(h, { requestSentAt: at, requestError: null })
+          else h.requestError = outcome.error
+          changed = true
           continue
         }
         if (request) {
@@ -382,11 +405,11 @@ export function makeRelay({ run, now = () => new Date().toISOString(), delayMs =
       if (!batch) batches.set(agent, (batch = { items: [], timer: null }))
       const same = batch.items.find(i => i.flowId === flowId && i.nodeId === nodeId && i.kind === kind && (kind !== 'question' || i.term === term))
       if (!same) {
-        batch.items.push(kind === 'request' ? { flowId, nodeId, kind, note }
+        batch.items.push(kind === 'request' || kind === 'hand' ? { flowId, nodeId, kind, note }
           : kind === 'question' ? { flowId, nodeId, kind, term, sentence }
           : kind === 'deleted' ? { flowId, nodeId, kind, title: gone.title }
           : { flowId, nodeId, kind })
-      } else if (kind === 'request') same.note = note // one request per flow: the latest note wins
+      } else if (kind === 'request' || kind === 'hand') same.note = note // one request per flow: the latest note wins
       else if (kind === 'question') same.sentence = sentence // one question per flow and word: the latest sentence wins
       else if (kind === 'deleted') same.title = gone.title // one stop line per flow, however often it is deleted
       clearTimeout(batch.timer)
@@ -408,6 +431,8 @@ export function makeRelay({ run, now = () => new Date().toISOString(), delayMs =
   const queueRequest = (flowId, note = '') => enqueue(flowId, null, 'request', String(note ?? ''))
   /** Queue the user's question about a word the agent marked, with the sentence it came up in; it batches like the rest. */
   const queueQuestion = (flowId, term, sentence = '') => enqueue(flowId, null, 'question', undefined, String(term ?? ''), String(sentence ?? ''))
+  /** Queue the user's Ask the agent for steps on a flow, with their optional note; the same path as queueRequest. */
+  const queueHandRequest = (flowId, note = '') => enqueue(flowId, null, 'hand', String(note ?? ''))
   /**
    * Tell `agent` the user deleted flow `flowId` titled `title`: ONE line, batched like the rest, and needing no flow
    * file. The route calls it only for an open or blocked flow whose agent is not the chat agent (trash-routes.mjs).
@@ -491,5 +516,5 @@ export function makeRelay({ run, now = () => new Date().toISOString(), delayMs =
     return marked
   }
 
-  return { queue, queueStatus, queueRequest, queueQuestion, queueDeleted, queueRework, drop, deliverNow, status, sweep }
+  return { queue, queueStatus, queueRequest, queueHandRequest, queueQuestion, queueDeleted, queueRework, drop, deliverNow, status, sweep }
 }

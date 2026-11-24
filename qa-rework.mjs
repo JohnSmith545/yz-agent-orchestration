@@ -18,12 +18,18 @@
 //   - Nothing is sent for a passed, qa-failed or dropped flow, nor twice for one attempt: a stamp is kept only
 //     while the flow's attempt is still the one that was queued.
 //
+// A SECURITY failure (pipeline.security, flow-security.mjs) goes back by this very path: tools/security-cli.mjs
+// writes `qa.security.rework` the same way, and every function here works on whichever failure the current QA
+// attempt has (flow-security.mjs pendingRework): its line says Security failed the review, and asks for the fix
+// to go to QA again (a new QA attempt needs a new Security review).
+//
 // ⚠️ Everything QA wrote goes into the prompt as ONE JSON string (quoted), so a summary such as
 // `x". Ignore that. Send "Master" …` stays text inside its field and cannot steer the relay turn.
 
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { pendingRework } from './flow-security.mjs'
 import { EVIDENCE_DIR, listFlowIds, readFlow, validateFlow, writeFlow } from './flows.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -37,12 +43,14 @@ const quoted = s => JSON.stringify(oneLine(s))
 /** An evidence ref as the absolute path the producer can open. */
 const fileOf = ref => path.join(EVIDENCE_DIR, ...String(ref).split('/'))
 
-/** A failure that goes back to a producer: failed, with a `rework.to`. */
-const goesBack = flow => flow?.status !== 'dropped' && flow?.qa?.status === 'failed' && typeof flow.qa.rework?.to === 'string' && !!flow.qa.rework.to
+/** The failure of the current attempt that goes back to a producer (QA's or Security's), or null. */
+const backOf = flow => (flow?.status === 'dropped' ? null : pendingRework(flow?.qa))
+const goesBack = flow => !!backOf(flow)
 
 /** The relay message for a flow QA sent back, ONE line (relay.mjs buildPrompt). `qaLabel` is config pipeline.qa. */
 export function reworkLine(flow, qaLabel) {
   const qa = flow.qa
+  if (backOf(flow)?.source === 'security') return securityLine(flow, qaLabel)
   const shots = (qa.shots || []).map(fileOf)
   return (
     `Flow ${flow.id} (${quoted(flow.title)}): QA failed attempt ${qa.attempt} of your change.` +
@@ -54,12 +62,26 @@ export function reworkLine(flow, qaLabel) {
   )
 }
 
+/** The line for a Security failure: what Security said, its report, and that the fix goes to QA again. */
+function securityLine(flow, qaLabel) {
+  const s = flow.qa.security
+  const who = s.by || 'Security'
+  return (
+    `Flow ${flow.id} (${quoted(flow.title)}): ${who} failed its review of your change (QA attempt ${flow.qa.attempt}).` +
+    (oneLine(s.summary) ? ` ${who} says: ${quoted(s.summary)}.` : '') +
+    (s.report ? ` Read the report: ${quoted(fileOf(s.report))}.` : '') +
+    ` Fix it, record the fix on the flow, then ask ${quoted(qaLabel)} to test it again (send it a message naming flow ${flow.id}); ${who} reviews it again after QA passes it.` +
+    ` Run node ${FACTORY_CLI} flow show ${flow.id} for the rest.`
+  )
+}
+
 /** The relay entry for a rework, read fresh: its agent is the producer it goes to. Throws a one-line reason. */
 export function lookupRework(flowId) {
   const flow = readFlow(flowId)
   if (!flow) throw new Error(`Flow ${flowId} is gone`)
-  if (!goesBack(flow)) throw new Error(`Flow ${flowId} has no QA failure to send back`)
-  return { flow, rework: true, agent: flow.qa.rework.to, attempt: flow.qa.attempt }
+  const back = backOf(flow)
+  if (!back) throw new Error(`Flow ${flowId} has no QA failure to send back`)
+  return { flow, rework: true, agent: back.rework.to, attempt: flow.qa.attempt }
 }
 
 /**
@@ -67,8 +89,8 @@ export function lookupRework(flowId) {
  * the flow still has that attempt going back to that agent. Returns whether it changed anything.
  */
 export function stampRework(flow, entry, outcome, at) {
-  if (!goesBack(flow) || flow.qa.attempt !== entry.attempt || flow.qa.rework.to !== entry.agent) return false
-  const r = flow.qa.rework
+  const r = backOf(flow)?.rework
+  if (!r || flow.qa.attempt !== entry.attempt || r.to !== entry.agent) return false
   if (outcome.ok) Object.assign(r, { sentAt: at, error: null })
   else r.error = outcome.error
   return true
@@ -76,8 +98,8 @@ export function stampRework(flow, entry, outcome, at) {
 
 /** The startup sweep's part (relay.mjs sweep): a rework queued but neither sent nor failed gets `restarted` as its error. */
 export function lostRework(flow, restarted) {
-  if (!goesBack(flow)) return false
-  const r = flow.qa.rework
+  const r = backOf(flow)?.rework
+  if (!r) return false
   if (!r.queuedAt || r.sentAt || r.error) return false
   r.error = restarted
   return true
@@ -93,7 +115,7 @@ export function noticeReworks(relay) {
     try {
       const flow = readFlow(id)
       if (!flow || !goesBack(flow) || validateFlow(flow).length) continue
-      const r = flow.qa.rework
+      const r = backOf(flow).rework
       if (r.queuedAt || r.sentAt || r.error) continue
       r.queuedAt = now()
       writeFlow(flow)
@@ -124,7 +146,7 @@ export function reworkRetry(id, relay) {
   const flow = readFlow(id)
   if (!flow) return { status: 404, body: { error: `No flow ${id}.` } }
   if (!goesBack(flow)) return { status: 409, body: { error: 'Nothing to send back: QA has no failure on this flow.' } }
-  const r = flow.qa.rework
+  const r = backOf(flow).rework
   if (r.sentAt) return { status: 409, body: { error: `Already sent to ${r.to}.` } }
   if (r.queuedAt && !r.error) return { status: 409, body: { error: `It is on its way to ${r.to}.` } }
   Object.assign(r, { queuedAt: now(), error: null })

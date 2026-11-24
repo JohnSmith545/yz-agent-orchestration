@@ -1,6 +1,6 @@
-// Tests for trash.mjs, the 24-hour Trash for flows: a deleted flow is ONE file data/trash/<id>.json
-// ({ deletedAt, flow }), its evidence left where it is so a restore is whole, and an entry 24 hours
-// old is purged with its evidence. Every call takes `now`, so no test waits a day. FACTORY_DATA_DIR
+// Tests for trash.mjs, the deleted flows of the flow archive: a deleted flow is ONE file data/trash/<id>.json
+// ({ deletedAt, flow }), its evidence left where it is so a restore is whole, and NOTHING leaves by a timer:
+// only Delete for good (purge) removes an entry and its evidence. Calls take `now`, so no test reads the clock. FACTORY_DATA_DIR
 // points at a fresh temp folder BEFORE the imports, so no test ever touches the real data/ folder.
 
 import { after, beforeEach, test } from 'node:test'
@@ -40,16 +40,16 @@ beforeEach(() => {
   for (const dir of [F.FLOWS_DIR, F.EVIDENCE_DIR, path.join(F.DATA_DIR, 'trash')]) fs.rmSync(dir, { recursive: true, force: true })
 })
 
-test('TRASH_MS is 24 hours', () => {
-  assert.equal(T.TRASH_MS, 24 * HOUR)
+test('no timer: the 24-hour expiry and its sweep are gone', () => {
+  assert.equal(T.TRASH_MS, undefined)
+  assert.equal(T.purgeExpired, undefined)
 })
 
 test('moving a flow to the Trash takes it out of listFlows, writes ONE entry with the flow as stored, and keeps its evidence', () => {
   seed('dark')
   const stored = JSON.parse(fs.readFileSync(flowFile('dark'), 'utf8'))
   const r = T.moveToTrash('dark', { now: T0 })
-  assert.equal(r.deletedAt, new Date(T0).toISOString())
-  assert.equal(r.expiresAt, new Date(T0 + 24 * HOUR).toISOString())
+  assert.deepEqual(r, { deletedAt: new Date(T0).toISOString() })
   assert.equal(fs.existsSync(flowFile('dark')), false)
   assert.deepEqual(F.listFlows().flows.map(f => f.id), [])
   const entry = JSON.parse(fs.readFileSync(entryFile('dark'), 'utf8'))
@@ -70,24 +70,50 @@ test('moving an unknown flow throws a plain error; a stale entry with the same i
   assert.equal(entry.deletedAt, new Date(T0 + HOUR).toISOString())
 })
 
-test('listTrash: id, title, agent, status, deletedAt, expiresAt and leftMs, soonest to expire first', () => {
-  seed('older', f => { f.title = 'Older'; f.agent = 'Agent 1' })
+test('listTrash: id, title, agent, status, tickets and deletedAt, the most recently deleted first', () => {
+  seed('older', f => { f.title = 'Older'; f.agent = 'Agent 1'; f.tickets = ['FLA-1'] })
   seed('newer', f => { f.title = 'Newer'; f.status = 'done' })
-  T.moveToTrash('newer', { now: T0 + 2 * HOUR })
   T.moveToTrash('older', { now: T0 })
-  const items = T.listTrash({ now: T0 + 3 * HOUR })
-  assert.deepEqual(items, [
-    { id: 'older', title: 'Older', agent: 'Agent 1', status: 'open', deletedAt: new Date(T0).toISOString(), expiresAt: new Date(T0 + 24 * HOUR).toISOString(), leftMs: 21 * HOUR },
-    { id: 'newer', title: 'Newer', agent: 'Agent 3', status: 'done', deletedAt: new Date(T0 + 2 * HOUR).toISOString(), expiresAt: new Date(T0 + 26 * HOUR).toISOString(), leftMs: 23 * HOUR },
+  T.moveToTrash('newer', { now: new Date(T0 + 2 * HOUR) })
+  assert.deepEqual(T.listTrash(), [
+    { id: 'newer', title: 'Newer', agent: FIXTURE.agent, status: 'done', tickets: FIXTURE.tickets, deletedAt: new Date(T0 + 2 * HOUR).toISOString() },
+    { id: 'older', title: 'Older', agent: 'Agent 1', status: FIXTURE.status, tickets: ['FLA-1'], deletedAt: new Date(T0).toISOString() },
   ])
-  assert.deepEqual(T.listTrash({ now: new Date(T0) }).map(i => i.leftMs), [24 * HOUR, 26 * HOUR], 'now may be a Date')
+})
+
+test('an entry a year old is still listed and still restores: nothing leaves by a timer', () => {
+  seed('dark')
+  T.moveToTrash('dark', { now: T0 - 365 * 24 * HOUR })
+  assert.deepEqual(T.listTrash().map(i => i.id), ['dark'])
+  T.restoreFromTrash('dark')
+  assert.ok(F.readFlow('dark'))
+  assert.ok(fs.existsSync(path.join(evidence('dark'), 'out-after.png')), 'its screenshots are still there')
+})
+
+test('an entry an earlier version wrote (the 24-hour Trash) shows unchanged, and its file is never rewritten', () => {
+  fs.mkdirSync(path.join(F.DATA_DIR, 'trash'), { recursive: true })
+  const raw = JSON.stringify({ deletedAt: new Date(T0 - 30 * HOUR).toISOString(), flow: { ...structuredClone(FIXTURE), id: 'legacy' } }, null, 1)
+  fs.writeFileSync(entryFile('legacy'), raw)
+  assert.deepEqual(T.listTrash().map(i => [i.id, i.title, i.deletedAt]), [['legacy', FIXTURE.title, new Date(T0 - 30 * HOUR).toISOString()]])
+  assert.equal(fs.readFileSync(entryFile('legacy'), 'utf8'), raw)
+})
+
+test('readTrashed: the deleted flow as stored with its deletedAt, for the read-only view; null otherwise', () => {
+  seed('dark')
+  const stored = JSON.parse(fs.readFileSync(flowFile('dark'), 'utf8'))
+  T.moveToTrash('dark', { now: T0 })
+  assert.deepEqual(T.readTrashed('dark'), { ...stored, deletedAt: new Date(T0).toISOString() })
+  assert.equal(T.readTrashed('nope'), null)
+  assert.equal(T.readTrashed('../x'), null)
+  seed('dark') // a live flow with that id again: not deleted
+  assert.equal(T.readTrashed('dark'), null)
 })
 
 test('restore brings the flow back byte for byte, updatedAt unchanged, and empties its entry', () => {
   seed('dark')
   const before = fs.readFileSync(flowFile('dark'), 'utf8')
   T.moveToTrash('dark', { now: T0 })
-  T.restoreFromTrash('dark', { now: T0 + HOUR })
+  T.restoreFromTrash('dark')
   assert.equal(fs.readFileSync(flowFile('dark'), 'utf8'), before)
   assert.equal(fs.existsSync(entryFile('dark')), false)
   assert.equal(T.inTrash('dark'), false)
@@ -98,60 +124,21 @@ test('restore refuses when a flow with that id exists again, and leaves both alo
   seed('dark')
   T.moveToTrash('dark', { now: T0 })
   seed('dark', f => { f.title = 'A new one' })
-  assert.throws(() => T.restoreFromTrash('dark', { now: T0 + HOUR }), e => e.status === 409 && e.message === 'A flow called dark exists again. Delete or rename that one first.')
+  assert.throws(() => T.restoreFromTrash('dark'), e => e.status === 409 && e.message === 'A flow called dark exists again. Delete or rename that one first.')
   assert.equal(F.readFlow('dark').title, 'A new one')
   assert.equal(T.inTrash('dark'), true)
 })
 
-test('restore refuses an entry that is missing, or past 24 hours (and purges that one)', () => {
-  assert.throws(() => T.restoreFromTrash('nope', { now: T0 }), e => e.status === 404 && /nope/.test(e.message))
-  seed('dark')
-  T.moveToTrash('dark', { now: T0 })
-  assert.throws(() => T.restoreFromTrash('dark', { now: T0 + 24 * HOUR }), e => e.status === 404 && /gone for good/.test(e.message))
-  assert.equal(fs.existsSync(entryFile('dark')), false)
-  assert.equal(fs.existsSync(evidence('dark')), false)
-  assert.equal(fs.existsSync(flowFile('dark')), false)
+test('restore refuses an entry that is missing, in plain words', () => {
+  assert.throws(() => T.restoreFromTrash('nope'), e => e.status === 404 && e.message === 'No deleted flow nope in the archive.')
 })
 
 test('restore refuses a stored flow that no longer validates, and keeps the entry', () => {
   fs.mkdirSync(path.dirname(entryFile('x')), { recursive: true })
   fs.writeFileSync(entryFile('bad'), JSON.stringify({ deletedAt: new Date(T0).toISOString(), flow: { id: 'bad', title: '', nodes: [] } }))
-  assert.throws(() => T.restoreFromTrash('bad', { now: T0 + HOUR }), /title must be non-empty text/)
+  assert.throws(() => T.restoreFromTrash('bad'), /title must be non-empty text/)
   assert.equal(T.inTrash('bad'), true)
   assert.equal(fs.existsSync(flowFile('bad')), false)
-})
-
-test('the expiry boundary: 24 hours minus 1 ms is kept, exactly 24 hours is purged', () => {
-  seed('dark')
-  T.moveToTrash('dark', { now: T0 })
-  assert.deepEqual(T.purgeExpired({ now: T0 + 24 * HOUR - 1 }), [])
-  assert.equal(T.inTrash('dark'), true)
-  assert.equal(T.listTrash({ now: T0 + 24 * HOUR - 1 })[0].leftMs, 1)
-  assert.deepEqual(T.purgeExpired({ now: T0 + 24 * HOUR }), ['dark'])
-  assert.equal(T.inTrash('dark'), false)
-  assert.equal(fs.existsSync(evidence('dark')), false, 'its evidence goes with it')
-})
-
-test('survives a restart: entries an earlier process wrote are purged from their stored time, with no memory of them', () => {
-  // plain files, as an earlier run of the dashboard left them: nothing in this process ever saw them
-  fs.mkdirSync(path.join(F.DATA_DIR, 'trash'), { recursive: true })
-  const old = structuredClone(FIXTURE)
-  for (const [id, at] of [['stale', T0 - 30 * HOUR], ['fresh', T0 - 2 * HOUR]]) {
-    fs.writeFileSync(entryFile(id), JSON.stringify({ deletedAt: new Date(at).toISOString(), flow: { ...old, id } }))
-    fs.mkdirSync(evidence(id), { recursive: true })
-  }
-  assert.deepEqual(T.purgeExpired({ now: T0 }), ['stale'])
-  assert.equal(fs.existsSync(entryFile('stale')), false)
-  assert.equal(fs.existsSync(evidence('stale')), false)
-  assert.equal(fs.existsSync(entryFile('fresh')), true)
-  assert.equal(fs.existsSync(evidence('fresh')), true)
-})
-
-test('listTrash purges the expired entries first', () => {
-  seed('dark')
-  T.moveToTrash('dark', { now: T0 })
-  assert.deepEqual(T.listTrash({ now: T0 + 25 * HOUR }), [])
-  assert.equal(fs.existsSync(entryFile('dark')), false)
 })
 
 test('purge removes the entry and the evidence folder, nothing outside it, and is safe when either is missing', () => {
@@ -179,25 +166,22 @@ test('purge leaves the evidence alone when a live flow has that id again', () =>
   assert.ok(fs.existsSync(path.join(evidence('dark'), 'out-after.png')), 'the live flow keeps its screenshots')
 })
 
-test('a broken entry is listed as broken, never thrown, and is purged by its file time after 24 hours', () => {
+test('a broken entry is listed as broken by its file time, never thrown, and never removed by a listing', () => {
   fs.mkdirSync(path.join(F.DATA_DIR, 'trash'), { recursive: true })
   fs.writeFileSync(entryFile('broken'), '{ not json')
   const t = new Date(T0)
   fs.utimesSync(entryFile('broken'), t, t)
   let items
-  assert.doesNotThrow(() => (items = T.listTrash({ now: T0 + HOUR })))
-  assert.equal(items.length, 1)
-  assert.equal(items[0].id, 'broken')
-  assert.equal(items[0].title, 'broken')
-  assert.equal(items[0].broken, true)
-  assert.equal(items[0].leftMs, 23 * HOUR)
-  assert.deepEqual(T.purgeExpired({ now: T0 + 24 * HOUR }), ['broken'])
+  assert.doesNotThrow(() => (items = T.listTrash()))
+  assert.deepEqual(items, [{ id: 'broken', title: 'broken', agent: '', status: '', tickets: [], deletedAt: new Date(T0).toISOString(), broken: true }])
+  assert.throws(() => T.restoreFromTrash('broken'), e => e.status === 400 && /cannot be read/.test(e.message))
+  assert.equal(T.inTrash('broken'), true)
 })
 
 test('ids are held to the slug rule before any path is built', () => {
   for (const id of ['../x', '..', 'A', 'a/b', '', null]) {
     assert.throws(() => T.moveToTrash(id, { now: T0 }), /must match/, String(id))
-    assert.throws(() => T.restoreFromTrash(id, { now: T0 }), /must match/, String(id))
+    assert.throws(() => T.restoreFromTrash(id), /must match/, String(id))
     assert.throws(() => T.purge(id), /must match/, String(id))
     assert.equal(T.inTrash(id), false, String(id))
   }
@@ -225,26 +209,13 @@ test('purge removes the evidence FIRST: when that fails the entry stays, so the 
   assert.equal(fs.existsSync(evidence('dark')), false)
 })
 
-test('purgeExpired keeps going past an entry that throws, and returns only the ids really purged', () => {
-  seed('stuck')
-  seed('fine')
-  T.moveToTrash('stuck', { now: T0 })
-  T.moveToTrash('fine', { now: T0 })
-  let gone
-  assert.doesNotThrow(() => (gone = T.purgeExpired({ now: T0 + 25 * HOUR, remove: failingFor(`${path.sep}evidence${path.sep}stuck`) })))
-  assert.deepEqual(gone, ['fine'])
-  assert.equal(T.inTrash('stuck'), true)
-  assert.equal(T.inTrash('fine'), false)
-  assert.deepEqual(T.purgeExpired({ now: T0 + 25 * HOUR }), ['stuck'], 'the next sweep finishes it')
-})
-
 test('restore: when the entry cannot be removed, the flow file is rolled back, so the flow is never in both places', () => {
   seed('dark')
   T.moveToTrash('dark', { now: T0 })
-  assert.throws(() => T.restoreFromTrash('dark', { now: T0 + HOUR, remove: failingFor(`${path.sep}trash${path.sep}dark.json`) }), /EPERM/)
+  assert.throws(() => T.restoreFromTrash('dark', { remove: failingFor(`${path.sep}trash${path.sep}dark.json`) }), /EPERM/)
   assert.equal(fs.existsSync(flowFile('dark')), false, 'no live copy left behind')
   assert.equal(T.inTrash('dark'), true, 'still restorable')
-  T.restoreFromTrash('dark', { now: T0 + HOUR })
+  T.restoreFromTrash('dark')
   assert.ok(F.readFlow('dark'))
 })
 
@@ -253,8 +224,8 @@ test('restore says whether the flow comes back archived', () => {
   seed('put-away', f => { f.archivedAt = '2026-11-14T08:00:00.000Z' })
   T.moveToTrash('kept', { now: T0 })
   T.moveToTrash('put-away', { now: T0 })
-  assert.deepEqual(T.restoreFromTrash('kept', { now: T0 + HOUR }), { archived: false })
-  assert.deepEqual(T.restoreFromTrash('put-away', { now: T0 + HOUR }), { archived: true })
+  assert.deepEqual(T.restoreFromTrash('kept'), { archived: false })
+  assert.deepEqual(T.restoreFromTrash('put-away'), { archived: true })
 })
 
 test('isTrashed, the guard the routes and the CLI share: an entry AND no live flow file', () => {

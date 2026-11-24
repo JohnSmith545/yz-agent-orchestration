@@ -1,4 +1,4 @@
-// Tests for the SCRIPT Generator's model turn (script.mjs) and its system prompt
+// Tests for the model turn of the Brainstorming page (script.mjs), with its system prompt
 // (script-prompt.mjs). Nothing here spawns Claude: generate() takes an injected
 // spawn that returns a fake child, and an injected cost recorder.
 // FACTORY_DATA_DIR points at a fresh temp folder BEFORE the import, so spend.mjs
@@ -16,27 +16,7 @@ const { SCRIPT_SYSTEM_PROMPT } = await import('../script-prompt.mjs')
 const S = await import('../script.mjs')
 after(() => fs.rmSync(process.env.FACTORY_DATA_DIR, { recursive: true, force: true }))
 
-// ═══ the system prompt, word for word ═══
-
-test('the system prompt is exactly the one the user chose, line breaks and straight apostrophes included', () => {
-  const expected = [
-    'You are a prompt engineer. The user will give you a rough task or idea. Your only job is to turn it into a finished prompt using the SCRIPT framework. Never perform the task itself.',
-    'Output the prompt in a single code block with these labeled sections:',
-    'Situation: background, problem, and context the AI needs',
-    'Character: a specific expert role, not a generic one',
-    'Request: the concrete task, with scope and length',
-    'Intent: the underlying goal the output should serve',
-    'Presentation: exact format and structure of the output',
-    'Tone: voice, style rules, and things to avoid',
-    'Rules:',
-    "- Be specific in every section. 'Senior B2B SaaS copywriter who writes for technical buyers' beats 'writer'.",
-    '- Use details the user gave you. Do not invent facts about their business, audience, or product.',
-    '- If Situation or Intent cannot be reasonably inferred, ask up to 3 short questions before writing. Otherwise, write the prompt and list any assumptions you made in one line below the code block.',
-    '- Write the prompt addressed to the AI that will receive it, ready to copy and paste with no edits.',
-  ].join('\n')
-  assert.equal(SCRIPT_SYSTEM_PROMPT, expected)
-  assert.doesNotMatch(SCRIPT_SYSTEM_PROMPT, /[\u2018\u2019\r]/, 'no curly apostrophes, no CR')
-})
+// The system prompt: its rules and its exact text are pinned in test/script-prompt.test.mjs.
 
 // ═══ the argv ═══
 
@@ -52,6 +32,22 @@ test('scriptArgs never carries the user text: it goes on stdin', () => {
   assert.ok(!S.scriptArgs().some(a => a.includes('my idea')))
   assert.ok(!S.scriptArgs().includes('--append-system-prompt'), 'the default system prompt is replaced, not added to')
   assert.ok(!S.scriptArgs().includes('--allowedTools') && !S.scriptArgs().includes('--add-dir'))
+})
+
+// ═══ the brainstorming skill (script-skill.mjs finds it) ═══
+
+const SKILL = { text: '# Brainstorming Ideas Into Designs\n\nAsk one question at a time.', file: 'C:/acct/SKILL.md' }
+
+test('scriptArgs with the skill: its text in the system prompt after the mapping, and nothing else changes', async () => {
+  const { systemPrompt } = await import('../script-prompt.mjs')
+  const args = S.scriptArgs(SKILL)
+  assert.equal(args[args.indexOf('--system-prompt') + 1], systemPrompt(SKILL.text))
+  assert.ok(args[args.indexOf('--system-prompt') + 1].endsWith(`<brainstorming-skill>\n${SKILL.text}\n</brainstorming-skill>`))
+  const rest = a => a.filter((_, i) => i !== a.indexOf('--system-prompt') + 1)
+  assert.deepEqual(rest(args), rest(S.scriptArgs()), 'still no tools, no plugin, no settings: no file writes, no shell')
+  assert.ok(!args.includes('--plugin-dir') && !args.includes('--settings'))
+  for (const bad of [null, undefined, {}, { text: '' }, { text: 42 }, { error: 'too long' }]) assert.deepEqual(S.scriptArgs(bad), S.scriptArgs(), JSON.stringify(bad))
+  assert.ok(args.join(' ').length < 32_000, 'under the Windows command line limit')
 })
 
 // ═══ the text check ═══
@@ -293,4 +289,16 @@ test('a throwing onDelta never breaks the run', async () => {
   h.child.line(result())
   h.child.emit('close', 0, null)
   assert.equal((await run.done).ok, true)
+})
+
+test('a run with the skill spawns with the skill args and sends the text alone on stdin; one cost, as before', async () => {
+  const h = harness()
+  const run = S.generate('my idea', { ...h.opts, skill: SKILL })
+  await tick()
+  assert.deepEqual(h.spawned[0].args, S.scriptArgs(SKILL))
+  assert.equal(h.child.stdin.text, 'my idea')
+  h.child.line(result())
+  h.child.emit('close', 0, null)
+  assert.equal((await run.done).ok, true)
+  assert.deepEqual(h.recorded, [['script', 0.21]])
 })

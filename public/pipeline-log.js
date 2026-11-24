@@ -2,8 +2,11 @@
 // /api/log query, the chips and the list HTML. No DOM, no fetch, so test/pipeline-log.test.mjs runs it in a vm.
 //
 //   PipelineLog.listHtml({ data, failure }, { selected, win, filter })   the line above the list and the rows
-//   PipelineLog.chipsHtml(filter)          All | Delivered | Caught | Missed | Slipped through | Rules
-//   PipelineLog.queryOf(win, filter)       '/api/log?days=30&cell=caught' (Rules is kind=rule)
+//   PipelineLog.chipsHtml(filter, { roles })   All | Delivered | Caught | Missed | Slipped through | Rules, then
+//                                          Plans and Security when `roles` (the graph's node roles) has the planner
+//                                          or Security (pipeline.mjs): their own log kinds (score-log.mjs GATE_KINDS)
+//   PipelineLog.queryOf(win, filter)       '/api/log?days=30&cell=caught' (Rules is kind=rule, Plans kind=planned,
+//                                          Security kind=security)
 //   PipelineLog.filterOf(v)                a filter key, All for anything else
 //
 // One row per event (score-log.mjs): the time as the pages show times (Shell.ago, the exact time on hover), the
@@ -20,13 +23,22 @@
     Object.freeze({ key: 'slipped', label: 'Slipped through' }),
     Object.freeze({ key: 'rule', label: 'Rules' }),
   ])
+  /** Offered only on a pipeline with that agent (score-routes.mjs refuses the kind otherwise). */
+  const GATE_FILTERS = Object.freeze([
+    Object.freeze({ key: 'planned', label: 'Plans', role: 'planner' }),
+    Object.freeze({ key: 'security', label: 'Security', role: 'security' }),
+  ])
+  const KINDS = ['rule', 'planned', 'security']
   const CELLS = ['delivered', 'caught', 'missed', 'slipped']
   const TAG = Object.freeze({ delivered: 'Counted: right, delivered', caught: 'Counted: right, caught', missed: 'Counted: wrong, missed', slipped: 'Counted: wrong, slipped through' })
   /** The empty line per filter: "Nothing caught in the last 7 days." */
-  const NOTHING = Object.freeze({ all: 'Nothing in the log', delivered: 'Nothing delivered', caught: 'Nothing caught', missed: 'Nothing missed', slipped: 'Nothing slipped through', rule: 'No rule changes' })
+  const NOTHING = Object.freeze({
+    all: 'Nothing in the log', delivered: 'Nothing delivered', caught: 'Nothing caught', missed: 'Nothing missed', slipped: 'Nothing slipped through', rule: 'No rule changes',
+    planned: 'No plans handed out', security: 'No Security verdicts',
+  })
 
   const esc = s => window.UI.esc(s)
-  const filterOf = v => (FILTERS.some(f => f.key === v) ? v : 'all')
+  const filterOf = v => ([...FILTERS, ...GATE_FILTERS].some(f => f.key === v) ? v : 'all')
   const winOf = v => (v === '7' || v === 'all' ? v : '30')
   const spanOf = win => (win === 'all' ? 'all time' : `the last ${win} days`)
 
@@ -34,12 +46,14 @@
     const f = filterOf(filter)
     const q = `/api/log?days=${winOf(win)}`
     if (CELLS.includes(f)) return `${q}&cell=${f}`
-    return f === 'rule' ? `${q}&kind=rule` : q
+    return KINDS.includes(f) ? `${q}&kind=${f}` : q
   }
 
-  function chipsHtml(filter) {
+  function chipsHtml(filter, { roles = [] } = {}) {
     const f = filterOf(filter)
-    return `<div class="lg-chips" role="group" aria-label="Show in the log">${FILTERS.map(x => `<button type="button" data-log-chip="${x.key}" aria-pressed="${x.key === f}">${x.label}</button>`).join('')}</div>`
+    const has = new Set(roles)
+    const all = [...FILTERS, ...GATE_FILTERS.filter(x => has.has(x.role))]
+    return `<div class="lg-chips" role="group" aria-label="Show in the log">${all.map(x => `<button type="button" data-log-chip="${x.key}" aria-pressed="${x.key === f}">${x.label}</button>`).join('')}</div>`
   }
 
   function rowHtml(e, selected) {
@@ -64,5 +78,5 @@
     return `${note}<p class="lg-sum">${sum}</p><ul class="lg-list">${events.map(e => rowHtml(e, selected)).join('')}</ul>`
   }
 
-  window.PipelineLog = { FILTERS, TAG, filterOf, queryOf, chipsHtml, listHtml }
+  window.PipelineLog = { FILTERS, GATE_FILTERS, TAG, filterOf, queryOf, chipsHtml, listHtml }
 })()

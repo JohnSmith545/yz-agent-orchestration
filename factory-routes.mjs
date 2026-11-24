@@ -9,19 +9,22 @@
 //   POST /api/chat/send                { text }
 //   POST /api/chat/stop
 //   POST /api/chat/new                 { fork?: true }: true starts the next chat from forkFrom, once
-//   GET  /api/flows[?open=1&waiting=1&agent=X&ticket=T&archived=1]   { flows, invalid, counts: { archived, trash } }:
+//   GET  /api/flows[?open=1&waiting=1&agent=X&ticket=T&archived=1]   { flows, invalid, counts: { archived, deleted } }:
 //                                      archived flows left out, or with archived=1 only them
 //   GET  /api/flows/<id>               the flow with `derived` (an archived one too: a direct link keeps working)
 //                                      Both carry each flow's `route` (stored, or inferred: true) and `progress`, its
 //                                      steps' states (flow-route.mjs withRoute), as /api/pipeline and /api/qa do
 //   POST /api/flows/<id>/archive       { archived }; POST /api/flows/<id>/delete { confirm? }: trash-routes.mjs
-//   GET  /api/trash; POST /api/trash/<id>/restore; POST /api/trash/<id>/purge: the Trash (trash-routes.mjs)
-//   Any flow route on an id in the Trash: 404 { error: '<id> is in the Trash.' }
+//   GET  /api/archive; POST /api/trash/<id>/restore; POST /api/trash/<id>/purge: the flow archive (trash-routes.mjs)
+//   GET /api/flows/<id> on a deleted id: the flow, read-only, with deletedAt; any other flow route on it: 404
+//   { error: '<id> was deleted: it is in the flow archive.' }
 //   POST /api/flows/<id>/answer        { node, answer, note? }, then relay.queue
 //   POST /api/flows/<id>/verify        { node, verified }, the user's tick
 //   POST /api/flows/<id>/status        { node, status } (after an ask: then relay.queueStatus), or { status } for the flow
 //   POST /api/flows/<id>/drop          flow status `dropped`
 //   POST /api/flows/<id>/deliver       { node }: relay.deliverNow, returns { ok, error? }
+//   GET  /api/human; POST /api/flows/<id>/hand { step, done }; POST /api/flows/<id>/request-hand { note? };
+//   POST /api/tickets/<id>/request-hand { note? }: Human review and the by-hand steps (human-routes.mjs)
 //   POST /api/flows/<id>/request-tests { note? ≤ 500 }: stamps output.requestedAt, then relay.queueRequest,
 //                                      { ok, via: 'relay', requestedAt }; the chat agent's own flow: { ok, via: 'chat', text }
 //   GET  /api/flows/<id>/pr            { merge, pr, ready, facts }: what Send would do (pr-routes.mjs)
@@ -72,6 +75,7 @@ import { settingsGet, settingsPin, settingsSend } from './settings-routes.mjs'
 import { explain as explainTurn } from './explain.mjs'
 import { buildFactory, collections, readSource, refreshSource } from './factory.mjs'
 import { setMark, updateState } from './factory-state.mjs'
+import { handRequestRoute, handTickRoute, humanGet, ticketHandRoute } from './human-routes.mjs'
 import { askTermRoute, explainRoute, learnRoute, listGlossary, removeRoute, termRoute } from './glossary-routes.mjs'
 import { learnTerms } from './learn.mjs'
 import { originAllowed } from './local-origin.mjs'
@@ -86,7 +90,7 @@ import { requestText } from './relay.mjs'
 import { sinceRoute } from './since.mjs'
 import { readSpend } from './spend.mjs'
 import { listTrash } from './trash.mjs'
-import { archiveRoute, deleteRoute, purgeRoute, restoreRoute, trashedFlow, trashList } from './trash-routes.mjs'
+import { archiveList, archiveRoute, deleteRoute, purgeRoute, restoreRoute, trashedFlow } from './trash-routes.mjs'
 
 const SLUG = /^[a-z0-9-]+$/
 /** /api/trash/<id>/restore and /api/trash/<id>/purge; the id is checked against SLUG before any disk access. */
@@ -137,13 +141,13 @@ async function body(req) {
  */
 const sameOrigin = (req, port) => !req.headers.origin || originAllowed(req.headers.origin, port)
 
-export async function factoryRoute(req, res, url, { git, gh, push, pr, port = CONFIG.port, fetched, relay, explain = explainTurn, learn = learnTerms, getStatus, settings } = {}) {
+export async function factoryRoute(req, res, url, { git, gh, push, pr, port = CONFIG.port, fetched, relay, explain = explainTurn, learn = learnTerms, getStatus, settings, pipelineConfig = null } = {}) {
   const p = url.pathname
   const q = url.searchParams
   const post = req.method === 'POST'
   if (post && !sameOrigin(req, port)) return json(res, 403, { error: 'Cross-origin request refused.' }), true
   // the send settings as config.json says NOW (config.mjs prNow), unless a test passes its own
-  const send$ = { git, gh, push, pr: pr ?? prNow(), port, fetched }
+  const send$ = { git, gh, push, pr: pr ?? prNow(), port, fetched, config: pipelineConfig } // the server's: Send waits for Security too (pr-routes.mjs)
   const settings$ = { configFile: CONFIG_FILE, confirm: confirmNative, prNow, port, ...settings }
   const flowPath = FLOW_PATH.exec(p)
   const [, id, action] = flowPath || []
@@ -162,11 +166,11 @@ export async function factoryRoute(req, res, url, { git, gh, push, pr, port = CO
 
     if (p === '/api/flows' && !post) return json(res, 200, flowList(q)), true
     if (flowPath && !SLUG.test(id)) return json(res, 400, { error: 'Flow id must match /^[a-z0-9-]+$/.' }), true
-    const trashed = flowPath && trashedFlow(id)
+    const trashed = flowPath && trashedFlow(id, !action && !post)
     if (trashed) return send(res, trashed), true
     if (action === 'archive' && post) return send(res, archiveRoute(id, await body(req))), true
     if (action === 'delete' && post) return send(res, deleteRoute(id, await body(req), relay)), true
-    if (p === '/api/trash' && !post) return send(res, trashList()), true
+    if (p === '/api/archive' && !post) return send(res, archiveList()), true
     const [, trashId, trashAction] = TRASH_PATH.exec(p) || []
     if (trashId && !SLUG.test(trashId)) return json(res, 400, { error: 'Flow id must match /^[a-z0-9-]+$/.' }), true
     if (trashAction === 'restore' && post) return send(res, restoreRoute(trashId, relay)), true
@@ -178,6 +182,11 @@ export async function factoryRoute(req, res, url, { git, gh, push, pr, port = CO
     if (action === 'drop' && post) return changeFlow(res, id, f => ((f.status = 'dropped'), f)), true
     if (action === 'deliver' && post) return await deliver(res, id, await body(req), relay), true
     if (action === 'request-tests' && post) return requestTests(res, id, await body(req), relay), true
+    if (action === 'hand' && post) return send(res, handTickRoute(id, await body(req))), true
+    if (action === 'request-hand' && post) return send(res, handRequestRoute(id, await body(req), relay)), true
+    if (p === '/api/human' && !post) return send(res, humanGet()), true
+    const ticketHand = /^\/api\/tickets\/([^/]+)\/request-hand$/.exec(p)
+    if (ticketHand && post) return send(res, ticketHandRoute(decodeURIComponent(ticketHand[1]), await body(req), relay)), true
     if (action === 'ask-term' && post) return send(res, askTermRoute(id, await body(req), relay)), true
     if (action === 'pr' && !post) return send(res, await prGet(id, send$)), true
     if (action === 'pr' && post) return send(res, await prSend(id, await body(req), req.headers, send$)), true
@@ -224,17 +233,17 @@ function filterOf(q) {
 }
 
 /**
- * The list, plus the counts behind the page's `Archived · N` and `Trash · N` links, so it needs no second request.
- * ⚠️ The Trash count never turns the list into an error: a Trash that cannot be read leaves `trash` out.
+ * The list, plus the counts behind the page's `Flow archive · N` link (archived and deleted), so it needs no second
+ * request. ⚠️ The deleted count never turns the list into an error: deleted flows that cannot be read leave it out.
  */
 function flowList(q) {
   const tally = {}
   const { flows, invalid } = listFlows(filterOf(q), tally)
   const counts = { archived: tally.archived }
   try {
-    counts.trash = listTrash().length
+    counts.deleted = listTrash().length
   } catch (err) {
-    console.error(`trash: could not count the Trash: ${err?.message || err}`)
+    console.error(`archive: could not count the deleted flows: ${err?.message || err}`)
   }
   const graph = pipelineGraph(CONFIG)
   return { flows: flows.map(f => ({ ...f, ...withRoute(f, graph) })), invalid, counts }

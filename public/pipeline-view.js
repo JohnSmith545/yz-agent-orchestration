@@ -1,7 +1,10 @@
 // The Agents page diagram (#/agents) in the page: HTML boxes over one SVG of arrows, placed by
 // pipeline-layout.js, with each box's ticket chips from pipeline-tickets.js.
 //
-//   PipelineView.create(box, { onNode, onChip })   -> { update(data), setPath(h), setNode(id) }
+//   PipelineView.create(box, { onNode, onChip, humanReview })   -> { update(data), setPath(h), setNode(id) }
+//     humanReview: true places the LIVE Human review box under the diagram (human-review.js). Off by default:
+//                                         only the Agents page's own diagram is the live pipeline; the bank page
+//                                         draws a saved orchestration with this view, and that is a picture
 //     update({ graph, tickets, agents })  draws or patches: the boxes and arrows are built ONCE per graph and
 //                                         after that only moved and refilled, so a refresh never flickers and
 //                                         never loses focus; a new width (ResizeObserver) lays out again
@@ -10,7 +13,8 @@
 //                                         as a dashed accent outline, the rest dimmed
 //     setNode(id | null)                  the box whose details show below
 //   PipelineView.nodeInner(node, opts)    PURE: the inside of one box (its name, a red mark for pushes
-//                                         outside QA, +N, the chips), for the tests
+//                                         outside QA, +N, the chips, and the green pill of the subagents running
+//                                         under it, agent-window-view.js pillHtml), for the tests
 //
 // A click on a chip is onChip(ticketId) (the page opens its explanation on Flows); a click anywhere else on
 // a box is onNode(nodeId). Each box's name is a button, so Tab and Enter reach every node.
@@ -19,7 +23,7 @@
   const cls = s => String(s ?? '').replace(/[^A-Za-z0-9_-]/g, '')
 
   /** Pure: one box's inside. `list` is the tickets standing on it, `pushes` its pushes outside QA today. */
-  function nodeInner(node, { list = [], labels = {}, pushes = 0 } = {}) {
+  function nodeInner(node, { list = [], labels = {}, pushes = 0, running = 0 } = {}) {
     const T = window.PipelineTickets
     const { shown, more } = T.chips(list)
     const n = list.length
@@ -27,7 +31,8 @@
     const said = `${node.label}, ${n ? `${n} ticket${n === 1 ? '' : 's'}` : 'no tickets'}${pushes > 0 ? `, ${window.PipelineDetails.pushLine(pushes)}` : ''}. Show details.`
     return `<button type="button" class="pl-node-head" aria-label="${esc(said)}"><span class="pl-name">${esc(node.label)}</span>${mark}` +
       `${more ? `<span class="pl-more" title="${more} more here">+${more}</span>` : ''}</button>` +
-      (shown.length ? `<div class="pl-chips">${shown.map(t => T.chipHtml(t, labels)).join('')}</div>` : '')
+      (shown.length ? `<div class="pl-chips">${shown.map(t => T.chipHtml(t, labels)).join('')}</div>` : '') +
+      (running > 0 ? window.AgentWindowView?.pillHtml(running, node.label) || '' : '')
   }
 
   const signature = g => JSON.stringify([(g?.nodes || []).map(n => [n.id, n.label, n.kind, n.role]), (g?.edges || []).map(e => [e.from, e.to, e.kind, e.label || ''])])
@@ -37,7 +42,7 @@
     return `<text class="pl-elabel" x="${l.x}" y="${l.y}" text-anchor="${l.anchor}"${rot} data-edges="${l.edges.join(' ')}">${esc(l.text)}</text>`
   }
 
-  function create(box, { onNode = () => {}, onChip = () => {} } = {}) {
+  function create(box, { onNode = () => {}, onChip = () => {}, humanReview = false } = {}) {
     const st = { sig: '', graph: null, rows: 0, width: 0, canvas: null, svg: null, nodes: new Map(), edges: new Map(), labels: null, labelsHtml: '', inner: new Map(), path: null, node: null }
 
     box.addEventListener('click', e => {
@@ -92,6 +97,7 @@
         st.labels.innerHTML = html
         st.labelsHtml = html
       }
+      if (humanReview) window.HumanReview?.place(st.canvas, lay) // the Human review box under the diagram (human-review.js): not a node, no arrow
       paint()
     }
 
@@ -136,11 +142,13 @@
         const el = st.nodes.get(n.id)
         if (!el) continue
         const agent = n.kind === 'agent' ? agents.find(a => a.label === n.label) : null
-        const html = nodeInner(n, { list: groups[n.id] || [], labels, pushes: window.PipelineDetails.pushes(agent) })
+        const running = window.AgentWindowView?.running(agent).length || 0
+        const html = nodeInner(n, { list: groups[n.id] || [], labels, pushes: window.PipelineDetails.pushes(agent), running })
         if (st.inner.get(n.id) !== html) {
           el.innerHTML = html
           st.inner.set(n.id, html)
         }
+        el.classList.toggle('has-pill', running > 0)
         el.classList.toggle('busy', !!(groups[n.id] || []).length)
       }
       draw(relayout)

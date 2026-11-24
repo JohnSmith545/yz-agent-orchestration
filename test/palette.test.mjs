@@ -54,7 +54,7 @@ test('searching with no flows or tickets loaded does not throw and returns pages
   const items = P.gather({}) // no FlowsView, FactoryView, App, Theme or document at all
   const kinds = [...new Set(items.map(i => i.kind))]
   assert.deepEqual(kinds, ['page', 'action'])
-  assert.deepEqual(labels(P.search('', items)).slice(0, 9), ['Home', 'Flows', 'QA', 'SCRIPT', 'Tickets', 'Timeline', 'Agents', 'Subagents', 'Glossary'])
+  assert.deepEqual(labels(P.search('', items)).slice(0, 9), ['Home', 'Flows', 'QA', 'Brainstorming', 'Tickets', 'Timeline', 'Agents', 'Subagents', 'Glossary'])
   assert.ok(labels(P.search('', items)).includes('Ask'))
   assert.deepEqual(plain(P.search('zzz', items)), [])
   assert.doesNotThrow(() => P.search(undefined, undefined))
@@ -381,4 +381,13 @@ test('index.html loads palette.js before notify.js: its Escape listener must run
   const note = html.indexOf('<script src="notify.js">')
   assert.ok(pal > 0 && note > 0, 'both scripts are loaded')
   assert.ok(pal < note, 'palette.js comes first')
+})
+
+// QA, 2026-11-25: after the rename, typing script no longer found the page. Its old name and prompt stay as keys.
+test('regression: script and prompt still find Brainstorming, as hidden keys that are never shown', () => {
+  const P = pure()
+  const items = P.gather({})
+  for (const q of ['script', 'SCR', 'prompt']) assert.equal(labels(P.search(q, items))[0], 'Brainstorming', q)
+  const page = items.find(i => i.label === 'Brainstorming')
+  assert.equal(page.hint, '#/brainstorming', 'the row still shows only its own address')
 })

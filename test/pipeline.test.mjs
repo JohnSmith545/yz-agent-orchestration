@@ -186,7 +186,8 @@ test('stageOf: the last entry of the path is always the node', () => {
 
 test('config.mjs carries the pipeline settings, checked, with every key', async () => {
   const { CONFIG } = await import('../config.mjs')
-  assert.deepEqual(Object.keys(CONFIG.pipeline).sort(), ['maxReworks', 'producers', 'protectedBranches', 'qa'])
+  // planner and security are there only when the live config.json names them (pipeline.mjs gateSetting)
+  assert.deepEqual(Object.keys(CONFIG.pipeline).filter(k => k !== 'planner' && k !== 'security').sort(), ['maxReworks', 'producers', 'protectedBranches', 'qa'])
   assert.equal(typeof CONFIG.pipeline.qa, 'string')
   assert.ok(pipelineGraph(CONFIG).nodes.some(n => n.role === 'qa' && n.label === CONFIG.pipeline.qa))
 })

@@ -11,7 +11,7 @@
 //   node tools/factory.mjs term "<word>" "<plain explanation>" [--more "..."] [--flow <id>]   (see tools/term-cli.mjs)
 //   node tools/factory.mjs pr-pin                         the person sets the send PIN, typed in a terminal (tools/pr-pin.mjs)
 //   node tools/factory.mjs context add "<title>" (--text "..." | --file <path>) | list | remove <id>
-//                                                         what the SCRIPT Generator is told (tools/context-cli.mjs)
+//                                                         what the Brainstorming page is told (tools/context-cli.mjs)
 //
 // Marks go to data/factory-state.json; flows to data/flows/<id>.json; words to data/glossary.json. The page
 // picks either up on its next poll. `decide` is the old command kept for
@@ -87,7 +87,7 @@ try {
   term "<word>" "<plain explanation, 1 or 2 sentences, at most 300 characters>" [--more "..."] [--flow <id>]
   show <ID>
   context add "<title>" (--text "..." | --file <path>) | context list | context remove <id>
-                        what the SCRIPT Generator is told before it writes
+                        what the Brainstorming page is told before it writes
   pr-pin               set the send PIN (typed by you in a terminal, never piped)`)
     process.exitCode = cmd ? 1 : 0
   }

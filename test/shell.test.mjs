@@ -35,12 +35,17 @@ test('Home moved to #/home; #/flows still opens Flows, so old links keep working
 })
 
 test('each page route resolves to its own view without a redirect', () => {
-  for (const view of ['flows', 'home', 'qa', 'script', 'tickets', 'timeline', 'agents', 'subagents', 'glossary', 'settings']) {
+  for (const view of ['flows', 'home', 'qa', 'tickets', 'timeline', 'agents', 'subagents', 'glossary', 'settings']) {
     assert.deepEqual(r(`#/${view}`), { view, params: {}, redirect: null })
   }
+  assert.deepEqual(r('#/brainstorming'), { view: 'script', params: {}, redirect: null }, 'its view keeps the old name')
 })
 
 // ═══ old routes ═══
+
+test('#/script (the page before it was Brainstorming) redirects to #/brainstorming', () => {
+  assert.deepEqual(r('#/script'), { view: 'script', params: {}, redirect: '#/brainstorming' })
+})
 
 test('#/factory redirects to #/tickets', () => {
   assert.deepEqual(r('#/factory'), { view: 'tickets', params: {}, redirect: '#/tickets' })
@@ -116,4 +121,15 @@ test('a subagent in the live view lights Subagents, a session lights Agents, and
   assert.equal(railFor(resolve('#/flows')), 'flows')
   assert.equal(railFor(resolve('#/')), 'flows')
   assert.equal(railFor(resolve('#/home')), 'home')
+})
+
+// ═══ a query on a page route ═══
+
+test('a page route may carry a query: handed to the page as params.query, decoded; a bare page keeps params {}', () => {
+  assert.deepEqual(r('#/flows?flow=dark-mode&at=hand'), { view: 'flows', params: { query: { flow: 'dark-mode', at: 'hand' } }, redirect: null })
+  assert.deepEqual(r('#/agents?human'), { view: 'agents', params: { query: { human: '' } }, redirect: null })
+  assert.deepEqual(r('#/archive?q=dark+mode%21'), { view: 'archive', params: { query: { q: 'dark mode!' } }, redirect: null })
+  assert.deepEqual(r('#/archive?q=%E0%A4'), { view: 'archive', params: { query: { q: '%E0%A4' } }, redirect: null }, 'a malformed escape is kept raw')
+  assert.deepEqual(r('#/archive'), { view: 'archive', params: {}, redirect: null })
+  assert.deepEqual(r('#/nope?x=1'), { view: 'flows', params: {}, redirect: '#/' })
 })

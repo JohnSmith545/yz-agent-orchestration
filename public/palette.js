@@ -9,8 +9,8 @@
 //            opened with FactoryView.gotoTicket
 //   agents   App.agents() (the last /api/status build), opened at #/agent/<sessionId>
 //   actions  Ask, Refresh, Theme: light / dark / system, Mark read (only
-//            while the Since card shows on Home), Archived and Trash (the
-//            Flows page lists, FlowsView.showList)
+//            while the Since card shows on Home), Flow archive (#/archive,
+//            archive-page.js)
 //
 // Keys: ONE keydown listener on window, CAPTURE, added before notify.js adds
 // its own (index.html loads this file first, pinned by test/palette.test.mjs;
@@ -33,13 +33,14 @@
     ['Home', '#/home'],
     ['Flows', '#/flows'],
     ['QA', '#/qa'],
-    ['SCRIPT', '#/script'],
+    ['Brainstorming', '#/brainstorming', ['script', 'prompt']], // its old name and what it makes, as hidden keys
     ['Tickets', '#/tickets'],
     ['Timeline', '#/timeline'],
     ['Agents', '#/agents'],
     ['Subagents', '#/subagents'],
     ['Glossary', '#/glossary'],
     ['Settings', '#/settings'],
+    ['Orchestration bank', '#/bank'],
   ]
   const KIND = { page: 'Page', flow: 'Flow', ticket: 'Ticket', agent: 'Agent', action: 'Action' }
   // Live flows first, then the finished ones; a dropped flow is still findable, last.
@@ -84,7 +85,7 @@
   function gather(w) {
     const doc = w.document
     const byId = id => doc?.getElementById?.(id) || null
-    const items = PAGES.map(([label, hash]) => ({ kind: 'page', label, hint: hash, run: () => w.Shell?.go(hash) }))
+    const items = PAGES.map(([label, hash, keys]) => ({ kind: 'page', label, hint: hash, ...(keys ? { keys } : {}), run: () => w.Shell?.go(hash) }))
 
     // an archived flow is only in the page's data while it is open by link: not a palette item (the Archived action lists them)
     const flows = safe(() => w.FlowsView?.data?.flows).filter(f => f && f.id && !f.archivedAt)
@@ -130,9 +131,8 @@
     }
     const since = byId('homeSince')
     if (since && !since.hidden) items.push({ kind: 'action', label: 'Mark read', hint: 'Clear Since you were away', run: () => w.Since?.markRead() })
-    // last, so the empty query's twelve stay as they were: typing finds them (flow-trash.js draws the lists)
-    items.push({ kind: 'action', label: 'Archived', hint: 'Flows put away', run: () => w.FlowsView?.showList('archived') })
-    items.push({ kind: 'action', label: 'Trash', hint: 'Deleted flows, kept 24 hours', run: () => w.FlowsView?.showList('trash') })
+    // last, so the empty query's twelve stay as they were: typing finds it (archive-page.js draws the archive)
+    items.push({ kind: 'action', label: 'Flow archive', hint: 'Archived and deleted flows', run: () => w.Shell?.go('#/archive') })
     return items
   }
 

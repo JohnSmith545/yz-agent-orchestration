@@ -1,0 +1,157 @@
+/* The Project menu (project-menu.js) at the top of the rail, its dialogs and the waiting screen, and the
+   Orchestration bank page (bank-page.js). Tokens from styles.css only, so dark mode follows; the dialogs use
+   the existing .modal and .card; motion is opacity only and stands down under prefers-reduced-motion. */
+
+/* ─── the rail button ──────────────────────────────────────────────────────── */
+
+.rail-project { margin-bottom: 6px; }
+.rail-item.pm-button { height: 48px; text-align: left; }
+.pm-badge {
+  display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--radius);
+  background: var(--surface-2); border: 1px solid var(--line-strong); color: var(--ink);
+  font-size: 13px; font-weight: 650; line-height: 1;
+}
+.pm-button[aria-expanded="true"] .pm-badge { border-color: var(--accent); }
+.pm-label { display: flex; flex-direction: column; min-width: 0; gap: 1px; line-height: 1.25; }
+.pm-line { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.pm-name { max-width: calc(var(--rail-w-open) - 70px); overflow: hidden; text-overflow: ellipsis; color: var(--ink); font-weight: 600; }
+.rail-item.pm-button .pm-chev { flex: none; width: 12px; height: 12px; stroke-width: 1.6; color: var(--muted); }
+.pm-orch { max-width: calc(var(--rail-w-open) - 52px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10.5px; font-weight: 450; color: var(--faint); }
+
+/* ─── the menu ─────────────────────────────────────────────────────────────── */
+
+/* Beside the rail, level with the button; above the chat drawer (35) and the alert panel (45), under modals (50). */
+.pm-menu {
+  position: fixed; left: calc(var(--rail-w) + 8px); top: 8px; z-index: 46;
+  width: min(300px, calc(100vw - var(--rail-w) - 16px)); max-height: min(70vh, 520px); overflow-y: auto;
+  padding: 4px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius); box-shadow: var(--shadow);
+  animation: pm-in .12s ease-out;
+}
+.pm-menu[hidden] { display: none; }
+#rail.open ~ .pm-menu, .rail-pinned .pm-menu { left: calc(var(--rail-w-open) + 8px); }
+@keyframes pm-in { from { opacity: 0; } }
+.pm-item {
+  display: flex; align-items: flex-start; gap: 8px; width: 100%; padding: 7px 10px; border: 0; border-radius: var(--radius);
+  background: none; color: var(--ink); text-align: left; font-size: 13.5px;
+}
+.pm-item:hover, .pm-item:focus-visible { background: var(--surface-2); }
+.pm-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.pm-item[aria-checked="true"] .pm-item-name { font-weight: 600; }
+.pm-tick { flex: none; width: 14px; height: 18px; display: grid; place-items: center; color: var(--accent); }
+.pm-tick svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.pm-item-text { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
+.pm-item-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pm-item-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; color: var(--faint); }
+.pm-action { color: var(--ink-2); }
+.pm-sep { height: 1px; margin: 4px 6px; background: var(--line); }
+
+/* ─── the dialogs and the waiting screen ───────────────────────────────────── */
+
+.pm-modal .pm-dialog, .pm-wait .pm-dialog { width: min(520px, 100%); padding: 20px 22px; gap: 14px; overflow-y: auto; }
+.pm-wait .pm-dialog { width: min(440px, 100%); align-items: flex-start; }
+.pm-dialog h2 { margin: 0; font-size: 16px; font-weight: 650; }
+.pm-form { display: grid; gap: 14px; }
+.pm-field { display: grid; gap: 5px; }
+.pm-field label { font-size: 13px; color: var(--ink-2); font-weight: 550; }
+.pm-field .set-input, .pm-field select { width: 100%; box-sizing: border-box; }
+.pm-hint { margin: 0; font-size: 12px; color: var(--muted); }
+.pm-p { margin: 0; font-size: 13.5px; line-height: 1.55; color: var(--ink-2); }
+.pm-p b { color: var(--ink); }
+.pm-p code, .bk-p code { font: 12px var(--mono); overflow-wrap: anywhere; }
+.pm-status { margin: 0; padding: 8px 12px; border-left: 3px solid var(--warn); background: var(--surface-2); border-radius: var(--radius); font-size: 13px; color: var(--ink); }
+.pm-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 14px; }
+.pm-wait .pm-actions { align-self: stretch; }
+button.pm-danger { border-color: var(--bad); color: var(--bad); }
+button.pm-danger:hover { background: var(--bad); color: var(--accent-ink); }
+.pm-rows { display: grid; margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: var(--radius); }
+.pm-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.pm-row:last-child { border-bottom: 0; }
+.pm-row.pm-asking { display: grid; background: var(--surface-2); }
+.pm-row-text { display: flex; flex-direction: column; min-width: 0; flex: 1 1 200px; }
+.pm-row-text .pm-item-sub { white-space: normal; overflow-wrap: anywhere; }
+.pm-row-acts { display: flex; align-items: center; gap: 14px; font-size: 13px; }
+.pm-note { font-size: 12px; color: var(--faint); }
+.pm-rename { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
+.pm-rename .set-input { flex: 1 1 180px; }
+.pm-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.pm-spin {
+  width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line-strong); border-top-color: var(--accent);
+  animation: pm-turn .9s linear infinite;
+}
+@keyframes pm-turn { to { transform: rotate(1turn); } }
+
+/* ─── the Orchestration bank page ──────────────────────────────────────────── */
+
+.bk-page { display: grid; gap: 18px; max-width: 980px; }
+/* the diagram's arrows take the same tone as on the Agents page (pipeline.css sets it on #agentsView) */
+#bankView { --pl-edge: color-mix(in srgb, var(--muted) 55%, var(--line-strong)); }
+.bk-head { display: grid; gap: 6px; justify-items: start; }
+.bk-meta { margin: 0; }
+.bk-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.bk-bar .bk-p { flex: 1 1 280px; }
+.bk-p { margin: 0; font-size: 13.5px; line-height: 1.55; color: var(--ink-2); }
+.bk-save { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 14px; }
+.bk-save .set-input { flex: 1 1 240px; }
+.bk-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.bk-card { display: grid; gap: 6px; padding: 14px 16px; }
+.bk-card-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.bk-name { margin: 0; font-size: 15px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.bk-name a { color: inherit; text-decoration: none; }
+.bk-name a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.bk-meta { font-size: 12.5px; color: var(--muted); }
+.bk-tag { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 11.5px; font-weight: 600; }
+.bk-summary { margin: 0; font-size: 13.5px; color: var(--ink-2); }
+.bk-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; margin-top: 4px; font-size: 13px; }
+/* a link that looks like the primary button: it goes to the confirmation, it changes nothing itself */
+.bk-btn {
+  margin-left: auto; padding: 5px 12px; border: 1px solid var(--accent); border-radius: var(--radius); background: var(--accent);
+  color: var(--accent-ink); font-size: 13px; font-weight: 550; line-height: 1.4; text-decoration: none;
+}
+.bk-btn:hover { filter: brightness(1.08); }
+.bk-acts-start .bk-btn { margin-left: 0; }
+.bk-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 12px; margin-top: 4px; background: var(--surface-2); border-radius: var(--radius); }
+.bk-ask .bk-p { flex: 1 1 260px; }
+.bk-rename { display: flex; flex-wrap: wrap; gap: 8px; }
+.bk-rename .set-input { flex: 1 1 220px; }
+.bk-empty { padding: 18px; }
+.bk-back { font-size: 13px; }
+.bk-diagram { padding: 12px; overflow-x: auto; }
+.bk-agents { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
+.bk-agent { display: grid; gap: 6px; padding: 12px 14px; align-content: start; }
+.bk-agent:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bk-agent h3 { margin: 0; font-size: 14px; display: flex; align-items: baseline; gap: 8px; }
+.bk-role { font-size: 11.5px; font-weight: 500; color: var(--muted); }
+.bk-agent ol { margin: 0; padding-left: 20px; font-size: 13px; color: var(--ink-2); display: grid; gap: 3px; }
+.bk-agent .bk-spec { margin: 0; font-size: 13px; color: var(--ink-2); white-space: pre-wrap; }
+.bk-none { margin: 0; font-size: 12.5px; color: var(--faint); }
+.bk-agent .bk-model { margin: 0; font-size: 12px; color: var(--muted); }
+.bk-route { max-width: 72ch; }
+.bk-same { color: var(--muted); }
+.pm-status.bk-note { border-left-color: var(--ok); }
+.bk-confirm .bk-changes { margin: -4px 0 0; padding-left: 20px; display: grid; gap: 5px; font-size: 13.5px; color: var(--ink); font-weight: 500; }
+.bk-confirm { display: grid; gap: 10px; padding: 16px 18px; border-left: 3px solid var(--accent); }
+.bk-confirm h2 { margin: 0; font-size: 15px; }
+.bk-confirm ul { margin: 0; padding-left: 20px; display: grid; gap: 5px; font-size: 13.5px; color: var(--ink-2); }
+.bk-h { margin: 4px 0 0; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+
+/* ─── phones ───────────────────────────────────────────────────────────────── */
+
+/* The bottom bar has no room for one more button (it crowded Home and the spend figure): on a phone the project
+   chip sits at the left of the page header instead, and its menu opens under it. Fixed, so the rail's own
+   overflow does not clip it. The header keeps room for it. */
+@media (max-width: 720px) {
+  .rail-project { position: fixed; top: calc((var(--header-h) - 36px) / 2); left: 10px; z-index: 31; }
+  .rail-project .rail-item.pm-button { flex: none; width: 36px; height: 36px; padding: 0; justify-content: center; }
+  .rail-project .rail-icon { margin: 0; }
+  #pageHead { padding-left: 54px; }
+  .pm-menu, .rail-pinned .pm-menu, #rail.open ~ .pm-menu { left: 8px; right: 8px; top: calc(var(--header-h) + 4px) !important; bottom: auto; width: auto; }
+  .bk-btn { margin-left: 0; }
+  /* the bank's long title never pushes the header past the screen (it scrolled sideways by about 29 px) */
+  body:has(#bankView:not([hidden])) #pageTitle { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  body:has(#bankView:not([hidden])) #pageStatus { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pm-menu { animation: none; }
+  .pm-spin { animation: none; border-top-color: var(--line-strong); }
+}

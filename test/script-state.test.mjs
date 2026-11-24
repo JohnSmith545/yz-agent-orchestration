@@ -144,6 +144,19 @@ test('a failure after questions keeps the answers box, so Retry and the answers 
   assert.equal(s.request, 'follow')
 })
 
+// A second round must chain on the run that ASKED the questions, never on a follow-up that then failed:
+// that one already holds these answers, and chaining on it would send them twice.
+test('regression: askedBy is the text of the run that asked the questions, kept through a failed follow-up', () => {
+  let s = St.reduce(stream(St.reduce(St.initial(), { type: 'start', text: 'idea + round one' }), QUESTIONS), { type: 'end', ok: true })
+  assert.equal(s.askedBy, 'idea + round one')
+  s = St.reduce(s, { type: 'start', text: 'idea + round one + round two', followUp: true })
+  s = St.reduce(s, { type: 'end', ok: false, error: 'Boom.' })
+  assert.equal(s.askedBy, 'idea + round one', 'not the failed follow-up')
+  assert.equal(St.reduce(s, { type: 'reset' }).askedBy, '')
+  assert.equal(St.reduce(St.initial(), { type: 'restore', text: 'old idea', output: QUESTIONS, ok: true }).askedBy, 'old idea')
+  assert.equal(St.initial().askedBy, '')
+})
+
 test('deltas or ends that arrive when nothing runs change nothing', () => {
   const s = St.initial()
   assert.equal(St.reduce(s, { type: 'delta', text: 'x' }), s)

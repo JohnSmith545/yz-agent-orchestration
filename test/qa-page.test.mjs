@@ -50,9 +50,9 @@ test('#/qa is the QA page and #/qa/<id> opens one ticket on it, decoded', () => 
   assert.equal(window.Shell.railFor(window.Shell.resolve('#/qa/x')), 'qa', 'an opened ticket still lights QA in the rail')
 })
 
-test('the rail links to QA between Flows and Tickets (SCRIPT sits right after QA), and the shell opens QaPage in #qaView', () => {
+test('the rail links to QA between Flows and Tickets (Brainstorming sits right after QA), and the shell opens QaPage in #qaView', () => {
   const shell = read('shell.js')
-  assert.match(shell, /link\('flows', '#\/flows', 'Flows'\)\}\$\{link\('qa', '#\/qa', 'QA'\)\}\$\{link\('script', '#\/script', 'SCRIPT'\)\}\$\{link\('tickets', '#\/tickets', 'Tickets'\)\}/)
+  assert.match(shell, /link\('flows', '#\/flows', 'Flows'\)\}\$\{link\('qa', '#\/qa', 'QA'\)\}\$\{link\('script', '#\/brainstorming', 'Brainstorming'\)\}\$\{link\('tickets', '#\/tickets', 'Tickets'\)\}/)
   assert.match(shell, /qa: 'qaView'/)
   assert.match(shell, /qa: 'QaPage'/)
   assert.match(shell, /^\s+qa: svg\(/m, 'the rail icon')

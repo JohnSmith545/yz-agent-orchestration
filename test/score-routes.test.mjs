@@ -16,10 +16,15 @@ process.env.FACTORY_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'score-rout
 const F = await import('../flows.mjs')
 const { factoryRoute } = await import('../factory-routes.mjs')
 const { CONFIG } = await import('../config.mjs')
+const { pipelineGraph } = await import('../pipeline.mjs')
 const { moveToTrash } = await import('../trash.mjs')
 
 const FIXTURE = JSON.parse(fs.readFileSync(path.join(HERE, 'fixtures', 'no-visual.json'), 'utf8'))
 const QA = CONFIG.pipeline.qa
+// these tests read the live config.json: with pipeline.security set there, a QA pass is delivered only with a
+// Security pass too (score.mjs), so the passed fixtures carry one (ignored without Security), and the log shows it
+const SECURITY = CONFIG.pipeline.security && pipelineGraph(CONFIG).nodes.some(n => n.role === 'security')
+const reviewed = at => ({ security: { status: 'passed', by: 'Security', at } })
 const DAY = 86_400_000
 const ago = ms => new Date(Date.now() - ms).toISOString()
 
@@ -49,7 +54,7 @@ function put(id, more = {}) {
 const get = p => fetch(base + p)
 
 test('GET /api/score: the scorecard over the flow files for the last 30 days by default, with builtAt', async () => {
-  put('passed', { status: 'done', updatedAt: ago(1000), qa: { status: 'passed', attempt: 1, by: QA, at: ago(1000) } })
+  put('passed', { status: 'done', updatedAt: ago(1000), qa: { status: 'passed', attempt: 1, by: QA, at: ago(1000), ...reviewed(ago(900)) } })
   put('slipped', { status: 'done', updatedAt: ago(2 * DAY) })
   put('dropped', { status: 'dropped', updatedAt: ago(20 * DAY) })
   put('old', { status: 'dropped', updatedAt: ago(40 * DAY) })
@@ -102,7 +107,7 @@ test('POST /api/score is not a route', async () => {
 
 test('GET /api/log: the timeline for the last 30 days by default, newest first, with total, window and builtAt', async () => {
   put('dropped', { status: 'dropped', createdAt: ago(3 * DAY), updatedAt: ago(DAY) })
-  put('passed', { status: 'done', createdAt: ago(40 * DAY), updatedAt: ago(1000), qa: { status: 'passed', attempt: 1, by: QA, startedAt: ago(5000), at: ago(4000) } })
+  put('passed', { status: 'done', createdAt: ago(40 * DAY), updatedAt: ago(1000), qa: { status: 'passed', attempt: 1, by: QA, startedAt: ago(5000), at: ago(4000), ...reviewed(ago(3000)) } })
   const r = await get('/api/log')
   assert.equal(r.status, 200)
   const j = await r.json()
@@ -110,9 +115,10 @@ test('GET /api/log: the timeline for the last 30 days by default, newest first, 
   assert.equal(j.window.days, 30)
   assert.ok(Date.parse(j.builtAt))
   assert.deepEqual(j.events.map(e => [e.kind, e.flow.id, e.cell]), [
-    ['passed', 'passed', 'delivered'], ['handed', 'passed', null], ['dropped', 'dropped', 'missed'], ['started', 'dropped', null],
+    ...(SECURITY ? [['security', 'passed', 'delivered'], ['passed', 'passed', null]] : [['passed', 'passed', 'delivered']]),
+    ['handed', 'passed', null], ['dropped', 'dropped', 'missed'], ['started', 'dropped', null],
   ], 'the passed flow started 40 days ago, outside the window')
-  assert.equal(j.total, 4)
+  assert.equal(j.total, SECURITY ? 5 : 4)
 })
 
 test('GET /api/log?cell= keeps one cell, ?kind=rule one kind; the counts match /api/score', async () => {
@@ -138,7 +144,8 @@ test('GET /api/log with a bad window, cell or kind is a 400 with a plain sentenc
   const cases = {
     'days=14': 'The window must be 7, 30 or all days.',
     'cell=wrong': 'The cell must be delivered, caught, missed or slipped.',
-    'kind=nope': 'The kind must be one of started, route, handed, passed, failed, pushed, done, dropped, stopped, stalled or rule.',
+    // the kinds of the planner and Security are named only when the live config.json has them (score-routes.mjs)
+    'kind=nope': `The kind must be one of started, route, handed, passed, failed, pushed, done, dropped, stopped, stalled, rule${SECURITY ? ', security' : ''}${pipelineGraph(CONFIG).nodes.some(n => n.role === 'planner') ? ', planned' : ''}`.replace(/, ([a-z]+)$/, ' or $1') + '.',
   }
   for (const [q, error] of Object.entries(cases)) {
     const r = await get(`/api/log?${q}`)

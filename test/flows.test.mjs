@@ -180,9 +180,10 @@ test('addNode numbers ids after the highest n<N>, keeps a given id, and fills as
   const kept = F.addNode(f, { type: 'note', title: 'a note', id: 'deploy-note' })
   assert.deepEqual(kept, { id: 'deploy-note', type: 'note', title: 'a note', after: [] })
   const ask = F.addNode(f, { type: 'ask', title: 'Go?', after: ['n2'] })
-  assert.deepEqual(ask, {
+  assert.ok(Date.parse(ask.at), 'an ask carries when it was asked')
+  assert.deepEqual({ ...ask, at: 'x' }, {
     id: 'n9', type: 'ask', title: 'Go?', after: ['n2'],
-    kind: 'yesno', yes: '', no: '', answer: null, answeredAt: null, note: '', sentAt: null, deliveryError: null,
+    kind: 'yesno', yes: '', no: '', answer: null, answeredAt: null, note: '', sentAt: null, deliveryError: null, at: 'x',
   })
   assert.deepEqual(F.validateFlow(f), [])
 })

@@ -13,6 +13,11 @@
 //           The Ask drawer, "Explain this ticket", and the old `decide` command.
 // Answers, Request test steps, the QA rework loop and term questions are NOT request types: they happen inside a
 // flow that already exists.
+// With the optional agents on the pipeline (pipeline.mjs gateLabels), a producer's BUILD goes Request -> the
+// coordinator -> the planner -> the producer -> QA -> Security -> Push -> Output (each only when configured); the
+// coordinator's own build skips the planner. Review and ask routes do not change: the planner hands out build work
+// only, so an ask may still go from the coordinator to a producer. The planner and Security, like QA, have no route
+// of their own: they record their work on the flow they plan or review.
 //
 // ═══ THE ROUTE BLOCK ═══  flow.route = { type, steps, at, by, history? }
 //   steps    graph node ids in planned order, starting `request` and ending `outcome`, each once
@@ -28,8 +33,8 @@
 //   state   done | current | upcoming | skipped; ONE step is current while the flow is on its way, none once it
 //           reached the Output (every step done, or skipped where it went round) and none for a dropped flow
 //   visits  how many times the flow was at that step (pipeline.mjs stageOf's path), so a rework loop shows
-//   status  on the current step only: the stage's word (working, blocked, waiting, pending, testing, rework,
-//           failed)
+//   status  on the current step only: the stage's word (working, blocked, waiting, pending, testing, reviewing,
+//           rework, failed)
 // It is stageOf (pipeline.mjs) laid over the planned steps, so the Agents diagram, the QA page and the Flows
 // page all read the same answer. ⚠️ Pure: no file, no config (callers pass the graph). It must not import
 // flows.mjs (flows.mjs imports this file) or config.mjs.
@@ -94,11 +99,17 @@ export function checkRoute(route, graph) {
   for (const s of steps) if (!byId.has(s)) problems.push(`route step ${s} is not on the pipeline (its steps are ${[...byId.keys()].join(', ')})`)
   if (problems.length) return problems
   const hands = new Set((graph.edges || []).filter(e => e.kind !== 'rework').map(e => `${e.from}>${e.to}`))
+  // the planner hands out build work only: a question may still go from the coordinator to a producer
+  const coordinator = roleNode(graph, 'coordinator')
+  const direct = route?.type !== 'build' && roleNode(graph, 'planner') ? new Set(graph.nodes.filter(n => n.role === 'producer').map(n => `${coordinator?.id}>${n.id}`)) : new Set()
   for (let i = 1; i < steps.length; i++) {
-    if (!hands.has(`${steps[i - 1]}>${steps[i]}`)) problems.push(`the route goes from ${steps[i - 1]} to ${steps[i]}, but the pipeline hands no work that way`)
+    const hop = `${steps[i - 1]}>${steps[i]}`
+    if (!hands.has(hop) && !direct.has(hop)) problems.push(`the route goes from ${steps[i - 1]} to ${steps[i]}, but the pipeline hands no work that way`)
   }
   const qa = roleNode(graph, 'qa')
   if (route?.type === 'build' && !(steps.includes(qa?.id) && steps.includes('push'))) problems.push('a build route must go through QA and Push: every code change is tested and pushed by QA')
+  const security = roleNode(graph, 'security')
+  if (route?.type === 'build' && security && !steps.includes(security.id)) problems.push(`a build route must go through Security: ${security.label} reviews every code change before QA pushes it`)
   const chat = roleNode(graph, 'chat')
   if (route?.type === 'review' && !(chat && steps.includes(chat.id))) problems.push(`a review route goes through ${chat?.label || 'the chat agent'}: reviews are the chat agent's`)
   return problems
@@ -119,6 +130,8 @@ export function planRoute(type, agent, graph) {
   const qa = roleNode(graph, 'qa')
   const chat = roleNode(graph, 'chat')
   const own = ownNode(agent, graph)
+  const planner = roleNode(graph, 'planner')
+  const security = roleNode(graph, 'security')
   const via = own.role === 'producer' ? [coordinator.id, own.id] : [coordinator.id]
   if (type === 'review') {
     if (!chat) return { error: 'this dashboard has no chat agent (config factory.chat.name), so there is no review route: use ask' }
@@ -133,7 +146,19 @@ export function planRoute(type, agent, graph) {
     if (type === 'build') return { error: 'QA tests other flows with the qa commands; it has no build route of its own' }
     return { error: 'QA asks on the flow it tests (flow ask), never in a flow of its own' }
   }
-  if (type === 'build') return { steps: ['request', ...via, qa.id, 'push', 'outcome'] }
+  if (own.role === 'planner') {
+    if (type === 'build') return { error: `${own.label} plans and hands out work with flow plan-start and flow plan; it has no build route of its own` }
+    return { error: `${own.label} asks on the flow it plans (flow ask), never in a flow of its own` }
+  }
+  if (own.role === 'security') {
+    if (type === 'build') return { error: `${own.label} reviews other flows with the security commands; it has no build route of its own` }
+    return { error: `${own.label} asks on the flow it reviews (flow ask), never in a flow of its own` }
+  }
+  if (type === 'build') {
+    // a producer's task comes through the planner when there is one; Security reviews every build after QA
+    const through = own.role === 'producer' && planner ? [coordinator.id, planner.id, own.id] : via
+    return { steps: ['request', ...through, qa.id, ...(security ? [security.id] : []), 'push', 'outcome'] }
+  }
   return { steps: ['request', ...via, 'outcome'] }
 }
 

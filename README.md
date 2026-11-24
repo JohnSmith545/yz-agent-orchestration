@@ -54,7 +54,7 @@ example first.
   compact card per agent, and who is messaging whom.
 - **QA**: every ticket that passed QA, with QA's report, its screenshots, the steps
   to test it yourself and links to the tested commit and the pushed branch.
-- **SCRIPT**: turns a rough idea into a ready-to-paste prompt in six labelled parts, streamed, with a soft pop when
+- **Brainstorming**: turns a rough idea into a ready-to-paste prompt in six labelled parts, streamed, with a soft pop when
   it is done. Its **Context** panel tells it about your agents, a live session and your own notes.
 - **Tickets**: a ticket collection from your tracker, an orchestration grid of
   which agent took which ticket how far (local, dev, stage, prod), the ticket
@@ -97,8 +97,9 @@ turns, billed to your Claude account like any other session:
 - **Learning words**: a flow's marked words the glossary does not know yet, up to 12 in one small turn,
   a fraction of a cent; at most 200 words a day.
 - **Ticket refresh**: each refresh of a collection (the button, or its timer) is one turn.
-- **The SCRIPT Generator** (`#/script`): each **Generate** is one Opus 5.5 turn at high effort, about 3 cents for a
-  full prompt and under 2 cents when it asks questions first (measured 2026-11-24).
+- **Brainstorming** (`#/brainstorming`): each **Generate** is one Opus 5.5 turn at high effort, about 10 cents for
+  the first run in an hour and about 5 cents for each run after it (measured 2026-11-25, with the brainstorming skill
+  and the orchestration brief).
 
 The figures are measurements from one setup, not quotes. **Spend today** in the
 rail adds up what these turns cost.
@@ -145,13 +146,13 @@ rail adds up what these turns cost.
   chat agent could tick **verified** or answer an ask by driving this page. Add
   `--blocked-origins 127.0.0.1:4317` to the Playwright MCP server's arguments in
   your user-level MCP config (more under The Ask drawer below).
-- The SCRIPT **Context** panel sends what you attach (the orchestration brief, a live session's latest talk, your
-  notes) only to your own clean SCRIPT run: no tools, no settings, nothing else sees it. The brief is built from
+- The Brainstorming **Context** panel sends what you attach (the orchestration brief, a live session's latest talk, your
+  notes) only to your own clean Brainstorming run: no tools, no settings, nothing else sees it. The brief is built from
   labels and settings and scrubbed of paths, ids, emails and tokens; a live session is your own conversation, so
   pick one only when you are happy for that text to go to the model. Its routes take same-origin writes only, and
   the model is told the context is background, never instructions.
 - `config.json` and everything under `data/` (flows, evidence, ticket snapshots,
-  the chat transcript, spend, the SCRIPT context and the SCRIPT run log of your last 50 ideas and their prompts)
+  the chat transcript, spend, the Brainstorming context and its run log of your last 50 ideas and their prompts)
   stay on your machine and are git-ignored. Clear the run log with `DELETE /api/script/log` or from the page.
 
 ## Configuration
@@ -174,7 +175,7 @@ refresh themselves; the Refresh button in the page header rebuilds at once.
 | `stopHour` | Local hour to stop at, or null |
 | `ticketPrefixes` | Ticket id prefixes in rank order, such as `["ABC", "XYZ"]` (see Assumptions about your repo and tracker). Left out: taken from the collections and the ticket sources |
 | `pr` | Send to the base branch, off by default: `{ "enabled": false, "remote": "origin", "bases": ["dev"], "gh": "gh" }`. `enabled` must be `true` to turn it on, and is honoured only with a `pinHash` (set it on the Settings page or with `node tools/factory.mjs pr-pin`, never by hand); these keys are read again whenever config.json changes, so no restart; `protect` lists the branches never sent from (default `["main", "master", "stage", "prod", "production", "release/*", "release-*"]`, `*` matches anything); `remote` is the remote to push to; `bases` are the branches a flow may be sent into; `gh` is the GitHub CLI command (signed in with `gh auth login`). A bad value turns the feature off with a warning in the server log |
-| `pipeline` | The orchestration (QA and the pipeline, below): `{ "qa": "QA", "producers": null, "protectedBranches": ["dev", "stage", "main", "master"], "maxReworks": 3 }`. `qa` is the dashboard label of the agent that tests every code change last and is the only one that pushes; `producers` the labels that write code (`null`: every `codingAgents` label but the coordinator's and QA's); `protectedBranches` the branches QA never pushes to (any case, `*` matches anything; `pr.protect` and `pr.bases` are refused too); `maxReworks` how many times a failure goes back to its producer before the flow stops. A bad key keeps its default, with a warning |
+| `pipeline` | The orchestration (QA and the pipeline, below): `{ "qa": "QA", "producers": null, "protectedBranches": ["dev", "stage", "main", "master"], "maxReworks": 3 }`. `qa` is the dashboard label of the agent that tests every code change last and is the only one that pushes; `producers` the labels that write code (`null`: every `codingAgents` label but the coordinator's and QA's); `protectedBranches` the branches QA never pushes to (any case, `*` matches anything; `pr.protect` and `pr.bases` are refused too); `maxReworks` how many times a failure goes back to its producer before the flow stops (QA and Security failures together). Two optional keys add agents: `planner` and `security`, each a dashboard label or null (left out is null: the graph is as before; see The planner and Security, below). A bad key keeps its default, with a warning |
 | `levels` | The branches the levels compare: `{ "work": "followup", "dev": "origin/dev", "stage": "origin/stage", "prod": "origin/main" }` (these are the defaults). A bad value keeps its default, with a warning |
 | `reminders` | Reminders at a local time, once a day: `[{ "at": "17:55", "days": "weekdays", "text": "Wrap up: commit or park your work." }]`. `days` is `weekdays` (Monday to Friday) or `daily`; `[]` turns them off. Left out, there are none. `at` is a real time, 00:00 to 23:59, and one reminder per time. A bad or repeated entry is left out with a warning in the server log |
 
@@ -184,9 +185,10 @@ Run `tools\keep-alive.cmd` (Windows) instead of `npm start` to have the dashboar
 starts `node server.mjs` from the repo root, and starts it again 5 seconds after it stops for any reason.
 Its output goes to `%LOCALAPPDATA%\yz-agent-orchestration\server.log`. Close its window to stop it. A stop at
 `stopHour` is restarted too, so leave `stopHour` null when you use it. Run only one: a second copy (or any
-dashboard already on the port) fails with EADDRINUSE and tries again every 5 seconds, filling the log. To
-start it at login, press Win+R, open `shell:startup`, and put a shortcut to `tools\keep-alive.cmd` in the
-folder that opens.
+dashboard already on the port) waits up to 15 seconds for the port, stops, and tries again 5 seconds later,
+filling the log. To start it at login, press Win+R, open `shell:startup`, and put a shortcut to
+`tools\keep-alive.cmd` in the folder that opens. A project switch (below) stops the server with exit code 75,
+which the loop starts again at once instead of after 5 seconds.
 
 ### Fonts
 
@@ -212,12 +214,12 @@ mode is `:root[data-theme="dark"]`.
 
 `public/shell.js` and `shell.css` draw the frame every page shares.
 
-- **The rail** (56 px, icons only): the brand mark (Home), then Flows first, QA, SCRIPT, Tickets,
+- **The rail** (56 px, icons only): the brand mark (Home), then Flows first, QA, Brainstorming, Tickets,
   Timeline, Agents, Subagents, Glossary, and at the foot Ask, Alerts, Spend and Theme. Hover it for 300 ms,
   or Tab into it, and it opens to 200 px with labels; the pin at the top keeps
   it open (remembered). Under 720 px wide the rail is a bar along the bottom.
   The routes are `#/` (Flows, the landing page), `#/flows` (the same page, so old links keep working),
-  `#/home`, `#/qa` (and `#/qa/<flow id>` for one ticket), `#/script`,
+  `#/home`, `#/qa` (and `#/qa/<flow id>` for one ticket), `#/brainstorming` (`#/script` still lands there),
   `#/tickets`, `#/timeline`, `#/agents`, `#/subagents`, `#/glossary`, `#/settings`
   and `#/agent/<id>[/<subagent>]`; anything else goes to `#/`.
   Old links still work: `#/factory` goes to `#/tickets` and opens the Ask
@@ -298,7 +300,7 @@ mode is `:root[data-theme="dark"]`.
   still shows that day's reminder once.
 - **Spend today** (`public/spend.js`, `spend.mjs`): above Theme, `$12.40 today`
   is what the dashboard's OWN headless turns cost today: the chat, the answer
-  relay, the explainer, the ticket refreshes and the SCRIPT Generator. It is hidden while today is
+  relay, the explainer, the ticket refreshes and Brainstorming. It is hidden while today is
   zero, and the closed rail shows the short amount (`$4.20`, `$12`). Click it
   for the total by kind and the last 20 turns with how long ago. Each turn's
   `total_cost_usd` is appended as one line to `data/spend.jsonl` (`{ at, kind,
@@ -384,7 +386,8 @@ last pressed its `Mark read`: flows that changed status, answers delivered,
 tickets that reached a new level or changed on their source, commits per agent;
 at most eight lines, no model involved; it stays across reloads until marked
 read, and a new browser starts from its first visit; see `since.mjs`),
-**Waiting on you** (only while an ask is open: answer it inline), **Agents · N** (the agent cards in a compact form: name,
+one line of how many things need you, from Human review (`#homeHuman`, `human-review.js`: `N things need you`, what
+they are, and **Open Human review**, which opens the box on the Agents page), **Agents · N** (the agent cards in a compact form: name,
 state, last action, up to four tickets; click one to watch it live), **Subagents · N running** (only when a subagent ran
 today: N is how many have not finished; the rows are the subagents still running, six at most, then the latest
 four finished, each a link to its live view with its state, model, time and pull request; **All subagents** opens
@@ -400,14 +403,10 @@ the Output (Flow types and routes, below), and this page shows each one as that 
 agents do and what waits on you. Every agent narrates its work as a flow, one JSON
 file per flow in `data/flows/`, written with the `flow` commands below. Top to bottom on the page:
 
-- **Waiting on you**, one strip across all flows: every unanswered ask, newest first, one line each (agent,
-  flow title, the question) with Yes and No (or a text box) inline and a link to show it in its flow.
-  Under each question is **why** it is asked: the agent's `--why`, or, when it gave none, a fainter line
-  saying which flow and step the ask follows. The same `Why?` line sits under the question wherever an ask
-  shows: the opened flow's Story, Status and node drawer, the chart's tooltip, and the alert toast.
-  Answering here is the same as answering on the node. While a flow is open, its own asks leave the strip
-  (its Story and Status ask them), and the strip disappears when nothing is left in it. On the Flows page no
-  `N asks waiting` toast is raised: the header dot and the strip already say it.
+- The questions across flows are not on this page: they are in the **Human review** box on the Agents page
+  (below). Under each question, everywhere an ask shows, is **why** it is asked: the agent's `--why`, or, when
+  it gave none, a fainter line saying which flow and step the ask follows (the opened flow's Story, Status and
+  node drawer, the chart's tooltip, the alert toast, and Human review).
 - **The board**, a card per flow still on its way, grouped by agent in the grid's column order. On its way is
   by **route, not status** (`FlowBoard.groups`): open and blocked flows, and a done flow whose route has a current
   step (QA passed and Push waiting is done by status and still at Push), which keeps its full card and `at Push`.
@@ -550,15 +549,18 @@ file per flow in `data/flows/`, written with the `flow` commands below. Top to b
   **Request test steps** from the Output view (one line per flow, with your note). Each delivery
   costs roughly $0.30 and ten seconds.
 
-### Archive and Trash
+### Archive, Delete and the flow archive (#/archive)
 
-Flows are the one thing the dashboard keeps of its own, so they are the one thing you can put away. In an opened
-flow's `⋯` menu, **Archive** hides it from the board, Waiting on you, Home, the palette and the alerts without deleting
-it; a direct link still opens it, and a new question from its agent brings it back. **Delete** moves it to the Trash
-(`data/trash/<id>.json`); a flow its agent may still be working on asks first, and that agent is told to stop. A flow
-24 hours in the Trash is removed for good with its evidence files, decided from its stored time at startup and every
-10 minutes. **Archived · N** and **Trash · N** under the board list them, with Unarchive, Restore and Delete forever.
-Only you archive or delete: agents have no command for either, and any command on a trashed flow is refused.
+Flows are the one thing the dashboard keeps of its own, so they are the one thing you can put away. Each card on the
+board, and an opened flow's `⋯` menu, has **Archive** and **Delete**. **Archive** hides a flow from the board, the
+palette and the alerts without changing it; a new question from its agent brings it back. **Delete** moves it to
+`data/trash/<id>.json` (the folder keeps its old name, so entries an older version wrote still show); a flow its agent
+may still be working on asks first, and that agent is told to stop. Nothing is removed by a timer: both wait in the
+**flow archive** (`#/archive`, `archive-page.js`, `GET /api/archive`), in an Archived and a Deleted group with a search
+by title or ticket id. A title opens the flow read-only (a banner, every control that would change it hidden and
+refused); **Restore** puts it back, and **Delete for good** (Deleted only, asked in the row) removes it with its
+evidence files. Archived flows count in the pipeline score; deleted ones do not. Only you archive or delete: agents
+have no command for either, and any command on a deleted flow is refused.
 
 ### QA (#/qa)
 
@@ -586,31 +588,46 @@ is never red: the page says, in plain words, that it has not been through QA and
 still being worked on, it waits for QA, or it was dropped), with **Explain in Flows**, and **How to test in Flows** (the
 flow's Output tab) only when that flow has test steps. A link straight to `#/qa/<flow id>` reads that ticket at once, beside the list.
 
-### SCRIPT Generator (#/script)
+### Brainstorming (#/brainstorming)
+
+The page was called SCRIPT; SCRIPT is now only the name of the six-part method. `#/script` still lands here, and its
+files, its `/api/script/` routes and its data files keep the old word, so saved History and Context keep working.
 
 Write a rough idea in **Your thoughts** and press **Generate** (or Ctrl+Enter, Cmd+Enter on a Mac). It comes back as a
 prompt for any AI, ready to paste, in one code block with six labelled parts: **S**ituation, **C**haracter,
-**R**equest, **I**ntent, **P**resentation and **T**one. It never does the task itself. Any assumptions it made sit in
-one line under the block. **Copy** copies only what is inside the block (no fences, no assumptions line) and says
+**R**equest, **I**ntent, **P**resentation and **T**one. It never does the task itself. Every assumption it made is
+listed under the block, as quiet notes you can overrule. **Copy** copies only what is inside the block (no fences, no assumptions line) and says
 **Copied** for a moment; it stays off until a block exists.
 
 - **How it calls the model:** one headless Claude Code turn, like the chat, never the raw API (no API key is needed):
-  Opus 5.5 (`claude-opus-5-5`) at high effort, with the SCRIPT system prompt in `script-prompt.mjs` (word for word,
-  and tested). The run is clean: `--tools ""` and `--strict-mcp-config` give it no tools and no MCP servers,
+  Opus 5.5 (`claude-opus-5-5`) at high effort, with the system prompt in `script-prompt.mjs`: the user's own rules for building a prompt (the six
+  parts, reading the context first, a silent gap scan, questions scaled to the task, only the facts you gave, plan
+  first for code), taken from their method document, each rule and the exact text tested. The run is clean: `--tools ""` and `--strict-mcp-config` give it no tools and no MCP servers,
   `--setting-sources ""` loads none of your settings (without it your `~/.claude/CLAUDE.md` and plugin hooks rode
   along), it runs in a fresh empty temp folder with `--no-session-persistence`, and `--name SCRIPT` stops the CLI's
   own session-title call. The CLI still adds its short environment note and your account email; no flag removes them.
   Your text goes on stdin. The route is `POST /api/script/generate` (`{ text }`, 1 to 8000 characters, same-origin
   only), streamed back as NDJSON: `delta` lines, then one `done` or `error` line. One run goes at a time (a second
   gets 409). Closing the tab stops the run; going to another page does not, and the result is there when you come back.
-- **What it costs:** about 3 cents for a full prompt and under 2 cents when it asks questions instead (measured
-  2026-11-24: $0.034 and $0.015). Each run counts in **Spend today** as SCRIPT Generator.
+- **The brainstorming skill** (`/superpowers:brainstorming`): when the superpowers plugin is installed in the account
+  folder the run uses (`CLAUDE_CONFIG_DIR`, else `~/.claude`), `script-skill.mjs` finds it through that folder's
+  `plugins/installed_plugins.json` and reads its `SKILL.md` at run time (it is never copied into this repo). The system
+  prompt carries it after the rules and a short mapping onto this page: its questions go in the pop-up as one numbered
+  list, its design is the six-part prompt, its spec file, commits and plan do not apply, and the rules win where the
+  two differ. Tools stay off. Without the plugin the page works on the built-in rules alone, and the line under the
+  output says `Left out: Brainstorming skill (It was not found on this machine, ...)`. Invoking it as a slash command
+  (`--plugin-dir` and the command on stdin) also works, but measured twice the cost, so it is not used (`script.mjs`
+  says why).
+- **What it costs** (measured 2026-11-25, the orchestration brief attached, no live session): the first run in an hour
+  writes the rules and the skill to the prompt cache, about 10 cents ($0.096 for a full prompt). Runs after it within
+  the hour read them back at a tenth of the price: $0.045 for a set of questions. On main before the skill, the same
+  full prompt cost $0.051. Each run counts in **Spend today** as Brainstorming.
 - **The layout:** two equal columns, each a head row of the same height, a box, and a foot row. Both boxes share one
   height that fits the window, so they start and end on the same line before, during and after a run; the output
   scrolls inside its box. The page is as wide as the banner above it. Under 900 px the columns stack.
 - **The output:** clean text, never raw marks. Bold and code show as bold and code, numbered and bulleted lines as
   real lists, and the code block as a prompt card with one row per section (its letter, its label, its text), with
-  no fence lines. The assumptions line under it is a small quiet note. It is drawn from text only, never as HTML
+  no fence lines. The assumptions under it are small quiet notes. It is drawn from text only, never as HTML
   (`script-render.js` splits the answer into parts, `script-view.js` draws them and only patches what changed).
 - **The letters:** S C R I P T sit above the output. While the model thinks (no text yet) they ripple in a slow wave
   and the line says **Thinking…**. Each lights in the accent with a small pop as its section starts streaming, read
@@ -625,10 +642,13 @@ one line under the block. **Copy** copies only what is inside the block (no fenc
 - **The pop and mute:** the pop is made in the browser with the Web Audio API (no sound file): a 115 ms sine that
   falls from 620 to 300 Hz, at a low volume. The speaker button by the letters mutes it; the choice is kept in this
   browser (`script.muted`). Muted, the letters and the glow still show.
-- **When it asks questions:** an idea that leaves the situation or the goal unclear gets up to three short questions
-  instead of a prompt. They show in the output box, the letters stay dark (the line says **Questions first**),
-  nothing pops, and your text is left as it was. A pop-up opens over **Your thoughts**, `SCRIPT has 3 questions`,
-  with each question and its own answer field (text with no numbered or bulleted items gets one field). **Answer and
+- **When it asks questions:** an idea with gaps that matter gets a few short questions instead of a prompt, highest
+  impact first: none or one or two for a small clear ask, at most 5 at a time, and at most two rounds (the second
+  round sends the first round's answers again, since the model remembers nothing). Say *just do it* or *skip the
+  questions* in your idea and it writes the prompt at once, with its assumptions listed. They show in the output box, the letters stay dark (the line says **Questions first**),
+  nothing pops, and your text is left as it was. A pop-up opens over **Your thoughts**, `Brainstorming has 3 questions`,
+  with each question and its own answer field (text with no numbered or bulleted items gets one field). Choices the
+  model offers as bullets under a question show under that question and get no field of their own. **Answer and
   generate** (or Ctrl+Enter in it) needs at least one answer and sends your text, then `Answers to your questions:`,
   the questions and your answers as a numbered list, `(no answer)` for any you skipped. **Later**, Escape or × closes
   it and keeps what you typed in the **Your answers** box under your thoughts; **Show the questions** opens it again.
@@ -642,11 +662,11 @@ one line under the block. **Copy** copies only what is inside the block (no fenc
   line says so with **Retry**, which sends the same request again. Any text that had arrived stays, marked
   **Incomplete**. There is no pop.
 
-#### Context: what SCRIPT knows about your system
+#### Context: what Brainstorming knows about your system
 
-The run is clean, so on its own SCRIPT knows nothing about your agents or your work, and an idea such as "a prompt
+The run is clean, so on its own Brainstorming knows nothing about your agents or your work, and an idea such as "a prompt
 for my full agent orchestration" gets questions back. The **Context** tab on the right edge of the page opens a panel
-(like the Agents page's) that says what SCRIPT is told before it writes. Open or closed is kept in this browser
+(like the Agents page's) that says what Brainstorming is told before it writes. Open or closed is kept in this browser
 (`script.contextOpen`). It holds three kinds of context, and the tab shows how many are on (`Context · 3`):
 
 - **Orchestration** (on by default): a plain brief the dashboard writes itself from what it already knows. What the
@@ -721,6 +741,34 @@ The gear above Theme in the rail. Two sections:
 Each person sets their own PIN on their own machine: it lives in that machine's config.json, which is never
 committed. When Send is off or has no PIN, the Send bar under a flow's Output says `Sending is off` with a link
 here.
+
+### Projects and the Orchestration bank (#/bank)
+
+The **Project menu** at the top of the rail shows the project the dashboard watches, with the orchestration it
+last took from the bank under its name. Choose another project and the WHOLE dashboard switches: its repo,
+sessions, tickets, flows, evidence, scores and agent rules. **Add a project…** asks for a name, the top folder of
+its git repository, how its sessions are recognised (default: the folder name) and the orchestration it starts
+with (the same as the current project, or one from the bank). **Rename or remove…** removes a project from the
+list only; its data and its repo stay.
+
+- `projects.json` (beside config.json, gitignored; in FACTORY_DATA_DIR when that is set) holds
+  `{ active, projects: [{ id, name, primary?, config }] }`. The first project is config.json itself and keeps
+  `data/` exactly where it is; any other has `data/projects/<id>/` and takes nothing per-project from config.json
+  (repo, sessionCwdMatch, ticketPrefixes, coordinator, labels, aliases, pinnedAgents, pipeline, levels, the
+  ticket collections, the chat name and fork). Machine settings (port, claudeDirs, models, `pr`, reminders) stay
+  shared. With no projects.json the dashboard works exactly as before (project-store.mjs).
+- A switch writes `active` and restarts the server so every module loads fresh (restart.mjs): under
+  keep-alive.cmd with exit code 75; started by hand, it starts its own hidden replacement on the same port and
+  exits. A switch is refused while the Ask chat is answering, an answer waits in the relay queue, or another
+  write is still being answered. Agents' commands (`tools/factory.mjs …`) run from inside a project's repo
+  write to that project, whichever one the page shows; `YZ_PROJECT=<id>` names one outright.
+- The **Orchestration bank** saves orchestration styles for every project, in `data/orchestration-bank.json`:
+  the pipeline block (whole), the coordinator and agent labels, the chat agent's name, and each agent's
+  specification and rules, never a repo, session id, pin or ticket setting. **Use on this project** saves the
+  style in use first, writes the new one (config.json in place for the first project, projects.json for any
+  other; the rules file of the project) and restarts. The first read of an empty bank saves the current style
+  once. Limits: names of 60 characters, 50 entries, 256 KB each. A new per-agent store joins a style as one
+  line in `STYLE_PARTS` (orchestration-parts.mjs).
 
 ### Tickets (#/tickets)
 
@@ -867,12 +915,18 @@ flow change <flow> --before "<how it was>" --after "<how it is now>" | --clear
 flow summary <flow> "<markdown>" [--commit <sha>]... [--diff <worktree>]...
 flow test-step <flow> "<do this>" --expect "<you should see>" [--shot <path>] [--id t3] [--replace]
 flow test-clear <flow>
+flow hand-step <flow> "<do this>" --expect "<you should see>" [--where "<path or click path>"] [--copy "<value to paste>"] [--why "..."] [--id h3] [--replace]
+flow hand-clear <flow>
 flow say <flow> "<what was done>" [--why "<the reason>"] [--who "<label>"] [--id s2 --replace]
 flow say-clear <flow>
 flow pr <flow> --head <branch> --base <branch> --title "<title>" --body-file <path> | --clear
 flow qa-start <flow> [--commit <sha>] [--status testing|pending]                                  # QA only
 flow qa <flow> --status passed|failed --report <file.md> --commit <sha> [--summary "..."] [--shot <file>]... [--step "<do>" --expect "<see>" [--step-shot <file>]]...   # QA only
 flow qa-push <flow> [--branch <b>] [--remote origin] [--repo <path>]                              # QA only
+flow plan-start <flow>                                                                            # the planner only
+flow plan <flow> --file <plan.md> --to "<producer>"                                               # the planner only
+flow security-start <flow> [--commit <sha>]                                                       # Security only
+flow security <flow> --status passed|failed --report <file.md> --commit <sha> [--summary "..."]   # Security only
 term "<word>" "<plain explanation, 1 or 2 sentences, at most 300 characters>" [--more "..."] [--flow <id>]   # not under flow
 ```
 
@@ -922,6 +976,14 @@ flow summary dark-mode "Every colour is now a **theme token**, so one switch cha
 flow test-step dark-mode "Open Settings and click the moon next to Theme." --expect "The page turns dark at once." --shot moon.png --by "Agent 3"
 flow test-step dark-mode "Reload the page." --expect "It is still dark." --shot reload.png --by "Agent 3"
 ```
+
+`hand-step` records work only the user can do (a human decision, CI/CD, cloud setup, a console setting) as an
+ordered checklist on the flow's `hand` block (`hand-steps.mjs`): what to do (200 characters, one line), what they
+should see when it worked (`--expect`, 200), the exact place (`--where`, 300), a value to paste shown with a Copy
+button (`--copy`, 2000, may run over several lines) and why (`--why`, 160), at most 20 steps with ids `h1`, `h2`….
+The agent records the steps and stops; it never runs that work. The user ticks each step on the flow's page (each
+tick is `{ by: 'you', at }`, kept through a reload and an agent rewrite only while the step asks the same thing),
+and once all are ticked marks the flow done. `--id h2 --replace` rewrites one; `hand-clear` empties them.
 
 `flow show` prints the JSON alone on stdout (so `flow show x > x.json`, an edit, then `flow write x.json`
 round-trips) and an Output block on stderr: it counts the result shots, the diagram's boxes and arrows (or says
@@ -1080,6 +1142,38 @@ flow's evidence folder as `<flow>/qa-<n>-report.md` (a `.md` or `.txt` file; HTM
 `.md` and every `.html` stays a 404. `flow show` says where QA stands (`qa: failed, attempt 1 at cd34ef5, back to
 Agent 3 (sent)`).
 
+#### The planner and Security
+
+Two optional agents, each an ordinary Claude Code session you open in the editor, matched to its label through
+`codingAgents` like the producers, and each drawn only when `pipeline.planner` or `pipeline.security` names it (a
+label that is already the coordinator, QA, a producer or the chat agent draws no second box). Neither is ever a
+producer. Both always run on Opus at high effort: the dashboard cannot switch an editor session, so their window on
+the Agents page shows it as fixed, their print says it every time they start, and the window warns when the
+session's newest reply ran on another model.
+
+```
+Request -> Coordinator -> Planner -> Agent 1 | Agent 2 | Agent 3 -> QA -> Security -> Push -> Output
+```
+
+- **The planner** (`docs/planner-agent-brief.md`, the skill `/superpowers:writing-plans`) sits between the
+  coordinator and the producers. It plans and hands out tasks and writes no code: `flow plan-start` (the flow stands
+  on the planner), then `flow plan <flow> --file plan.md --to "Agent 1"`, which copies the plan into the flow's
+  evidence as `<flow>/plan-<n>.md`, makes the flow that producer's (its answers and any failure go to it), and plans
+  a build route again through the planner. The record is `flow.plan = { status: planning|handed, by, startedAt, at,
+  to, file, history }` (`flow-plan.mjs`), the planner's alone. The coordinator's own changes still go straight to QA.
+- **Security** (`docs/security-agent-brief.md`, the skill `/superpowers:requesting-code-review`) sits after QA. A QA
+  pass no longer finishes the flow: Security reviews the very commit QA passed with `flow security-start` and
+  `flow security <flow> --status passed|failed --report security.md --commit <sha>`. Its verdict lives in the QA
+  attempt it reviewed (`qa.security`, `flow-security.mjs`), so a new QA attempt needs a new review. A pass finishes
+  the flow; `flow qa-push` and Send refuse, with one plain sentence, until Security passed that same commit. A failure
+  goes back to the producer by the same relay path as a QA failure (`qa.security.rework`), and QA and Security
+  failures share the one `pipeline.maxReworks`; past it the flow stops (`security-failed`, blocked). Security never
+  pushes and never changes the code: it reports, and the producer fixes.
+- A build route (`flow new --type build`) goes through both when they are configured; review and ask routes do not
+  change. The scorecard counts a Security failure as caught; with Security a code flow is delivered only when QA and
+  Security both passed it, and finished without a Security pass it slipped through. The Log tags Security verdicts
+  (`security`) and the planner's hand-outs (`planned`) as their own kinds, with Plans and Security filters.
+
 Where each flow stands is derived, never stored (`stageOf`): a dropped flow has no node; an open one sits on its
 agent (an agent not in the graph sits on the coordinator; the chat agent's flow sits on the chat agent, straight from
 the Request, and is at the Output once done); a done one that changed no code is at the Output by the
@@ -1094,7 +1188,7 @@ Routes:
   request|coordinator|producer|chat|qa|push|outcome }], edges: [{ from, to, label?, kind: main|branch|rework|skip }] },
   tickets: [{ id, title, agent, tickets, status, stage: { node, status, path, reworks }, route, progress, qa, codeProducing,
   hasOutput, archived, updatedAt }], builtAt }`. Open and blocked flows always, done and dropped ones changed in the
-  last 14 days, archived ones flagged, the Trash never. `qa` is the current attempt in full and the earlier ones as
+  last 14 days, archived ones flagged, deleted ones never. `qa` is the current attempt in full and the earlier ones as
   an outline. Node ids are slugs of the labels (`agent-1`); the edges also carry the coordinator's own changes going
   to QA and its `no code changes` skip.
 - `GET /api/qa[?status=passed]` returns `{ qa: <label>, flows: [{ id, title, agent, tickets, status, archived,
@@ -1120,6 +1214,17 @@ Routes:
   the store as it was. `agent-rules.mjs` also exports `rulesText(store, graph)` (every agent's specification and rules
   as plain text), `readLog()` and `ruleEvents(lines, { now, days })` (the log as events, newest first:
   `{ at, kind: 'rule', agent, flow: null, cell: null, text }`).
+- `GET /api/agents/settings` returns `{ agents: { "<label>": { role, model, effort, fixed, files: [{ id, title, kind:
+  file|note, name, chars, on, addedAt }], chars, updatedAt } }, changes: { "<label>": [{ at, text }] }, models, efforts,
+  fixed, limits: { chars: 20000, files: 20, total: 60000, title: 100 }, chat: { model } }`: what the user set in each
+  agent's window (`agent-settings.mjs`, `data/agent-settings.json`). `PUT /api/agents/settings/<label>` with
+  `{ model?, effort? }` (null clears one; the planner, Security and the chat agent refuse), `POST /api/agents/files/<label>`
+  with `{ title, text, kind: file|note, name? }`, and `PUT` (`{ on }`) or `DELETE /api/agents/files/<label>/<id>`
+  change it, each only from the dashboard page (its own Origin), each refusal one plain sentence (text only, 20,000
+  characters each, 20 per agent, 60,000 in all). Every change adds one sentence to `data/agent-settings-log.jsonl`,
+  shown under Changes. What is saved is printed to the agent after its rules (`flow new`, `flow qa-start`,
+  `flow plan-start`, `flow security-start`, `flow rules`): the wanted model and effort in one sentence, then each
+  switched-on file or note under its title, cut with a visible `[cut: N more characters]` line past 60,000.
 - `GET /api/score[?days=7|30|all]` returns the pipeline scorecard (`score.mjs`) over every flow file, archived ones
   too: `{ window: { days, from, stallDays }, counts: { delivered, slipped, missed, caught }, lists: { slipped: [{ id,
   title }], missed: [{ id, title, why: dropped|stopped|stalled }] }, precision, recall, accuracy (each { value, top,
@@ -1270,6 +1375,22 @@ written inside the repo or any worktree.
 
 ## Agents (#/agents): the pipeline diagram
 
+Under the diagram sits the **Human review** box (`human-review.js`, `GET /api/human`, `human.mjs`): everything
+that cannot go on without the user, newest first, each row with the flow (or ticket) title, the agent waiting,
+how long it has waited and one reason: an unanswered **question** (answered in the box with the usual controls, on
+the usual answer route), **by hand** work (a flow with by-hand steps that is not finished, or an open flow for a
+ticket marked `no-code` or `not-codebase`), a **blocked** flow, and a marked **ticket** no live flow carries (its
+**Ask for steps**, `POST /api/tickets/<id>/request-hand`, starts `<ticket>-by-hand` with the agent that marked it,
+else the coordinator, and asks for by-hand steps on the relay). Its head gives the split by kind and chips filter
+it (remembered in `localStorage` `human.filter`); the rail's Agents count and the page head's `N waiting on you`
+are questions plus by-hand work. It is
+not a node of any route: `pipeline-view.js` hands it each layout and it places itself under every box, arrow and
+label, its left and right edges on the outermost boxes, inside the canvas; with many rows it scrolls inside
+itself. Its count is also on the rail's Agents entry and on Home; the page head's `N waiting on you` and
+`#/agents?human` bring it into view. A title opens the flow at the question (`gotoFlow` at its node), at its
+by-hand steps (`#/flows?flow=<id>&at=hand`), or the ticket on Tickets. On the Agents page no `N asks waiting`
+toast is raised: the box already says it.
+
 The Agents page draws the orchestration as a diagram, from a **Request** node to an
 **Output** node, built only from the `pipeline` setting and the chat agent's name (see QA and the pipeline):
 Request, the coordinator and the chat agent (Independent), each producing agent, **QA**, **Push**, Output. Arrows
@@ -1286,6 +1407,17 @@ read again with every status refresh without redrawing.
   tickets and branch, Progress report and its subagents. Request, Push and Output get a
   short description. An agent that ran `git push` outside QA in the last day gets a red
   dot and the line `Pushed N times outside QA today`.
+- **Click an agent** (the coordinator, the planner, a producer, QA, Security, the chat agent) and its settings
+  open as a WINDOW in the middle of the screen (`agent-window.js`, `agent-window-view.js`, `agent-window.css`):
+  its card, then **Model** (a Claude model and an effort, saved and told to the agent; the dashboard cannot switch
+  an editor session, so you switch it there; fixed at Opus, high effort, for the planner and Security; the config
+  model, read only, for the chat agent), **Subagents** (the ones running under it now, their kind and how long),
+  **Specification and rules** (the editor below, moved into the window), **Files and context** (text files picked
+  or dropped, and typed notes, each with a switch and Remove) and **Changes**. Esc or Close closes it; a click
+  outside closes it too, unless something is not saved, and then the window asks first. The address names it
+  (`#/agents?agent=Agent%201`), so it opens from a link. Request, Push and Output keep the pane.
+- **The green pill** on an agent box (`3 running`) counts the subagents running under it now; it sits on the box's
+  bottom edge, centred, and on its top corner as the count alone when the diagram runs top to bottom.
 - **Specification and Rules**: an agent's details also show what it is for, in your words, and a numbered list of
   rules. With no specification saved, its role line stands in, marked Default. **Settings** in the head (next to
   Watch live and Close; agents only, never Request, Push or Output) turns both into an editor in place: the
@@ -1321,7 +1453,7 @@ read again with every status refresh without redrawing.
   Not enough data yet. A window switch counts the last 7 days, 30 days (the default) or all time: a QA verdict by
   its own time (so a flow QA passed or stopped counts at that final verdict), a stalled flow from the day it
   stalled, any other flow by its last update; anything with no stored time is never counted. Flows still on their
-  way are not counted; archived ones are, the Trash never. **How it is counted** opens the four boxes with the live
+  way are not counted; archived ones are, deleted ones never. **How it is counted** opens the four boxes with the live
   counts, each with **See these in the log** (the side panel opens on Log with that filter), the flows that slipped
   through or were missed (each a link to the flow), the sums, and a By agent table (handed to QA, passed first
   time, sent back). The window, F1 or F4, and the strip collapsed to one line are remembered in this browser; the

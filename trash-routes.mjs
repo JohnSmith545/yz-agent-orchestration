@@ -1,13 +1,22 @@
-// The Archive and Trash routes (factory-routes.mjs mounts them; every POST has passed its same-origin
-// check there). Each handler returns { status, body } like glossary-routes.mjs.
+// The flow archive routes (factory-routes.mjs mounts them; every POST has passed its same-origin check there).
+// Each handler returns { status, body } like glossary-routes.mjs.
 //
-//   POST /api/flows/<id>/archive   { archived: true|false }: sets or clears archivedAt (the user's, flows.mjs)
-//   POST /api/flows/<id>/delete    { confirm?: true }: an open or blocked flow without confirm is 409
-//                                  { needsConfirm, message } and nothing changes; otherwise the flow
-//                                  moves to the Trash (trash.mjs), { ok, deletedAt, expiresAt }
-//   GET  /api/trash                { items }: listTrash, the expired ones purged first
-//   POST /api/trash/<id>/restore   { ok, archived } or the plain refusal (404 unknown or expired, 409 the id is taken); a stop line not sent yet is cancelled
-//   POST /api/trash/<id>/purge     { ok }: Delete forever, the entry and the flow's evidence
+// The archive has two groups, and nothing ever leaves either by a timer:
+//   Archived   live flows the user put away (`archivedAt`, the user's field, flows.mjs)
+//   Deleted    flows the user deleted, kept whole in data/trash/<id>.json (trash.mjs) until Delete for good
+//
+//   GET  /api/archive              { archived: [{ id, title, agent, status, tickets, archivedAt }], deleted: [{ id,
+//                                  title, agent, status, tickets, deletedAt, broken? }] }, each the newest first
+//   POST /api/flows/<id>/archive   { archived: true|false }: sets or clears archivedAt
+//   POST /api/flows/<id>/delete    { confirm?: true }: an open or blocked flow without confirm is 200
+//                                  { ok: false, needsConfirm, message } and nothing changes (a question, not an
+//                                  error: the browser logs no failed request); otherwise the flow moves to the
+//                                  archive's Deleted group, { ok, deletedAt }
+//   POST /api/trash/<id>/restore   { ok, archived } or the plain refusal (404 unknown, 409 the id is taken); a stop
+//                                  line not sent yet is cancelled
+//   POST /api/trash/<id>/purge     { ok }: Delete for good, the entry and the flow's evidence
+//   GET  /api/flows/<id> on a deleted id: the flow as it was stored, with `deletedAt`, for the read-only view
+//   Any other flow route on a deleted id: 404 `<id> was deleted: it is in the flow archive.`
 //
 // ⚠️ Delete never leaves an agent writing into a flow that is gone without being told: whatever the
 // relay still has queued for the flow is dropped, and when the flow was open or blocked its agent
@@ -16,8 +25,10 @@
 // (tools/flow-cli.mjs). Only these routes archive or delete: no agent command does.
 
 import { CONFIG } from './config.mjs'
-import { readFlow, writeFlow } from './flows.mjs'
-import { inTrash, isTrashed, listTrash, moveToTrash, purge, restoreFromTrash } from './trash.mjs'
+import { withRoute } from './flow-route.mjs'
+import { derive, listFlows, readFlow, validateFlow, writeFlow } from './flows.mjs'
+import { pipelineGraph } from './pipeline.mjs'
+import { inTrash, isTrashed, listTrash, moveToTrash, purge, readTrashed, restoreFromTrash } from './trash.mjs'
 
 const ok = body => ({ status: 200, body })
 const no = (status, error) => ({ status, body: { error } })
@@ -35,21 +46,32 @@ export function archiveRoute(id, b) {
   return ok({ ok: true, archivedAt: flow.archivedAt ?? null })
 }
 
-/** Delete: ask first for a flow its agent may be working on; then drop its queue, tell its agent once, move it to the Trash. */
+/** Delete: ask first for a flow its agent may be working on; then drop its queue, tell its agent once, move it to Deleted. */
 export function deleteRoute(id, b, relay) {
   const flow = readFlow(id)
   if (!flow) return no(404, `No flow ${id}.`)
   const working = live(flow)
   if (working && b?.confirm !== true) {
-    return { status: 409, body: { needsConfirm: true, message: `${flow.agent} may still be working on this. Delete it anyway?` } }
+    return ok({ ok: false, needsConfirm: true, message: `${flow.agent} may still be working on this. Delete it anyway?` })
   }
-  const { deletedAt, expiresAt } = moveToTrash(id)
+  const { deletedAt } = moveToTrash(id)
   relay.drop(id)
   if (working && flow.agent !== CONFIG.factory.chat.name) relay.queueDeleted(id, flow.title, flow.agent)
-  return ok({ ok: true, deletedAt, expiresAt })
+  return ok({ ok: true, deletedAt })
 }
 
-export const trashList = () => ok({ items: listTrash() })
+/** One archived flow as the archive lists it: what tells it apart, and when it was put away. */
+const archivedRow = f => ({ id: f.id, title: f.title, agent: f.agent, status: f.status, tickets: f.tickets || [], archivedAt: f.archivedAt })
+
+/** Both groups of the flow archive, each the newest first. ⚠️ A Deleted group that cannot be read leaves it empty with `deletedError`, never a failed page. */
+export function archiveList() {
+  const archived = listFlows({ archived: true }).flows.map(archivedRow).sort((a, b) => String(b.archivedAt).localeCompare(String(a.archivedAt)))
+  try {
+    return ok({ archived, deleted: listTrash() })
+  } catch (err) {
+    return ok({ archived, deleted: [], deletedError: `The deleted flows could not be read: ${err?.message || err}` })
+  }
+}
 
 /**
  * Restore: trash.mjs refuses with the status the page shows (404, 409, 400). Once back, a stop line the relay has
@@ -64,13 +86,21 @@ export function restoreRoute(id, relay) {
 }
 
 export function purgeRoute(id) {
-  if (!inTrash(id)) return no(404, `No flow ${id} in the Trash.`)
+  if (!inTrash(id)) return no(404, `No deleted flow ${id} in the archive.`)
   purge(id)
   return ok({ ok: true })
 }
 
 /**
- * What every flow route answers for an id (a slug, checked by the caller) that is in the Trash: 404 with
- * `<id> is in the Trash.`, so the page can offer Restore. null when it is not, or a flow has that id again.
+ * What a flow route answers for an id (a slug, checked by the caller) that was deleted; null when it was not, or a
+ * flow has that id again. `read` (a plain GET of the flow): the flow as stored, with derived, its route and
+ * `deletedAt`, so the page opens it read-only. Anything else: 404 `<id> was deleted: it is in the flow archive.`
  */
-export const trashedFlow = id => (isTrashed(id) ? no(404, `${id} is in the Trash.`) : null)
+export function trashedFlow(id, read = false) {
+  if (!isTrashed(id)) return null
+  const flow = read ? readTrashed(id) : null
+  if (!flow) return no(404, `${id} was deleted: it is in the flow archive.`)
+  const problems = validateFlow(flow)
+  if (problems.length) return no(400, problems.join('\n'))
+  return ok({ ...flow, derived: derive(flow), ...withRoute(flow, pipelineGraph(CONFIG)) })
+}

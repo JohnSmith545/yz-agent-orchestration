@@ -4,7 +4,11 @@
     "more": "It refreshes itself every minute. Click an agent card to watch that agent live."
   },
   "flows": {
-    "short": "The page of every flow: the plan each agent writes as it works, with the questions that wait on you at the top."
+    "short": "The page of every flow: the plan each agent writes as it works, grouped by agent, with the finished ones below."
+  },
+  "archive": {
+    "short": "The flow archive: every flow you archived or deleted, kept until you choose Delete for good.",
+    "more": "Open one to read it; nothing can be changed there. Restore puts it back on the Flows board. Nothing leaves the archive by a timer."
   },
   "flow": {
     "short": "One piece of work an agent plans out as a small chart: steps, checks, asks and notes, joined in the order they happen.",
@@ -15,8 +19,8 @@
     "more": "QA tests each change that touched code, writes a short report, and pushes the branch at the very commit it tested. A failure goes back to the agent that made the change."
   },
   "script": {
-    "short": "The SCRIPT Generator: write a rough idea and get back a ready-to-paste prompt for any AI, in six labelled parts: Situation, Character, Request, Intent, Presentation and Tone.",
-    "more": "Each Generate is one paid run of Opus 5.5 at high effort, with no tools and none of your settings. When the idea leaves the situation or the goal unclear, it asks up to three short questions first."
+    "short": "Brainstorming: write a rough idea and get back a ready-to-paste prompt for any AI, in six labelled parts (the SCRIPT method): Situation, Character, Request, Intent, Presentation and Tone.",
+    "more": "Each Generate is one paid run of Opus 5.5 at high effort, with no tools and none of your settings, using the brainstorming skill when it is installed. When the idea leaves gaps that matter, it asks a few short questions first (at most five at a time, in at most two rounds); say just do it to skip them."
   },
   "tickets": {
     "short": "The page for a ticket collection: the grid of who built what and how far it got, and the tables of every ticket below it."

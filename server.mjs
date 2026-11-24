@@ -27,7 +27,9 @@ import { factoryRoute } from './factory-routes.mjs'
 import { makePrStates } from './subagent-prs.mjs'
 import { makeSubagentRoutes } from './subagent-routes.mjs'
 import { makeScriptRoute } from './script-routes.mjs'
+import { findSkill } from './script-skill.mjs'
 import { makeContextGatherer, makeScriptContextRoute } from './script-context-routes.mjs'
+import { makeAgentSettingsRoute } from './agent-settings-routes.mjs'
 import { makeScriptLogRoute } from './script-log-routes.mjs'
 import { appendRun } from './script-log.mjs'
 import { orchestrationBrief } from './script-brief.mjs'
@@ -43,8 +45,9 @@ import { buildFlow, pushCount } from './flow.mjs'
 import { buildReport } from './report.mjs'
 import { compareTickets } from './ticket-ids.mjs'
 import { claudeRun, makeRelay } from './relay.mjs'
-import { purgeExpired } from './trash.mjs'
 import { startReworkWatch } from './qa-rework.mjs'
+import { makeProjectRoutes } from './projects-routes.mjs'
+import { listenWhenFree, makeRestarter, underKeepAlive, waitForPredecessor } from './restart.mjs'
 import {
   CLAUDE_DIRS,
   conversationsOf,
@@ -290,6 +293,7 @@ async function describeAgent(s, knownTrees) {
     recentWorktrees: scan ? newestKeys(scan.worktrees, 4) : [],
     recentTickets: scan ? newestKeys(scan.tickets, 6) : [],
     subagents: file ? await listSubagents(file, knownTrees) : [],
+    model: scan?.model || null, // the model its newest reply ran on (transcripts.mjs), for the agent window
     // only QA pushes (pipeline.mjs): git push commands any other agent ran in the last 24 h, for the page to flag
     pushesOutsideQa: scan && labelOf(s.name) !== CONFIG.pipeline.qa ? pushCount(scan.feed.events, Date.now() - 86_400_000) : 0,
     _worktreePos: worktreePos,
@@ -823,20 +827,6 @@ if (lostAnswers.length) console.log(`relay: ${lostAnswers.length} answer(s) not 
 // A QA failure going back to its producer is written by QA's own shell: the server notices it, now and every 15 s (qa-rework.mjs).
 startReworkWatch(relay)
 /**
- * A flow 24 hours in the Trash is gone for good (trash.mjs). Decided from each entry's STORED time, so a
- * restart loses nothing: once now, then every 10 minutes. A failure is logged and never stops the server.
- */
-function sweepTrash() {
-  try {
-    const gone = purgeExpired()
-    if (gone.length) console.log(`trash: ${gone.length} flow(s) 24 hours in the Trash removed for good: ${gone.join(', ')}`)
-  } catch (err) {
-    console.error(`trash: the sweep failed: ${err?.message || err}`)
-  }
-}
-sweepTrash()
-setInterval(sweepTrash, 10 * 60_000).unref()
-/**
  * The Subagents page (subagent-routes.mjs): every subagent of the repo's sessions, live or ended, read
  * from the transcripts, with the state of its pull requests from `gh pr view` (read only).
  */
@@ -862,26 +852,41 @@ const scriptContext = {
   },
   sessions: async () => (await liveSessions()).filter(s => !s.pinned).map(s => ({ label: labelOf(s.name), state: s.status === 'busy' ? 'working' : 'idle', transcript: () => transcriptFile(s) })),
 }
-const scriptRoute = makeScriptRoute({ port: PORT, gather: makeContextGatherer(scriptContext), log: appendRun })
+const scriptRoute = makeScriptRoute({ port: PORT, gather: makeContextGatherer(scriptContext), log: appendRun, skill: findSkill })
 const scriptContextRoute = makeScriptContextRoute({ port: PORT, ...scriptContext })
 /** The SCRIPT run log (script-log-routes.mjs): the newest 50 runs, for the page's History list. */
 const scriptLogRoute = makeScriptLogRoute({ port: PORT })
+/**
+ * The Project menu and the Orchestration bank (projects-routes.mjs). A switch restarts this process (restart.mjs):
+ * whether the keep-alive loop runs it is read once now, off the request path.
+ */
+const supervised = underKeepAlive()
+const projectRoute = makeProjectRoutes({
+  port: PORT, relay, restart: () => restartServer(), chatBusy: () => chatStatus().busy,
+  gitTop: async dir => { const r = await git(['rev-parse', '--show-toplevel'], dir); return r.ok ? r.out : null },
+  sessionNames: async () => (await liveSessions()).map(s => s.name),
+})
+/** Each agent's model, effort, files and notes, from its window on the Agents page (agent-settings-routes.mjs). */
+const agentSettingsRoute = makeAgentSettingsRoute({ port: PORT })
 /** The paths factory-routes.mjs answers. */
-const FACTORY_PREFIXES = ['/api/factory', '/api/chat', '/api/flows', '/api/trash', '/api/commit', '/api/explain', '/api/glossary', '/api/since', '/api/spend', '/api/settings', '/api/pipeline', '/api/qa', '/api/agents/rules', '/api/score', '/api/log', '/evidence/']
+const FACTORY_PREFIXES = ['/api/factory', '/api/chat', '/api/flows', '/api/trash', '/api/archive', '/api/human', '/api/tickets/', '/api/commit', '/api/explain', '/api/glossary', '/api/since', '/api/spend', '/api/settings', '/api/pipeline', '/api/qa', '/api/agents/rules', '/api/score', '/api/log', '/evidence/']
 
 const server = createServer(async (req, res) => {
   // a website that rebinds its name to 127.0.0.1 sends its own Host: only requests addressed to us are answered (local-origin.mjs)
   if (!hostAllowed(req.headers.host, PORT)) return res.writeHead(403, { 'content-type': 'text/plain' }).end('Unknown host.')
   const url = new URL(req.url, 'http://localhost')
+  projectRoute.track(req, res) // a write still being answered holds a project switch back
   try {
+    if (await projectRoute(req, res, url)) return
     if (FACTORY_PREFIXES.some(prefix => url.pathname.startsWith(prefix))) {
       // `fetched`: Send reuses the server's own fetch of origin when it is under a minute old (pr-routes.mjs)
       const fetched = remote => (remote === 'origin' && fetchState.ok ? fetchState.at : null)
-      if (await factoryRoute(req, res, url, { git, gh, push, port: PORT, fetched, relay, getStatus })) return
+      if (await factoryRoute(req, res, url, { git, gh, push, port: PORT, fetched, relay, getStatus, pipelineConfig: CONFIG })) return
     }
     if (await scriptRoute(req, res, url)) return
     if (await scriptContextRoute(req, res, url)) return
     if (await scriptLogRoute(req, res, url)) return
+    if (await agentSettingsRoute(req, res, url)) return
     if (await subagentRoute(req, res, url)) return
     if (url.pathname === '/api/orchestration') {
       const data = await orchestration(url.searchParams.get('c'), url.searchParams.has('refresh'))
@@ -932,7 +937,12 @@ const server = createServer(async (req, res) => {
   }
 })
 
-server.listen(PORT, '127.0.0.1', () => console.log(`Yz Agent Orchestration on http://127.0.0.1:${PORT}`))
+/** Closes this server and starts the next one after a switch (restart.mjs); never two, never none. */
+const restartServer = makeRestarter({ server, loop: () => supervised })
+// After a switch started by hand, the old server is still letting the port go: wait for it, then for the port.
+await waitForPredecessor()
+if (!(await listenWhenFree(server, PORT, '127.0.0.1'))) process.exit(1)
+console.log(`Yz Agent Orchestration on http://127.0.0.1:${PORT}${CONFIG.project ? ` (project ${CONFIG.project.name})` : ''}`)
 
 await fetchOrigin()
 setInterval(fetchOrigin, FETCH_EVERY_MS).unref()

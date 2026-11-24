@@ -4,7 +4,8 @@
    the Ask drawer. Every colour is a token from styles.css, so light and dark both follow the theme. The motion
    is a transform only, and none under prefers-reduced-motion. */
 
-#scriptView { --sc-ctx-w: 340px; }
+/* on :root, not #scriptView: the banners above the page read it too, and they sit outside the section */
+:root { --sc-ctx-w: 340px; }
 
 .sc-ctx {
   position: fixed; top: var(--header-h); right: 0; bottom: 0; z-index: 25;
@@ -102,6 +103,9 @@ body.drawer-open .sc-ctx { right: var(--drawer-w); }
 }
 @media (max-width: 720px) {
   .sc-ctx { bottom: var(--rail-w); }
+  /* the closed tab sits on the right edge: a gutter keeps the boxes, Copy and the notices clear of it */
+  .sc-page:not(.ctx-open) { padding-right: 20px; }
+  main:has(#scriptView:not([hidden]) .sc-page:not(.ctx-open)) .banners { margin-right: 20px; }
   /* low on the edge, clear of the banners at the top of a phone page */
   .sc-ctx-tab { top: auto; bottom: 24px; }
 }

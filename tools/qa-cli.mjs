@@ -16,6 +16,10 @@
 //       protected branch (pipeline.protectedBranches, pr.protect, pr.bases, HEAD; any case), and never
 //       retried: a refusal is recorded as qa.pushError. The branch defaults to the flow's recorded pull
 //       request head (`flow pr`), and must be that head when there is one.
+//       With Security on the pipeline (config pipeline.security) it also waits for Security: it refuses, with one
+//       plain sentence, until Security passed the SAME commit QA passed (flow-security.mjs securityBlockers).
+//       Then a QA pass does not mark the flow done either: Security's pass does (tools/security-cli.mjs), and
+//       QA and Security failures share the one pipeline.maxReworks limit.
 //
 // ⚠️ ONLY QA: every command refuses unless --by (or FACTORY_BY) is exactly config pipeline.qa. That stops a
 // producer marking its own work passed by mistake; a process with a shell could still edit the file, as it
@@ -32,8 +36,9 @@ import path from 'node:path'
 import { CONFIG } from '../config.mjs'
 import { isBranch } from '../flow-merge.mjs'
 import { QA_FINISHED, QA_MAX, REPORT_EXT } from '../flow-qa.mjs'
+import { reworksSoFar, securityBlockers } from '../flow-security.mjs'
 import { EVIDENCE_DIR, readFlow, validateFlow, writeFlow } from '../flows.mjs'
-import { producersOf } from '../pipeline.mjs'
+import { gateLabels, producersOf } from '../pipeline.mjs'
 import { scrub } from '../pr-check.mjs'
 import { pushEnv } from '../pr-routes.mjs'
 
@@ -191,12 +196,16 @@ export function qaCommands({ noName, evidenceTarget, copyEvidence, shotExt, shot
     const at = now()
     const qa = { status: f.status, attempt: n, by, startedAt: startedAt || at, at, commit: String(f.commit), report: report.ref, shots, steps, summary: String(f.summary ?? ''), rework: null }
     let line
-    if (f.status === 'passed') {
+    const security = gateLabels(config).security
+    if (f.status === 'passed' && security) {
+      // Security reviews the same commit next; its pass marks the flow done
+      line = `${flow.id}: QA passed attempt ${n} at ${qa.commit.slice(0, 7)}. Send ${security} a message naming flow ${flow.id}: it reviews this commit next, and you push it with flow qa-push once Security passed it.`
+    } else if (f.status === 'passed') {
       flow.status = 'done'
       line = `${flow.id}: QA passed attempt ${n} at ${qa.commit.slice(0, 7)}; the flow is done. Push it with flow qa-push ${flow.id} --branch <branch>, then the user sends it.`
     } else {
       const max = config.pipeline?.maxReworks ?? 3
-      const sentBack = attempts.filter(a => a.status === 'failed').length
+      const sentBack = reworksSoFar(attempts) // QA and Security failures share the one limit
       const producer = producersOf(config).includes(flow.agent)
       if (producer && sentBack < max) {
         qa.rework = { to: flow.agent, queuedAt: null, sentAt: null, error: null }
@@ -234,6 +243,8 @@ export function qaCommands({ noName, evidenceTarget, copyEvidence, shotExt, shot
       if (qa?.status !== 'passed') return fail(`${flow.id}: QA has not passed this flow, so nothing is pushed.`)
       if (!qa.commit) return fail(`${flow.id}: QA recorded no commit, so nothing is pushed.`)
       if (qa.pushedAt) return fail(`${flow.id}: already pushed to ${qa.remote} ${qa.branch} at ${qa.pushedAt}.`)
+      const held = securityBlockers(flow, config)
+      if (held.length) return fail(`${flow.id}: nothing is pushed yet. ${held.join(' ')}`)
       const head = flow.output?.merge?.head
       const branch = f.branch ?? head
       if (branch === undefined) return fail('qa-push needs --branch <the flow branch> (or a pull request recorded with flow pr)')

@@ -3,12 +3,17 @@
 // Read from config.json next to this file (kept out of git, see .gitignore).
 // config.example.json is the committed template. Anything left out falls back
 // to the defaults below, so a config only needs the lines that differ.
+//
+// With projects (project-store.mjs, projects.json) the config is the CURRENT project's: config.json for the
+// first project, and for any other config.json's machine settings with that project's own repo, sessions,
+// tickets, agents and pipeline (projectRaw). Read ONCE, at the first import: a switch restarts the server.
 
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isBranch } from './flow-merge.mjs'
 import { DEFAULT_PIPELINE, pipelineSettings } from './pipeline.mjs'
+import { CURRENT_PROJECT, PROJECTS, projectRaw } from './project-store.mjs'
 import { validPinHash } from './send-pin.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -174,6 +179,9 @@ export function coordinatorSettings(raw, warn = console.warn) {
   return { coordinator, coordinatorLabel }
 }
 
+/** The chat agent's name when the config gives none (the Ask drawer, pipeline.mjs's chat node). */
+export const DEFAULT_CHAT_NAME = 'Independent'
+
 const DEFAULTS = {
   /** Absolute path of the git repo the sessions work in. Required. */
   repo: '',
@@ -244,7 +252,7 @@ const DEFAULTS = {
      * (later turns cost their own few-tenths delta). The drawer's
      * "Start from my session" forks `forkFrom` once, whatever the mode.
      */
-    chat: { name: 'Independent', forkFrom: '', model: 'claude-opus-5-5', mode: 'brief' },
+    chat: { name: DEFAULT_CHAT_NAME, forkFrom: '', model: 'claude-opus-5-5', mode: 'brief' },
     /** Model for the short headless turn that pushes an answered ask to the agent that asked (relay.mjs). */
     relayModel: 'claude-sonnet-5-5',
     /** Model for the one-off turn that explains a selected phrase the glossary lacks (explain.mjs). Keep it cheap. */
@@ -257,8 +265,10 @@ function load() {
   if (!existsSync(file)) {
     throw new Error('config.json is missing. Copy config.example.json to config.json and set "repo".')
   }
-  const raw = JSON.parse(readFileSync(file, 'utf8'))
+  const raw = projectRaw(JSON.parse(readFileSync(file, 'utf8')), PROJECTS, CURRENT_PROJECT)
   const config = { ...DEFAULTS, ...raw }
+  /** The project this config is for ({ id, name }), or null with no projects.json. */
+  config.project = CURRENT_PROJECT ? { id: CURRENT_PROJECT.id, name: CURRENT_PROJECT.name } : null
   config.factory = { ...DEFAULTS.factory, ...(raw.factory || {}) }
   config.factory.chat = { ...DEFAULTS.factory.chat, ...(raw.factory?.chat || {}) }
   Object.assign(config, coordinatorSettings(raw))

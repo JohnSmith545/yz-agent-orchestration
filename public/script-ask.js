@@ -95,11 +95,20 @@
         const q = make('p', 'sc-ask-q')
         q.id = `scriptAskQ${i}`
         q.append(...window.ScriptView.spanNodes(doc, it.spans))
+        li.append(q)
         const ta = make('textarea', 'sc-text')
         ta.setAttribute('aria-labelledby', q.id)
+        if (it.choices) {
+          // the question's choices (nested bullets): a small list under it, text only, read with the field
+          const ul = make('ul', 'sc-ask-choices')
+          ul.id = `scriptAskC${i}`
+          for (const c of it.choices) ul.appendChild(make('li')).append(...window.ScriptView.spanNodes(doc, c))
+          ta.setAttribute('aria-describedby', ul.id)
+          li.append(ul)
+        }
         ta.rows = 2
         fields.push(ta)
-        li.append(q, ta)
+        li.append(ta)
         list.appendChild(li)
       })
       body.appendChild(list)

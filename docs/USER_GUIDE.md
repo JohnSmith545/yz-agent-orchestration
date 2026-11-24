@@ -82,7 +82,8 @@ Home is at `#/home` (the brand mark at the top of the rail); the dashboard opens
 
 - **Since** (only when something happened since you last pressed **Mark read**): flows that changed status,
   answers delivered, tickets that reached a new level or changed in the tracker, and commits per agent.
-- **Waiting on you** (only while an agent has asked something): answer it right there.
+- One line saying how many things need you (questions, work only you can do, blocked flows), with **Open Human
+  review**, which takes you to the box on the Agents page.
 - **Agents**: one compact card per agent with its state, last action and tickets. Click a card to watch it live.
 - **Subagents** (only when a subagent ran today): the subagents still running and the latest finished, each a link
   to its live view; **All subagents** opens the page.
@@ -98,9 +99,8 @@ steps, done, current (in the accent) and upcoming, and an opened flow shows it u
 it on Agents, on the QA page, or on the Output. A flow started before routes says **route not set** until its agent
 sets one.
 
-- **Waiting on you** at the top lists every open question across all flows, with Yes and No (or a text box).
-  The questions of the flow you have open leave the list while it is open (the flow itself asks them), and
-  the list disappears when it is empty.
+- The questions agents ask are not listed here: they are in **Human review** on the Agents page. An open flow
+  still asks its own questions on its Output and Status.
 - **The board** has a card per open flow, grouped by agent. A card is short on purpose: the title, one line
   of what happened last, one word for where it stands (**waiting on you**, **blocked**, **ready to send**,
   **PR open**, **merged** or **done**), the agent and a thin progress bar. Click one to open it.
@@ -159,16 +159,34 @@ sets one.
 - **Answering:** click Yes or No (or type an answer). The answer is sent to the agent that asked (section 7
   has the cost). The step then shows **sent**, or **not delivered · retry** if that agent is not running.
 
-#### Archive and Trash
+#### Do this by hand
 
-- **Archive** (in a flow's `⋯` menu) puts a flow away without deleting it. It leaves the board, Waiting on you,
-  Home and the alerts, but a link to it still works. If its agent asks you something new, it comes back by itself.
-- **Delete** moves a flow to the **Trash**. If its agent may still be working on it, the menu asks first, and the
-  agent is told to stop. A toast offers **Undo**.
-- A flow stays in the Trash for **24 hours**, even if the dashboard restarts. Then it is gone for good, and its
-  screenshots and other evidence files go with it.
-- **Archived · N** and **Trash · N** under the board open those lists: **Unarchive**, **Restore**, and
-  **Delete forever** (it asks once more on the same button). The Trash shows how long each flow has left.
+Some work no agent can do for you: a decision, CI/CD settings, cloud setup, a console switch, a billing change.
+The agent writes it out as steps and stops.
+
+- An open flow shows **Do this by hand** above its views, with how many steps you have done (**2 of 5 done**).
+- Each step says what to do, why, the exact place (a path, a page or the clicks to get there) and what you should
+  see when it worked. A value to paste sits in a box with a **Copy** button.
+- Tick each step when it is done. Your ticks are saved on the flow, so they survive a reload and the agent
+  rewriting the flow. If the agent changes what a step asks, that step waits for you again.
+- When every step is ticked, **Mark the flow done** finishes it.
+- A flow that needs you but has no steps yet says so, with one button: **Ask the agent for steps**. It sends the
+  agent a message the same way as Request test steps (about $0.30). The page never makes up a step.
+
+#### Archive, Delete and the flow archive
+
+- Every card on the board has **Archive** and **Delete** at its foot; an open flow has them in its `⋯` menu too.
+- **Archive** puts a flow away without changing it. It leaves the board and the alerts. If its agent asks you
+  something new, it comes back by itself.
+- **Delete** also takes a flow off the board, and its agent is told to stop. If that agent may still be working on
+  it, the card (or the menu) asks first. A toast offers **Undo**.
+- Nothing is lost by either. Both go to the **flow archive** (**Flow archive** in the rail, or **Flow archive · N**
+  under the board), in two groups: **Archived** and **Deleted**. Nothing leaves it by a timer.
+- In the archive, a search box filters by title or ticket id. Click a title to read the flow: it opens with a
+  banner saying it is archived or deleted, and nothing in it can be changed. **Restore** puts a flow back.
+- **Delete for good** (Deleted only) removes the flow and its screenshots. It asks first in the row, naming the
+  flow, and cannot be undone.
+- The pipeline score still counts archived flows. Deleted flows are left out.
 - Only you archive or delete flows. Agents cannot.
 
 ### Tickets
@@ -196,6 +214,27 @@ details below the diagram; for an agent that is its card, with its subagents and
 an agent's card on Home, or a subagent row in its details card, for its **live view**: its activity as it happens, each
 edit as a diff, the uncommitted changes in its worktree, and **Draft report**, a Markdown summary of a time
 window built from the transcript and git (no model writes it).
+
+#### Human review
+
+Under the diagram, the **Human review** box lists everything that cannot go on without you, newest first. Its head
+says how many of each kind wait (for example **13 questions · 2 by hand · 60 tickets**), and the chips under it
+(**All**, **Questions**, **By hand**, **Blocked**, **Tickets**) show one kind at a time. It opens on Questions while
+there are any, and remembers your choice in this browser. The number on **Agents** in the rail and the page head's
+**N waiting on you** count questions and by-hand work only: what keeps an agent waiting. Clicking the pill opens
+the box.
+
+- **Question**: an agent asked something. Answer it right in the box with Yes and No (or type an answer).
+- **By hand**: work only you can do (CI/CD, cloud setup, a console setting), with how many steps are done.
+- **Blocked**: a flow its agent marked blocked.
+- **Ticket**: a ticket marked no code yet or not codebase work that no flow covers yet. **Ask for steps** starts a
+  flow for it and asks the agent to write the steps for you (one message, about $0.30); they then show under
+  By hand.
+
+Each row says which agent waits, for how long, and why in one line. Click a title to open it at the right place:
+the question in its flow, the by-hand steps, or the ticket, which lands at the top of the screen. The address
+then names the flow, so a reload opens it again. When nothing waits on you the box says so in one line. With many
+rows it scrolls inside itself.
 
 ### Subagents
 
@@ -228,6 +267,26 @@ page tells you to use the terminal instead (`node tools/factory.mjs pr-pin`).
 
 Each person sets their own PIN on their own machine; it is kept there (only as a hash) and never shared.
 Type it only in your own browser, never in a window an agent is driving.
+
+### Projects and the Orchestration bank
+
+The box at the top of the rail shows the project you are looking at, such as **Flinki v2**, and under it the
+orchestration it uses. Open it to switch to another project: everything on the dashboard changes to that
+project, and the page reloads by itself once the dashboard has restarted (a second or two). If something is
+still running (the Ask chat answering, an answer on its way to an agent), the switch does not happen and the
+page says what is still running, so you can try again once it has finished.
+
+**Add a project…** asks for a name, the folder of its git repository, how its sessions are recognised (left
+empty, the folder name) and which orchestration it starts with: the same as the project you are in, or one
+saved in the bank. **Rename or remove…** renames a project or takes it off the list; its flows, rules and
+evidence stay on disk and its repository is not touched. The first project, the one in config.json, and the one
+you are looking at cannot be removed.
+
+The **Orchestration bank** in the rail keeps the ways your agents work together: who hands out the work, who
+writes code, who tests, and each agent's specification and rules. Save the current one under a name, open one
+to see its diagram and rules, rename, duplicate or delete it, or **Use on this project**. Before it switches, the
+page says what will change, saves the orchestration in use now to the bank under a dated name (so you can
+always switch back), and names any agent that has no session in this project yet.
 
 ### Glossary
 
@@ -304,7 +363,7 @@ CLI flow ask dark-mode "Ship dark mode to dev now?" --yes "Turn it on for everyo
 ```
 
 Each command prints one line, such as `dark-mode n3: waiting on the user`. On the page, the question appears
-under **Waiting on you** on Home and Flows. Click **Yes**: the dashboard sends "Agent 1" a message with the
+in **Human review** on the Agents page (and in the flow itself). Click **Yes**: the dashboard sends "Agent 1" a message with the
 question and your answer, and the agent carries on. It can read everything back with `CLI flow show dark-mode`.
 
 When the work is done, the agent records its **output**, which is what you see first when you open the flow
@@ -448,7 +507,8 @@ The sizes below were measured on one setup; yours will differ.
 On Windows, run `tools\keep-alive.cmd` instead of `npm start`. It starts the server and starts it again 5
 seconds after it stops. Its log is `%LOCALAPPDATA%\yz-agent-orchestration\server.log`; close its window to stop it.
 To start it at login, press Win+R, type `shell:startup`, and put a shortcut to `tools\keep-alive.cmd` in the
-folder that opens. Leave `stopHour` at `null` when you use it, or it restarts after every stop.
+folder that opens. Leave `stopHour` at `null` when you use it, or it restarts after every stop. Switching
+project restarts the server on purpose; the loop starts it again at once.
 
 On macOS or Linux, use your own service manager (launchd, systemd, or a terminal multiplexer) to run
 `npm start` in this folder.

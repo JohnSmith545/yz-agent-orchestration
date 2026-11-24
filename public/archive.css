@@ -1,0 +1,35 @@
+/* The flow archive (#/archive, archive-page.js): a search box, then two quiet cards of rows, Archived and
+   Deleted. Every colour is a styles.css token, so light and dark both follow; the one strong colour is --bad,
+   on Delete and Delete for good. Also the read-only banner of an archived or deleted flow (flows.js). */
+
+.ar-page { max-width: 960px; }
+.ar-search { margin: 0 0 18px; }
+.ar-search input { width: min(420px, 100%); }
+.ar-group { margin-bottom: 22px; padding: 16px 20px 6px; }
+.ar-head h3 { margin: 0; font-size: 15px; font-weight: 600; }
+.ar-head h3 .faint { font-weight: 400; }
+.ar-line { margin: 4px 0 0; color: var(--muted); font-size: 12.5px; }
+.ar-empty { margin: 12px 0 10px; color: var(--muted); font-size: 13px; }
+.ar-rows { list-style: none; margin: 10px 0 0; padding: 0; }
+.ar-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 16px; padding: 10px 0; border-top: 1px solid var(--line); }
+.ar-main { flex: 1 1 320px; min-width: 0; display: grid; gap: 3px; }
+.ar-group .ar-title { justify-self: start; min-width: 0; color: var(--ink); font-weight: 600; text-align: left; overflow-wrap: anywhere; }
+.ar-broken { font-weight: 500; color: var(--muted); }
+.ar-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; color: var(--muted); font-size: 12.5px; }
+.ar-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; font-size: 13px; }
+.ar-acts .ar-bad, .ar-acts .ar-bad:hover { color: var(--bad); }
+.ar-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; max-width: 520px; }
+.ar-ask-q { flex: 1 1 100%; color: var(--ink-2); font-size: 13px; }
+.ar-danger { background: var(--bad); border-color: var(--bad); color: var(--bg); font-weight: 550; }
+
+/* An archived or deleted flow opened from the archive: one clear line, and no control that would change it. */
+.fl-readonly { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 0; padding: 10px 24px;
+  background: var(--surface-2); border-bottom: 1px solid var(--line); color: var(--ink-2); font-size: 13.5px; }
+.fl-readonly b { color: var(--ink); }
+.fl-open.is-readonly :is(.fl-more, [data-answer], [data-reopen], [data-retry], [data-node-status], [data-flow-status], [data-verify],
+  [data-sb-request], [data-sb-form], form[data-text], [data-note], [data-hand-ask], [data-hand-done], [data-send-open], [data-send-go], [data-send-pin], [data-qa-retry]) { display: none !important; }
+
+@media (max-width: 600px) {
+  .ar-group { padding: 14px 14px 4px; }
+  .fl-readonly { padding: 10px 16px; }
+}

@@ -293,12 +293,12 @@ test('qa-push: a refused push is recorded with a scrubbed reason and never retri
   assert.equal(pushes().length, 2)
 })
 
-test('the QA commands on a flow in the Trash are refused like every other flow command', async () => {
+test('the QA commands on a deleted flow are refused like every other flow command', async () => {
   const { moveToTrash } = await import('../trash.mjs')
   moveToTrash(ID)
   const r = await run('qa-start', ID)
   assert.equal(r.code, 1)
-  assert.match(r.out, /in the Trash/)
+  assert.match(r.out, /was deleted by the user: it is in the flow archive/)
 })
 
 
