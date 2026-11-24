@@ -144,3 +144,15 @@ test('wired in: the stylesheet and the script on the page, the script in npm run
     assert.ok(pkg.scripts.check.includes(`node --check ${f}`), f)
   }
 })
+
+// QA, 2026-11-24: Space on a note's switch redrew the list (replaceChildren) and the focus fell to the page body,
+// so the focus ring vanished and a second Space did nothing. The redraw puts the focus back on the same switch.
+test('redrawing the notes keeps the keyboard focus on the switch that had it', () => {
+  const paint = JS.slice(JS.indexOf('function paint()'), JS.indexOf('async function load()'))
+  const held = paint.indexOf('const held =')
+  const redraw = paint.indexOf('list.replaceChildren(')
+  const back = paint.indexOf('[data-toggle="${CSS.escape(held)}"]')
+  assert.ok(held >= 0 && redraw > held, 'the focused switch is noted before the list is replaced')
+  assert.ok(back > redraw, 'and focused again after')
+  assert.ok(paint.slice(back).includes('?.focus()'), 'the same switch is focused again')
+})

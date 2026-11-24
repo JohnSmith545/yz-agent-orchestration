@@ -219,7 +219,10 @@
         select.append(o)
       }
       select.value = v.session.on || ''
+      // a note's switch keeps the keyboard focus across the redraw, or Space would work once and then be lost (QA, 2026-11-24)
+      const held = list.contains(doc.activeElement) ? doc.activeElement.dataset?.toggle : null
       list.replaceChildren(...v.notes.map(noteItem))
+      if (held) list.querySelector(`[data-toggle="${CSS.escape(held)}"]`)?.focus()
       q('[data-no-notes]').hidden = v.notes.length > 0
       q('[data-note-count]').textContent = v.notes.length ? `· ${v.notes.length}` : ''
       q('[data-add]').disabled = v.notes.length >= v.limits.notesMax
