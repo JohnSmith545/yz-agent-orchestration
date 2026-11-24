@@ -1,5 +1,7 @@
 # Machine settings: local paths and session names.
 config.json
+# The projects the dashboard can switch between, each with its own repo and settings (project-store.mjs).
+projects.json
 
 # Everything the dashboard writes (flows, evidence, ticket snapshots, the chat,
 # spend, marks). It is local state and may hold private tracker data: never commit.

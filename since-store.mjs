@@ -18,20 +18,18 @@
 // ticket or flow (or 30 days). The card then asks: which notes are newer than
 // the last time you looked, and is the value still different?
 //
-// Its own data root, resolved like flows.mjs and factory-state.mjs (tests point
-// FACTORY_DATA_DIR at a temp folder before importing). It imports nothing from
-// the flow store, because flows.mjs imports it.
+// The current project's data folder, from project-store.mjs like flows.mjs and
+// factory-state.mjs (tests point FACTORY_DATA_DIR at a temp folder before
+// importing). It imports nothing from the flow store, because flows.mjs imports it.
 // A record write never throws to its caller: a flow write or a build must not
 // fail because the digest could not take a note.
 
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 import { writeAtomic } from './atomic-write.mjs'
+import { DATA_DIR } from './project-store.mjs'
 
-const HERE = path.dirname(fileURLToPath(import.meta.url))
-const DATA_DIR = process.env.FACTORY_DATA_DIR || path.join(HERE, 'data')
 const LEVELS_FILE = path.join(DATA_DIR, 'levels.json')
 const LEVELS_PREV_FILE = path.join(DATA_DIR, 'levels-prev.json')
 const FLOWS_PREV_FILE = path.join(DATA_DIR, 'flows-prev.json')
