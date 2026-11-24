@@ -78,7 +78,7 @@
     return '<div class="bk-page"><header class="bk-head"><a class="link bk-back" href="#/bank">All saved orchestrations</a>' +
       `<div class="bk-card-head"><h2 class="bk-name">${name}</h2>${v.inUse ? '<span class="bk-tag">In use here</span>' : ''}</div>` +
       `<p class="bk-meta">Saved ${esc(whenText(e.savedAt))}${e.from?.name ? ` from ${esc(e.from.name)}` : ''} · ${esc(v.view.summary)}</p></header>` +
-      (v.confirm ? confirmHtml(v) : `<div class="bk-acts"><a class="bk-btn" href="#/bank/${enc(e.id)}/use">Use on this project</a></div>`) +
+      (v.confirm ? confirmHtml(v) : `<div class="bk-acts bk-acts-start"><a class="bk-btn" href="#/bank/${enc(e.id)}/use">Use on this project</a></div>`) +
       '<h3 class="bk-h">Who hands work to whom</h3><div class="card bk-diagram pl-wrap" data-bk-diagram></div>' +
       `<h3 class="bk-h">Agents</h3><ul class="bk-agents">${v.view.agents.map(agentHtml).join('')}</ul></div>`
   }
@@ -97,7 +97,7 @@
       `${esc(coord)} hands work to ${workers.length ? esc(andList(workers)) : 'no other agent'}${qa ? `; ${esc(qa)} tests and pushes` : ''}${chat ? `; ${esc(chat)} answers in Ask` : ''}.`,
       withRules ? `Their saved specifications and rules (${plural(rules, 'rule')} for ${plural(withRules, 'agent')}) replace the ones they have now.` : 'These agents get no specification and no rules; any they have now are cleared.',
       `The orchestration in use now (${esc(v.current?.summary || '')}) is saved to the bank first, under a dated name, so you can switch back.`,
-      ...(v.noSession?.length ? [`${esc(andList(v.noSession))} ${v.noSession.length === 1 ? 'has' : 'have'} no session in ${project} yet. ${v.noSession.length === 1 ? 'It is' : 'They are'} set up all the same, and wait for a session of that name.`] : []),
+      ...(v.noSession?.length ? [`${esc(andList(v.noSession))} ${v.noSession.length === 1 ? 'has' : 'have'} no session in ${project} yet. ${v.noSession.length === 1 ? 'It is set up all the same and waits for a session with that name.' : 'They are set up all the same and wait for sessions with those names.'}`] : []),
       'The dashboard restarts to load it, and this page reloads.',
     ]
     return `<section class="card bk-confirm" aria-labelledby="bk-confirm-title"><h2 id="bk-confirm-title">Use ${esc(v.entry.name)} on ${project}?</h2>` +

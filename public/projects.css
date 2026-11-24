@@ -14,9 +14,9 @@
 .pm-button[aria-expanded="true"] .pm-badge { border-color: var(--accent); }
 .pm-label { display: flex; flex-direction: column; min-width: 0; gap: 1px; line-height: 1.25; }
 .pm-line { display: flex; align-items: center; gap: 4px; min-width: 0; }
-.pm-name { max-width: 128px; overflow: hidden; text-overflow: ellipsis; color: var(--ink); font-weight: 600; }
+.pm-name { max-width: calc(var(--rail-w-open) - 70px); overflow: hidden; text-overflow: ellipsis; color: var(--ink); font-weight: 600; }
 .rail-item.pm-button .pm-chev { flex: none; width: 12px; height: 12px; stroke-width: 1.6; color: var(--muted); }
-.pm-orch { max-width: 140px; overflow: hidden; text-overflow: ellipsis; font-size: 11px; font-weight: 450; color: var(--faint); }
+.pm-orch { max-width: calc(var(--rail-w-open) - 52px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10.5px; font-weight: 450; color: var(--faint); }
 
 /* ─── the menu ─────────────────────────────────────────────────────────────── */
 
@@ -108,6 +108,7 @@ button.pm-danger:hover { background: var(--bad); color: var(--accent-ink); }
   color: var(--accent-ink); font-size: 13px; font-weight: 550; line-height: 1.4; text-decoration: none;
 }
 .bk-btn:hover { filter: brightness(1.08); }
+.bk-acts-start .bk-btn { margin-left: 0; }
 .bk-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 12px; margin-top: 4px; background: var(--surface-2); border-radius: var(--radius); }
 .bk-ask .bk-p { flex: 1 1 260px; }
 .bk-rename { display: flex; flex-wrap: wrap; gap: 8px; }
