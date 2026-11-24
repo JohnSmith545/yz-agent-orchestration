@@ -60,12 +60,12 @@ test('cards, buttons and inputs use the one radius token', () => {
 
 test('no resting shadow on cards: only the drawer, popovers, menus and the alerts panel cast one', () => {
   const offenders = []
-  for (const f of ['styles.css', 'agent-cards.css', 'card-stack.css', 'factory.css', 'flows.css', 'orchestration.css']) {
+  for (const f of ['styles.css', 'agent-cards.css', 'factory.css', 'flows.css', 'orchestration.css']) {
     for (const m of read(f).matchAll(/([^{}]+)\{([^}]*)\}/g)) {
       const [, sel, body] = m
       if (!/box-shadow:(?!\s*(?:none|inset|0 0 0))/.test(body)) continue
       // (a nested @media block reads as one selector with the inner one in its body)
-      if (/popover|modal|menu|tip|toast|focus-visible|data-state='drag'/.test(sel + body.split(/box-shadow/)[0])) continue
+      if (/popover|modal|menu|tip|toast|focus-visible/.test(sel + body.split(/box-shadow/)[0])) continue
       offenders.push(`${f}: ${sel.trim()}`)
     }
   }

@@ -58,8 +58,9 @@ example first.
   table with code review marks, and every worktree.
 - **Timeline**: what each agent did on each task as a zoomable flowchart, built
   from the transcripts and git.
-- **Agents**: the agents as a tree of cards, with a live view of one agent (its
-  feed, its edits as diffs, its uncommitted changes) and a draft progress report.
+- **Agents**: the orchestration as a pipeline diagram, from request to outcome, with
+  a live view of one agent (its feed, its edits as diffs, its uncommitted changes)
+  and a draft progress report.
 - **Subagents**: every subagent the sessions started, live or ended: what each one is working on, how it
   went, its pull request and its final report, with builders apart from quick lookups.
 - **The Ask drawer**: a chat with a Claude Code session ("Independent") that can
@@ -1021,7 +1022,8 @@ Home still shows the agents as compact cards. A state is a dot and one word
 - **Working**: the harness says busy, or its transcript changed in the last minute. When its latest tool call runs tests or checks (vitest, jest, tsc, eslint, playwright test, flutter test or analyze, dart test, npm or pnpm test, lint and typecheck, still running or finished under two minutes ago) the hover says running tests and the dot is accent blue.
 - **Idle**: not doing anything right now.
 
-- **Click** a card to watch that agent live, or a subagent row to watch the subagent.
+- **Click** a card to watch that agent live. On the Agents page, a subagent row in an
+  agent's details card watches the subagent.
 
 The diagram is `public/pipeline-layout.js` (layers from the graph), `pipeline-view.js`
 (boxes over one SVG of arrows, patched in place), `pipeline-tickets.js`,
@@ -1037,7 +1039,7 @@ subagent dispatches from one parent folds into one row with its count.
 
 ## One agent, live
 
-Click an agent or subagent in the tree, or a card on the Subagents page. A subagent opens whatever its age, and also
+Click an agent card on Home, an agent or subagent in the Agents page details, or a card on the Subagents page. A subagent opens whatever its age, and also
 when the session that started it has ended (the title then reads `Ended session › <task>`): the session is
 found by its id among the repo's project folders. The left panel is its activity as it
 happens (polled every 2.5 s): your prompts, its replies, each edit as a red and

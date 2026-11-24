@@ -1,8 +1,8 @@
 // Home (spec 5): stacked zones. Since you were away (#homeSince, since.js, spec
 // F2), Waiting on you (#homeWaiting, the flows strip, drawn by flows.js), both
 // mounted here while Home shows, then Agents (agent-cards.js, compact) and Messages.
-// Routing lives in shell.js (Shell.resolve): #/ Home, #/agents the full agent
-// tree (agents-page.js), #/timeline the flowchart (flow.js), #/tickets the
+// Routing lives in shell.js (Shell.resolve): #/ Home, #/agents the pipeline
+// diagram (agents-page.js), #/timeline the flowchart (flow.js), #/tickets the
 // ticket factory (factory.js), #/agent/<sessionId>[/<subagentId>] one agent
 // (agent.js). Home's status line goes to the page header through
 // Shell.setStatus, only while Home is showing.
@@ -161,7 +161,7 @@ function renderMeta() {
 
 function renderHome() {
   renderMeta()
-  window.AgentCards?.render(data, { compact: true, root: 'agentCards' })
+  window.AgentCards?.render(data, { root: 'agentCards' })
   window.Motion.countUp(document.getElementById('agentsCount'), data.agents.length)
   renderTalk()
   document.querySelectorAll('#home .scroll').forEach(UI.fade)

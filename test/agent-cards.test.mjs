@@ -1,5 +1,5 @@
 // Tests for the one agent card renderer in public/agent-cards.js (spec 5):
-// Home draws it compact, the Agents page draws it full. Both files are browser
+// Home draws it compact, the Agents page details pane draws it full. Both files are browser
 // scripts; app.js attaches window.UI and window.App before any DOM code and
 // skips the DOM when there is no document, so both run here in one vm context
 // with a bare window. AgentCards.card is pure: an agent in, HTML out.
@@ -64,7 +64,7 @@ test('a compact card with no last tool and no tickets is just the head', () => {
   assert.equal(count(html, 'ac-foot'), 0)
 })
 
-// ═══ full (Agents page) ═══
+// ═══ full (the Agents page details pane) ═══
 
 test('a full card has every ticket, the branch, the talk line, the subagents and a Progress report button', () => {
   const html = card(agent(), { worktrees })
@@ -122,7 +122,7 @@ test('a pulse draws the Independent card into each slot, and a click on it opens
 
 // ═══ the coordinator is whoever the config says, under the label it gives ═══
 
-test('the root of the tree is the session the server marks as the coordinator, whatever it is named', () => {
+test('Home lists first the session the server marks as the coordinator, whatever it is named', () => {
   const { groups } = ctx.window.AgentCards
   const agents = [
     { name: 'Master', label: 'Lead', coding: true, coordinator: true, updatedAt: '2026-11-12T10:00:00Z' },
@@ -133,6 +133,25 @@ test('the root of the tree is the session the server marks as the coordinator, w
   assert.equal(g.coordinator.name, 'Master')
   assert.equal(Array.from(g.workers, a => a.name).join(), 'Coordinator', 'a session merely NAMED Coordinator is an ordinary agent')
   assert.equal(groups(agents.map(a => ({ ...a, coordinator: false }))).coordinator, null)
+})
+
+test('Home draws the coordinator, the coding agents by name, then the rest newest first, ignoring any old saved drag order', () => {
+  const store = { 'agentCardOrder.workers': JSON.stringify(['s-b', 's-a']), 'agentCardOrder.others': JSON.stringify(['s-old', 's-new']) }
+  const window = {}
+  const c = vm.createContext({ window, localStorage: { getItem: k => store[k] ?? null, setItem: () => {} } })
+  for (const f of ['shell.js', 'app.js', 'agent-cards.js']) vm.runInContext(fs.readFileSync(path.join(HERE, '..', 'public', f), 'utf8'), c)
+  const box = { innerHTML: '', addEventListener() {} }
+  const a = (sessionId, label, extra) => agent({ sessionId, label, ...extra })
+  const agents = [
+    a('s-old', 'Old', { coding: false, transcriptAt: '2026-11-12T09:00:00Z' }),
+    a('s-b', 'Bravo'),
+    a('s-new', 'New', { coding: false, transcriptAt: '2026-11-12T10:00:00Z' }),
+    a('s-lead', 'Lead', { coordinator: true }),
+    a('s-a', 'Alpha'),
+  ]
+  window.AgentCards.render({ agents }, { root: box })
+  assert.deepEqual([...box.innerHTML.matchAll(/data-session="([^"]+)"/g)].map(m => m[1]), ['s-lead', 's-a', 's-b', 's-new', 's-old'])
+  assert.equal(count(box.innerHTML, 'ac-compact'), 5)
 })
 
 test('a coordinator that is not running shows under its configured label, Coordinator when none is known, escaped', () => {

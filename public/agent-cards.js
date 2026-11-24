@@ -1,43 +1,25 @@
-// The agents as cards, from ONE renderer in two modes (spec 5).
+// The agent card, from ONE renderer in two forms (spec 5).
 //
-//   full (the Agents page): a tree. Coordinator's card is the root; the coding
-//   agents hang off it on branch lines and can be dragged to reorder
-//   (card-stack.js); each agent's subagents branch off its own card, and each
-//   card has a Progress report button. Sessions outside the team sit in their
-//   own stack below, without lines.
+//   full (the Agents page details pane, pipeline-details.js): the role, every
+//   ticket, the branch of its newest worktree, who it talks to, its subagents
+//   and a Progress report button.
 //   compact (Home): name, state, the last action on one line and up to four
-//   ticket chips, as a plain grid in the same order. No drag stacks: the order
-//   is the one you dragged on the Agents page, read from the same keys.
+//   ticket chips, as a plain grid: Coordinator, the coding agents by name, then
+//   everyone else most recently active first.
 //
 // Independent, the chat agent, is not a transcript session the status scan
 // finds, so it has its own compact card (chatCard) from /api/pulse, drawn into
 // every .ac-chat-slot (Home and the Agents page); a click opens the Ask drawer.
 //
-// Click a card (or Enter) to watch that agent; click a subagent row to watch
-// the subagent. AgentCards.card(agent, opts) is PURE (an agent in, HTML out)
-// so test/agent-cards.test.mjs can check both modes in a vm.
+// Click a Home card (or Enter) to watch that agent. AgentCards.card(agent,
+// opts) is PURE (an agent in, HTML out) so test/agent-cards.test.mjs can check
+// both forms in a vm.
 //
 // Needs app.js first (window.UI). app.js calls AgentCards.render(data,
-// { compact: true, root: 'agentCards' }) after every /api/status load;
-// agents-page.js calls it in full mode for #agentsCards.
+// { root: 'agentCards' }) after every /api/status load; pipeline-details.js
+// draws card() and missingRoot() into the Agents page details pane.
 ;(function () {
-  const ORDER = { workers: 'agentCardOrder.workers', others: 'agentCardOrder.others' }
   const COMPACT_CHIPS = 4
-  // Full-mode drag stacks, per root element (only the Agents page today).
-  const trees = new Map()
-
-  const read = k => {
-    try {
-      return JSON.parse(localStorage.getItem(k) || '[]')
-    } catch {
-      return []
-    }
-  }
-  const write = (k, v) => {
-    try {
-      localStorage.setItem(k, JSON.stringify(v))
-    } catch {}
-  }
 
   // ─── one card ──────────────────────────────────────────────────────────────
 
@@ -110,15 +92,8 @@
     </div>`
   }
 
-  // A click on the report button belongs to the report (a delegated click
-  // handler in agents-page.js), never to opening the agent.
-  const open = (a, target) => {
-    if (!a || target?.closest?.('[data-report]')) return
-    location.hash = target?.closest?.('[data-href]')?.dataset.href || `#/agent/${encodeURIComponent(a.sessionId)}`
-  }
-
   // Coordinator, the coding agents by name, then everyone else most recently
-  // active first; a saved drag order wins inside each group.
+  // active first.
   function groups(agents) {
     const byName = (x, y) => x.label.localeCompare(y.label)
     return {
@@ -127,25 +102,24 @@
       others: agents.filter(a => !a.coding).sort((x, y) => String(y.transcriptAt || '').localeCompare(String(x.transcriptAt || ''))),
     }
   }
-  const saved = (list, key) => {
-    const order = read(key)
-    const rank = a => (order.includes(a.sessionId) ? order.indexOf(a.sessionId) : order.length)
-    return list.map((a, i) => [a, i]).sort((x, y) => rank(x[0]) - rank(y[0]) || x[1] - y[1]).map(x => x[0])
-  }
+
+  /** Pure: the coordinator's card while its session is not running, under the label the config gives it. */
+  const missingRoot = label => `<div class="ac"><div class="ac-head"><span class="ac-name">${window.UI.esc(label || 'Coordinator')}</span><span class="ac-role">not running</span></div></div>`
 
   // ─── compact: a plain grid ─────────────────────────────────────────────────
 
   function renderCompact(box, data) {
     const g = groups(data.agents)
-    const list = [...(g.coordinator ? [g.coordinator] : []), ...saved(g.workers, ORDER.workers), ...saved(g.others, ORDER.others)]
+    const list = [...(g.coordinator ? [g.coordinator] : []), ...g.workers, ...g.others]
     if (!box._wired) {
       box._wired = true
       const pick = e => box._agents?.get(e.target.closest('[data-session]')?.dataset.session)
-      box.addEventListener('click', e => open(pick(e), e.target))
+      const open = a => a && (location.hash = `#/agent/${encodeURIComponent(a.sessionId)}`)
+      box.addEventListener('click', e => open(pick(e)))
       box.addEventListener('keydown', e => {
         if (e.target.matches('[data-session]') && (e.key === 'Enter' || e.key === ' ')) {
           e.preventDefault()
-          open(pick(e), e.target)
+          open(pick(e))
         }
       })
     }
@@ -160,78 +134,6 @@
       box.innerHTML = html
       box._html = html
     }
-  }
-
-  // ─── full: the tree ────────────────────────────────────────────────────────
-
-  function setup(box) {
-    box.innerHTML = `
-      <div class="ac-root"></div>
-      <div class="ac-branches"></div>
-      <div class="ac-others" hidden>
-        <h3 class="ac-group">Other sessions</h3>
-        <div class="ac-others-list"></div>
-      </div>`
-    const t = { worktrees: [] }
-    const mk = (sel, key) =>
-      window.CardStack.mount(box.querySelector(sel), {
-        key: a => a.sessionId,
-        label: a => a.label,
-        render: a => card(a, { worktrees: t.worktrees }),
-        order: read(key),
-        gap: 12,
-        onReorder: ids => write(key, ids),
-        onOpen: open,
-      })
-    t.workers = mk('.ac-branches', ORDER.workers)
-    t.others = mk('.ac-others-list', ORDER.others)
-
-    // The root is not draggable: a plain card that opens on click or Enter.
-    const root = box.querySelector('.ac-root')
-    root.addEventListener('click', e => open(root._agent, e.target))
-    root.addEventListener('keydown', e => {
-      if (e.target === root && (e.key === 'Enter' || e.key === ' ')) {
-        e.preventDefault()
-        open(root._agent, e.target)
-      }
-    })
-    trees.set(box, t)
-    return t
-  }
-
-  /** Pure: the root card while the coordinating session is not running, under the label the config gives it. */
-  const missingRoot = label => `<div class="ac"><div class="ac-head"><span class="ac-name">${window.UI.esc(label || 'Coordinator')}</span><span class="ac-role">not running</span></div></div>`
-
-  function renderRoot(box, coordinator, worktrees, label = 'Coordinator') {
-    const root = box.querySelector('.ac-root')
-    root._agent = coordinator
-    if (!coordinator) {
-      root.removeAttribute('tabindex')
-      root.removeAttribute('role')
-      root.className = 'ac-root ac-missing'
-      root.innerHTML = missingRoot(label)
-      root._html = null
-      return
-    }
-    root.className = 'ac-root'
-    root.tabIndex = 0
-    root.setAttribute('role', 'button')
-    root.setAttribute('aria-label', `${coordinator.label}. Open to watch it work.`)
-    const html = card(coordinator, { worktrees })
-    if (root._html !== html) {
-      root.innerHTML = html
-      root._html = html
-    }
-  }
-
-  function renderFull(box, data) {
-    const t = trees.get(box) || setup(box)
-    t.worktrees = data.worktrees || []
-    const g = groups(data.agents)
-    renderRoot(box, g.coordinator, t.worktrees, t.coordinator?.label)
-    t.workers.update(g.workers)
-    t.others.update(g.others)
-    box.querySelector('.ac-others').hidden = !g.others.length
   }
 
   // ─── Independent: the chat agent's own card (Home and the Agents page) ─────
@@ -292,12 +194,10 @@
     card,
     chatCard,
     renderChat,
-    /** Draws `data.agents` into `root` (an element or its id): compact on Home, full on the Agents page. */
-    render(data, { compact = false, root } = {}) {
+    /** Draws `data.agents` into `root` (an element or its id) as Home's compact grid. */
+    render(data, { root } = {}) {
       const box = typeof root === 'string' ? document.getElementById(root) : root
-      if (!box || !data) return
-      if (compact) renderCompact(box, data)
-      else renderFull(box, data)
+      if (box && data) renderCompact(box, data)
     },
   }
 })()

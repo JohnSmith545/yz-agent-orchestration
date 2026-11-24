@@ -1,14 +1,13 @@
-/* Agent cards as a tree (agent-cards.js), drawn on CardStack (card-stack.css).
-   Coordinator's card is the root; a trunk runs down from it and each agent's card
-   hangs off it on a rounded branch. A branch is coloured while its agent
-   works. Uses the tokens from styles.css. */
+/* Agent cards (agent-cards.js): Home's compact grid, the Independent chat card,
+   and the full card in the Agents page details pane, whose subagents hang off
+   it on little rounded branches, coloured while they work. Uses the tokens
+   from styles.css. */
 
-.agent-cards {
+/* .pl-card: the Agents page details pane draws the full card outside any .agent-cards box. */
+.agent-cards,
+.pl-card {
   --branch: color-mix(in srgb, var(--muted) 45%, var(--line-strong));
   --branch-w: 1.5px;
-  --trunk-x: 22px; /* the trunk's distance from the root card's left edge */
-  --indent: 40px; /* where the agent cards start */
-  --elbow-y: 27px; /* where a branch meets its card: level with the name */
   --ac-gap: 12px;
 }
 
@@ -17,31 +16,14 @@
 /* Independent's card (agent-cards.js chatCard) sits in its own slot above the agents. */
 .ac-chat-slot { margin-bottom: 12px; }
 
-.ac-root,
-.ac-tile,
-.agent-cards .cs-item {
-  --cs-radius: var(--radius);
+.ac-tile {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
 }
 
-.ac-root {
-  position: relative;
-  margin-bottom: var(--ac-gap);
-  cursor: pointer;
-  transition: border-color 0.16s ease;
-}
-
-.ac-root:hover,
-.ac-tile:hover,
-.agent-cards .cs-item:hover {
+.ac-tile:hover {
   border-color: var(--line-strong);
-}
-
-.ac-root.ac-missing {
-  cursor: default;
-  border-style: dashed;
 }
 
 .ac {
@@ -65,10 +47,6 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.ac-root .ac-name {
-  font-size: 16px;
 }
 
 .ac-role {
@@ -120,7 +98,7 @@
   margin-top: 2px;
 }
 
-/* ─── compact (Home): a plain grid, no tree ───────────────────────────────── */
+/* ─── compact (Home): a plain grid ─────────────────────────────────────────── */
 
 .ac-grid {
   display: grid;
@@ -151,56 +129,6 @@
 
 .ac-quiet .ac-talk,
 .ac-quiet .ac-foot {
-  display: none;
-}
-
-/* ─── branches: Coordinator -> agents ───────────────────────────────────────────── */
-
-.ac-branches {
-  padding-left: var(--indent);
-}
-
-.ac-branches .cs-slot::before,
-.ac-branches .cs-slot::after {
-  content: '';
-  position: absolute;
-  left: calc(var(--trunk-x) - var(--indent));
-  pointer-events: none;
-}
-
-/* The trunk, running on past this card to the next one. */
-.ac-branches .cs-slot::before {
-  top: 0;
-  bottom: calc(-1 * var(--ac-gap));
-  border-left: var(--branch-w) solid var(--branch);
-}
-
-.ac-branches .cs-slot:last-child::before {
-  display: none;
-}
-
-/* The branch: from the card above down to this card's name, with a round corner. */
-.ac-branches .cs-slot::after {
-  top: calc(-1 * var(--ac-gap));
-  width: calc(var(--indent) - var(--trunk-x) - 2px);
-  height: calc(var(--ac-gap) + var(--elbow-y));
-  border-left: var(--branch-w) solid var(--branch);
-  border-bottom: var(--branch-w) solid var(--branch);
-  border-bottom-left-radius: 12px;
-}
-
-/* A working agent's branch lights up. */
-.ac-branches .cs-slot:has(.ac[data-state='active'])::after {
-  border-color: var(--ok);
-}
-
-.ac-branches .cs-slot:has(.ac[data-state='testing'])::after {
-  border-color: var(--accent);
-}
-
-/* A held card has left its branch. */
-.ac-branches .cs-slot[data-active]::before,
-.ac-branches .cs-slot[data-active]::after {
   display: none;
 }
 
@@ -274,17 +202,4 @@
 .ac-subs .small {
   margin-left: auto;
   white-space: nowrap;
-}
-
-/* ─── other sessions ───────────────────────────────────────────────────────── */
-
-.ac-others {
-  margin-top: 28px;
-}
-
-.ac-group {
-  margin: 0 0 10px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--muted);
 }

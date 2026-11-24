@@ -183,8 +183,10 @@ scroll wheel, and click a node for details.
 
 ### Agents
 
-The agents as a tree of cards: the coordinator at the root, each coding agent on a branch, subagents under
-their parent. Drag cards to reorder them. Click one for its **live view**: its activity as it happens, each
+The orchestration as a pipeline diagram, from **Request** to **Outcome**: the coordinator, each producing
+agent, **QA** and **Push**, with every ticket as a chip on the step it stands at now. Click a step for its
+details below the diagram; for an agent that is its card, with its subagents and a **Progress report**. Click
+an agent's card on Home, or a subagent row in its details card, for its **live view**: its activity as it happens, each
 edit as a diff, the uncommitted changes in its worktree, and **Draft report**, a Markdown summary of a time
 window built from the transcript and git (no model writes it).
 

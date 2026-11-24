@@ -19,7 +19,7 @@
   const COUNT_MS = 300
   // Every card that can carry the spotlight. Scroll areas are left out: their
   // mask and their scrolling content would carry the ring away.
-  const SPOT = '.card, .ac-tile, .ac-root, .agent-cards .cs-item, .fl-card'
+  const SPOT = '.card, .ac-tile, .fl-card'
 
   const reduced = () => {
     try {
