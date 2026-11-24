@@ -101,6 +101,11 @@ html.aw-lock, html.aw-lock body { overflow: hidden; }
 .aw-switch[aria-checked="true"] .aw-knob::after { transform: translateX(12px); background: var(--add-edge); }
 .aw-switch-word { min-width: 2.2em; text-align: left; }
 .aw-remove { flex: none; font-size: 13px; }
+/* Remove asks first, in its row */
+.aw-confirm { flex: 1 1 100%; order: 3; margin-top: 4px; color: var(--ink); font-size: 13px; }
+.aw-file:has(.aw-confirm) { flex-wrap: wrap; }
+.aw-file:has(.aw-confirm) > button { order: 4; }
+.aw-danger { color: var(--del-ink); border-color: var(--del-edge); }
 
 .aw-drop { margin-top: 12px; padding: 14px; border: 1px dashed var(--line-strong); border-radius: var(--radius); text-align: center; background: var(--surface-2); }
 .aw-drop.is-over { border-color: var(--accent); background: var(--accent-soft); }

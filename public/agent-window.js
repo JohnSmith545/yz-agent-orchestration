@@ -35,6 +35,7 @@
   let settings = null // the last GET /api/agents/settings
   let seen = ''
   let busy = false
+  let confirming = null // the file whose Remove was pressed: its row asks Remove or Keep, in the window
 
   const $ = sel => dlg?.querySelector(sel) || null
   const nodeOf = () => (data().graph?.nodes || []).find(n => n.id === nodeId) || null
@@ -103,7 +104,9 @@
       const act = e.target.closest('[data-aw-act]')
       const row = act?.closest('[data-aw-file]')
       if (row && act.dataset.awAct === 'toggle') return toggleFile(row.dataset.awFile, act.getAttribute('aria-checked') !== 'true')
-      if (row && act.dataset.awAct === 'remove') return removeFile(row.dataset.awFile)
+      if (row && act.dataset.awAct === 'remove') return askRemove(row.dataset.awFile)
+      if (row && act.dataset.awAct === 'remove-yes') return removeFile(row.dataset.awFile)
+      if (row && act.dataset.awAct === 'remove-no') return keepFile(row.dataset.awFile)
       const report = e.target.closest('[data-report]')
       if (report) return window.OrchestrationGrid?.report(report.dataset.report, report.dataset.label)
       const sub = e.target.closest('[data-href]')
@@ -166,6 +169,7 @@
     nodeId = id
     returnTo = from || returnTo
     if (fresh) {
+      confirming = null
       parts.noteTitle.value = ''
       parts.noteText.value = ''
       parts.filesStatus.textContent = ''
@@ -258,7 +262,7 @@
       const head = `<div class="aw-sec-head"><h3 class="aw-h" id="awRulesH">Specification and rules</h3>${RV.settingsButton(node, !!opts.draft, 'Edit')}</div>`
       R.paint(parts.rules, head + RV.slotHtml(node, window.PipelineDetails?.ROLE?.[node.role] || '', { ...opts, changes: [] }))
     }
-    put(parts.files, W.filesListHtml(entry || {}, limits(), label))
+    put(parts.files, W.filesListHtml(entry || {}, limits(), label, { confirm: confirming }))
     const ruleChanges = R ? R.paneOpts(node).changes : []
     put(parts.changes, W.changesHtml(W.mergeChanges(ruleChanges, settings?.changes?.[label] || [])))
   }
@@ -368,7 +372,20 @@
     parts.files.querySelector(`[data-aw-file="${CSS.escape(id)}"] [data-aw-act="toggle"]`)?.focus()
   }
 
+  /** Remove asks first, in the row: Remove or Keep (the focus goes to Keep, the safe one). */
+  function askRemove(id) {
+    confirming = id
+    paint()
+    parts.files.querySelector(`[data-aw-file="${CSS.escape(id)}"] [data-aw-act="remove-no"]`)?.focus()
+  }
+  function keepFile(id) {
+    confirming = null
+    paint()
+    parts.files.querySelector(`[data-aw-file="${CSS.escape(id)}"] [data-aw-act="remove"]`)?.focus()
+  }
+
   async function removeFile(id) {
+    confirming = null
     const label = labelOf()
     if (!label) return
     const rows = [...parts.files.querySelectorAll('[data-aw-file]')]
