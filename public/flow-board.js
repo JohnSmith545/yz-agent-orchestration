@@ -156,17 +156,23 @@
    * asked (FlowDrawer.why: the agent's --why, else where the ask sits), shown, not behind a hover. Then Yes and
    * No, or a text field; an ask answered from this page shows its answer and delivery until the next poll.
    */
+  /**
+   * The ask controls (Waiting on you, and the Human review box on the Agents page, human-review.js): Yes and No, or
+   * a text field, posted to the flow's answer route; an ask answered from the page shows its answer and delivery.
+   * `slot` names the text field's kept value (data-key), so a poll redraw never loses what was typed.
+   */
+  function askControls(f, n, slot = 'strip') {
+    if (n.answer != null) return `<span class="fl-answered-word">${esc(n.answer === 'yes' ? 'Yes' : n.answer === 'no' ? 'No' : n.answer)}</span>${window.FlowDrawer.delivery(n)}`
+    if (n.kind === 'text') {
+      return `<form class="fl-text" data-text="${esc(n.id)}"><input name="answer" data-key="${esc(slot)}:${esc(f.id)}:${esc(n.id)}" placeholder="Your answer" required aria-label="Your answer"><button type="submit" class="primary">Save</button></form>`
+    }
+    return `<button type="button" class="fl-yes" data-answer="yes" data-node="${esc(n.id)}" title="${esc(n.yes)}">Yes</button>
+        <button type="button" class="fl-no" data-answer="no" data-node="${esc(n.id)}" title="${esc(n.no)}">No</button>`
+  }
+
   function stripRow({ f, n }) {
     const D = window.FlowDrawer
-    let controls
-    if (n.answer != null) {
-      controls = `<span class="fl-answered-word">${esc(n.answer === 'yes' ? 'Yes' : n.answer === 'no' ? 'No' : n.answer)}</span>${D.delivery(n)}`
-    } else if (n.kind === 'text') {
-      controls = `<form class="fl-text" data-text="${esc(n.id)}"><input name="answer" data-key="strip:${esc(f.id)}:${esc(n.id)}" placeholder="Your answer" required aria-label="Your answer"><button type="submit" class="primary">Save</button></form>`
-    } else {
-      controls = `<button type="button" class="fl-yes" data-answer="yes" data-node="${esc(n.id)}" title="${esc(n.yes)}">Yes</button>
-        <button type="button" class="fl-no" data-answer="no" data-node="${esc(n.id)}" title="${esc(n.no)}">No</button>`
-    }
+    const controls = askControls(f, n)
     return `<div class="fl-wait-row" data-flow="${esc(f.id)}">
         <div class="fl-wait-main"><div class="fl-wait-q"><b>${esc(f.agent)}</b> · <span class="fl-wait-ft">${esc(f.title)}</span> · <span class="fl-wait-ask">${chips(n.title)}</span></div>
           ${D.why(D.reason(f, n), { cls: 'fl-wait-why' })}</div>
@@ -177,5 +183,5 @@
   /** The strip's head: one count per screen, so with a flow open (its own asks left out) it says Also waiting. */
   const stripHead = (count, openId) => (openId ? 'Also waiting' : 'Waiting on you')
 
-  window.FlowBoard = { card, small, acts, groups, storyLine, state, stripRows, stripRow, stripHead, clip, fit, shown }
+  window.FlowBoard = { card, small, acts, askControls, groups, storyLine, state, stripRows, stripRow, stripHead, clip, fit, shown }
 })()

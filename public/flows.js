@@ -665,6 +665,8 @@
     close,
     gotoFlow,
     gotoHand,
+    /** The ONE answer path for an ask, from anywhere (the Human review box, human-review.js): POST answer, then a reload. */
+    answer: (flowId, nodeId, value) => answer(flowId, nodeId, value),
     /** Open a flow on its Explain tab from any page (the Agents page, the QA page's Explain in Flows). */
     explain: flowId => gotoFlow(flowId, null, 'explain'),
     get data() { return data },

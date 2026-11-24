@@ -92,6 +92,7 @@
         st.labels.innerHTML = html
         st.labelsHtml = html
       }
+      window.HumanReview?.place(st.canvas, lay) // the Human review box under the diagram (human-review.js): not a node, no arrow
       paint()
     }
 
