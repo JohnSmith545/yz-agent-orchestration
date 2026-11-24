@@ -202,3 +202,38 @@ test('snapshot: the system prompt, word for word', () => {
   ].join('\n')
   assert.equal(P, expected)
 })
+
+// ═══ the brainstorming skill, mapped onto this page (added only when the skill is found) ═══
+
+test('with the skill, the prompt gains ONE section that maps its steps onto this page; without it, none', async () => {
+  const { systemPrompt, SKILL_MAPPING: M } = await import('../script-prompt.mjs')
+  assert.equal(systemPrompt(false), P, 'no skill: the built-in rules alone')
+  assert.equal(systemPrompt(true), `${P}\n\n${M}`)
+  assert.match(M, /^The brainstorming skill\n/)
+  assert.match(M, /one turn with no tools/)
+  assert.match(M, /no code, files or design document, no commits, no hand-over to another skill/)
+  assert.match(M, /reading the context block and the idea/, 'its project exploration')
+  assert.match(M, /small and clear or large, so the user can overrule it/, 'its classification, said out loud')
+  assert.match(M, /all in one reply, as one numbered list, not one per message/, 'its questions, in the pop-up format')
+  assert.match(M, /offer two or three in one question with your recommendation first/, 'its approaches')
+  assert.match(M, /Its design is the six-part prompt/, 'its deliverable here')
+  assert.match(M, /plan first and stop for approval/, 'its approval gate, for code work')
+  assert.match(M, /task list, visual companion, written spec and its review do not apply/)
+  for (const re of [/magic/i, /trigger/i, /dorman/i, /\u26a0/, /[\u2018\u2019\u201c\u201d\r]/]) assert.doesNotMatch(M, re, String(re))
+  assert.ok(M.length < 1400, `${M.length} characters`)
+})
+
+test('snapshot: the skill mapping, word for word', async () => {
+  const { SKILL_MAPPING } = await import('../script-prompt.mjs')
+  assert.equal(SKILL_MAPPING, [
+    'The brainstorming skill',
+    "The user turn starts with the brainstorming skill, then the user's message. Follow the skill, mapped onto this page:",
+    '- Each send is one turn with no tools. Never do the work itself: no code, files or design document, no commits, no hand-over to another skill.',
+    '- Exploring the project context means reading the context block and the idea.',
+    '- In the short line before your questions or the block, say whether the idea looks small and clear or large, so the user can overrule it. When it holds several independent pieces, say so and write the prompt for the first piece, unless the user asks for all.',
+    '- Its clarifying questions follow Step 2: all in one reply, as one numbered list, not one per message. Prefer choices where they help.',
+    '- Its approaches: when there is a real choice, offer two or three in one question with your recommendation first, or take the recommended one and list it under Assumptions.',
+    '- Its design is the six-part prompt, and its approval gate is the user reading that prompt before using it. For code work, the prompt tells the receiving AI to plan first and stop for approval.',
+    '- Its spec self-review is your silent check before replying. Its task list, visual companion, written spec and its review do not apply here.',
+  ].join('\n'))
+})

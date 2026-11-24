@@ -27,6 +27,7 @@ import { factoryRoute } from './factory-routes.mjs'
 import { makePrStates } from './subagent-prs.mjs'
 import { makeSubagentRoutes } from './subagent-routes.mjs'
 import { makeScriptRoute } from './script-routes.mjs'
+import { findSkill } from './script-skill.mjs'
 import { makeContextGatherer, makeScriptContextRoute } from './script-context-routes.mjs'
 import { makeScriptLogRoute } from './script-log-routes.mjs'
 import { appendRun } from './script-log.mjs'
@@ -862,7 +863,7 @@ const scriptContext = {
   },
   sessions: async () => (await liveSessions()).filter(s => !s.pinned).map(s => ({ label: labelOf(s.name), state: s.status === 'busy' ? 'working' : 'idle', transcript: () => transcriptFile(s) })),
 }
-const scriptRoute = makeScriptRoute({ port: PORT, gather: makeContextGatherer(scriptContext), log: appendRun })
+const scriptRoute = makeScriptRoute({ port: PORT, gather: makeContextGatherer(scriptContext), log: appendRun, skill: findSkill })
 const scriptContextRoute = makeScriptContextRoute({ port: PORT, ...scriptContext })
 /** The SCRIPT run log (script-log-routes.mjs): the newest 50 runs, for the page's History list. */
 const scriptLogRoute = makeScriptLogRoute({ port: PORT })

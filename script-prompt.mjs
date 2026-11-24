@@ -71,3 +71,23 @@ export const SCRIPT_SYSTEM_PROMPT = [
   "- Use short plain sentences. Explain a special term in brackets the first time. Match the user's register.",
   '- Before replying, check silently: every part covered or defaulted, nothing asked that the context answers, nothing invented.',
 ].join('\n')
+
+// ═══ the brainstorming skill ═══
+// Added after the rules only when the run invokes the skill (script.mjs, script-skill.mjs). The skill is written
+// for an interactive session that ends in a design document and an implementation plan; here it is ONE headless
+// turn per send whose deliverable is the six-part prompt, so this says how each of its steps maps onto the page.
+
+export const SKILL_MAPPING = [
+  'The brainstorming skill',
+  "The user turn starts with the brainstorming skill, then the user's message. Follow the skill, mapped onto this page:",
+  '- Each send is one turn with no tools. Never do the work itself: no code, files or design document, no commits, no hand-over to another skill.',
+  '- Exploring the project context means reading the context block and the idea.',
+  '- In the short line before your questions or the block, say whether the idea looks small and clear or large, so the user can overrule it. When it holds several independent pieces, say so and write the prompt for the first piece, unless the user asks for all.',
+  '- Its clarifying questions follow Step 2: all in one reply, as one numbered list, not one per message. Prefer choices where they help.',
+  '- Its approaches: when there is a real choice, offer two or three in one question with your recommendation first, or take the recommended one and list it under Assumptions.',
+  '- Its design is the six-part prompt, and its approval gate is the user reading that prompt before using it. For code work, the prompt tells the receiving AI to plan first and stop for approval.',
+  '- Its spec self-review is your silent check before replying. Its task list, visual companion, written spec and its review do not apply here.',
+].join('\n')
+
+/** The system prompt for one run: the rules, and the skill's mapping when the run invokes the skill. */
+export const systemPrompt = withSkill => (withSkill ? `${SCRIPT_SYSTEM_PROMPT}\n\n${SKILL_MAPPING}` : SCRIPT_SYSTEM_PROMPT)

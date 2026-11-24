@@ -1,6 +1,24 @@
-// The SCRIPT Generator's model turn (#/script, public/script-page.js): ONE headless
+// The Brainstorming page's model turn (#/brainstorming, public/script-page.js): ONE headless
 // Claude Code turn that turns the user's rough idea into a prompt with six labelled
 // sections (Situation, Character, Request, Intent, Presentation, Tone), streamed.
+// (The page was called SCRIPT; its files, routes and names here keep that word, see shell.js.)
+//
+// The brainstorming skill (/superpowers:brainstorming), when script-skill.mjs finds it installed.
+// Measured on 2.1.330 against the same local stub (2026-11-25):
+// - It is invoked the SUPPORTED way: the plugin is loaded for this run with `--plugin-dir`
+//   (`--setting-sources ""` loads no installed plugin), and stdin starts with its slash command.
+//   In -p mode the CLI expands that into the skill's text in the user turn, in the SAME request:
+//   no Skill tool, no tool round trip, so `--tools ""` stays and the run still cannot write a
+//   file or run a command. The skill's text is read by the CLI from the plugin, never copied here.
+// - `--settings {"disableAllHooks":true}`: without it the plugin's SessionStart hook added a
+//   second whole skill (using-superpowers, about 4,500 characters) to every run.
+// - ⚠️ The CLI sends the text after the slash command TWICE (as the command's arguments and again
+//   after the skill), so attached context costs about double its input tokens. Measured costs are
+//   in the README. Sending the command and the text as two content blocks, or as two messages,
+//   was tried: the first is not expanded, the second is two paid turns.
+// - The system prompt then carries SKILL_MAPPING (script-prompt.mjs): how the skill's steps map
+//   onto one turn whose deliverable is the six-part prompt. Without the skill the run is the
+//   built-in rules alone, and the route says so in one Left out line (SKILL_MISSING).
 //
 // Rules this file keeps:
 // - It goes through the Claude Code CLI (claudeBin), like the chat, never the raw API:
@@ -38,8 +56,12 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { claudeBin } from './claude-cli.mjs'
-import { SCRIPT_SYSTEM_PROMPT } from './script-prompt.mjs'
+import { systemPrompt } from './script-prompt.mjs'
+import { SKILL } from './script-skill.mjs'
 import { recordCost } from './spend.mjs'
+
+/** The plugin's SessionStart hook would add a second whole skill (using-superpowers) to every run. */
+const SKILL_SETTINGS = '{"disableAllHooks":true}'
 
 export const SCRIPT_MODEL = 'claude-opus-5-5'
 export const SCRIPT_EFFORT = 'high'
@@ -56,14 +78,25 @@ export const MESSAGES = Object.freeze({
   cancelled: 'Stopped.',
 })
 
-/** The argv of one run: headless, streamed, no tools, no MCP, no settings, no session. The text goes on stdin. */
-export function scriptArgs(systemPrompt = SCRIPT_SYSTEM_PROMPT) {
+const usable = skill => typeof skill?.pluginDir === 'string' && skill.pluginDir !== ''
+
+/**
+ * The argv of one run: headless, streamed, no tools, no MCP, no settings, no session. The text goes on stdin.
+ * With `skill` ({ pluginDir }, script-skill.mjs) the plugin is loaded for this run only, with its hooks off,
+ * and the system prompt carries the skill's mapping onto the page.
+ */
+export function scriptArgs(skill = null) {
+  const withSkill = usable(skill)
   return [
-    '-p', '--model', SCRIPT_MODEL, '--effort', SCRIPT_EFFORT, '--system-prompt', systemPrompt,
+    '-p', '--model', SCRIPT_MODEL, '--effort', SCRIPT_EFFORT, '--system-prompt', systemPrompt(withSkill),
     '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
     '--tools', '', '--strict-mcp-config', '--setting-sources', '', '--no-session-persistence', '--name', 'SCRIPT',
+    ...(withSkill ? ['--plugin-dir', skill.pluginDir, '--settings', SKILL_SETTINGS] : []),
   ]
 }
+
+/** What goes on stdin: the text, after the skill's slash command when the run invokes the skill. */
+export const stdinFor = (text, skill = null) => (usable(skill) ? `/${SKILL} ${text}` : text)
 
 /** '' when `text` can be sent, else the reason in plain words. */
 export function checkText(text) {
@@ -117,11 +150,12 @@ function dropDir(dir) {
 /**
  * Run one generation for `text` (already checked). `onDelta(text)` hears each text delta as it
  * arrives. Returns { done, cancel }: `done` resolves once the child has closed (never rejects),
- * `cancel()` kills it (the browser went away).
+ * `cancel()` kills it (the browser went away). `skill` ({ pluginDir } from script-skill.mjs, or null)
+ * makes the run invoke the brainstorming skill.
  */
 export function generate(text, {
   onDelta = () => {}, spawn = nodeSpawn, bin = claudeBin, record = recordCost,
-  idleMs = SCRIPT_IDLE_MS, makeDir = tempDir, removeDir = dropDir,
+  idleMs = SCRIPT_IDLE_MS, makeDir = tempDir, removeDir = dropDir, skill = null,
 } = {}) {
   let child = null
   let cancelled = false
@@ -153,7 +187,7 @@ export function generate(text, {
     let dir = ''
     try {
       dir = makeDir()
-      child = spawn(binPath, scriptArgs(), { cwd: dir, windowsHide: true, env: { ...process.env } })
+      child = spawn(binPath, scriptArgs(skill), { cwd: dir, windowsHide: true, env: { ...process.env } })
     } catch {
       if (dir) removeDir(dir)
       return finish({ error: MESSAGES.missing })
@@ -239,7 +273,7 @@ export function generate(text, {
       if (code !== 0 || !result) return finish({ ...base, error: withDetail(MESSAGES.failed, errText) })
       finish({ ok: true, stopReason, cost: result.cost })
     })
-    child.stdin.end(text)
+    child.stdin.end(stdinFor(text, skill))
   })()
 
   return { done, cancel }

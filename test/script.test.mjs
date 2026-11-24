@@ -34,6 +34,31 @@ test('scriptArgs never carries the user text: it goes on stdin', () => {
   assert.ok(!S.scriptArgs().includes('--allowedTools') && !S.scriptArgs().includes('--add-dir'))
 })
 
+// ═══ the brainstorming skill (script-skill.mjs finds it) ═══
+
+const SKILL = { pluginDir: 'C:/acct/plugins/cache/m/superpowers/6.3.0' }
+
+test('scriptArgs with the skill: the plugin loaded for this run only, its hooks off, the mapping added, still no tools', async () => {
+  const { systemPrompt } = await import('../script-prompt.mjs')
+  const args = S.scriptArgs(SKILL)
+  assert.deepEqual(args, [
+    '-p', '--model', 'claude-opus-5-5', '--effort', 'high', '--system-prompt', systemPrompt(true),
+    '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
+    '--tools', '', '--strict-mcp-config', '--setting-sources', '', '--no-session-persistence', '--name', 'SCRIPT',
+    '--plugin-dir', SKILL.pluginDir, '--settings', '{"disableAllHooks":true}',
+  ])
+  assert.deepEqual(JSON.parse(args.at(-1)), { disableAllHooks: true }, 'the plugin hook would add a second skill to every run')
+  assert.equal(args[args.indexOf('--tools') + 1], '', 'no tools: no file writes, no shell, no Skill tool round trip')
+  for (const bad of [null, undefined, {}, { pluginDir: '' }, { pluginDir: 42 }]) assert.deepEqual(S.scriptArgs(bad), S.scriptArgs(), JSON.stringify(bad))
+})
+
+test('stdinFor: with the skill, the turn starts with its slash command; without, the text alone, byte for byte', () => {
+  assert.equal(S.stdinFor('my idea', SKILL), '/superpowers:brainstorming my idea')
+  assert.equal(S.stdinFor('<context>\nx\n</context>\n\n<task>\nidea\n</task>', SKILL), '/superpowers:brainstorming <context>\nx\n</context>\n\n<task>\nidea\n</task>')
+  assert.equal(S.stdinFor('my idea', null), 'my idea')
+  assert.equal(S.stdinFor('/not-a-command idea', null), '/not-a-command idea')
+})
+
 // ═══ the text check ═══
 
 test('checkText: 1 to 8000 characters of real text, else a plain reason', () => {
@@ -273,4 +298,16 @@ test('a throwing onDelta never breaks the run', async () => {
   h.child.line(result())
   h.child.emit('close', 0, null)
   assert.equal((await run.done).ok, true)
+})
+
+test('a run with the skill spawns with the skill args and sends the slash command first; one cost, as before', async () => {
+  const h = harness()
+  const run = S.generate('my idea', { ...h.opts, skill: SKILL })
+  await tick()
+  assert.deepEqual(h.spawned[0].args, S.scriptArgs(SKILL))
+  assert.equal(h.child.stdin.text, '/superpowers:brainstorming my idea')
+  h.child.line(result())
+  h.child.emit('close', 0, null)
+  assert.equal((await run.done).ok, true)
+  assert.deepEqual(h.recorded, [['script', 0.21]])
 })

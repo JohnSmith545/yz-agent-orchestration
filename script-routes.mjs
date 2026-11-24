@@ -23,10 +23,16 @@
 // (script-compose.mjs) wraps the text in it. The text alone keeps its 8,000 limit and checkText. With nothing
 // attached the text goes exactly as before, and no context line is written. A gatherer that fails never stops
 // the run: it goes with the plain text, and the context line says why.
+//
+// The brainstorming skill (script-skill.mjs): `skill()`, when given, is asked once per run where the skill is.
+// What it found goes to generate(), which then invokes the skill (script.mjs). When it finds nothing, or throws,
+// the run still goes on the built-in rules, and SKILL_MISSING is added to the context line's `skipped`, so the
+// page says it in one plain line and the run log keeps it. With no finder (the tests' default) nothing is checked.
 
 import { originAllowed } from './local-origin.mjs'
 import { composeInput } from './script-compose.mjs'
 import { LOG_LIMITS, newRunId } from './script-log.mjs'
+import { SKILL_MISSING } from './script-skill.mjs'
 import { checkText, generate as realGenerate } from './script.mjs'
 
 const PATH = '/api/script/generate'
@@ -58,8 +64,9 @@ async function readBody(req) {
  * else. `generate` is script.mjs's (tests pass a stub); `port` is the dashboard's, for the Origin rule;
  * `gather` reads the attached context (script-context-routes.mjs makeContextGatherer; none by default);
  * `log(entry)` records each run that started (script-log.mjs appendRun; none by default, so tests write nothing).
+ * `skill()` finds the brainstorming skill (script-skill.mjs findSkill; none by default, so tests check nothing).
  */
-export function makeScriptRoute({ generate = realGenerate, port, gather = NO_CONTEXT, log = null }) {
+export function makeScriptRoute({ generate = realGenerate, port, gather = NO_CONTEXT, log = null, skill = null }) {
   let busy = false
 
   return async function scriptRoute(req, res, url) {
@@ -86,6 +93,15 @@ export function makeScriptRoute({ generate = realGenerate, port, gather = NO_CON
     } catch {
       composed = { input: text, used: [], skipped: [UNREAD] }
     }
+    let found = null
+    if (skill) {
+      try {
+        found = (await skill()) || null
+      } catch {
+        found = null // a finder that fails is the same as not found: the run still goes
+      }
+      if (!found) composed.skipped.push({ ...SKILL_MISSING })
+    }
 
     res.writeHead(200, { 'content-type': 'application/x-ndjson; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' })
     let ended = false
@@ -103,6 +119,7 @@ export function makeScriptRoute({ generate = realGenerate, port, gather = NO_CON
     let started = false
     try {
       run = generate(composed.input, {
+        skill: found,
         onDelta: t => {
           if (output.length < LOG_LIMITS.outputMax) output += String(t).slice(0, LOG_LIMITS.outputMax - output.length)
           write({ type: 'delta', text: t })
