@@ -33,7 +33,7 @@
     ['Home', '#/home'],
     ['Flows', '#/flows'],
     ['QA', '#/qa'],
-    ['Brainstorming', '#/brainstorming'],
+    ['Brainstorming', '#/brainstorming', ['script', 'prompt']], // its old name and what it makes, as hidden keys
     ['Tickets', '#/tickets'],
     ['Timeline', '#/timeline'],
     ['Agents', '#/agents'],
@@ -85,7 +85,7 @@
   function gather(w) {
     const doc = w.document
     const byId = id => doc?.getElementById?.(id) || null
-    const items = PAGES.map(([label, hash]) => ({ kind: 'page', label, hint: hash, run: () => w.Shell?.go(hash) }))
+    const items = PAGES.map(([label, hash, keys]) => ({ kind: 'page', label, hint: hash, ...(keys ? { keys } : {}), run: () => w.Shell?.go(hash) }))
 
     // an archived flow is only in the page's data while it is open by link: not a palette item (the Archived action lists them)
     const flows = safe(() => w.FlowsView?.data?.flows).filter(f => f && f.id && !f.archivedAt)
