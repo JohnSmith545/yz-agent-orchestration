@@ -26,6 +26,7 @@ import {
 } from '../flows.mjs'
 import { isTrashed } from '../trash.mjs'
 import { changeBlock, changeCommands } from './change-cli.mjs'
+import { planBlock, planCommands } from './plan-cli.mjs'
 import { prBlock, prCommands } from './pr-cli.mjs'
 import { qaBlock, qaCommands } from './qa-cli.mjs'
 import { newRoute, routeBlock, routeCommands, settleRoute } from './route-cli.mjs'
@@ -114,7 +115,10 @@ QA only (--by must be config pipeline.qa):
   qa <flow> --status passed|failed --report <file.md> --commit <sha> [--summary "..."] [--shot <file>]...
      [--step "<do>" --expect "<see>" [--step-shot <file>]]...   passed: the flow is done; failed: back to its producer
   qa-push <flow> [--branch <b>] [--remote origin] [--repo <path>]   after a pass: pushes exactly the tested commit,
-     never forced, never a protected branch
+     never forced, never a protected branch (with Security on the pipeline, only after Security passed it too)
+The planner only (--by must be config pipeline.planner):
+  plan-start <flow>     you took the request from the coordinator and are planning it
+  plan <flow> --file <plan.md> --to "<producer>"   hand the task out: the flow becomes that producer's
   Every flow needs a visual: a result shot for work you can see, else a diagram (an API, a job, a deploy).
   diagram: statements split by ; or new lines, each A -> B, A -> B: arrow label, a chain A -> B -> C, or a lone A;
    a kind before a label: [actor] a person or outside system, [store] data at rest, [decision], [box] (the default);
@@ -319,6 +323,7 @@ function outputBlock(flow, config) {
     `  test steps: ${steps.length || 'none yet'}`,
     ...steps.map((t, i) => `    ${i + 1}. [${t.id}] ${t.do} -> ${t.expect}${t.shot ? '' : ' (no shot)'}`),
     ...prBlock(flow),
+    ...planBlock(flow),
     ...qaBlock(flow),
   ]
   // A request counts until a step arrives after it. The relay records requestError when it could not
@@ -465,6 +470,12 @@ const COMMANDS = {
   ...routeCommands(NO_NAME),
   ...withQaRules(qaCommands({ noName: NO_NAME, evidenceTarget, copyEvidence, shotExt: SHOT_EXT, shotError: SHOT_ERROR })),
   ...rulesCommands(NO_NAME),
+  ...plannerCommands(planCommands({ noName: NO_NAME, copyEvidence })),
+}
+
+/** The planner's commands, with `plan-start` printing its rules and settings (it refuses anyone but the planner). */
+function plannerCommands(commands) {
+  return { ...commands, 'plan-start': withRules(commands['plan-start']) }
 }
 
 /**

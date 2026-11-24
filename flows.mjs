@@ -32,6 +32,8 @@
 // - `route` (optional on the file, required of a NEW flow by the CLI) is the planned way through the
 //   pipeline (flow-route.mjs): its shape is checked here, the graph when an agent sets it, and a rewrite
 //   keeps the stored one (keepRoute); only `flow route` changes it, keeping the old one in its history.
+// - `plan` (optional) is the planner's record of planning the flow and handing it to a producer (flow-plan.mjs):
+//   only the plan commands (tools/plan-cli.mjs) write it, and mergeKeepingAnswers takes it from the stored file only.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -41,6 +43,7 @@ import { writeAtomic } from './atomic-write.mjs'
 import { DIAGRAM_KINDS, DIAGRAM_MAX } from './diagram-text.mjs'
 import { hasBefore, validateChange } from './flow-change.mjs'
 import { mergeReady, validateSend } from './flow-merge.mjs'
+import { keepPlan, validatePlan } from './flow-plan.mjs'
 import { keepQa, validateQa } from './flow-qa.mjs'
 import { keepRoute, validateRoute } from './flow-route.mjs'
 import { sayShorter, STORY_ID, STORY_MAX, storyOf, YOU } from './flow-story.mjs'
@@ -140,6 +143,7 @@ export function validateFlow(flow) {
   if (flow.output !== undefined) problems.push(...validateOutput(flow.output, flow.id))
   if (flow.qa !== undefined) problems.push(...validateQa(flow.qa, flow.id))
   if (flow.route !== undefined) problems.push(...validateRoute(flow.route))
+  if (flow.plan !== undefined) problems.push(...validatePlan(flow.plan, flow.id))
   return problems
 }
 
@@ -525,6 +529,7 @@ export function mergeKeepingAnswers(incoming, existing) {
   else delete incoming.archivedAt
   keepQa(incoming, existing) // QA's, like a tick is the user's: only ever from the stored file
   keepRoute(incoming, existing) // the plan: only `flow route` changes a stored one
+  keepPlan(incoming, existing) // the planner's hand-out: only the plan commands write it
   if (existing?.createdAt) incoming.createdAt = existing.createdAt
   delete incoming.derived
   return incoming
