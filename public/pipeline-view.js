@@ -32,7 +32,7 @@
 
   function labelSvg(l) {
     const rot = l.rotate ? ` transform="rotate(${l.rotate} ${l.x} ${l.y})"` : ''
-    return `<text class="pl-label" x="${l.x}" y="${l.y}" text-anchor="${l.anchor}"${rot} data-edges="${l.edges.join(' ')}">${esc(l.text)}</text>`
+    return `<text class="pl-elabel" x="${l.x}" y="${l.y}" text-anchor="${l.anchor}"${rot} data-edges="${l.edges.join(' ')}">${esc(l.text)}</text>`
   }
 
   function create(box, { onNode = () => {}, onChip = () => {} } = {}) {

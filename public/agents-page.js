@@ -25,6 +25,10 @@
   let loading = false
   let selNode = null
   let selTicket = null
+  // How many test steps each output QA never saw has on its own Output (derived.output.tests), from
+  // /api/flows/<id>, so How to test shows only where there is something to show (PipelineTickets.testTarget).
+  const steps = {} // id -> count
+  const stepsAt = {} // id -> the updatedAt that count was read at
 
   // The legend behind the header chip's ?.
   const AGENTS_HELP = '<p>Who hands work to whom: a request goes to the coordinator, who hands it to a producer; every code change goes to QA, ' +
@@ -94,6 +98,26 @@
       loading = false
     }
     render()
+    if (pipeline) loadSteps(pipeline.tickets)
+  }
+
+  /** Looks up the test steps of the outputs with no QA record that are new or changed since last read. */
+  async function loadSteps(tickets) {
+    const T = window.PipelineTickets
+    const outputs = T.outputList(tickets, { archived: true })
+    for (const t of outputs) if (t.id in steps && stepsAt[t.id] !== t.updatedAt) delete steps[t.id]
+    const ids = T.stepsToFetch(outputs, steps).slice(0, 20)
+    if (!ids.length) return
+    await Promise.all(ids.map(async id => {
+      try {
+        const r = await fetch(`/api/flows/${encodeURIComponent(id)}`)
+        if (r.status === 404) steps[id] = 0
+        else if (r.ok) steps[id] = Number((await r.json())?.derived?.output?.tests) || 0
+        else return // a failed read: no button for now, looked up again on the next load
+        stepsAt[id] = outputs.find(t => t.id === id)?.updatedAt
+      } catch {}
+    }))
+    render()
   }
 
   function renderDetails(groups, labels) {
@@ -128,7 +152,7 @@
     view.update({ graph, tickets, agents: status?.agents || [] })
     view.setPath(ticket ? window.PipelineLayout.highlight(graph, ticket.stage?.path) : null)
     view.setNode(selNode)
-    panel.update(pipeline, selTicket)
+    panel.update(pipeline, selTicket, steps)
     renderDetails(window.PipelineTickets.byNode(tickets), window.PipelineTickets.labelsOf(graph))
   }
 

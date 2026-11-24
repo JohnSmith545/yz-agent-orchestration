@@ -122,12 +122,37 @@ test('Outputs: finished tickets with output or a QA pass, newest first', () => {
   assert.deepEqual(plain(T.outputList(list).map(t => t.id)), ['out', 'pushing', 'pass'])
 })
 
-test('an Outputs row has the QA result word and the Explain and How to test actions', () => {
+test('an Outputs row has the QA result word and the Explain action', () => {
   const html = T.outputsHtml([tk('outcome', 'passed', { id: 'p1', title: 'Ship it', qa: { status: 'passed' } }), tk('outcome', 'done', { id: 'p2', hasOutput: true, codeProducing: false })], {})
   assert.match(html, /class="pl-word t-ok">Passed</)
   assert.match(html, />No code changes</)
   assert.match(html, /data-explain="p1"[^>]*>Explain</)
-  assert.match(html, /data-test="p1"[^>]*>How to test</)
+  assert.match(html, /data-explain="p2"[^>]*>Explain</)
+})
+
+// ═══ How to test goes where the steps are (QA regression: it opened /QA on a ticket QA never saw) ═══
+
+test('How to test goes to QA only for a ticket QA has a record of; else to the flow when it has test steps; else nowhere', () => {
+  assert.equal(T.testTarget(tk('outcome', 'passed', { qa: { status: 'passed' } }), undefined), 'qa')
+  assert.equal(T.testTarget(tk('qa', 'failed', { qa: { status: 'qa-failed' } }), 0), 'qa')
+  assert.equal(T.testTarget(tk('outcome', 'done', { codeProducing: false }), 2), 'flow')
+  assert.equal(T.testTarget(tk('outcome', 'done', { codeProducing: false }), 0), null)
+  assert.equal(T.testTarget(tk('outcome', 'done', { codeProducing: false }), undefined), null, 'not known yet: no button until it is')
+})
+
+test('an output QA never tested has no How to test unless its flow has test steps, and then it opens the flow', () => {
+  const csp = tk('outcome', 'done', { id: 'csp-enforce', hasOutput: true, codeProducing: false })
+  const passed = tk('outcome', 'passed', { id: 'p1', qa: { status: 'passed' } })
+  const none = T.outputsHtml([csp, passed], { steps: { 'csp-enforce': 0 } })
+  assert.doesNotMatch(none, /data-test="csp-enforce"/)
+  assert.match(none, /data-test="p1" data-to="qa"[^>]*>How to test</)
+  assert.doesNotMatch(T.outputsHtml([csp], {}), /data-test=/, 'steps not known yet')
+  assert.match(T.outputsHtml([csp], { steps: { 'csp-enforce': 3 } }), /data-test="csp-enforce" data-to="flow"[^>]*>How to test</)
+})
+
+test('the tickets whose test steps the page must still look up: outputs with no QA record, not already known', () => {
+  const list = [tk('outcome', 'done', { id: 'a', hasOutput: true }), tk('outcome', 'passed', { id: 'b', qa: { status: 'passed' } }), tk('outcome', 'done', { id: 'c', hasOutput: true })]
+  assert.deepEqual(plain(T.stepsToFetch(list, { c: 0 })), ['a'])
 })
 
 // ═══ where the actions go ═══
@@ -141,12 +166,22 @@ test('Explain opens the explanation on Flows, falling back to the flow itself', 
   assert.deepEqual(calls, [['goto', 'a'], ['explain', 'b']])
 })
 
-test('How to test opens the QA page at the ticket, or the QA page when it cannot', () => {
+test('How to test with a QA record opens the QA page at the ticket, or its address when the page cannot', () => {
   delete window.QaPage
-  T.howToTest('a')
-  assert.equal(ctx.location.hash, '#/qa')
+  T.howToTest('a b', 'qa')
+  assert.equal(ctx.location.hash, '#/qa/a%20b')
   const calls = []
   window.QaPage = { gotoFlow: id => calls.push(id) }
-  T.howToTest('b')
+  T.howToTest('b', 'qa')
   assert.deepEqual(calls, ['b'])
+})
+
+test('How to test without a QA record opens the flow on its Output tab, never the QA page', () => {
+  const calls = []
+  window.QaPage = { gotoFlow: id => calls.push(['qa', id]) }
+  window.FlowsView = { gotoFlow: (id, node, as) => calls.push(['flow', id, node, as]) }
+  window.Shell = { whenReady: sel => calls.push(['scroll', sel]) }
+  T.howToTest('csp-enforce', 'flow')
+  delete window.Shell
+  assert.deepEqual(plain(calls), [['flow', 'csp-enforce', null, 'output'], ['scroll', '#flowsView .fl-open[data-flow="csp-enforce"] .ob-test']])
 })

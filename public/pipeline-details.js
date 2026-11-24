@@ -52,7 +52,7 @@
   }
 
   /** Nothing clicked yet: the Independent chat card (drawn into its slot by AgentCards.renderChat) and how to use the page. */
-  const empty = () => '<div class="agent-cards ac-grid ac-chat-slot" hidden></div><p class="pl-hint">Click a step to see who is there and what they are doing. Open Tickets on the right to follow one through the pipeline.</p>'
+  const empty = () => '<div class="agent-cards ac-grid ac-chat-slot" hidden></div><p class="pl-intro">Click a step to see who is there and what they are doing. Open Tickets on the right to follow one through the pipeline.</p>'
 
   window.PipelineDetails = { html, empty, pushes, pushLine, ROLE }
 })()

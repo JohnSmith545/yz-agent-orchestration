@@ -20,7 +20,7 @@
 .pl-head { fill: var(--pl-edge); stroke: none; transition: fill .15s ease; }
 .pl-edge { transition: opacity .15s ease; }
 .k-skip .pl-line { stroke-dasharray: 5 4; }
-.pl-label {
+.pl-elabel {
   font: 500 11px var(--font); fill: var(--muted);
   paint-order: stroke; stroke: var(--bg); stroke-width: 4px; stroke-linejoin: round;
   transition: fill .15s ease, opacity .15s ease;
@@ -62,11 +62,11 @@
 /* A selected ticket's path: its nodes, arrows and labels in the accent, the rest dimmed a little. */
 .pl-canvas.has-path .pl-node:not(.on) { opacity: .5; }
 .pl-canvas.has-path .pl-edge:not(.on) { opacity: .35; }
-.pl-canvas.has-path .pl-label:not(.on) { opacity: .45; }
+.pl-canvas.has-path .pl-elabel:not(.on) { opacity: .45; }
 .pl-node.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .pl-edge.on .pl-line { stroke: var(--accent); stroke-width: 2.25; }
 .pl-edge.on .pl-head { fill: var(--accent); }
-.pl-label.on { fill: var(--accent); }
+.pl-elabel.on { fill: var(--accent); }
 
 /* ─── the details pane ─────────────────────────────────────────────────────── */
 
@@ -78,11 +78,11 @@
 .pl-card { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
 .pl-card.pl-missing { border-style: dashed; }
 .pl-det-sub { margin: 24px 0 6px; color: var(--ink-2); font-size: 13px; font-weight: 600; }
-.pl-hint, .pl-none { margin: 0; color: var(--muted); font-size: 13px; }
+.pl-intro, .pl-none { margin: 0; color: var(--muted); font-size: 13px; }
 
 /* ─── ticket rows (the panel and Here now) ─────────────────────────────────── */
 
-.pl-list { list-style: none; margin: 0; padding: 0; }
+.pl-rows { list-style: none; margin: 0; padding: 0; }
 .pl-row {
   display: flex; flex-direction: column; align-items: stretch; gap: 2px; width: 100%; padding: 8px 10px;
   border: 0; border-radius: var(--radius); background: none; text-align: left; font-size: 13px; line-height: 1.4;
@@ -108,14 +108,16 @@
 }
 .pl-panel.open { transform: none; }
 body.drawer-open .pl-panel { right: var(--drawer-w); }
-/* the slim tab: always at the panel's left edge, so it shows on the page edge while the panel is closed */
+/* the slim tab: at the panel's left edge, so it shows on the page edge while the panel is closed */
 .pl-tab {
   position: absolute; left: -28px; top: 24px; width: 28px; height: 92px; padding: 0;
   border: 1px solid var(--line); border-right: 0; border-radius: var(--radius) 0 0 var(--radius);
   background: var(--surface); color: var(--muted); font-size: 12.5px; font-weight: 550;
   writing-mode: vertical-rl;
 }
-.pl-tab:hover, .pl-tab[aria-expanded="true"] { color: var(--ink); border-color: var(--line); }
+.pl-tab:hover { color: var(--ink); }
+/* open, the panel has its own close button: the tab would only sit beside it, over the page and its banners */
+.pl-panel.open .pl-tab { display: none; }
 .pl-tab:focus-visible { outline-offset: -2px; }
 .pl-panel-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .pl-panel-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 10px 10px 14px; border-bottom: 1px solid var(--line); }
@@ -134,14 +136,18 @@ body.drawer-open .pl-panel { right: var(--drawer-w); }
    out again at the narrower width); a narrow one lets it cover the page, like the Ask drawer. */
 @media (min-width: 901px) {
   .pl-page.panel-open { padding-right: calc(var(--pl-panel-w) - 16px); }
+  /* the banners above the page (app.js) make the same room, so the open panel never covers one */
+  main:has(#agentsView:not([hidden]) .pl-page.panel-open) .banners { margin-right: 304px; }
 }
 @media (max-width: 900px) {
   body.drawer-open .pl-panel { right: 0; }
 }
 @media (max-width: 720px) {
   .pl-panel { bottom: var(--rail-w); }
+  /* low on the edge, clear of the banners at the top of a phone page */
+  .pl-tab { top: auto; bottom: 24px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pl-panel, .pl-node, .pl-edge, .pl-line, .pl-head, .pl-label { transition: none; }
+  .pl-panel, .pl-node, .pl-edge, .pl-line, .pl-head, .pl-elabel { transition: none; }
 }

@@ -6,7 +6,11 @@
 //   chipHtml(t, labels)         one chip: the title cut by CSS, its status in the tooltip
 //   ticketList / ticketsHtml    Tickets: needs attention first (failed, sent back, blocked, waiting), then newest
 //   outputList / outputsHtml    Outputs: finished tickets with output or a QA pass, newest first
-//   explain(id) / howToTest(id) the Flows explanation (FlowsView.explain, else the flow) / the QA page
+//   testTarget(t, steps)        where How to test goes: 'qa' (QA has a record), 'flow' (its Output has test
+//                               steps), or null (no button: there is nothing to show)
+//   stepsToFetch(list, known)   the outputs whose test step count the page must still look up (/api/flows/<id>)
+//   explain(id) / howToTest(id, to)  the Flows explanation (FlowsView.explain, else the flow) / the QA page or
+//                               the flow's Output tab
 //
 // Colour is for meaning only (the user's rule): green for passed, red for a failure, neutral otherwise,
 // and the word is always there as text too.
@@ -62,7 +66,7 @@
 
   function ticketsHtml(list, { labels = {}, selected = null } = {}) {
     if (!list.length) return '<p class="empty">No tickets on the pipeline yet.</p>'
-    return `<ul class="pl-list">${list
+    return `<ul class="pl-rows">${list
       .map(t => {
         const tn = tone(t)
         const on = t.id === selected
@@ -83,17 +87,27 @@
   const qaWord = t => QA_WORD[t.qa?.status] || (t.codeProducing ? 'Not tested' : 'No code changes')
   const qaTone = t => (t.qa?.status === 'passed' ? 'ok' : t.qa?.status === 'failed' || t.qa?.status === 'qa-failed' ? 'bad' : '')
 
-  function outputsHtml(list, { selected = null } = {}) {
+  /**
+   * Where How to test goes. ⚠️ ONLY a ticket QA has a record of goes to /QA: one it never saw (a flow with no
+   * code changes skips QA by design) used to open #/qa/<id> on a red "QA has no record" dead end. Without a
+   * record it is the flow's own How to test (its Output tab), when its agent wrote test steps; `steps` is that
+   * count (derived.output.tests), undefined until the page has looked it up. Nothing to show: no button.
+   */
+  const testTarget = (t, steps) => (t?.qa ? 'qa' : steps > 0 ? 'flow' : null)
+  const stepsToFetch = (list, known = {}) => (list || []).filter(t => !t.qa && !(t.id in known)).map(t => t.id)
+
+  function outputsHtml(list, { selected = null, steps = {} } = {}) {
     if (!list.length) return '<p class="empty">Nothing finished with an output yet.</p>'
-    return `<ul class="pl-list">${list
+    return `<ul class="pl-rows">${list
       .map(t => {
         const tn = qaTone(t)
         const on = t.id === selected
+        const to = testTarget(t, steps[t.id])
         return `<li class="pl-out"><button type="button" class="pl-row${t.archived ? ' pl-archived' : ''}" data-ticket="${esc(t.id)}" aria-pressed="${on}" title="${esc(t.title || t.id)}">` +
           `<span class="pl-row-title">${esc(t.title || t.id)}</span>` +
           `<span class="pl-row-meta"><span class="pl-word${tn ? ` t-${tn}` : ''}">${esc(qaWord(t))}</span></span></button>` +
           `<div class="pl-out-acts"><button type="button" class="link" data-explain="${esc(t.id)}">Explain</button>` +
-          `<button type="button" class="link" data-test="${esc(t.id)}">How to test</button></div></li>`
+          (to ? `<button type="button" class="link" data-test="${esc(t.id)}" data-to="${to}">How to test</button>` : '') + '</div></li>'
       })
       .join('')}</ul>`
   }
@@ -107,12 +121,24 @@
     if (typeof F?.gotoFlow === 'function') return F.gotoFlow(id)
     location.hash = '#/flows'
   }
-  /** How to test it, on the QA page at this ticket; the QA page itself when it cannot open one. */
-  function howToTest(id) {
-    const Q = window.QaPage
-    if (typeof Q?.gotoFlow === 'function') return Q.gotoFlow(id)
-    location.hash = '#/qa'
+  /**
+   * How to test it. `to` 'qa' (testTarget): the QA page at this ticket (its address when the page cannot open
+   * it). `to` 'flow': the flow on its Output tab, scrolled to its How to test block once it is drawn.
+   */
+  function howToTest(id, to) {
+    if (to === 'qa') {
+      const Q = window.QaPage
+      if (typeof Q?.gotoFlow === 'function') return Q.gotoFlow(id)
+      location.hash = `#/qa/${encodeURIComponent(id)}`
+      return
+    }
+    const F = window.FlowsView
+    if (typeof F?.gotoFlow !== 'function') return void (location.hash = '#/flows')
+    F.gotoFlow(id, null, 'output')
+    // that flow's block, not one still showing from the flow open before it (flows.js marks .fl-open with data-flow)
+    const sel = `#flowsView .fl-open[data-flow="${String(id).replace(/["\\]/g, '\\$&')}"] .ob-test`
+    window.Shell?.whenReady?.(sel, el => el.scrollIntoView?.({ behavior: 'smooth', block: 'start' }), 3000)
   }
 
-  window.PipelineTickets = { labelsOf, tone, word, byNode, chips, chipRows, chipHtml, ticketList, ticketsHtml, outputList, outputsHtml, qaWord, explain, howToTest, MAX }
+  window.PipelineTickets = { labelsOf, tone, word, byNode, chips, chipRows, chipHtml, ticketList, ticketsHtml, outputList, outputsHtml, qaWord, testTarget, stepsToFetch, explain, howToTest, MAX }
 })()
