@@ -2,13 +2,15 @@
 //
 //   GET  /api/pipeline           { graph, tickets, builtAt }: the orchestration graph (pipeline.mjs pipelineGraph) and
 //                                every flow on it: [{ id, title, agent, tickets, status, stage: { node, status, path,
-//                                reworks }, qa (flow-qa.mjs qaView: earlier attempts as an outline), codeProducing,
-//                                hasOutput, archived, updatedAt }], newest first. Open and blocked flows always; done
+//                                reworks }, route, progress, qa (flow-qa.mjs qaView: earlier attempts as an outline),
+//                                codeProducing, hasOutput, archived, updatedAt }], newest first. `route` and `progress`
+//                                are flow-route.mjs withRoute: the planned way (stored, or inferred: true) and each
+//                                step's state; every page reads those, none works its own out. Open and blocked flows always; done
 //                                and dropped ones changed in the last 14 days; archived ones too, flagged; the Trash
 //                                never (a trashed flow has no file in data/flows).
 //   GET  /api/qa[?status=passed] { qa, flows, remotes, builtAt }: what QA recorded, for a QA page. `qa` is the QA
 //                                label; each flow is { id, title, agent, tickets, status, archived, updatedAt, stage,
-//                                qa (qaView, each step with the `url` of its shot), report: { ref, url, text,
+//                                route, progress, qa (qaView, each step with the `url` of its shot), report: { ref, url, text,
 //                                truncated } | null, shots: [{ ref, url }], links: { repo, commit, branch } }, newest
 //                                first, at most 100; `remotes` is { repo, dashboard }: the GitHub page of the watched
 //                                repo's remote and of the dashboard's own, or null.
@@ -32,6 +34,7 @@ import { fileURLToPath } from 'node:url'
 
 import { CONFIG } from './config.mjs'
 import { qaView } from './flow-qa.mjs'
+import { withRoute } from './flow-route.mjs'
 import { EVIDENCE_DIR, listFlows } from './flows.mjs'
 import { isCodeProducing, pipelineGraph, stageOf } from './pipeline.mjs'
 import { repoOf } from './pr-check.mjs'
@@ -124,7 +127,7 @@ export function pipelineGet({ config = CONFIG, now = Date.now() } = {}) {
   const tickets = listFlows({ archived: 'any' }).flows
     .filter(f => f.status === 'open' || f.status === 'blocked' || (isTime(f.updatedAt) && now - Date.parse(f.updatedAt) <= RECENT_MS))
     .map(f => ({
-      id: f.id, title: f.title, agent: f.agent, tickets: f.tickets || [], status: f.status, stage: stageOf(f, graph),
+      id: f.id, title: f.title, agent: f.agent, tickets: f.tickets || [], status: f.status, stage: stageOf(f, graph), ...withRoute(f, graph),
       qa: qaView(f.qa), codeProducing: isCodeProducing(f), hasOutput: hasOutput(f), archived: !!f.archivedAt, updatedAt: f.updatedAt ?? null,
     }))
   return { status: 200, body: { graph, tickets, builtAt: new Date(now).toISOString() } }
@@ -160,7 +163,7 @@ export async function qaGet(status, { git, config = CONFIG } = {}) {
     const web = home ? await webOf(git, home.repo, home.remote) : null
     flows.push({
       id: f.id, title: f.title, agent: f.agent, tickets: f.tickets || [], status: f.status, archived: !!f.archivedAt,
-      updatedAt: f.updatedAt ?? null, stage: stageOf(f, graph), qa: view,
+      updatedAt: f.updatedAt ?? null, stage: stageOf(f, graph), ...withRoute(f, graph), qa: view,
       report: await reportOf(view.report), shots: (view.shots || []).map(ref => ({ ref, url: evidenceUrl(ref) })),
       links: {
         repo: web,

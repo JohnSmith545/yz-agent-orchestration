@@ -28,6 +28,7 @@ import { isTrashed } from '../trash.mjs'
 import { changeBlock, changeCommands } from './change-cli.mjs'
 import { prBlock, prCommands } from './pr-cli.mjs'
 import { qaBlock, qaCommands } from './qa-cli.mjs'
+import { newRoute, routeBlock, routeCommands, settleRoute } from './route-cli.mjs'
 import { sayCommands, storyBlock } from './story-cli.mjs'
 
 /** Flags that take no value. Every other `--x` takes the next argument. */
@@ -71,7 +72,11 @@ const SHOT_EXT = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'webm', 'mp4']
 const SHOT_ERROR = 'a shot must be an existing png, jpg, jpeg, webp, gif, webm or mp4 file'
 
 export const USAGE = `usage: flow <command>
-  new <id> "<title>" [--tickets ABC-1,ABC-2] [--env dev] [--why "..."]
+  new <id> "<title>" --type build|review|ask [--tickets ABC-1,ABC-2] [--env dev] [--why "..."]
+   every request gets a flow FIRST, with its type: build for a code change (Request, coordinator, you, QA, Push,
+   Output), review for a code review of a ticket (the chat agent), ask for a question, an explanation or an
+   investigation (Request, you, Output); then follow that route
+  route <flow> --type build|review|ask   change the planned route on purpose (the old one stays in its history)
   step|check <flow> "<title>" [--id n5] [--env stage] [--why "..."] [--after n2,n3] [--status doing]
   ask <flow> "<question>" --why "<why you need this answer>" [--yes "..."] [--no "..."] [--text] [--after n2]
    always pass --why: the user sees it under the question everywhere the ask shows (an ask without one warns)
@@ -79,7 +84,8 @@ export const USAGE = `usage: flow <command>
   status <flow> <node> <todo|doing|done|blocked|skipped>
   evidence <flow> <node> --commit <sha> | --diff <worktree> | --test "<line>" [--file path] | --shot <path> | --url <url> | --note "<text>" [--label "..."]
   set <flow> [--status open|done|blocked|dropped] [--title "..."] [--why "..."] [--tickets ABC-1,ABC-2]
-  write <path.json>     whole flow in one go; keeps the answers and ticks the user gave, and the stored output when the file has none
+  write <path.json>     whole flow in one go; keeps the answers and ticks the user gave, and the stored output when the file has none;
+   a new flow needs "route": { "type": "build" } (or review, ask), and a rewrite keeps the stored route
   show <flow>           the JSON with derived, to read back answers (stdout); what its Output holds (stderr)
   list [--open] [--waiting] [--agent X] [--ticket ABC-1] [--archived]   archived flows only with --archived
   Only the user archives or deletes a flow. A command refused with "in the Trash" means stop work on that flow.
@@ -157,11 +163,11 @@ function load(id) {
 
 // ═══ Commands (each takes the parsed flags and the context, returns { out, code }) ═══
 
-function cmdNew(f, { by }) {
+function cmdNew(f, { by, config }) {
   if (!by) return fail(NO_NAME)
   const [id, title] = f._
   if (isTrashed(id)) return fail(TRASHED_NEW(id))
-  createFlow({ id, title, agent: by, tickets: tickets(f.tickets), env: f.env, why: f.why })
+  createFlow({ id, title, agent: by, tickets: tickets(f.tickets), env: f.env, why: f.why, route: newRoute(f.type, by, by, config) })
   return ok(`Flow ${id} created`)
 }
 
@@ -255,7 +261,7 @@ function cmdSet(f) {
   return ok(`Flow ${flow.id}: ${keys.join(', ')} set`)
 }
 
-function cmdWrite(f, { by, cwd }) {
+function cmdWrite(f, { by, cwd, config }) {
   const file = path.resolve(cwd, f._[0] || '')
   let incoming
   try {
@@ -269,37 +275,39 @@ function cmdWrite(f, { by, cwd }) {
     if (!by) return fail(NO_NAME)
     incoming.agent = by
   }
+  // a new flow must say its route (route-cli.mjs): its problem lines come first, with the file's own
+  const { warning: routeNote, problems: routeProblems } = settleRoute(incoming, readFlow(incoming.id), { by, config })
   // Check the agent's file before merging, so a malformed node is reported
   // as a problem line rather than crashing the merge.
-  const problems = validateFlow(incoming)
+  const problems = [...routeProblems, ...validateFlow(incoming)]
   if (problems.length) return fail(problems.join('\n'))
   const flow = mergeKeepingAnswers(incoming, readFlow(incoming.id))
   flow.createdAt ||= new Date().toISOString()
   writeFlow(flow)
   const bare = (incoming.nodes || []).filter(noWhy).map(n => n.id)
   const written = ok(`Flow ${flow.id} written`)
-  return bare.length
-    ? { ...written, err: `Warning: no why on ask ${bare.join(', ')}. The user sees the reason under the question: give each ask a "why", one plain sentence.` }
-    : written
+  const err = [routeNote, bare.length ? `Warning: no why on ask ${bare.join(', ')}. The user sees the reason under the question: give each ask a "why", one plain sentence.` : ''].filter(Boolean).join('\n')
+  return err ? { ...written, err } : written
 }
 
-function cmdShow(f) {
+function cmdShow(f, { config }) {
   const flow = load(f._[0])
   const problems = validateFlow(flow)
   if (problems.length) return fail(problems.join('\n'))
   // The JSON alone on stdout, so `show > f.json`, edit, `write f.json` round-trips; the Output block on stderr.
-  return { ...ok(JSON.stringify({ ...flow, derived: derive(flow) }, null, 2)), err: `Output\n${outputBlock(flow)}` }
+  return { ...ok(JSON.stringify({ ...flow, derived: derive(flow) }, null, 2)), err: `Output\n${outputBlock(flow, config)}` }
 }
 
 const count = (n, word, words = `${word}s`) => `${n} ${n === 1 ? word : words}`
 
 /** What the Output storyboard holds, so an agent sees what is still missing (and the user's request for test steps). */
-function outputBlock(flow) {
+function outputBlock(flow, config) {
   const out = flow.output || {}
   const shots = (out.result || []).filter(r => r?.when !== 'before').length // the before shots have their own line
   const steps = out.testing || []
   const boxes = out.diagram?.nodes?.length || 0
   const lines = [
+    ...routeBlock(flow, config),
     ...storyBlock(flow),
     `  result: ${shots ? count(shots, 'shot') : 'none yet'}`,
     ...changeBlock(flow),
@@ -452,6 +460,7 @@ const COMMANDS = {
   ...sayCommands(NO_NAME),
   ...changeCommands(NO_NAME),
   ...prCommands(NO_NAME),
+  ...routeCommands(NO_NAME),
   ...qaCommands({ noName: NO_NAME, evidenceTarget, copyEvidence, shotExt: SHOT_EXT, shotError: SHOT_ERROR }),
 }
 

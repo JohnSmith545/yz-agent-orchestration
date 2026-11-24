@@ -11,6 +11,9 @@
 //   {"decision":"block","reason":"Record your flow before finishing: ..."}
 //
 // which makes Claude Code hand the reason back to the agent instead of stopping.
+// A told flow must also have its route (flow-route.mjs: every request gets a flow
+// with its type first): when none of the agent's told flows has one, the reason
+// is to set it (`flow route <flow> --type build|review|ask`), in the same style.
 // Otherwise it prints nothing. A flow is the agent's own when its agent (`--by`)
 // is a name the agent used in its flow commands (for a subagent, also its task
 // name), or when the agent ran a flow command on it; a dropped flow, and one last
@@ -27,18 +30,27 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url))).replace(/\\/g, '/')
-const TELL = `Record your flow before finishing: flow say, flow diagram or flow result, flow test-step (node ${ROOT}/tools/factory.mjs flow ...`
+const CLI = `(node ${ROOT}/tools/factory.mjs flow ...`
+const TELL = `Record your flow before finishing: flow say, flow diagram or flow result, flow test-step ${CLI}`
+const ROUTE_TELL = `Set your flow's route before finishing: flow route <flow> --type build|review|ask ${CLI}`
 /** What the agent is told when it is sent back and its name is not known: the commands, with this dashboard's own path. */
 export const REASON = `${TELL}).`
+/** The same, when its flow is told but has no route. */
+export const ROUTE_REASON = `${ROUTE_TELL}).`
+
+/** `line` ending with the exact `--by` to sign with: one line, in double quotes; with no name, as it was. */
+function signed(line, name) {
+  const by = String(name ?? '').replace(/\s+/g, ' ').trim().replace(/"/g, "'")
+  return by ? `${line} --by "${by}").` : `${line}).`
+}
 
 /**
  * What the agent is told when it is sent back. With a name, the line ends with the exact `--by` to sign
  * its flow with, so the dashboard can link the flow to its card; the name is one line, in double quotes.
  */
-export function reasonFor(name) {
-  const by = String(name ?? '').replace(/\s+/g, ' ').trim().replace(/"/g, "'")
-  return by ? `${TELL} --by "${by}").` : REASON
-}
+export const reasonFor = name => signed(TELL, name)
+/** What an agent whose told flow has no route is told, with the same `--by` rule. */
+export const routeReasonFor = name => signed(ROUTE_TELL, name)
 
 /**
  * The name of a session, from the harness's registry next to its transcripts
@@ -97,8 +109,12 @@ export async function decide(hook) {
   const { isTrashed } = await import('../trash.mjs')
   if ([...scan.flowIds].some(isTrashed)) return null
   // Archived flows count too: archiving hides a flow from the board, it does not undo the telling.
-  const told = toldBy(listFlows({ archived: 'any' }).flows, { names, ids: [...scan.flowIds], since: scan.firstAt })
-  return told ? null : { decision: 'block', reason: reasonFor(own || [...scan.flowBy].pop()) }
+  const flows = listFlows({ archived: 'any' }).flows
+  const mine = { names, ids: [...scan.flowIds], since: scan.firstAt }
+  const name = own || [...scan.flowBy].pop()
+  if (!toldBy(flows, mine)) return { decision: 'block', reason: reasonFor(name) }
+  // nothing outside a defined flow: a told flow must also have its route (flow route sets one on an older flow)
+  return toldBy(flows.filter(f => f.route), mine) ? null : { decision: 'block', reason: routeReasonFor(name) }
 }
 
 /** Everything on stdin, as text. */

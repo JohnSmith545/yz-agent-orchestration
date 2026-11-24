@@ -61,7 +61,7 @@ test('the CLI guard matches the server: an entry left behind beside a live flow 
 test('flow new on an id in the Trash says to pick another', () => {
   F.createFlow({ id: 'taken', title: 'Old', agent: 'Agent 3' })
   moveToTrash('taken')
-  const r = cli('flow', 'new', 'taken', 'New', '--by', 'Agent 3')
+  const r = cli('flow', 'new', 'taken', 'New', '--type', 'build', '--by', 'Agent 3')
   assert.equal(r.status, 1)
   assert.deepEqual(lines(r.stderr), ['Flow taken is in the Trash. Pick another id.'])
   assert.equal(F.readFlow('taken'), null)

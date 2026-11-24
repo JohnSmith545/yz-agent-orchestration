@@ -40,9 +40,8 @@ example first.
 
 ## A quick tour
 
-- **Home**: what changed since you last looked, open questions from agents, a
-  compact card per agent, and who is messaging whom.
-- **Flows**: every agent's work as a flow. **Output** is meant to be read in ten
+- **Flows** (the landing page, `#/`): every request as a flow, each with its route from the
+  Request to the Output (build, review or ask) drawn as steps done, current and upcoming. **Output** is meant to be read in ten
   seconds: a plain **Story** of who did what and why, one **Picture** (a screenshot
   of the result, the agent's diagram of how it works, or a summary chart drawn from
   the flow), and **How to test** it by hand, step by step, with the long summary
@@ -51,6 +50,8 @@ example first.
   result); **Status** lists what is built, missing and waiting on you; **Process**
   shows the chart of steps.
   Answer an agent's question inline; the answer is pushed back to that agent.
+- **Home** (`#/home`): what changed since you last looked, open questions from agents, a
+  compact card per agent, and who is messaging whom.
 - **QA**: every ticket that passed QA, with QA's report, its screenshots, the steps
   to test it yourself and links to the tested commit and the pushed branch.
 - **SCRIPT**: turns a rough idea into a ready-to-paste prompt in six labelled parts, streamed, with a soft pop when
@@ -204,13 +205,14 @@ mode is `:root[data-theme="dark"]`.
 
 `public/shell.js` and `shell.css` draw the frame every page shares.
 
-- **The rail** (56 px, icons only): the brand mark (Home), Flows, QA, SCRIPT, Tickets,
+- **The rail** (56 px, icons only): the brand mark (Home), then Flows first, QA, SCRIPT, Tickets,
   Timeline, Agents, Subagents, Glossary, and at the foot Ask, Alerts, Spend and Theme. Hover it for 300 ms,
   or Tab into it, and it opens to 200 px with labels; the pin at the top keeps
   it open (remembered). Under 720 px wide the rail is a bar along the bottom.
-  The routes are `#/`, `#/flows`, `#/qa` (and `#/qa/<flow id>` for one ticket), `#/script`,
+  The routes are `#/` (Flows, the landing page), `#/flows` (the same page, so old links keep working),
+  `#/home`, `#/qa` (and `#/qa/<flow id>` for one ticket), `#/script`,
   `#/tickets`, `#/timeline`, `#/agents`, `#/subagents`, `#/glossary`, `#/settings`
-  and `#/agent/<id>[/<subagent>]`; anything else goes Home.
+  and `#/agent/<id>[/<subagent>]`; anything else goes to `#/`.
   Old links still work: `#/factory` goes to `#/tickets` and opens the Ask
   drawer (the old page always showed the chat), `#/flow` to `#/timeline`.
 - **The page header** (one row): the page name, ` · N` when the page counts
@@ -366,7 +368,9 @@ story, the rules and the costs are in the user guide: [Plain story, marked words
 
 ## The pages
 
-### Home (#/)
+### Home (#/home)
+
+Home moved from `#/` to `#/home` when Flows became the landing page; the brand mark at the top of the rail opens it.
 
 Zones, top to bottom: **Since 23:10** (only when something happened since you
 last pressed its `Mark read`: flows that changed status, answers delivered,
@@ -384,7 +388,9 @@ ticket snapshot is.
 
 ### Flows (#/flows)
 
-The working page for what agents do and what waits on you. Every agent narrates its work as a flow, one JSON
+The landing page: `#/` opens Flows (and so does `#/flows`). Every request is a flow with a route from the Request to
+the Output (Flow types and routes, below), and this page shows each one as that path. The working page for what
+agents do and what waits on you. Every agent narrates its work as a flow, one JSON
 file per flow in `data/flows/`, written with the `flow` commands below. Top to bottom on the page:
 
 - **Waiting on you**, one strip across all flows: every unanswered ask, newest first, one line each (agent,
@@ -398,7 +404,11 @@ file per flow in `data/flows/`, written with the `flow` commands below. Top to b
 - **The board**, a card per open flow, grouped by agent in the grid's column order. A card says only where
   the flow stands: the title, ONE line of story (the latest line the agent wrote, or the first the dashboard
   made from the steps, cut at a word to fit), ONE state chip (**waiting on you**, **blocked**, **ready to
-  send**, **PR open**, **merged** or **done**), the agent, and a thin progress bar with `13/18`. Tickets, env
+  send**, **PR open**, **merged** or **done**), its **route** as a compact strip (below), the agent, and a thin
+  progress bar with `13/18`. The strip is the flow's type and its current step (`build · at QA`) over every step
+  from Request to Output by name: the current one in the accent, done ones neutral filled, upcoming ones outlined,
+  skipped ones faint; green and red only on the QA step, for QA passed and failed. An open flow whose route is
+  inferred adds a quiet `route not set`. Tickets, env
   and times live inside the flow. Done flows collapse into a Done row; dropped ones hide behind Show dropped.
   With no open flow the board is one line, with how flows start behind its `?`.
 - **An opened flow's head**: its title with the view tabs on the same row, the why (its first sentence and
@@ -406,7 +416,9 @@ file per flow in `data/flows/`, written with the `flow` commands below. Top to b
   changed. The flow's status and **Drop** sit in the `⋯` menu at the end of that line. Where QA stands is one
   more word on that line, after the status: **QA passed** (green), **QA failed** (red), **QA testing**, or
   **waiting for QA** (a done flow that changed code and has no QA record yet); nothing while QA has no part in it.
-  When QA failed, a line under it says what became of sending it back: `Sent back to Agent 3 · sent`,
+  Under it, the **path from Request to Output** as a step line in the same states (`Agent 3 ×2` after a rework);
+  a click on a step opens its detail: an agent's node (with this flow lit) on Agents, QA and Push on the QA page,
+  the Output on the Output tab. When QA failed, a line under it says what became of sending it back: `Sent back to Agent 3 · sent`,
   `· sending…`, or `· not delivered` with **Retry** (`POST /api/flows/<id>/rework`); when QA stopped it
   (`qa-failed`), that nothing was sent and you decide.
 - **Four views of an opened flow**, as tabs beside its title (Left and Right move between them; the page
@@ -471,11 +483,11 @@ file per flow in `data/flows/`, written with the `flow` commands below. Top to b
     - **Before and after**: the before and after screenshots side by side, or the **Slider** laid one over the
       other (the same as Output's Compare), when there is a pair; the Before / Now lines when the agent wrote them.
     - **How it works**: the agent's diagram, with how it worked before beside it when there is one.
-    - **Path through the agents** (always): this ticket's way through the pipeline (`GET /api/pipeline`, read again
-      at most every 15 seconds while the tab shows), drawn with only the agents and steps it visited, in order,
-      in the one accent colour. A rework is a dashed arrow back (`failed`, `failed ×2`), and the node it is on now
-      is marked with its state (`now: testing`). A dropped flow, or one no longer on the pipeline (older than 14
-      days), says so in one line instead.
+    - **Path through the agents** (always): this flow's route from its own `progress` (no request of its own), in
+      the one accent colour: the steps it took, the one it is on marked with its state (`now: testing`), the steps
+      still ahead as a dashed outline, the ones it went round left out. A rework is an arrow back (`failed`,
+      `failed ×2`). A line under it says `Now at QA · testing · sent back once` or `Reached the Output`. A dropped
+      flow says so in one line instead.
     - **QA result**: passed or failed, the attempt, the tested commit, the branch and the push, QA's summary,
       the rework line, and **How to test**, which opens the ticket on the QA page.
     `FlowsView.explain(flowId)` opens any flow on this tab from another page (the Agents page, the QA page).
@@ -551,7 +563,9 @@ here. A click opens the ticket at `#/qa/<flow id>`, a link you can share or reop
   show above it as a small list;
 - the **Screenshots** as thumbnails that open full size, and **How to test**: QA's steps as the same cards as
   Output's How to test (the step, what you should see, its screenshot), without the checklist;
-- the earlier attempts, one line each, and **Explain in Flows**, which opens the flow on its Explain tab.
+- the earlier attempts, one line each, **Open flow** (the flow itself, the source of truth for the ticket) and
+  **Explain in Flows**, which opens the flow on its Explain tab. Under the meta line, the flow's path from Request to
+  Output, the same step line as an opened flow's head.
 
 `QaPage.gotoFlow(flowId)` opens a ticket from another page. A ticket that did not pass (one opened from the
 Explain tab after a failure) opens too, red and marked **Failed**, with its rework line. A ticket QA never saw
@@ -633,7 +647,9 @@ the range, the count and any failure behind its `?`, and Refresh reads it now.
   **code review mark**: Code reviewed (with a verdict), Needs review, No code yet, or Not from codebase.
   Filters are checkbox dropdowns; the stat chips filter too.
 - **Per-ticket actions:** review the code with the chat agent (it records the mark itself), explain the ticket,
-  or pass a task to a live agent. Select several rows to do it in bulk.
+  or pass a task to a live agent. Select several rows to do it in bulk. Each one goes through the chat agent
+  (`POST /api/chat/send`) and names the flow it starts: a review flow, an ask flow, or, for a task passed on, a
+  build flow the receiving agent starts with its own `--by` and follows to QA.
 - **Worktrees · N** (folded, remembered): every worktree with its branch, agent, uncommitted files, how far it
   is from its remote and from dev, whether followup, dev and stage have it, and its last commit.
 
@@ -688,8 +704,13 @@ and ticket and flow matching are heuristics, a strong hint and not a record.
 Every agent that works in the repo gets the same brief. Paste this paragraph into the briefs you give agents
 (the chat agent's system prompt already carries it):
 
+> Every request gets a flow FIRST, before you change anything: `flow new <id> "<title>" --type build|review|ask`
+> (or `flow write` with `"route": { "type": "build" }`). The type sets its route from the Request to the Output:
+> build for a code change (Request, the coordinator, you, QA, Push, Output), review for a code review of a ticket
+> (the chat agent's), ask for a question, an explanation or an investigation (Request, you, Output). Follow that
+> route. If the plan changes, say so with `flow route <flow> --type ...`: the old route stays visible.
 > Narrate your work on the dashboard as a flow: `node <abs path>/tools/factory.mjs flow …`.
-> Start with `flow new` or `flow write` before you change anything, keep
+> Start with `flow new --type` or `flow write` before you change anything, keep
 > statuses current with `flow status`, attach proof with `flow evidence` (the
 > commit sha, a test line, a screenshot), and put any choice that is the
 > user's as `flow ask` instead of asking in prose, then stop at that step: the
@@ -725,10 +746,12 @@ Every agent that works in the repo gets the same brief. Paste this paragraph int
 The commands (`node tools/factory.mjs flow …`). Each writes the flow file atomically and prints one line;
 `--by` or `FACTORY_BY` names the agent: its dashboard label (letters, digits, spaces, dots, dashes, underscores; up
 to 40), which is where answers are sent. `flow new`, `flow write` (unless the file names its agent), `decide`
-and the Output commands refuse to run without one.
+and the Output commands refuse to run without one. `flow new` also needs `--type`, and a new flow written whole
+needs its `route` (Flow types and routes, below).
 
 ```
-flow new <id> "<title>" [--tickets ABC-1,ABC-2] [--env dev] [--why "..."]
+flow new <id> "<title>" --type build|review|ask [--tickets ABC-1,ABC-2] [--env dev] [--why "..."]
+flow route <flow> --type build|review|ask   # change the planned route on purpose; the old one stays in route.history
 flow step <flow> "<title>" [--id n5] [--env stage] [--why "..."] [--after n2,n3] [--status doing]
 flow check <flow> "<title>" [same options]
 flow ask <flow> "<question>" --why "<why you need this answer>" [--yes "..."] [--no "..."] [--text] [--after n2]
@@ -736,7 +759,7 @@ flow note <flow> "<text>" [--after n2]
 flow status <flow> <node> <todo|doing|done|blocked|skipped>
 flow evidence <flow> <node> --commit <sha> | --diff <worktree> | --test "<line>" [--file path] | --shot <path> | --url <url> | --note "<text>" [--label "..."]
 flow set <flow> --status done|blocked|dropped|open | --title "..." | --why "..." | --tickets ...
-flow write <path.json>            # whole flow in one go (create or replace; keeps answers, ticks, and the output when the file has none)
+flow write <path.json>            # whole flow in one go (create or replace; keeps answers, ticks, the route, and the output when the file has none)
 flow show <flow>                  # the JSON on stdout, for an agent to read back answers; an Output block on stderr
 flow list [--open] [--waiting] [--agent X] [--ticket ABC-1]
 flow result <flow> --shot <path> [--caption "..."] [--before]
@@ -831,7 +854,75 @@ node tools/factory.mjs decide --ticket ABC-123 --question "..." --why "..." --ye
 node tools/factory.mjs show ABC-123
 ```
 
-`decide` is the old command, kept so older briefs still work: it becomes a `flow ask` on a new one-ask flow.
+`decide` is the old command, kept so older briefs still work: it becomes a `flow ask` on a new one-ask flow, an
+`ask` flow.
+
+### Flow types and routes
+
+Every request the dashboard sees is a flow, and every flow has a **route**: the sequence of pipeline steps it is
+planned to pass through, from the **Request** to the **Output**. The flow file is the source of truth for that
+request: its route is stored on it, and where it stands along the route is worked out on read from the flow alone.
+The three **flow types are new** (they were added with routes), built only from the request kinds and agents that
+already existed:
+
+| Type | What it is | Route | Covers |
+| --- | --- | --- | --- |
+| `build` | a code change | Request -> the coordinator -> the producer -> QA -> Push -> Output; the coordinator building its own change goes Request -> coordinator -> QA -> Push -> Output (its `own changes` edge) | a tracker ticket passed to an agent from the Tickets page; a change asked of the coordinator (Master) |
+| `review` | a code review of a tracker ticket, recorded as a review mark | Request -> the chat agent (Independent) -> Output | **Review the code with Independent** on the Tickets page |
+| `ask` | a question, an explanation or an investigation one agent answers with no code change | Request -> that agent -> Output (a producer is reached through the coordinator, as the graph says) | the Ask drawer, **Explain this ticket**, the old `decide` command |
+
+Answers to asks, **Request test steps**, the QA rework loop and term questions are not request types: they happen
+inside a flow that already exists. The chat agent (`factory.chat.name`) is a node of the graph for this, with role
+`chat`, taking requests straight from the Request and ending at the Output; rework never goes to it.
+
+**The route block** (`flow.route`, optional on the file, `flow-route.mjs`):
+
+```
+route: { type: build|review|ask, steps: [node ids in planned order, starting request and ending outcome],
+         at, by, history?: [{ type, steps, at, by }, ...the earlier routes, oldest first, at most 20] }
+```
+
+- `flow new <id> "<title>" --type build|review|ask` sets it, planned for the flow's own agent (`--by`). Without
+  `--type` it is refused in one line that names the three types; so is a type the agent has no route for (a review
+  is the chat agent's; the chat agent builds nothing; QA records its work on the flow it tests and has no route of
+  its own). An agent that is not on the pipeline works through the coordinator, as `stageOf` places it.
+- `flow write` takes `"route": { "type": "build" }` (the steps are planned for its agent) or full `steps`, which must
+  be nodes of the current graph, in an order the graph's edges allow (never a rework edge), each once; a build must
+  pass QA and Push, a review the chat agent. A NEW flow written with no route is refused. A rewrite keeps the
+  stored route whatever the file says (with a warning when it brought another one), the way the server keeps
+  `output.pr` and QA keeps `qa`; a flow from before routes needs none and may be given one.
+- `flow route <flow> --type build|review|ask --by <label>` is the one way to change it: it plans again for the
+  flow's agent, and the old route goes into `route.history`, so a changed plan stays visible.
+- `flow show` says it on stderr: `route: build, Request -> Master -> Agent 3 -> QA -> Push -> Output; now at QA
+  (testing)`, or that an older flow's route is inferred and how to set it.
+- `validateFlow` checks the shape only (never the graph, so a config change never turns a stored flow invalid);
+  the graph is checked when an agent sets a route.
+
+**Progress** (`routeProgress(flow, graph)`) is derived on read: `[{ node, label, role, state, visits, status? }]`,
+one per route step, `state` one of **done**, **current**, **upcoming** or **skipped**. It lays `stageOf` (below) over
+the planned steps: the steps before where the flow stands are done (or skipped when it went round them, like QA and
+Push for a build that changed no code), the step it stands on is current (with the stage's `status`: working,
+blocked, waiting, pending, testing, rework or failed), the rest upcoming. `visits` counts how often the flow was at a
+step, so a rework loop shows (`Agent 3 ×2`). A flow that reached the Output has every step done or skipped and no
+current step; a dropped flow has no current step either (what it got through is done, the rest skipped). A done flow
+that changed code and has no QA record is current at QA, waiting: done is not tested. A stage outside the route (an
+ask flow that left a commit behind) is read as at the end once done, else at the furthest planned step it reached.
+
+**Older flows** with no route get an **inferred** one on read, never written to the file: `build` when the flow
+changed code or QA has it (never for the chat agent), `ask` otherwise, with its own agent, flagged
+`inferred: true`. An open flow on an inferred route shows a quiet `route not set` on its card and head until its
+agent runs `flow route`.
+
+`GET /api/flows`, `GET /api/flows/<id>`, `GET /api/pipeline` and `GET /api/qa` all carry each flow's `route` (stored,
+or inferred with `inferred: true`) and `progress`. Every page reads those; none works its own path or stage out.
+
+**Nothing outside a defined flow:** `flow new` needs `--type`, a new `flow write` needs a route, `decide` creates
+an `ask` flow, the Tickets page tells the chat agent which flow type each action starts, the chat brief and the
+agent brief say a flow comes first, the board flags an inferred route, and the opt-in stop check (below) holds a
+committing agent until its told flow has a route. The limits: an agent that never runs a flow command is not
+stopped by any of this (the stop check only runs where you install it, and only for an agent that committed), and
+an agent with a shell can still write a flow file by hand (it is then validated on read).
+
 
 ### QA and the pipeline
 
@@ -839,13 +930,15 @@ Who hands work to whom is ONE graph, `pipeline.mjs`, drawn from config.json (`co
 `pipeline`):
 
 ```
-Request -> Coordinator -> Agent 1 | Agent 2 | Agent 3 -> QA -> Push -> Outcome
+Request -> Coordinator -> Agent 1 | Agent 2 | Agent 3 -> QA -> Push -> Output
 ```
 
 The coordinator hands each request out; the producers (Agent 1, 2, 3) write the code; **QA** is the last stage
 before the push for every flow that changed code, and the only agent that pushes. A flow changed code when a step
 has commit or diff evidence, its summary lists a commit or diff, or it recorded a pull request (`flow pr`). A flow
-that changed none (an investigation, a plan, an ask) goes straight to the Outcome.
+that changed none (an investigation, a plan, an ask) goes straight to the Output. The chat agent (Independent) sits
+beside the coordinator: it takes questions, explanations and reviews straight from the Request and its work ends at
+the Output. The end node keeps its id `outcome` (stored paths and routes name it); its label reads **Output**.
 
 1. A producer finishes, records `flow pr`, and messages QA (its brief says so; it never pushes).
 2. QA runs `flow qa-start`, runs the repo's tests and Playwright checks of the change with screenshots, writes a
@@ -885,23 +978,24 @@ flow's evidence folder as `<flow>/qa-<n>-report.md` (a `.md` or `.txt` file; HTM
 Agent 3 (sent)`).
 
 Where each flow stands is derived, never stored (`stageOf`): a dropped flow has no node; an open one sits on its
-agent (an agent not in the graph sits on the coordinator); a done one that changed no code is at the Outcome by the
+agent (an agent not in the graph sits on the coordinator; the chat agent's flow sits on the chat agent, straight from
+the Request, and is at the Output once done); a done one that changed no code is at the Output by the
 skip edge, and one that did waits on QA; pending and testing sit on QA; a failure sent back sits on its producer
 (`rework`); `qa-failed` sits on QA (`failed`); passed and not pushed sits on Push (`failed` when the push was
-refused); passed and pushed is the Outcome. The path lists every node the flow went through, one QA visit per
+refused); passed and pushed is the Output. The path lists every node the flow went through, one QA visit per
 attempt and one producer visit per rework.
 
 Routes:
 
 - `GET /api/pipeline` returns `{ graph: { nodes: [{ id, kind: start|agent|step|end, label, role:
-  request|coordinator|producer|qa|push|outcome }], edges: [{ from, to, label?, kind: main|branch|rework|skip }] },
-  tickets: [{ id, title, agent, tickets, status, stage: { node, status, path, reworks }, qa, codeProducing,
+  request|coordinator|producer|chat|qa|push|outcome }], edges: [{ from, to, label?, kind: main|branch|rework|skip }] },
+  tickets: [{ id, title, agent, tickets, status, stage: { node, status, path, reworks }, route, progress, qa, codeProducing,
   hasOutput, archived, updatedAt }], builtAt }`. Open and blocked flows always, done and dropped ones changed in the
   last 14 days, archived ones flagged, the Trash never. `qa` is the current attempt in full and the earlier ones as
   an outline. Node ids are slugs of the labels (`agent-1`); the edges also carry the coordinator's own changes going
   to QA and its `no code changes` skip.
 - `GET /api/qa[?status=passed]` returns `{ qa: <label>, flows: [{ id, title, agent, tickets, status, archived,
-  updatedAt, stage, qa, report: { ref, url, text, truncated } | null, shots: [{ ref, url }], links: { repo, commit,
+  updatedAt, stage, route, progress, qa, report: { ref, url, text, truncated } | null, shots: [{ ref, url }], links: { repo, commit,
   branch } }], remotes: { repo, dashboard }, builtAt }`, for a QA page: every flow QA recorded, newest first (at most
   100), with the report text (at most 64 KB) and the GitHub pages of the tested commit and the pushed branch, read
   from `git remote get-url` (github.com https and `git@` addresses; anything else is null; never the raw address,
@@ -925,7 +1019,14 @@ transcript and no flow of its own has both a story (`flow say`) and a visual (`f
 {"decision":"block","reason":"Record your flow before finishing: flow say, flow diagram or flow result, flow test-step (node <abs path>/tools/factory.mjs flow ... --by \"<its name>\")."}
 ```
 
-and Claude Code gives the agent that reason instead of stopping. The name is the one its card goes by, so the
+and Claude Code gives the agent that reason instead of stopping. When its flow is told but has no route (a flow
+from before routes), the reason is to set it, in the same style:
+
+```
+{"decision":"block","reason":"Set your flow's route before finishing: flow route <flow> --type build|review|ask (node <abs path>/tools/factory.mjs flow ... --by \"<its name>\")."}
+```
+
+It still fails open, as below. The name is the one its card goes by, so the
 flow links to it: a subagent's task name, a session's name from the harness's session list, else a name it
 already signed a flow with; with none of those the line ends at `flow ...).` A flow is the agent's own when its agent is
 a name the agent passed as `--by` (or `FACTORY_BY`), for a subagent also its task name, or when the agent ran
@@ -1041,10 +1142,10 @@ written inside the repo or any worktree.
 ## Agents (#/agents): the pipeline diagram
 
 The Agents page draws the orchestration as a diagram, from a **Request** node to an
-**Outcome** node, built only from the `pipeline` setting (see QA and the pipeline):
-Request, the coordinator, each producing agent, **QA**, **Push**, Outcome. Arrows
+**Output** node, built only from the `pipeline` setting and the chat agent's name (see QA and the pipeline):
+Request, the coordinator and the chat agent (Independent), each producing agent, **QA**, **Push**, Output. Arrows
 follow the real order. The coordinator fans out to the producers. Dashed arrows marked
-`no code changes` skip to Outcome. Return arrows marked `failed` run from QA back to each
+`no code changes` skip to Output, the chat agent's included. Return arrows marked `failed` run from QA back to each
 producer (rework). It reads left to right when there is room, else top to bottom, and is
 read again with every status refresh without redrawing.
 
@@ -1053,14 +1154,17 @@ read again with every status refresh without redrawing.
   the rest are neutral. Click a chip to open its explanation (the Explain tab in Flows).
 - **Click a node** for its details below the diagram. For an agent this is its card, the
   same card the old tree drew: state, what it is doing, who it last talked to, recent
-  tickets and branch, Progress report and its subagents. Request, Push and Outcome get a
+  tickets and branch, Progress report and its subagents. Request, Push and Output get a
   short description. An agent that ran `git push` outside QA in the last day gets a red
   dot and the line `Pushed N times outside QA today`.
 - **The side panel** slides out from the right edge (the slim tab, remembered in this
-  browser). **Tickets** lists every flow with its stage and status, the ones needing
-  attention first. **Outputs** lists finished ones with **Explain** (Flows) and
-  **How to test** (QA). Select a row to light that ticket's path through the diagram in
-  the accent colour; select it again, or press Escape, to clear.
+  browser). **Tickets** lists every flow with its type, its current step (`build · QA`) and its
+  status, the ones needing attention first. **Outputs** lists finished ones with **Explain** (Flows) and
+  **How to test** (QA). Select a row to light that flow's route from its own `progress`: the steps
+  it has taken and the one it is on in the accent colour, a rework's return arrow too, and the steps
+  still ahead as a dashed accent outline; select it again, or press Escape, to clear. The chips sit
+  on each flow's current step from the same `progress`. A step clicked in a flow's head opens this
+  page on that node, with that flow lit (`AgentsPage.showNode`).
 
 Home still shows the agents as compact cards. A state is a dot and one word
 (hover it for the detail, click the word for its meaning):

@@ -99,7 +99,7 @@ test('GET /api/pipeline: the graph from the config, and each flow with its stage
   assert.ok(Date.parse(j.builtAt))
   assert.deepEqual(j.tickets.map(t => t.id), ['open-one', 'shipped'])
   const [open, shipped] = j.tickets
-  assert.deepEqual(Object.keys(open).sort(), ['agent', 'archived', 'codeProducing', 'hasOutput', 'id', 'qa', 'stage', 'status', 'tickets', 'title', 'updatedAt'])
+  assert.deepEqual(Object.keys(open).sort(), ['agent', 'archived', 'codeProducing', 'hasOutput', 'id', 'progress', 'qa', 'route', 'stage', 'status', 'tickets', 'title', 'updatedAt'])
   assert.deepEqual([open.title, open.agent, open.tickets, open.status, open.qa, open.archived, open.codeProducing], ['Flow open-one', 'Agent 3', ['ABC-102'], 'open', null, false, true])
   assert.equal(open.stage.path[0], 'request')
   assert.deepEqual([shipped.stage.node, shipped.stage.status], ['outcome', 'passed'])
@@ -120,6 +120,30 @@ test('GET /api/pipeline: done and dropped flows only from the last 14 days; the 
   assert.deepEqual(ids, ['archived', 'new-done', 'old-open'])
   const archived = (await (await get('/api/pipeline')).json()).tickets.find(t => t.id === 'archived')
   assert.equal(archived.archived, true)
+})
+
+test('route and progress: every page reads the one answer, on /api/pipeline, /api/qa and /api/flows alike', async () => {
+  const graph = pipelineGraph(CONFIG)
+  const own = graph.nodes.find(n => n.role === 'coordinator')
+  const route = { type: 'build', steps: ['request', own.id, graph.nodes.find(n => n.role === 'qa').id, 'push', 'outcome'], at: ago(5000), by: 'Agent 3' }
+  put('planned', { updatedAt: ago(1000), route, qa: passed('planned'), status: 'done' })
+  put('legacy', { updatedAt: ago(2000) })
+  const tickets = (await (await get('/api/pipeline')).json()).tickets
+  const planned = tickets.find(t => t.id === 'planned')
+  assert.deepEqual(planned.route, route)
+  assert.deepEqual(planned.progress.map(s => s.state), ['done', 'done', 'done', 'done', 'done'])
+  const legacy = tickets.find(t => t.id === 'legacy')
+  assert.equal(legacy.route.inferred, true)
+  assert.equal(legacy.route.type, 'build', 'the fixture has commits: a code change')
+  assert.equal(legacy.progress.filter(s => s.state === 'current').length, 1)
+  const qa = (await (await get('/api/qa')).json()).flows.find(f => f.id === 'planned')
+  assert.deepEqual([qa.route, qa.progress], [planned.route, planned.progress])
+  const flows = (await (await get('/api/flows')).json()).flows
+  assert.deepEqual(flows.find(f => f.id === 'legacy').progress, legacy.progress)
+  assert.deepEqual(flows.find(f => f.id === 'legacy').route, legacy.route)
+  const one = await (await get('/api/flows/planned')).json()
+  assert.deepEqual([one.route, one.progress], [planned.route, planned.progress])
+  assert.equal(F.readFlow('legacy').route, undefined, 'an inferred route is never written to the file')
 })
 
 // ═══ GET /api/qa ═══

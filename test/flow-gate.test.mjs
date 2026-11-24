@@ -29,9 +29,11 @@ beforeEach(() => {
 // dark-mode.json has a story, a result shot and a diagram; the fixtures' transcripts start on 2026-11-12 at 09:00 UTC or later.
 const DARK = JSON.parse(fs.readFileSync(path.join(HERE, 'fixtures', 'dark-mode.json'), 'utf8'))
 const LATER = '2026-11-12T23:00:00Z'
+/** Every flow needs its route (flow-route.mjs): a stored one, so the check counts the flow. */
+const ROUTE = { type: 'build', steps: ['request', 'coordinator', 'qa', 'push', 'outcome'], at: '2026-11-12T08:00:00Z', by: 'Agent 3' }
 /** Stores the fixture flow (always as `dark-mode`, where its screenshot refs point) with the given changes. */
 function flow(over = {}) {
-  fs.writeFileSync(path.join(FLOWS, 'dark-mode.json'), JSON.stringify({ ...structuredClone(DARK), updatedAt: LATER, ...over }))
+  fs.writeFileSync(path.join(FLOWS, 'dark-mode.json'), JSON.stringify({ ...structuredClone(DARK), route: ROUTE, updatedAt: LATER, ...over }))
 }
 
 /** Runs the script with `input` on stdin: { code, out, err, decision }. */
@@ -68,6 +70,23 @@ test('a session (no agent_id) that committed and whose flow has no story or pict
   const r = gate(session())
   assert.equal(r.decision?.decision, 'block')
   assert.ok(r.decision.reason.endsWith(' --by "Agent 9").'), 'with no session name on record, the name it already signed with')
+})
+
+test('a told flow with NO route is not enough: the agent is sent back to set it, with the command and its name', () => {
+  flow({ agent: 'Build ABC-101 dark mode toggle', route: undefined })
+  const r = gate(subagent('b1'))
+  assert.equal(r.decision?.decision, 'block')
+  const abs = ROOT.replace(/\\/g, '/')
+  assert.equal(r.decision.reason, `Set your flow's route before finishing: flow route <flow> --type build|review|ask (node ${abs}/tools/factory.mjs flow ... --by "Build ABC-101 dark mode toggle").`)
+  flow({ agent: 'Build ABC-101 dark mode toggle' })
+  passes(gate(subagent('b1')))
+})
+
+test('routeReasonFor: the same --by rule as reasonFor', () => {
+  assert.ok(G.ROUTE_REASON.startsWith("Set your flow's route before finishing: flow route <flow> --type build|review|ask"))
+  assert.ok(G.ROUTE_REASON.endsWith('flow ...).'))
+  assert.ok(G.routeReasonFor('Agent 2').endsWith('flow ... --by "Agent 2").'))
+  assert.equal(G.routeReasonFor(''), G.ROUTE_REASON)
 })
 
 // ═══ the name it is told to sign with ═══
@@ -130,7 +149,7 @@ test('a session whose flow is by the name it gave its flow commands may stop, wh
 test('a session may stop on the flow its own flow commands wrote, even under another name', () => {
   // the fixture session ran `flow new gate-flow` and `flow say gate-flow`; no screenshots here, so no refs to another folder
   const nodes = DARK.nodes.map(n => (n.evidence ? { ...n, evidence: n.evidence.filter(e => e.kind !== 'shot') } : n))
-  const own = { ...structuredClone(DARK), id: 'gate-flow', agent: 'Someone else', updatedAt: LATER, nodes, output: { story: DARK.output.story, diagram: DARK.output.diagram } }
+  const own = { ...structuredClone(DARK), id: 'gate-flow', agent: 'Someone else', route: ROUTE, updatedAt: LATER, nodes, output: { story: DARK.output.story, diagram: DARK.output.diagram } }
   fs.writeFileSync(path.join(FLOWS, 'gate-flow.json'), JSON.stringify(own))
   passes(gate(session()))
 })

@@ -30,6 +30,23 @@ test('factory.js: the page mounts neither the flows nor the chat (they live on #
   absent('factory.js', /fxWaiting|fxFlows|fxChat/)
 })
 
+// Nothing outside a defined flow: every action the page hands the chat agent names the flow type it starts.
+const said = name => {
+  const m = new RegExp(`function ${name}\\([^)]*\\) \\{([\\s\\S]*?)\\n  \\}`).exec(read('factory.js'))
+  assert.ok(m, `factory.js has ${name}`)
+  return m[1]
+}
+
+test('factory.js: review asks the chat agent for a review flow, explain for an ask flow, a pass for the agent to start a build flow', () => {
+  assert.match(said('reviewTickets'), /--type review/)
+  assert.match(said('explainTicket'), /--type ask/)
+  const pass = said('passTo')
+  assert.match(pass, /--type build/)
+  assert.match(pass, /--by/)
+  assert.match(pass, /follow its route/)
+  assert.match(pass, /QA/)
+})
+
 test('factory.css: the page is one column, with no chat panel styles', () => {
   absent('factory.css', /grid-template-columns:\s*minmax\(0, 1fr\) 420px/)
   absent('factory.css', /\.fx-chat|\.fc-log|\.fc-msg/)

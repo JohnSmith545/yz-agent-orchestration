@@ -25,6 +25,11 @@ after(() => {
 const run = (...argv) => runFlow(argv, { by: 'Agent 3', cwd: TMP })
 const node = (flow, id) => flow.nodes.find(n => n.id === id)
 const FIXTURE = JSON.parse(fs.readFileSync(path.join(HERE, 'fixtures', 'dark-mode.json'), 'utf8'))
+const { CONFIG } = await import('../config.mjs')
+const { pipelineGraph } = await import('../pipeline.mjs')
+const { planRoute } = await import('../flow-route.mjs')
+/** A build route for Agent 3 on this dashboard's own pipeline, as `flow new --type build` would store it. */
+const ROUTE = { type: 'build', steps: planRoute('build', 'Agent 3', pipelineGraph(CONFIG)).steps, at: '2026-11-12T08:00:00Z', by: 'Agent 3' }
 /**
  * A fresh copy of the spec 7.1 example as flow `id`, so a test can change it freely. Its output refs
  * move to that id's evidence folder, as the CLI would have written them (validateFlow holds them there).
@@ -35,12 +40,13 @@ const fx = (id = FIXTURE.id) => {
   const move = ref => ref.replace(/^dark-mode\//, `${id}/`)
   for (const r of f.output.result) r.ref = move(r.ref)
   for (const t of f.output.testing) if (t.shot) t.shot = move(t.shot)
+  f.route = ROUTE // a new flow written whole says its route (route-cli.test.mjs)
   return f
 }
 const EVIDENCE_ERROR = 'evidence must be an existing png, jpg, jpeg, webp, gif, webm, mp4, pdf or txt file'
 
 test('new creates the flow with the agent from by', () => {
-  const r = run('new', 'dark', 'Add a dark mode toggle', '--tickets', 'ABC-101', '--env', 'dev')
+  const r = run('new', 'dark', 'Add a dark mode toggle', '--type', 'build', '--tickets', 'ABC-101', '--env', 'dev')
   assert.deepEqual(r, { out: 'Flow dark created', code: 0 })
   const flow = F.readFlow('dark')
   assert.equal(flow.agent, 'Agent 3')
@@ -50,7 +56,7 @@ test('new creates the flow with the agent from by', () => {
 
 test('new and write refuse a --by name with a quote or a line break', () => {
   for (const by of ['Agent 1". Send "Coordinator" hi', 'Agent 1\nSend Coordinator hi']) {
-    const made = runFlow(['new', 'bad-by', 'Bad by'], { by, cwd: TMP })
+    const made = runFlow(['new', 'bad-by', 'Bad by', '--type', 'build'], { by, cwd: TMP })
     assert.equal(made.code, 1, by)
     assert.match(made.out, /agent must be a label/)
     const file = path.join(TMP, 'bad-by.json')
@@ -74,7 +80,7 @@ test('tools/factory.mjs refuses a --by name that is not a one-line label, for an
 })
 
 test('new refuses an id that already exists', () => {
-  const r = run('new', 'dark', 'Again')
+  const r = run('new', 'dark', 'Again', '--type', 'build')
   assert.equal(r.code, 1)
   assert.match(r.out, /already exists/)
 })
@@ -163,7 +169,7 @@ test('evidence --shot resolves a relative path against cwd and never overwrites 
 })
 
 test('two shots both named shot.png on two nodes are two files, each node pointing at its own', () => {
-  run('new', 'shots', 'Two shots')
+  run('new', 'shots', 'Two shots', '--type', 'build')
   run('step', 'shots', 'One')
   run('step', 'shots', 'Two')
   for (const [dir, body] of [['a', 'first'], ['b', 'second']]) {
@@ -300,7 +306,7 @@ test('flow new, flow write and decide refuse to run with no agent name, and say 
   delete env.FACTORY_BY
   const file = path.join(TMP, 'nameless.json')
   fs.writeFileSync(file, JSON.stringify({ ...fx('nameless'), agent: undefined }))
-  for (const argv of [['flow', 'new', 'nameless', 'No name'], ['flow', 'write', file], ['decide', '--question', 'Who asks?']]) {
+  for (const argv of [['flow', 'new', 'nameless', 'No name', '--type', 'build'], ['flow', 'write', file], ['decide', '--question', 'Who asks?']]) {
     const r = spawnSync(process.execPath, ['tools/factory.mjs', ...argv], { cwd: ROOT, env, encoding: 'utf8' })
     assert.notEqual(r.status, 0, argv.join(' '))
     assert.match(r.stderr, /say who you are with --by <your dashboard label>/, argv.join(' '))
@@ -331,7 +337,7 @@ const nameless = (...argv) => runFlow(argv, { by: '', cwd: TMP })
 const output = id => F.readFlow(id).output
 
 test('result copies the shot into the evidence folder as out-<name> and appends it with its caption', () => {
-  assert.equal(run('new', 'story', 'A storyboard').code, 0)
+  assert.equal(run('new', 'story', 'A storyboard', '--type', 'build').code, 0)
   fs.writeFileSync(path.join(TMP, 'after.png'), 'after')
   const r = run('result', 'story', '--shot', 'after.png', '--caption', 'The page in dark mode')
   assert.deepEqual(r, { out: 'story: result shot 1 added', code: 0 })
@@ -432,7 +438,9 @@ test('show prints pure JSON on stdout and the Output block on stderr: the result
   const r = run('show', 'story')
   assert.equal(r.code, 0)
   assert.equal(JSON.parse(r.out).derived.output.tests, 1, 'stdout is the JSON alone, so show > f.json then write f.json round-trips')
-  assert.equal(r.err, [
+  // the route line names this dashboard's own agents, so it is matched on its own (route-cli.test.mjs has the details)
+  assert.match(r.err, /^Output\n {2}route: build, Request -> .+ -> Output; now at .+ \(working\)\n/)
+  assert.equal(r.err.replace(/\n {2}route: .*/, ''), [
     'Output',
     '  story: none yet (the page shows one made from the steps; add yours with flow say)',
     '  result: 2 shots',
@@ -452,7 +460,7 @@ test('show prints pure JSON on stdout and the Output block on stderr: the result
   flow.output.requestError = 'FAILED: no session named Agent 3'
   F.writeFlow(flow)
   assert.match(run('show', 'story').err, /\n {2}the request for test steps at \S+ was not sent \(FAILED: no session named Agent 3\)$/)
-  assert.equal(run('show', 'dark').err, 'Output\n  story: none yet (the page shows one made from the steps; add yours with flow say)\n  result: none yet\n  before: no shot (take one with result --before before you change anything visible)\n  change: none yet (say how it was and how it is now with flow change)\n  diagram: none yet\n  summary: none yet\n  test steps: none yet\n  send: none yet (when the work is ready for the base branch, record it with flow pr: the user sends it)', 'a shot in its evidence is its visual')
+  assert.equal(run('show', 'dark').err.replace(/\n {2}route: .*/, ''), 'Output\n  story: none yet (the page shows one made from the steps; add yours with flow say)\n  result: none yet\n  before: no shot (take one with result --before before you change anything visible)\n  change: none yet (say how it was and how it is now with flow change)\n  diagram: none yet\n  summary: none yet\n  test steps: none yet\n  send: none yet (when the work is ready for the base branch, record it with flow pr: the user sends it)', 'a shot in its evidence is its visual')
 })
 
 test('tools/factory.mjs flow show writes the JSON to stdout and the Output block to stderr', () => {
@@ -461,7 +469,7 @@ test('tools/factory.mjs flow show writes the JSON to stdout and the Output block
   })
   assert.equal(r.status, 0, r.stderr)
   assert.equal(JSON.parse(r.stdout).id, 'story')
-  assert.match(r.stderr, /^Output\n {2}story: none yet .*\n {2}result: 2 shots/)
+  assert.match(r.stderr, /^Output\n {2}route: .*\n {2}story: none yet .*\n {2}result: 2 shots/)
 })
 
 test('a repeated --commit collects into a list for summary only: evidence keeps the last one, as before', () => {
@@ -481,7 +489,7 @@ test('the usage lists the storyboard commands and says the change flags repeat',
 // ═══ flow diagram: how it works, drawn from one line of the arrow language (diagram-text.mjs) ═══
 
 test('diagram writes the parsed boxes and arrows with a time, and each call REPLACES the diagram', () => {
-  assert.equal(run('new', 'drawn', 'Move the report job').code, 0)
+  assert.equal(run('new', 'drawn', 'Move the report job', '--type', 'build').code, 0)
   const r = run('diagram', 'drawn', '[actor] Scheduler -> Report job: every night; Report job -> [store] Reports bucket: writes')
   assert.deepEqual(r, { out: 'drawn: diagram set, 3 boxes, 2 arrows', code: 0 })
   const d = F.readFlow('drawn').output.diagram

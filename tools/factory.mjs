@@ -36,7 +36,7 @@ function finish({ out, code, err }) {
   process.exitCode = code
 }
 
-/** decide → flow ask, on --flow or on a new flow ask-<yyyymmdd>-<4 base36> titled by the question. */
+/** decide → flow ask, on --flow or on a new ask flow ask-<yyyymmdd>-<4 base36> titled by the question. */
 function decide() {
   if (!by) return { out: NO_NAME, code: 1 }
   if (!f.question) return { out: 'A decision needs a question.', code: 1 }
@@ -47,7 +47,8 @@ function decide() {
 
   const day = new Date().toISOString().slice(0, 10).replaceAll('-', '')
   const id = `ask-${day}-${randomInt(36 ** 4).toString(36).padStart(4, '0')}`
-  const made = runFlow(['new', id, f.question.slice(0, 80), ...(f.ticket ? ['--tickets', f.ticket] : [])], ctx)
+  // a question is an ask request: Request -> the agent -> Output (flow-route.mjs)
+  const made = runFlow(['new', id, f.question.slice(0, 80), '--type', 'ask', ...(f.ticket ? ['--tickets', f.ticket] : [])], ctx)
   if (made.code) return made
   const asked = runFlow(['ask', id, f.question, ...opts], ctx)
   return { out: `${made.out}\n${asked.out}`, code: asked.code, err: asked.err }

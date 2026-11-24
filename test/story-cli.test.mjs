@@ -21,7 +21,7 @@ after(() => fs.rmSync(process.env.FACTORY_DATA_DIR, { recursive: true, force: tr
 
 const run = (...argv) => runFlow(argv, { by: 'Agent 1', cwd: ROOT })
 const story = id => F.readFlow(id).output?.story
-before(() => assert.equal(run('new', 'tale', 'A flow with a story').code, 0))
+before(() => assert.equal(run('new', 'tale', 'A flow with a story', '--type', 'build').code, 0))
 
 // ═══ flow say ═══
 
@@ -71,7 +71,7 @@ test('say --id s2 --replace rewrites that line; --replace without --id, or an un
 })
 
 test('say refuses a ninth line, pointing at replace and say-clear', () => {
-  run('new', 'full', 'Full story')
+  run('new', 'full', 'Full story', '--type', 'build')
   for (let i = 1; i <= 8; i++) assert.equal(run('say', 'full', `Line ${i}`).code, 0)
   const r = run('say', 'full', 'Line 9')
   assert.equal(r.code, 1)

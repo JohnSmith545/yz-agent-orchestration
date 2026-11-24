@@ -1,6 +1,7 @@
 // The orchestration definition: who hands work to whom, as ONE graph every page draws from.
 //
-//   Request -> Coordinator -> each producer (parallel branches) -> QA -> Push -> Outcome
+//   Request -> Coordinator -> each producer (parallel branches) -> QA -> Push -> Output
+//   Request -> the chat agent (Independent) -> Output                   (questions, explanations, code reviews)
 //
 // - The coordinator (config coordinator / coordinatorLabel) takes each request and hands it out.
 // - The producers write the code: `pipeline.producers`, or when that is null every `codingAgents`
@@ -11,7 +12,11 @@
 //   flow goes back to the producer that made the change (qa-rework.mjs delivers the report), at most
 //   `pipeline.maxReworks` times, then it stops. The user then opens the pull request with Send.
 // - A flow that changed no code (an investigation, a plan, an ask) skips QA and Push: its producer's
-//   `no code changes` edge goes straight to the Outcome.
+//   `no code changes` edge goes straight to the Output.
+// - The chat agent (config factory.chat.name, the Ask drawer) answers, explains and reviews; it changes no
+//   code, so it takes requests straight from the Request and its work ends at the Output. Rework never goes to
+//   it. A config with no chat name, or one that names an agent already in the graph, draws no chat node.
+// - The end node's id stays `outcome` (stored paths and routes name it); only its label says Output.
 //
 // Everything here is PURE: no file, no git, no config.json (config.mjs passes its values in), so the
 // tests build any graph they like. ⚠️ It must not import flows.mjs or config.mjs: config.mjs imports
@@ -100,13 +105,18 @@ export function pipelineGraph(config) {
   const coordinator = { id: idFor(coordinatorLabel), kind: 'agent', label: coordinatorLabel, role: 'coordinator' }
   const producers = producersOf(config).map(label => ({ id: idFor(label), kind: 'agent', label, role: 'producer' }))
   const qa = { id: idFor(s.qa), kind: 'agent', label: s.qa, role: 'qa' }
+  // the chat agent's id is taken LAST, so it never moves QA's; a name already in the graph draws no chat node
+  const chatLabel = String(config?.factory?.chat?.name ?? '').trim()
+  const taken = new Set([coordinator.label, ...producers.map(p => p.label), qa.label])
+  const chat = chatLabel && !taken.has(chatLabel) ? { id: idFor(chatLabel), kind: 'agent', label: chatLabel, role: 'chat' } : null
   const nodes = [
     { id: 'request', kind: 'start', label: 'Request', role: 'request' },
     coordinator,
     ...producers,
+    ...(chat ? [chat] : []),
     qa,
     { id: 'push', kind: 'step', label: 'Push', role: 'push' },
-    { id: 'outcome', kind: 'end', label: 'Outcome', role: 'outcome' },
+    { id: 'outcome', kind: 'end', label: 'Output', role: 'outcome' },
   ]
   const edges = [{ from: 'request', to: coordinator.id, kind: 'main' }]
   for (const p of producers) edges.push({ from: coordinator.id, to: p.id, kind: 'branch' })
@@ -118,6 +128,8 @@ export function pipelineGraph(config) {
   edges.push({ from: 'push', to: 'outcome', kind: 'main' })
   for (const p of producers) edges.push({ from: p.id, to: 'outcome', label: 'no code changes', kind: 'skip' })
   edges.push({ from: coordinator.id, to: 'outcome', label: 'no code changes', kind: 'skip' })
+  // last, so every edge above keeps its index (the Agents page keys its arrows by it)
+  if (chat) edges.push({ from: 'request', to: chat.id, kind: 'branch' }, { from: chat.id, to: 'outcome', label: 'no code changes', kind: 'skip' })
   return { nodes, edges }
 }
 
@@ -146,6 +158,8 @@ const sentBack = a => a?.status === 'failed' && isText(a?.rework?.to)
  *   dropped                               node null, status dropped
  *   no qa, open or blocked                its agent's node (a producer, the coordinator, QA), working or blocked;
  *                                         an agent not in the graph sits on the coordinator
+ *   the chat agent's flow                 on the chat node straight from the request; done is the Output (it
+ *                                         changes no code, so it never waits for QA)
  *   no qa, done, no code changes          outcome, done, by the skip edge
  *   no qa, done, code changes             qa, waiting (for QA to pick it up)
  *   qa pending or testing                 qa, pending or testing
@@ -166,6 +180,10 @@ export function stageOf(flow, graph) {
   if (flow?.status === 'dropped') return out(null, 'dropped', [])
 
   const own = byLabel.get(flow?.agent) || coordinator
+  if (own.role === 'chat') {
+    if (flow?.status === 'done') return out('outcome', 'done', ['request', own.id, 'outcome'])
+    return out(own.id, flow?.status === 'blocked' ? 'blocked' : 'working', ['request', own.id])
+  }
   const path = ['request', coordinator.id]
   if (own.id !== coordinator.id) path.push(own.id)
   const qa = flow?.qa

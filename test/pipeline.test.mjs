@@ -52,8 +52,39 @@ test('pipelineGraph: the nodes in execution order, with stable slug ids, kinds a
   assert.deepEqual(ids(G.nodes), ['request', 'master', 'agent-1', 'agent-2', 'agent-3', 'qa', 'push', 'outcome'])
   assert.deepEqual(G.nodes.map(n => n.role), ['request', 'coordinator', 'producer', 'producer', 'producer', 'qa', 'push', 'outcome'])
   assert.deepEqual(G.nodes.map(n => n.kind), ['start', 'agent', 'agent', 'agent', 'agent', 'agent', 'step', 'end'])
-  assert.deepEqual(G.nodes.map(n => n.label), ['Request', 'Master', 'Agent 1', 'Agent 2', 'Agent 3', 'QA', 'Push', 'Outcome'])
+  assert.deepEqual(G.nodes.map(n => n.label), ['Request', 'Master', 'Agent 1', 'Agent 2', 'Agent 3', 'QA', 'Push', 'Output'])
   assert.deepEqual(pipelineGraph(CONFIG), G, 'the same config draws the same graph')
+})
+
+// ═══ the chat agent (factory.chat.name) ═══
+
+const CHAT = { ...CONFIG, factory: { chat: { name: 'Independent' } } }
+const GC = pipelineGraph(CHAT)
+
+test('pipelineGraph: the chat agent is an agent node with role chat, after the producers; the end keeps its id outcome and reads Output', () => {
+  assert.deepEqual(ids(GC.nodes), ['request', 'master', 'agent-1', 'agent-2', 'agent-3', 'independent', 'qa', 'push', 'outcome'])
+  assert.deepEqual(GC.nodes.find(n => n.id === 'independent'), { id: 'independent', kind: 'agent', label: 'Independent', role: 'chat' })
+  assert.deepEqual(GC.nodes.at(-1), { id: 'outcome', kind: 'end', label: 'Output', role: 'outcome' })
+})
+
+test('pipelineGraph: the chat agent takes requests and ends at the Output; rework never goes to it, and nothing else changes', () => {
+  const from = (a, b) => GC.edges.find(e => e.from === a && e.to === b)
+  assert.deepEqual(from('request', 'independent'), { from: 'request', to: 'independent', kind: 'branch' })
+  assert.deepEqual(from('independent', 'outcome'), { from: 'independent', to: 'outcome', label: 'no code changes', kind: 'skip' })
+  assert.equal(GC.edges.filter(e => e.to === 'independent' || e.from === 'independent').length, 2)
+  assert.ok(!GC.edges.some(e => e.kind === 'rework' && e.to === 'independent'))
+  assert.deepEqual(GC.edges.slice(0, G.edges.length), G.edges, 'the other edges keep their order, so their indices hold')
+})
+
+test('pipelineGraph: no chat agent when the config names none, or when its name is already the coordinator, a producer or QA', () => {
+  assert.ok(!G.nodes.some(n => n.role === 'chat'))
+  for (const name of ['Master', 'Agent 2', 'QA', '  ']) assert.ok(!pipelineGraph({ ...CONFIG, factory: { chat: { name } } }).nodes.some(n => n.role === 'chat'), name)
+})
+
+test('stageOf: a flow of the chat agent sits on it, from the request; done, it is at the Output whatever its evidence', () => {
+  assert.deepEqual(stageOf(flow({ agent: 'Independent' }), GC), { node: 'independent', status: 'working', path: ['request', 'independent'], reworks: 0 })
+  assert.deepEqual(stageOf(flow({ agent: 'Independent', status: 'done', ...committed }), GC), { node: 'outcome', status: 'done', path: ['request', 'independent', 'outcome'], reworks: 0 })
+  assert.equal(stageOf(flow({ agent: 'Independent', status: 'blocked' }), GC).status, 'blocked')
 })
 
 test('pipelineGraph: the edges, request to coordinator to each producer to QA, pass to push, fail back, and the skips', () => {

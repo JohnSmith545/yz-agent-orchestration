@@ -4,8 +4,12 @@ Paste this into the brief of the QA agent: the session whose dashboard label is 
 (`QA` by default). It is the last stage before the push for every flow that changed code:
 
 ```
-Request -> Coordinator -> Agent 1 | Agent 2 | Agent 3 -> QA -> Push -> Outcome
+Request -> Coordinator -> Agent 1 | Agent 2 | Agent 3 -> QA -> Push -> Output
 ```
+
+Every code change arrives on a **build** flow, whose route runs through QA and Push: you are that step, and
+the flow's head and the Agents diagram show it moving on as you record the result. QA never starts a flow of
+its own (it has no route); it records its work on the flow it tests, with the commands below.
 
 Replace `C:/path/to/yz-agent-orchestration` below with the absolute path of your copy of this dashboard.
 The commands only run with `--by QA` (or `FACTORY_BY=QA`): any other name is refused.

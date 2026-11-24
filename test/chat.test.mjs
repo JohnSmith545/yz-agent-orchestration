@@ -68,7 +68,7 @@ test('the allow list adds Playwright and keeps Bash to read-only git and the fac
 test('the brief carries the flow paragraph verbatim with the absolute CLI path, and no decide', () => {
   const b = chatBrief()
   assert.ok(b.includes(
-    `Narrate your work on the dashboard as a flow: \`node ${cli} flow …\`. Start with \`flow new\` or \`flow write\` ` +
+    `Narrate your work on the dashboard as a flow: \`node ${cli} flow …\`. Start with \`flow new --type\` or \`flow write\` ` +
     'before you change anything, keep statuses current with `flow status`, attach proof with `flow evidence` (the commit sha, ' +
     'a test line, a screenshot), and put any choice that is the user\'s as `flow ask` instead of asking in prose, then stop ' +
     'at that step: the answer arrives as a message. Never act on another system (a tracker, a live site, a deploy) before ' +
@@ -79,6 +79,16 @@ test('the brief carries the flow paragraph verbatim with the absolute CLI path, 
   assert.doesNotMatch(b, /\bdecide\b/)
   assert.match(b, /mark ABC-123 reviewed --verdict check/)
   assert.match(b, /SendMessage/)
+})
+
+test('the brief says every request gets a flow first, with its type, and follows its route; a task passed on is a build flow', () => {
+  const b = chatBrief()
+  assert.match(b, /flow new <id> "<title>" --type build\|review\|ask/)
+  assert.match(b, /flow route <flow> --type build\|review\|ask/)
+  assert.match(b, /Every request gets a flow FIRST/)
+  assert.match(b, /a question, an explanation or an investigation is an ask flow \(--type ask: Request, you, Output\)/)
+  assert.match(b, /a code review of a ticket is a review flow \(--type review: Request, you, Output/)
+  assert.match(b, /tell it to start a build flow first \(flow new <id> "<title>" --type build/)
 })
 
 test('the brief names the Ask drawer and the Tickets and Flows pages, not the old Factory page', () => {
@@ -394,9 +404,9 @@ test('the done line of a turn that wrote a flow carries it; a turn that wrote no
   assert.equal(done.flows, undefined)
 })
 
-test('the brief tells Independent to narrate real work as a flow with evidence and screenshots', () => {
+test('the brief tells Independent to narrate every request in its flow with evidence and screenshots', () => {
   const b = chatBrief()
-  assert.ok(b.includes('For any request that is work, not a one-line answer, narrate it as a flow with evidence'), b)
+  assert.ok(b.includes('Narrate every request in its flow with evidence'), b)
   assert.match(b, /flow evidence <flow> <node> --shot/)
   assert.match(b, /Open flow button/)
 })

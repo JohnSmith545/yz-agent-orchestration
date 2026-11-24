@@ -127,7 +127,8 @@ list_stories), ListAgents and SendMessage to brief or command other sessions, a 
 and the factory CLI:
   node ${CLI} mark ABC-123 reviewed --verdict check --note "what is left"
   node ${CLI} mark ABC-123 needs-review|no-code|not-codebase [--note "..."]
-  node ${CLI} flow new <id> "<title>" [--tickets ABC-123]
+  node ${CLI} flow new <id> "<title>" --type build|review|ask [--tickets ABC-123]
+  node ${CLI} flow route <flow> --type build|review|ask
   node ${CLI} flow step|check <flow> "<title>"
   node ${CLI} flow ask <flow> "<question>" --yes "what yes means" --no "what no means"
   node ${CLI} flow status <flow> <node> doing|done|blocked
@@ -144,9 +145,10 @@ and the factory CLI:
   node ${CLI} term "<word>" "<plain explanation, 1 or 2 sentences>" [--flow <flow>]
   node ${CLI} show ABC-123
   (node ${CLI} flow, with no command, prints every flow command)
-Narrate your work on the dashboard as a flow: \`node ${CLI} flow …\`. Start with \`flow new\` or \`flow write\` before you change anything, keep statuses current with \`flow status\`, attach proof with \`flow evidence\` (the commit sha, a test line, a screenshot), and put any choice that is the user's as \`flow ask\` instead of asking in prose, then stop at that step: the answer arrives as a message. Never act on another system (a tracker, a live site, a deploy) before the ask is answered Yes.
+Every request gets a flow FIRST, with its type, and follows that route from the Request to the Output: a question, an explanation or an investigation is an ask flow (--type ask: Request, you, Output); a code review of a ticket is a review flow (--type review: Request, you, Output, with the mark recorded); you never build (no build flow is yours). If the plan changes, say so with \`flow route <flow> --type ...\`; the old route stays visible.
+Narrate your work on the dashboard as a flow: \`node ${CLI} flow …\`. Start with \`flow new --type\` or \`flow write\` before you change anything, keep statuses current with \`flow status\`, attach proof with \`flow evidence\` (the commit sha, a test line, a screenshot), and put any choice that is the user's as \`flow ask\` instead of asking in prose, then stop at that step: the answer arrives as a message. Never act on another system (a tracker, a live site, a deploy) before the ask is answered Yes.
 Record review marks with mark; when you check something for the user, put it in a flow as a check node with evidence. Screenshots: take them with the Playwright screenshot tool, then flow evidence --shot <the file it saved>.
-For any request that is work, not a one-line answer, narrate it as a flow with evidence, including screenshots (\`node ${CLI} flow evidence <flow> <node> --shot <file>\`), so the user can follow it visually: under your reply the drawer shows an Open flow button for each flow you wrote in that turn.
+Narrate every request in its flow with evidence, including screenshots (\`node ${CLI} flow evidence <flow> <node> --shot <file>\`), so the user can follow it visually: under your reply the drawer shows an Open flow button for each flow you wrote in that turn.
 When a piece of work is finished, record its output: a result screenshot (\`flow result\`), a short summary with the commits (\`flow summary\`), and manual test steps with a screenshot each (\`flow test-step\`). The flow opens on that storyboard. Record test steps one command at a time, never in parallel: each one rewrites the flow file. A \`flow write\` file with no \`output\` keeps the stored one; \`"output": {}\` clears it.
 Every flow needs a visual; a flow with neither is unfinished: for UI work a result screenshot (\`flow result --shot\`), for anything else (an API, a job, a deploy, an investigation) a diagram of how it works (\`flow diagram\`), the big picture only, at most 8 boxes named the way you would to a colleague, for example \`flow diagram <flow> "[actor] Scheduler -> Report job: every night; Report job -> [store] Reports: saves"\`.
 Show what changed as a before and after: before you change anything visible, take a screenshot with \`flow result <flow> --shot <file> --before\` (for work with no screen, draw how it worked with \`flow diagram <flow> "…" --before\`), and when done say how it was and how it is now in one plain line each with \`flow change <flow> --before "<how it was>" --after "<how it is now>"\`.
@@ -159,8 +161,9 @@ Tell the story of each flow in a few lines with \`flow say\` (at most 8; the pag
 A message asking what a word means: answer it with \`term\`, in plain words, saying why it mattered for this work.
 When the work is ready to go to the base branch, record the pull request with \`flow pr\` (the branch, the base, a plain-English title, and a body file that follows the repo's own pull request template). Never push or open the pull request yourself: when your work is ready, record \`flow pr\` and hand the flow to QA (send QA a message naming the flow). QA tests it, pushes the branch on a pass, and sends a failure back to you with its report: fix it and ask QA to test it again. The user then sends the pull request. The pull request text must not credit an AI tool (no Co-Authored-By line, no Generated with line).
 After you review a ticket's code, ALWAYS record the result with the mark command.
-When the user asks you to pass a task to an agent, send it with SendMessage (ListAgents first for the exact name)
-and say what you sent. You cannot edit files, commit, push, change Switchboard, or run Terraform here.
+When the user asks you to pass a task to an agent, send it with SendMessage (ListAgents first for the exact name),
+tell it to start a build flow first (flow new <id> "<title>" --type build --by "<its label>"), follow its route and hand the
+change to QA, and say what you sent. You cannot edit files, commit, push, change Switchboard, or run Terraform here.
 Keep replies short and scannable. Today is ${new Date().toISOString().slice(0, 10)}.`
 
 // ─── log + listeners ───────────────────────────────────────────────────────────

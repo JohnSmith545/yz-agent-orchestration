@@ -12,6 +12,8 @@
 //   GET  /api/flows[?open=1&waiting=1&agent=X&ticket=T&archived=1]   { flows, invalid, counts: { archived, trash } }:
 //                                      archived flows left out, or with archived=1 only them
 //   GET  /api/flows/<id>               the flow with `derived` (an archived one too: a direct link keeps working)
+//                                      Both carry each flow's `route` (stored, or inferred: true) and `progress`, its
+//                                      steps' states (flow-route.mjs withRoute), as /api/pipeline and /api/qa do
 //   POST /api/flows/<id>/archive       { archived }; POST /api/flows/<id>/delete { confirm? }: trash-routes.mjs
 //   GET  /api/trash; POST /api/trash/<id>/restore; POST /api/trash/<id>/purge: the Trash (trash-routes.mjs)
 //   Any flow route on an id in the Trash: 404 { error: '<id> is in the Trash.' }
@@ -70,6 +72,8 @@ import { learnTerms } from './learn.mjs'
 import { originAllowed } from './local-origin.mjs'
 import { prGet, prRefresh, prSend } from './pr-routes.mjs'
 import { applyAnswer, applyVerify, derive, EVIDENCE_DIR, FLOW_STATUS, followsAnAsk, listFlows, readFlow, setNodeStatus, validateFlow, writeFlow } from './flows.mjs'
+import { withRoute } from './flow-route.mjs'
+import { pipelineGraph } from './pipeline.mjs'
 import { pipelineGet, qaGet } from './pipeline-routes.mjs'
 import { reworkRetry } from './qa-rework.mjs'
 import { requestText } from './relay.mjs'
@@ -210,7 +214,8 @@ function flowList(q) {
   } catch (err) {
     console.error(`trash: could not count the Trash: ${err?.message || err}`)
   }
-  return { flows, invalid, counts }
+  const graph = pipelineGraph(CONFIG)
+  return { flows: flows.map(f => ({ ...f, ...withRoute(f, graph) })), invalid, counts }
 }
 
 const noFlow = (res, id) => json(res, 404, { error: `No flow ${id}.` })
@@ -220,7 +225,7 @@ function showFlow(res, id) {
   if (!flow) return noFlow(res, id)
   const problems = validateFlow(flow)
   if (problems.length) return json(res, 400, { error: problems.join('\n') })
-  json(res, 200, { ...flow, derived: derive(flow) })
+  json(res, 200, { ...flow, derived: derive(flow), ...withRoute(flow, pipelineGraph(CONFIG)) })
 }
 
 /**

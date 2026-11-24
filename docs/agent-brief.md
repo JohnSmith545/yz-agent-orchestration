@@ -6,8 +6,14 @@ Replace `C:/path/to/yz-agent-orchestration` below with the absolute path of your
 dashboard: agents run from the watched repo (and may run under another Claude account),
 so a relative path would not resolve.
 
+> Every request gets a flow FIRST, before you change anything: `flow new <id> "<title>" --type build|review|ask`
+> (or `flow write` with `"route": { "type": "build" }`). The type sets its route from the Request to the Output:
+> build for a code change (Request, the coordinator, you, QA, Push, Output), review for a code review of a ticket
+> (the chat agent's), ask for a question, an explanation or an investigation (Request, you, Output). Follow that
+> route. If the plan changes, say so with `flow route <flow> --type ...`: the old route stays visible. A
+> `flow new` without `--type` is refused.
 > Narrate your work on the dashboard as a flow: `node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow …`.
-> Start with `flow new` or `flow write` before you change anything, keep
+> Start with `flow new --type` or `flow write` before you change anything, keep
 > statuses current with `flow status`, attach proof with `flow evidence` (the
 > commit sha, a test line, a screenshot), and put any choice that is the
 > user's as `flow ask` instead of asking in prose, then stop at that step: the
@@ -48,7 +54,7 @@ so a relative path would not resolve.
 For example (`--by` names the agent; `FACTORY_BY` does the same):
 
 ```
-node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow new abc-123-login "Fix the login redirect" --tickets ABC-123 --env dev --by Coordinator
+node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow new abc-123-login "Fix the login redirect" --type build --tickets ABC-123 --env dev --by Coordinator
 node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow step abc-123-login "Write the failing test" --status doing --by Coordinator
 node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow ask abc-123-login "Deploy the fix to dev?" --why "The test passes on the branch; dev is where QA can try it" --yes "Deploy it" --no "Leave it on the branch" --by Coordinator
 ```

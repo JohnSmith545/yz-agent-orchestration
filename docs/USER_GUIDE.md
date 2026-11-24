@@ -78,6 +78,8 @@ The rail on the left holds the pages. Hover it (or press Tab) to see the labels;
 
 ### Home
 
+Home is at `#/home` (the brand mark at the top of the rail); the dashboard opens on Flows.
+
 - **Since** (only when something happened since you last pressed **Mark read**): flows that changed status,
   answers delivered, tickets that reached a new level or changed in the tracker, and commits per agent.
 - **Waiting on you** (only while an agent has asked something): answer it right there.
@@ -88,8 +90,13 @@ The rail on the left holds the pages. Hover it (or press Tab) to see the labels;
 
 ### Flows
 
-A flow is an agent's account of one piece of work: steps, checks, questions for you, and notes, each with
-an environment and proof (section 5).
+The landing page (`#/`). A flow is an agent's account of one request: steps, checks, questions for you, and
+notes, each with an environment and proof (section 5). Every flow has a **route**, the agents it passes through
+from the Request to the Output: **build** for a code change (the coordinator, the agent, QA, Push), **review** for a
+code review by the chat agent, **ask** for a question or an investigation. Each card shows that route as a strip of
+steps, done, current (in the accent) and upcoming, and an opened flow shows it under its title; click a step to see
+it on Agents, on the QA page, or on the Output. A flow started before routes says **route not set** until its agent
+sets one.
 
 - **Waiting on you** at the top lists every open question across all flows, with Yes and No (or a text box).
   The questions of the flow you have open leave the list while it is open (the flow itself asks them), and
@@ -183,7 +190,7 @@ scroll wheel, and click a node for details.
 
 ### Agents
 
-The orchestration as a pipeline diagram, from **Request** to **Outcome**: the coordinator, each producing
+The orchestration as a pipeline diagram, from **Request** to **Output**: the coordinator, each producing
 agent, **QA** and **Push**, with every ticket as a chip on the step it stands at now. Click a step for its
 details below the diagram; for an agent that is its card, with its subagents and a **Progress report**. Click
 an agent's card on Home, or a subagent row in its details card, for its **live view**: its activity as it happens, each
@@ -257,8 +264,13 @@ the code, read your tracker, message other agents, write flows and drive a brows
 Agents write flows with the dashboard's CLI. Paste this paragraph into the brief of every agent that works in
 the repo, with `C:/path/to/yz-agent-orchestration` replaced by the absolute path of your copy:
 
+> Every request gets a flow FIRST, before you change anything: `flow new <id> "<title>" --type build|review|ask`
+> (or `flow write` with `"route": { "type": "build" }`). The type sets its route from the Request to the Output:
+> build for a code change (Request, the coordinator, you, QA, Push, Output), review for a code review of a ticket
+> (the chat agent's), ask for a question, an explanation or an investigation (Request, you, Output). Follow that
+> route. If the plan changes, say so with `flow route <flow> --type ...`: the old route stays visible.
 > Narrate your work on the dashboard as a flow: `node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow …`.
-> Start with `flow new` or `flow write` before you change anything, keep statuses current with
+> Start with `flow new --type` or `flow write` before you change anything, keep statuses current with
 > `flow status`, attach proof with `flow evidence` (the commit sha, a test line, a screenshot), and put any
 > choice that is the user's as `flow ask` instead of asking in prose, then stop at that step: the answer
 > arrives as a message. Never act on another system (a tracker, a live site, a deploy) before the ask is
@@ -276,12 +288,13 @@ the repo, with `C:/path/to/yz-agent-orchestration` replaced by the absolute path
 
 **`--by` must be the agent's label on the dashboard** (as in `codingAgents`, for example `Agent 1`): that is
 where answers are delivered. `flow new`, `flow write`, `decide` and the output commands (`flow result`,
-`flow summary`, `flow test-step`, `flow test-clear`) refuse to run without one.
+`flow summary`, `flow test-step`, `flow test-clear`) refuse to run without one. `flow new` also refuses to run
+without `--type`, and a new flow written whole needs its `route`: nothing happens outside a defined flow.
 
 A worked example (from any shell; `CLI` stands for `node C:/path/to/yz-agent-orchestration/tools/factory.mjs`):
 
 ```
-CLI flow new dark-mode "Add a dark mode toggle" --tickets ABC-101 --env dev --by "Agent 1"
+CLI flow new dark-mode "Add a dark mode toggle" --type build --tickets ABC-101 --env dev --by "Agent 1"
 CLI flow step dark-mode "Add the theme tokens" --status doing --by "Agent 1"
 CLI flow status dark-mode n1 done
 CLI flow evidence dark-mode n1 --commit ab12cd3
