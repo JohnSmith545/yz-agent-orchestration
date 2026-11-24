@@ -34,7 +34,7 @@
 // `text` is one plain sentence with agent labels only: no ids, no file names. Ties in time keep the order things
 // happen in (a verdict before the stop it causes), newest first. ⚠️ PURE like score.mjs: no file, no git, no config.
 
-import { DAY, FAILED, SECURITY_FAILED, cellOf, securityVerdictsOf, verdictsOf, windowOf } from './score.mjs'
+import { DAY, FAILED, SECURITY_FAILED, cellOf, securityOn, securityVerdictsOf, verdictsOf, windowOf } from './score.mjs'
 
 export const LOG_KINDS = Object.freeze(['started', 'route', 'handed', 'passed', 'failed', 'pushed', 'done', 'dropped', 'stopped', 'stalled', 'rule'])
 /** The kinds of the optional agents (above): kept apart so a pipeline without them reads exactly as before. */
@@ -92,7 +92,7 @@ function flowEvents(flow, graph, now, stallMs, labels, qaLabel, securityLabel, p
 
   const { cell, kind, time } = cellOf(flow, graph, now, stallMs)
   const verdicts = verdictsOf(flow)
-  const reviews = securityVerdictsOf(flow)
+  const reviews = securityOn(graph) ? securityVerdictsOf(flow) : [] // Security off the graph: its data is not shown
   verdicts.forEach((v, i) => {
     const qa = v.by || qaLabel
     if (v.startedAt !== null) add(v.startedAt, 'handed', v.agent, i === 0 ? `${v.agent} handed this to QA.` : `${v.agent} handed this to QA again, for attempt ${v.attempt}.`)

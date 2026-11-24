@@ -881,7 +881,7 @@ const server = createServer(async (req, res) => {
     if (FACTORY_PREFIXES.some(prefix => url.pathname.startsWith(prefix))) {
       // `fetched`: Send reuses the server's own fetch of origin when it is under a minute old (pr-routes.mjs)
       const fetched = remote => (remote === 'origin' && fetchState.ok ? fetchState.at : null)
-      if (await factoryRoute(req, res, url, { git, gh, push, port: PORT, fetched, relay, getStatus })) return
+      if (await factoryRoute(req, res, url, { git, gh, push, port: PORT, fetched, relay, getStatus, pipelineConfig: CONFIG })) return
     }
     if (await scriptRoute(req, res, url)) return
     if (await scriptContextRoute(req, res, url)) return

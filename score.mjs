@@ -17,7 +17,7 @@
 // and Security both passed it (counted at Security's verdict); one that FINISHED (done) without a Security pass
 // SLIPPED THROUGH; one Security stopped (security-failed) is MISSED, stopped; and EACH Security failure verdict
 // (failed or security-failed) is a CATCH, like a QA failure, against the work it reviewed. Without Security on the
-// graph a QA pass is delivered as before, whatever the flow file holds.
+// graph a QA pass is delivered as before and no Security verdict is counted, whatever the flow file holds.
 //
 // Not counted: flows still on their way (open or blocked, waiting at QA, being tested, or sent back for a fix) that
 // changed in the last stallDays (`inFlight`). Trashed flows have no file, so they never reach here; archived flows
@@ -144,8 +144,8 @@ export function securityVerdictsOf(flow) {
   })
 }
 
-/** Whether the graph has Security between QA and Push (pipeline.mjs). */
-const securityOn = graph => (graph?.nodes || []).some(n => n.role === 'security')
+/** Whether the graph has Security between QA and Push (pipeline.mjs). Without it, Security data in a flow is not counted. */
+export const securityOn = graph => (graph?.nodes || []).some(n => n.role === 'security')
 
 /**
  * THE rule for the three flow cells, shared with the log: { cell: delivered | slipped | missed | null, why, kind,
@@ -210,7 +210,7 @@ export function scoreOf(flows, graph, { now = Date.now(), days = 30, stallDays =
       }
     }
     // every Security failure verdict is one catch too, at its own time: the log's failed `security` events
-    const reviews = securityVerdictsOf(flow)
+    const reviews = securityOn(graph) ? securityVerdictsOf(flow) : []
     for (const r of reviews) {
       if (SECURITY_FAILED.has(r.status) && inWindow(r.at)) {
         counts.caught++

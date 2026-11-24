@@ -73,6 +73,8 @@ const ago = ms => new Date(Date.now() - ms).toISOString()
 const passed = id => ({
   status: 'passed', attempt: 1, by: QA, at: ago(1000), commit: SHA, report: `${id}/qa-1-report.md`, shots: [`${id}/qa-1-home.png`],
   steps: [{ do: 'Open Home.', expect: 'The card.', shot: `${id}/qa-1-step1-home.png` }], summary: 'Green.', branch: 'feature/card', remote: 'origin', pushedAt: ago(500),
+  // passed by Security too, so the flow is at the Output whether or not the live config.json has pipeline.security
+  security: { status: 'passed', by: 'Security', at: ago(800), commit: SHA },
 })
 
 beforeEach(() => {

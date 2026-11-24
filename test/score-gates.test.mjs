@@ -126,3 +126,10 @@ test('GET /api/log takes kind=security and kind=planned only on a pipeline with 
   assert.match(logGet({ kind: 'nope' }, opts(BASE)).body.error, /stalled, rule, security or planned\.$/)
   fs.rmSync(process.env.FACTORY_DATA_DIR, { recursive: true, force: true })
 })
+
+test('without Security on the graph, Security data in a flow is neither counted nor shown', () => {
+  const f = flow('x', { status: 'done', qa: qa('passed', { security: sec('passed') }), })
+  const g = flow('y', { qa: qa('passed', { security: sec('failed', { rework: { to: 'Agent 1' } }) }) })
+  assert.equal(score([f, g], PLAIN).counts.caught, 0)
+  assert.ok(!orchestrationLog([f, g], PLAIN, { now: NOW, days: 30 }).some(e => e.kind === 'security'))
+})
