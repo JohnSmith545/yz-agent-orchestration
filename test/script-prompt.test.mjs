@@ -205,11 +205,14 @@ test('snapshot: the system prompt, word for word', () => {
 
 // ═══ the brainstorming skill, mapped onto this page (added only when the skill is found) ═══
 
-test('with the skill, the prompt gains ONE section that maps its steps onto this page; without it, none', async () => {
+const SKILL_TEXT = '# Brainstorming Ideas Into Designs\n\nAsk one question at a time.'
+
+test('with the skill, the prompt gains the mapping and then the skill text itself; without it, the rules alone', async () => {
   const { systemPrompt, SKILL_MAPPING: M } = await import('../script-prompt.mjs')
-  assert.equal(systemPrompt(false), P, 'no skill: the built-in rules alone')
-  assert.equal(systemPrompt(true), `${P}\n\n${M}`)
+  for (const none of [undefined, null, '', '  ', 42]) assert.equal(systemPrompt(none), P, `no skill (${none}): the built-in rules alone`)
+  assert.equal(systemPrompt(SKILL_TEXT), `${P}\n\n${M}\n\n<brainstorming-skill>\n${SKILL_TEXT}\n</brainstorming-skill>`)
   assert.match(M, /^The brainstorming skill\n/)
+  assert.match(M, /read from the installed plugin/)
   assert.match(M, /one turn with no tools/)
   assert.match(M, /no code, files or design document, no commits, no hand-over to another skill/)
   assert.match(M, /reading the context block and the idea/, 'its project exploration')
@@ -219,15 +222,16 @@ test('with the skill, the prompt gains ONE section that maps its steps onto this
   assert.match(M, /Its design is the six-part prompt/, 'its deliverable here')
   assert.match(M, /plan first and stop for approval/, 'its approval gate, for code work')
   assert.match(M, /task list, visual companion, written spec and its review do not apply/)
+  assert.match(M, /Where the skill and the rules above differ, the rules above win\./)
   for (const re of [/magic/i, /trigger/i, /dorman/i, /\u26a0/, /[\u2018\u2019\u201c\u201d\r]/]) assert.doesNotMatch(M, re, String(re))
-  assert.ok(M.length < 1400, `${M.length} characters`)
+  assert.ok(M.length < 1500, `${M.length} characters`)
 })
 
 test('snapshot: the skill mapping, word for word', async () => {
   const { SKILL_MAPPING } = await import('../script-prompt.mjs')
   assert.equal(SKILL_MAPPING, [
     'The brainstorming skill',
-    "The user turn starts with the brainstorming skill, then the user's message. Follow the skill, mapped onto this page:",
+    'The brainstorming skill follows, read from the installed plugin. Follow it, mapped onto this page:',
     '- Each send is one turn with no tools. Never do the work itself: no code, files or design document, no commits, no hand-over to another skill.',
     '- Exploring the project context means reading the context block and the idea.',
     '- In the short line before your questions or the block, say whether the idea looks small and clear or large, so the user can overrule it. When it holds several independent pieces, say so and write the prompt for the first piece, unless the user asks for all.',
@@ -235,5 +239,6 @@ test('snapshot: the skill mapping, word for word', async () => {
     '- Its approaches: when there is a real choice, offer two or three in one question with your recommendation first, or take the recommended one and list it under Assumptions.',
     '- Its design is the six-part prompt, and its approval gate is the user reading that prompt before using it. For code work, the prompt tells the receiving AI to plan first and stop for approval.',
     '- Its spec self-review is your silent check before replying. Its task list, visual companion, written spec and its review do not apply here.',
+    '- Where the skill and the rules above differ, the rules above win.',
   ].join('\n'))
 })

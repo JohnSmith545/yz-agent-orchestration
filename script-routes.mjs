@@ -24,10 +24,11 @@
 // attached the text goes exactly as before, and no context line is written. A gatherer that fails never stops
 // the run: it goes with the plain text, and the context line says why.
 //
-// The brainstorming skill (script-skill.mjs): `skill()`, when given, is asked once per run where the skill is.
-// What it found goes to generate(), which then invokes the skill (script.mjs). When it finds nothing, or throws,
-// the run still goes on the built-in rules, and SKILL_MISSING is added to the context line's `skipped`, so the
-// page says it in one plain line and the run log keeps it. With no finder (the tests' default) nothing is checked.
+// The brainstorming skill (script-skill.mjs): `skill()`, when given, reads the installed skill once per run.
+// What it found goes to generate(), which then carries the skill (script.mjs). When it finds nothing, the skill is
+// too long, or the finder throws, the run still goes on the built-in rules, and a Brainstorming skill entry with
+// the plain reason is added to the context line's `skipped`, so the page says it in one line and the run log
+// keeps it. With no finder (the tests' default) nothing is checked.
 
 import { originAllowed } from './local-origin.mjs'
 import { composeInput } from './script-compose.mjs'
@@ -95,12 +96,14 @@ export function makeScriptRoute({ generate = realGenerate, port, gather = NO_CON
     }
     let found = null
     if (skill) {
+      let got = null
       try {
-        found = (await skill()) || null
+        got = await skill()
       } catch {
-        found = null // a finder that fails is the same as not found: the run still goes
+        got = null // a finder that fails is the same as not found: the run still goes
       }
-      if (!found) composed.skipped.push({ ...SKILL_MISSING })
+      if (typeof got?.text === 'string' && got.text) found = got
+      else composed.skipped.push({ title: SKILL_MISSING.title, why: typeof got?.error === 'string' ? got.error : SKILL_MISSING.why })
     }
 
     res.writeHead(200, { 'content-type': 'application/x-ndjson; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' })

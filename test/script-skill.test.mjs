@@ -1,8 +1,8 @@
-// Tests for script-skill.mjs: where the Brainstorming run finds the superpowers plugin that holds the
-// brainstorming skill. It reads the account folder's own record of installed plugins
-// (<config dir>/plugins/installed_plugins.json), keeps the installs that really have the skill file, and picks
-// the newest; anything missing, unreadable or malformed is "not found" (null), never a throw. Every file read
-// is injected, so nothing here touches the real ~/.claude.
+// Tests for script-skill.mjs: where the Brainstorming run finds the brainstorming skill and reads its text at run
+// time. It reads the account folder's own record of installed plugins (<config dir>/plugins/installed_plugins.json),
+// keeps the superpowers installs that really have the skill file, reads the newest one's SKILL.md and drops its
+// front matter. Anything missing, unreadable or malformed is "not found" (null), never a throw; a skill too long to
+// send is refused with its own plain reason. Every file read is injected, so nothing here touches the real ~/.claude.
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -13,6 +13,7 @@ const K = await import('../script-skill.mjs')
 const DIR = path.join('C:', 'acct')
 const RECORD = path.join(DIR, 'plugins', 'installed_plugins.json')
 const skillFile = p => path.join(p, 'skills', 'brainstorming', 'SKILL.md')
+const SKILL_MD = '---\nname: brainstorming\ndescription: "Use before creative work"\n---\n\n# Brainstorming Ideas Into Designs\n\nAsk one question at a time.\n'
 
 /** A fake disk: `files` maps a path to its text; exists() is true for those paths. */
 function disk(files) {
@@ -27,11 +28,11 @@ function disk(files) {
 }
 const record = plugins => JSON.stringify({ version: 2, plugins })
 
-test('the skill and the plugin it lives in, as the CLI names them', () => {
+test('the skill as the plugin names it, and the plain lines the page shows when it is not used', () => {
   assert.equal(K.SKILL, 'superpowers:brainstorming')
   assert.equal(K.SKILL_MISSING.title, 'Brainstorming skill')
   assert.match(K.SKILL_MISSING.why, /not found/)
-  assert.doesNotMatch(K.SKILL_MISSING.why, /[\\/]/, 'a plain sentence, no path')
+  for (const why of [K.SKILL_MISSING.why, K.SKILL_TOO_LONG]) assert.doesNotMatch(why, /[\\/]/, 'a plain sentence, no path')
 })
 
 test('the account folder: CLAUDE_CONFIG_DIR when the server runs under one, else ~/.claude', () => {
@@ -40,10 +41,10 @@ test('the account folder: CLAUDE_CONFIG_DIR when the server runs under one, else
   assert.equal(K.claudeConfigDir({ CLAUDE_CONFIG_DIR: '' }, 'C:/Users/me'), path.join('C:/Users/me', '.claude'))
 })
 
-test('found: the install whose skill file is on disk, as { pluginDir }', () => {
+test('found: the installed SKILL.md, read now, without its front matter, line endings made plain', () => {
   const p = path.join(DIR, 'plugins', 'cache', 'm', 'superpowers', '6.3.0')
-  const d = disk({ [RECORD]: record({ 'superpowers@superpowers-marketplace': [{ installPath: p, lastUpdated: '2026-08-29T07:57:24Z' }] }), [skillFile(p)]: '---' })
-  assert.deepEqual(K.findSkill(d), { pluginDir: p })
+  const d = disk({ [RECORD]: record({ 'superpowers@superpowers-marketplace': [{ installPath: p, lastUpdated: '2026-08-29T07:57:24Z' }] }), [skillFile(p)]: SKILL_MD.replace(/\n/g, '\r\n') })
+  assert.deepEqual(K.findSkill(d), { text: '# Brainstorming Ideas Into Designs\n\nAsk one question at a time.', file: skillFile(p) })
 })
 
 test('several installs or marketplaces: the newest one that has the skill wins', () => {
@@ -56,13 +57,21 @@ test('several installs or marketplaces: the newest one that has the skill wins',
       'superpowers@another-marketplace': [{ installPath: newer, lastUpdated: '2026-11-03T00:00:00Z' }],
       'other-plugin@x': [{ installPath: path.join(DIR, 'z'), lastUpdated: '2026-12-01T00:00:00Z' }],
     }),
-    [skillFile(old)]: '---',
-    [skillFile(newer)]: '---',
+    [skillFile(old)]: '# old',
+    [skillFile(newer)]: '# newer',
   })
-  assert.deepEqual(K.findSkill(d), { pluginDir: newer })
+  assert.equal(K.findSkill(d).text, '# newer')
 })
 
-test('not found, never a throw: no record, bad JSON, no superpowers, no skill file, odd shapes', () => {
+test('too long to send: refused with a plain reason instead of a cut skill', () => {
+  const p = path.join(DIR, 'p')
+  const d = disk({ [RECORD]: record({ 'superpowers@m': [{ installPath: p }] }), [skillFile(p)]: 'x'.repeat(K.SKILL_TEXT_MAX + 1) })
+  assert.deepEqual(K.findSkill(d), { error: K.SKILL_TOO_LONG })
+  const fits = disk({ [RECORD]: record({ 'superpowers@m': [{ installPath: p }] }), [skillFile(p)]: 'x'.repeat(K.SKILL_TEXT_MAX) })
+  assert.equal(K.findSkill(fits).text.length, K.SKILL_TEXT_MAX)
+})
+
+test('not found, never a throw: no record, bad JSON, no superpowers, no skill file, an empty skill, odd shapes', () => {
   const p = path.join(DIR, 'p')
   const cases = [
     {},
@@ -73,7 +82,8 @@ test('not found, never a throw: no record, bad JSON, no superpowers, no skill fi
     { [RECORD]: record({ 'superpowers@m': 'not a list' }) },
     { [RECORD]: record({ 'superpowers@m': [null, 42, { installPath: 7 }, { installPath: '' }] }) },
     { [RECORD]: record({ 'superpowers@m': [{ installPath: p }] }) }, // installed, but the skill file is missing
-    { [RECORD]: record({ 'not-superpowers@m': [{ installPath: p }] }), [skillFile(p)]: '---' },
+    { [RECORD]: record({ 'superpowers@m': [{ installPath: p }] }), [skillFile(p)]: '---\nname: x\n---\n  \n' }, // front matter only
+    { [RECORD]: record({ 'not-superpowers@m': [{ installPath: p }] }), [skillFile(p)]: '# x' },
   ]
   for (const files of cases) assert.equal(K.findSkill(disk(files)), null, JSON.stringify(files).slice(0, 80))
   assert.equal(K.findSkill({ dir: DIR, readFile: () => { throw new Error('EACCES') }, exists: () => true }), null)

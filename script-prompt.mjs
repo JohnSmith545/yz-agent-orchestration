@@ -73,13 +73,15 @@ export const SCRIPT_SYSTEM_PROMPT = [
 ].join('\n')
 
 // ═══ the brainstorming skill ═══
-// Added after the rules only when the run invokes the skill (script.mjs, script-skill.mjs). The skill is written
-// for an interactive session that ends in a design document and an implementation plan; here it is ONE headless
-// turn per send whose deliverable is the six-part prompt, so this says how each of its steps maps onto the page.
+// Added after the rules only when script-skill.mjs found the skill: this mapping, then the skill's own text, read
+// from the installed plugin at run time (never copied here). The skill is written for an interactive session
+// that ends in a design document and an implementation plan; here it is ONE headless turn per send whose
+// deliverable is the six-part prompt, so this says how each of its steps maps onto the page, and that the rules
+// win where the two differ (the skill asks one question per message; the pop-up takes a numbered list).
 
 export const SKILL_MAPPING = [
   'The brainstorming skill',
-  "The user turn starts with the brainstorming skill, then the user's message. Follow the skill, mapped onto this page:",
+  'The brainstorming skill follows, read from the installed plugin. Follow it, mapped onto this page:',
   '- Each send is one turn with no tools. Never do the work itself: no code, files or design document, no commits, no hand-over to another skill.',
   '- Exploring the project context means reading the context block and the idea.',
   '- In the short line before your questions or the block, say whether the idea looks small and clear or large, so the user can overrule it. When it holds several independent pieces, say so and write the prompt for the first piece, unless the user asks for all.',
@@ -87,7 +89,11 @@ export const SKILL_MAPPING = [
   '- Its approaches: when there is a real choice, offer two or three in one question with your recommendation first, or take the recommended one and list it under Assumptions.',
   '- Its design is the six-part prompt, and its approval gate is the user reading that prompt before using it. For code work, the prompt tells the receiving AI to plan first and stop for approval.',
   '- Its spec self-review is your silent check before replying. Its task list, visual companion, written spec and its review do not apply here.',
+  '- Where the skill and the rules above differ, the rules above win.',
 ].join('\n')
 
-/** The system prompt for one run: the rules, and the skill's mapping when the run invokes the skill. */
-export const systemPrompt = withSkill => (withSkill ? `${SCRIPT_SYSTEM_PROMPT}\n\n${SKILL_MAPPING}` : SCRIPT_SYSTEM_PROMPT)
+/** The system prompt for one run: the rules, then, when the skill's text was found, the mapping and the skill. */
+export function systemPrompt(skillText) {
+  if (typeof skillText !== 'string' || !skillText.trim()) return SCRIPT_SYSTEM_PROMPT
+  return `${SCRIPT_SYSTEM_PROMPT}\n\n${SKILL_MAPPING}\n\n<brainstorming-skill>\n${skillText}\n</brainstorming-skill>`
+}

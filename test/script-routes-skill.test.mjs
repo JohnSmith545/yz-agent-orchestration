@@ -9,7 +9,7 @@ import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 
 const { makeScriptRoute } = await import('../script-routes.mjs')
-const { SKILL_MISSING } = await import('../script-skill.mjs')
+const { SKILL_MISSING, SKILL_TOO_LONG } = await import('../script-skill.mjs')
 
 let runs = []
 function stubGenerate(text, opts) {
@@ -48,7 +48,7 @@ async function send(url, text = 'idea') {
 const plain = v => JSON.parse(JSON.stringify(v))
 
 test('found: generate gets the skill, and no line is added', async () => {
-  const skill = { pluginDir: 'C:/acct/superpowers/6.3.0' }
+  const skill = { text: '# Brainstorming', file: 'C:/acct/SKILL.md' }
   let asked = 0
   const url = await serve({ skill: () => (asked++, skill) })
   const { run, out } = await send(url)
@@ -58,7 +58,7 @@ test('found: generate gets the skill, and no line is added', async () => {
 })
 
 test('not found, or the finder throws: the run goes on the built-in rules, and ONE context line says so first', async () => {
-  for (const finder of [() => null, async () => null, () => { throw new Error('EACCES') }]) {
+  for (const finder of [() => null, async () => null, () => ({ text: '' }), () => { throw new Error('EACCES') }]) {
     const url = await serve({ skill: finder })
     const { run, out } = await send(url)
     assert.equal(run.opts.skill, null)
@@ -66,6 +66,13 @@ test('not found, or the finder throws: the run goes on the built-in rules, and O
     assert.deepEqual(out[0], { type: 'context', used: [], skipped: [plain(SKILL_MISSING)] })
     assert.deepEqual(out.slice(1).map(l => l.type), ['delta', 'done'])
   }
+})
+
+test('too long to send: the run goes on the built-in rules, and the line gives that reason', async () => {
+  const url = await serve({ skill: () => ({ error: SKILL_TOO_LONG }) })
+  const { run, out } = await send(url)
+  assert.equal(run.opts.skill, null)
+  assert.deepEqual(out[0].skipped, [{ title: 'Brainstorming skill', why: SKILL_TOO_LONG }])
 })
 
 test('the missing skill joins what the context left out, after it, and the run log keeps it', async () => {

@@ -3,22 +3,22 @@
 // sections (Situation, Character, Request, Intent, Presentation, Tone), streamed.
 // (The page was called SCRIPT; its files, routes and names here keep that word, see shell.js.)
 //
-// The brainstorming skill (/superpowers:brainstorming), when script-skill.mjs finds it installed.
-// Measured on 2.1.330 against the same local stub (2026-11-25):
-// - It is invoked the SUPPORTED way: the plugin is loaded for this run with `--plugin-dir`
-//   (`--setting-sources ""` loads no installed plugin), and stdin starts with its slash command.
-//   In -p mode the CLI expands that into the skill's text in the user turn, in the SAME request:
-//   no Skill tool, no tool round trip, so `--tools ""` stays and the run still cannot write a
-//   file or run a command. The skill's text is read by the CLI from the plugin, never copied here.
-// - `--settings {"disableAllHooks":true}`: without it the plugin's SessionStart hook added a
-//   second whole skill (using-superpowers, about 4,500 characters) to every run.
-// - ⚠️ The CLI sends the text after the slash command TWICE (as the command's arguments and again
-//   after the skill), so attached context costs about double its input tokens. Measured costs are
-//   in the README. Sending the command and the text as two content blocks, or as two messages,
-//   was tried: the first is not expanded, the second is two paid turns.
-// - The system prompt then carries SKILL_MAPPING (script-prompt.mjs): how the skill's steps map
-//   onto one turn whose deliverable is the six-part prompt. Without the skill the run is the
-//   built-in rules alone, and the route says so in one Left out line (SKILL_MISSING).
+// The brainstorming skill (/superpowers:brainstorming), when script-skill.mjs finds it installed:
+// its text is READ FROM THE INSTALLED PLUGIN AT RUN TIME and goes in the system prompt, after the
+// rules and a mapping of its steps onto this page (script-prompt.mjs systemPrompt). Never copied here.
+// ⚠️ Why not the slash command, the supported way (measured on 2.1.330, 2026-11-25, a local stub
+// for the request bodies and real runs for the cost):
+// - It works: `--plugin-dir` loads the plugin for one run, `--settings {"disableAllHooks":true}`
+//   stops its SessionStart hook adding a second whole skill, and stdin starting with
+//   `/superpowers:brainstorming` is expanded into the skill in the same request, tools still off.
+// - But it DOUBLED the cost: $0.103 against $0.051 on main for the same idea and context. The skill
+//   then sits in the user turn after the arguments, which change every run, so it is written to the
+//   prompt cache every run; and the CLI sends the user's text (context included) twice, as the
+//   command's arguments and again after the skill. Two content blocks, or two messages, do not help:
+//   the first is not expanded, the second is two paid turns.
+// - In the system prompt the skill is the same on every run, so the CLI's one-hour prompt cache
+//   reads it at a tenth of the price after the first run, and the text goes once. Costs: README.
+// Without the skill the run is the built-in rules alone, and the route says so in one Left out line.
 //
 // Rules this file keeps:
 // - It goes through the Claude Code CLI (claudeBin), like the chat, never the raw API:
@@ -57,11 +57,7 @@ import path from 'node:path'
 
 import { claudeBin } from './claude-cli.mjs'
 import { systemPrompt } from './script-prompt.mjs'
-import { SKILL } from './script-skill.mjs'
 import { recordCost } from './spend.mjs'
-
-/** The plugin's SessionStart hook would add a second whole skill (using-superpowers) to every run. */
-const SKILL_SETTINGS = '{"disableAllHooks":true}'
 
 export const SCRIPT_MODEL = 'claude-opus-5-5'
 export const SCRIPT_EFFORT = 'high'
@@ -78,25 +74,17 @@ export const MESSAGES = Object.freeze({
   cancelled: 'Stopped.',
 })
 
-const usable = skill => typeof skill?.pluginDir === 'string' && skill.pluginDir !== ''
-
 /**
  * The argv of one run: headless, streamed, no tools, no MCP, no settings, no session. The text goes on stdin.
- * With `skill` ({ pluginDir }, script-skill.mjs) the plugin is loaded for this run only, with its hooks off,
- * and the system prompt carries the skill's mapping onto the page.
+ * With `skill` ({ text }, script-skill.mjs) the system prompt also carries the skill, after its mapping.
  */
 export function scriptArgs(skill = null) {
-  const withSkill = usable(skill)
   return [
-    '-p', '--model', SCRIPT_MODEL, '--effort', SCRIPT_EFFORT, '--system-prompt', systemPrompt(withSkill),
+    '-p', '--model', SCRIPT_MODEL, '--effort', SCRIPT_EFFORT, '--system-prompt', systemPrompt(skill?.text),
     '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
     '--tools', '', '--strict-mcp-config', '--setting-sources', '', '--no-session-persistence', '--name', 'SCRIPT',
-    ...(withSkill ? ['--plugin-dir', skill.pluginDir, '--settings', SKILL_SETTINGS] : []),
   ]
 }
-
-/** What goes on stdin: the text, after the skill's slash command when the run invokes the skill. */
-export const stdinFor = (text, skill = null) => (usable(skill) ? `/${SKILL} ${text}` : text)
 
 /** '' when `text` can be sent, else the reason in plain words. */
 export function checkText(text) {
@@ -150,8 +138,8 @@ function dropDir(dir) {
 /**
  * Run one generation for `text` (already checked). `onDelta(text)` hears each text delta as it
  * arrives. Returns { done, cancel }: `done` resolves once the child has closed (never rejects),
- * `cancel()` kills it (the browser went away). `skill` ({ pluginDir } from script-skill.mjs, or null)
- * makes the run invoke the brainstorming skill.
+ * `cancel()` kills it (the browser went away). `skill` ({ text } from script-skill.mjs, or null)
+ * makes the run carry the brainstorming skill.
  */
 export function generate(text, {
   onDelta = () => {}, spawn = nodeSpawn, bin = claudeBin, record = recordCost,
@@ -273,7 +261,7 @@ export function generate(text, {
       if (code !== 0 || !result) return finish({ ...base, error: withDetail(MESSAGES.failed, errText) })
       finish({ ok: true, stopReason, cost: result.cost })
     })
-    child.stdin.end(stdinFor(text, skill))
+    child.stdin.end(text)
   })()
 
   return { done, cancel }

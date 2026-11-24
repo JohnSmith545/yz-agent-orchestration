@@ -36,27 +36,18 @@ test('scriptArgs never carries the user text: it goes on stdin', () => {
 
 // ═══ the brainstorming skill (script-skill.mjs finds it) ═══
 
-const SKILL = { pluginDir: 'C:/acct/plugins/cache/m/superpowers/6.3.0' }
+const SKILL = { text: '# Brainstorming Ideas Into Designs\n\nAsk one question at a time.', file: 'C:/acct/SKILL.md' }
 
-test('scriptArgs with the skill: the plugin loaded for this run only, its hooks off, the mapping added, still no tools', async () => {
+test('scriptArgs with the skill: its text in the system prompt after the mapping, and nothing else changes', async () => {
   const { systemPrompt } = await import('../script-prompt.mjs')
   const args = S.scriptArgs(SKILL)
-  assert.deepEqual(args, [
-    '-p', '--model', 'claude-opus-5-5', '--effort', 'high', '--system-prompt', systemPrompt(true),
-    '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
-    '--tools', '', '--strict-mcp-config', '--setting-sources', '', '--no-session-persistence', '--name', 'SCRIPT',
-    '--plugin-dir', SKILL.pluginDir, '--settings', '{"disableAllHooks":true}',
-  ])
-  assert.deepEqual(JSON.parse(args.at(-1)), { disableAllHooks: true }, 'the plugin hook would add a second skill to every run')
-  assert.equal(args[args.indexOf('--tools') + 1], '', 'no tools: no file writes, no shell, no Skill tool round trip')
-  for (const bad of [null, undefined, {}, { pluginDir: '' }, { pluginDir: 42 }]) assert.deepEqual(S.scriptArgs(bad), S.scriptArgs(), JSON.stringify(bad))
-})
-
-test('stdinFor: with the skill, the turn starts with its slash command; without, the text alone, byte for byte', () => {
-  assert.equal(S.stdinFor('my idea', SKILL), '/superpowers:brainstorming my idea')
-  assert.equal(S.stdinFor('<context>\nx\n</context>\n\n<task>\nidea\n</task>', SKILL), '/superpowers:brainstorming <context>\nx\n</context>\n\n<task>\nidea\n</task>')
-  assert.equal(S.stdinFor('my idea', null), 'my idea')
-  assert.equal(S.stdinFor('/not-a-command idea', null), '/not-a-command idea')
+  assert.equal(args[args.indexOf('--system-prompt') + 1], systemPrompt(SKILL.text))
+  assert.ok(args[args.indexOf('--system-prompt') + 1].endsWith(`<brainstorming-skill>\n${SKILL.text}\n</brainstorming-skill>`))
+  const rest = a => a.filter((_, i) => i !== a.indexOf('--system-prompt') + 1)
+  assert.deepEqual(rest(args), rest(S.scriptArgs()), 'still no tools, no plugin, no settings: no file writes, no shell')
+  assert.ok(!args.includes('--plugin-dir') && !args.includes('--settings'))
+  for (const bad of [null, undefined, {}, { text: '' }, { text: 42 }, { error: 'too long' }]) assert.deepEqual(S.scriptArgs(bad), S.scriptArgs(), JSON.stringify(bad))
+  assert.ok(args.join(' ').length < 32_000, 'under the Windows command line limit')
 })
 
 // ═══ the text check ═══
@@ -300,12 +291,12 @@ test('a throwing onDelta never breaks the run', async () => {
   assert.equal((await run.done).ok, true)
 })
 
-test('a run with the skill spawns with the skill args and sends the slash command first; one cost, as before', async () => {
+test('a run with the skill spawns with the skill args and sends the text alone on stdin; one cost, as before', async () => {
   const h = harness()
   const run = S.generate('my idea', { ...h.opts, skill: SKILL })
   await tick()
   assert.deepEqual(h.spawned[0].args, S.scriptArgs(SKILL))
-  assert.equal(h.child.stdin.text, '/superpowers:brainstorming my idea')
+  assert.equal(h.child.stdin.text, 'my idea')
   h.child.line(result())
   h.child.emit('close', 0, null)
   assert.equal((await run.done).ok, true)
