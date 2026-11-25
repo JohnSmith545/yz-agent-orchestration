@@ -1778,6 +1778,58 @@ whose tools only read) runs one short headless Claude turn per collection that r
 `data/sources/<id>.json`; see Collections by kind above. Home warns when the newest source is more than
 6 hours old.
 
+## Quality: lessons, the self-check, the second opinion and risk labels
+
+Right first time was about a third of flows, so most rework was the same few findings again. Four small features aim
+at that. Each model run is ONE short headless turn on Sonnet 5.5 at low effort (the same clean run as the Generators,
+`script.mjs`), one at a time, its cost recorded in the spend chip; a model never changes a lesson, a flow or a setting
+by itself.
+
+**The lessons library** (`#/lessons`, the last link on the rail; `data/lessons.json`, `quality-lessons.mjs`). A
+lesson is one plain sentence of at most 160 characters in one area (tests, ui, routes, data, docs, process, infra,
+general; `quality.areas` adds more), with how often it was seen and the flows that taught it. When QA, Security or
+Senior records a failure, one run (`quality-extract.mjs`) reads its summary and report and proposes up to 3 lessons;
+it sees the lessons you have and says `SAME L3` instead of writing a duplicate. Every proposal waits on the Lessons
+page for **Accept**, **Edit** or **Reject**; a same-as one, accepted, adds one to that lesson's count. You can type a
+lesson too, and **Retire** or **Restore** any. With `quality.autoLessons` on (the default) the server reads each NEW
+failure on its own, one per 30 seconds; failures from before the library started wait for **Extract lessons**.
+Measured on 2026-11-25: $0.013 to $0.014 a run.
+
+**Lessons in the brief.** `flow new`, `flow rules [<flow>]` and the planner's `flow plan` print the active lessons
+that match the task after the agent's rules, under *Lessons from earlier work*: at most 7, those in an area the task's
+title, ticket labels or files (named in the plan, or touched by its commits) point at, most seen first, then the
+general ones, each with its area and why.
+
+**The self-check before QA** (`quality-selfcheck.mjs`, `flow.selfcheck`). `flow self-check <flow>` prints a checklist:
+the house rules (tests first and passing, check and tests run on the last commit, no stray server, no debug output,
+docs updated, and for work with a screen, screenshots looked at) and this flow's lessons.
+`flow self-check <flow> --done "<id>=ok" --done "<id>=no:<what is missing>" ...` records every answer; a no needs a
+note. QA sees it at `flow qa-start`. With `pipeline.requireSelfCheck: true`, QA cannot start a code flow that has
+none. The flow page shows each tick, and the scorecard's Correctness tile shows right first time with and without a
+self-check (Too few to trust under 5 flows a side).
+
+**The second opinion on the plan** (`quality-critic.mjs`, `flow.critic`). After the planner hands out a plan, one run
+reads the plan, the request, the matching lessons and the risk label, and lists up to 5 concrete concerns: a missing
+test plan, an edge the request names, a step that needs a person, a risky area with no Security or Senior step.
+`quality.critic`: `off`, `manual` (the default: a **Second opinion** button on the flow page) or `auto` (once per
+plan). It is shown on the flow page and printed to the producer with `flow rules <flow>` and `flow self-check`. It
+never blocks. Measured on 2026-11-25: $0.008 to $0.010 a run.
+
+**The risk label** (`quality-risk.mjs`, `flow.risk`). Plain rules, no model: the request and plan text, the tickets'
+labels and the files the change touched give low, medium or high, every reason, and what it asks for: a Security
+review, a Senior review, a deeper QA pass. The defaults cover sign-in and user sessions, payments, secrets and
+settings files, infrastructure and CI, the database schema and migrations, deleting data, and public pages;
+`quality.riskRules` replaces them (`{ "match": { "words": [], "paths": [], "labels": [] }, "level", "needs", "why" }`;
+one bad entry keeps the defaults with one warning). A card shows a Medium or High risk chip, the Agents diagram chip's
+tooltip names it, QA reads it at `qa-start` (with one extra line for a deeper pass), and the flow page says when a
+review it asks for is not on the pipeline, or is not one this kind of route passes. When Security or Senior is on the
+pipeline and the label asks for it, the planned route includes it.
+
+Routes: `GET /api/lessons`; `POST /api/lessons`, `/api/lessons/<id>/retire|restore`,
+`/api/lessons/candidates/<id>/accept|reject`, `/api/lessons/extract { key }`, `/api/quality/critic/<flow>` (each needs
+the page's own Origin; 409 while a run is going); `GET /api/quality/flow/<flow>`. The Lessons page opens on one area
+with `#/lessons?area=tests`, or on one proposal's Edit form with `#/lessons?edit=<id>`.
+
 ## License
 
 MIT, see `LICENSE`. The bundled fonts in `public/fonts/` keep their own SIL Open Font License.

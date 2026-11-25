@@ -78,8 +78,10 @@
     "maxReworks": 3,
     "planner": null,
     "security": null,
-    "senior": null
+    "senior": null,
+    "requireSelfCheck": false
   },
+  "quality": { "autoLessons": true, "critic": "manual", "areas": [], "riskRules": null },
   "pr": {
     "enabled": false,
     "remote": "origin",

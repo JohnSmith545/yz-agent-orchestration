@@ -50,8 +50,8 @@
 //   turns included: a turn that errored after it ran was still paid for.
 // - spawn, bin, record and the temp folder are injected, so tests never spawn Claude.
 // - Another tool's run (the Standup creator, standup-routes.mjs) is the SAME clean run with its own `turn`:
-//   { system, effort?, name?, kind, messages? }. Only the system prompt, the effort, the session name, the spend
-//   kind and any message it overrides change; the flags, the temp folder, the idle timeout and cancel stay, so
+//   { system, effort?, name?, kind, messages?, model? }. Only the system prompt, the effort, the session name, the spend
+//   kind, any message it overrides and the model (the quality runs take a cheaper one, quality-extract.mjs) change; the flags, the temp folder, the idle timeout and cancel stay, so
 //   what is measured above holds for it too. Without a turn it is the prompt generator, exactly as before.
 
 import { spawn as nodeSpawn } from 'node:child_process'
@@ -83,9 +83,9 @@ export const MESSAGES = Object.freeze({
  * `system` replaces Claude Code's own system prompt; `name` names the session (which also stops the CLI's paid
  * title call, see the header).
  */
-export function turnArgs({ system, effort = SCRIPT_EFFORT, name = 'SCRIPT' }) {
+export function turnArgs({ system, effort = SCRIPT_EFFORT, name = 'SCRIPT', model = SCRIPT_MODEL }) {
   return [
-    '-p', '--model', SCRIPT_MODEL, '--effort', effort, '--system-prompt', system,
+    '-p', '--model', model, '--effort', effort, '--system-prompt', system,
     '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
     '--tools', '', '--strict-mcp-config', '--setting-sources', '', '--no-session-persistence', '--name', name,
   ]

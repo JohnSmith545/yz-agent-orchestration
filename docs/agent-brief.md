@@ -138,3 +138,23 @@ When the pipeline has **Security** (config `pipeline.security`), it sits after Q
 What the user sees: the flow as a card on the Flows page (`#/flows`), and each `flow ask` in the **Human review** box on the Agents page with your `--why` under the question and Yes and No; the answer is sent back to the agent as a message. An opened flow lands on **Output**: the result screenshot (or your diagram, or with neither a summary chart the dashboard draws from your steps), the summary with its commits, and the numbered test steps. If the user presses **Request test steps**, a message arrives asking for those steps: drive the app, then record each step with `flow test-step`. **Request visuals** (a flow with no screenshot and no diagram) asks for a screenshot or a diagram first.
 
 The full command list is in the README, under "Agents writing flows".
+
+## Lessons, the self-check and the risk label
+
+> `flow new` and `flow rules <flow>` print, after your rules, the **Lessons from earlier work** that match the task:
+> what earlier QA, Security and Senior failures taught, each with its area and why it was picked. Follow them.
+>
+> **Before you hand a code flow to QA, run the self-check**: `flow self-check <flow>` prints the checklist (the house
+> rules and those lessons). Check each item yourself, then record every answer at once:
+> `flow self-check <flow> --done "tests-first=ok" --done "docs=no:<what is missing>" ...`. A `no` needs a note saying
+> what is missing; be honest, QA reads your answers and tests the claims. When the pipeline requires it
+> (`pipeline.requireSelfCheck`), QA will not start without one.
+>
+> When a planner handed you the task, `flow rules <flow>` and `flow self-check <flow>` also print the **second opinion
+> on the plan** once there is one: up to 5 concerns from a cheap review. Weigh them before you write code; they never
+> block you.
+>
+> A flow carries a **risk label** (low, medium or high) from what it touches: sign-in, payments, secrets, the cloud and
+> CI, the database, deleting data, public pages. It is printed with the self-check. A high label that asks for a
+> Security or Senior review means that review will come; one that asks for a deeper QA pass means QA will try the edge
+> cases, so test them first.

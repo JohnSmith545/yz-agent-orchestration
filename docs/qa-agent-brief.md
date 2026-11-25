@@ -57,3 +57,15 @@ CLI flow qa abc-123-login --status failed --report report.md --commit 3f9a1c2 --
 ```
 
 The full command list is in the README, under "QA and the pipeline".
+
+## The producer's self-check and the risk label
+
+`flow qa-start` prints, after your rules, the producer's **self-check**: its answers to a checklist of the house rules
+and the lessons that match the task, its noes first with what it says is missing. Test those claims, not only the code:
+a tick is a claim, never a proof. No self-check means none was recorded; with `pipeline.requireSelfCheck` on, `qa-start`
+refuses a code flow that has none, and you send it back to its producer to run `flow self-check`.
+
+It then prints the flow's **risk label**. When the label asks for a deeper QA pass, it says so in one more line: try
+the edge cases the risk names (wrong input, a signed-out user, a second click, a failure half way), not only the happy
+path. Your failures become candidate lessons the user may accept, so a clear summary that says what was wrong and how
+to see it teaches the next builder too.

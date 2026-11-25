@@ -42,3 +42,11 @@ CLI flow plan abc-123-login --file plan.md --to "Agent 2" --by Planner
 ```
 
 The full command list is in the README, under "QA and the pipeline", "The planner and Security".
+
+## Lessons and the second opinion
+
+`flow plan` prints, after the hand-out, the lessons from earlier work that match the task and its risk label: pass them
+on to the producer with the plan. Name the files the plan changes, so the matching lessons can be found. Once the plan
+is recorded, a cheap second opinion may read it (`quality.critic`: the user's button, or every plan when auto) and list
+up to 5 concerns; the producer sees them, and nothing waits on them. If they show the plan missed something real,
+hand out a better plan: it gets its own second opinion.

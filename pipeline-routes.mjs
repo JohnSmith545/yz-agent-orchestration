@@ -133,6 +133,7 @@ export function pipelineGet({ config = CONFIG, now = Date.now() } = {}) {
       id: f.id, title: f.title, agent: f.agent, tickets: f.tickets || [], status: f.status, stage: stageOf(f, graph), ...withRoute(f, graph),
       qa: qaView(f.qa), codeProducing: isCodeProducing(f), hasOutput: hasOutput(f), archived: !!f.archivedAt, updatedAt: f.updatedAt ?? null,
       completed: !!f.completedAt, waiting: waitsForSignOff(f, graph),
+      risk: f.risk ?? null, // the risk label (quality-risk.mjs), for the chip's tooltip
     }))
   return { status: 200, body: { graph, tickets, builtAt: new Date(now).toISOString() } }
 }

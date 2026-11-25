@@ -26,6 +26,7 @@ import { listFlows } from './flows.mjs'
 import { pipelineGraph } from './pipeline.mjs'
 import { GATE_KINDS, GATE_ROLE, LOG_CELLS, LOG_KINDS, orchestrationLog, SIGN_OFF_KINDS } from './score-log.mjs'
 import { scoreOf, windowOf } from './score.mjs'
+import { selfCheckSplit } from './quality-score.mjs'
 
 /** The windows the page offers, by their query value: a number of days, or null for all time. */
 export const SCORE_WINDOWS = Object.freeze({ 7: 7, 30: 30, all: null })
@@ -41,8 +42,10 @@ const daysOf = raw => {
 export function scoreGet(raw, { config = CONFIG, now = Date.now() } = {}) {
   const days = daysOf(raw)
   if (days === undefined) return BAD_WINDOW
-  const score = scoreOf(listFlows({ archived: 'any' }).flows, pipelineGraph(config), { now, days })
-  return { status: 200, body: { ...score, builtAt: new Date(now).toISOString() } }
+  const flows = listFlows({ archived: 'any' }).flows
+  const score = scoreOf(flows, pipelineGraph(config), { now, days })
+  // the self-checked count beside Correctness (quality-score.mjs)
+  return { status: 200, body: { ...score, selfCheck: selfCheckSplit(flows, pipelineGraph(config), { now, days }), builtAt: new Date(now).toISOString() } }
 }
 
 /** Every saved rule change as a log event; the window is applied by orchestrationLog, so none is cut here. */
