@@ -201,3 +201,33 @@ test('Pipeline tokens carries the placed line from the provider it is given, non
   await plain({ method: 'GET' }, res, new URL('http://x/api/tokens?days=7'))
   assert.equal(res.body.placed, null)
 })
+
+const askedLong = id => flow(id, { nodes: [{ id: 'q', type: 'ask', kind: 'yesno', title: 'Go on?', at: iso(NOW - 30 * HOUR), answer: null }] })
+
+test('POST /api/alerts/dismiss with keys dismisses a group at once; keys that no longer stand are skipped', async () => {
+  for (const id of ['a', 'b', 'c']) put(askedLong(id))
+  assert.equal((await post('/api/alerts/dismiss', { keys: [] })).status, 400)
+  assert.equal((await post('/api/alerts/dismiss', { keys: Array.from({ length: 101 }, (_, i) => `stuck:f${i}:ask`) })).status, 400)
+  assert.equal((await post('/api/alerts/dismiss', { keys: ['stuck:zzz:ask'] })).status, 404)
+  const r = await post('/api/alerts/dismiss', { keys: ['stuck:a:ask', 'stuck:b:ask', 'stuck:gone:ask'] })
+  assert.equal(r.status, 200)
+  assert.deepEqual(r.body.keys, ['stuck:a:ask', 'stuck:b:ask'])
+  const after = await get('/api/alerts')
+  assert.deepEqual(after.body.alerts.map(a => a.key), ['stuck:c:ask'])
+  assert.equal(after.body.hidden, 2)
+})
+
+test('POST /api/alerts/snooze: the page s own Origin, a flow alert that stands, hidden for a week and counted apart', async () => {
+  put(askedLong('a'))
+  files = [{ sessionId: 's1', sub: false, title: null, mtimeMs: NOW, days: {}, hours: {}, recent: Array.from({ length: 10 }, (_, i) => ({ id: `r${i}`, at: NOW - (10 - i) * MIN, model: 'm', vec: [1, 1, 0, 0, 900_000, 1] })) }]
+  assert.equal((await post('/api/alerts/snooze', { key: 'stuck:a:ask' }, {})).status, 403)
+  assert.equal((await post('/api/alerts/snooze', { key: 'context:s1' })).status, 400, 'only a flow alert can be snoozed')
+  assert.equal((await post('/api/alerts/snooze', { key: 'stuck:nope:ask' })).status, 404)
+  const r = await post('/api/alerts/snooze', { key: 'stuck:a:ask' })
+  assert.equal(r.status, 200)
+  assert.ok(Date.parse(r.body.until) - NOW > 6.9 * 24 * HOUR)
+  const after = await get('/api/alerts')
+  assert.deepEqual(after.body.alerts.map(a => a.kind), ['context'])
+  assert.equal(after.body.snoozed, 1)
+  assert.equal(after.body.counts.snoozed, 1)
+})

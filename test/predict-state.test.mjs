@@ -64,9 +64,9 @@ beforeEach(() => {
 afterEach(() => fs.rmSync(dir, { recursive: true, force: true }))
 
 test('the state file: missing or broken reads as empty; a dismissal and a raised alert are written atomically', () => {
-  assert.deepEqual(readAlertState(file), { day: null, dismissed: {}, raised: [] })
+  assert.deepEqual(readAlertState(file), { day: null, dismissed: {}, snoozed: {}, raised: [] })
   fs.writeFileSync(file, '{ broken')
-  assert.deepEqual(readAlertState(file), { day: null, dismissed: {}, raised: [] })
+  assert.deepEqual(readAlertState(file), { day: null, dismissed: {}, snoozed: {}, raised: [] })
   dismissAlert(file, { key: 'spike:s1', measure: 40, now: NOW })
   assert.equal(readAlertState(file).dismissed['spike:s1'].measure, 40)
   assert.equal(noteRaised(file, [alert('spike:s1', 40)], NOW), true)
@@ -74,7 +74,7 @@ test('the state file: missing or broken reads as empty; a dismissal and a raised
   assert.equal(readAlertState(file).raised.length, 1)
   assert.equal(readAlertState(file).dismissed['spike:s1'].measure, 40, 'noting kept the dismissal')
   fs.writeFileSync(file, JSON.stringify({ day: 3, dismissed: 'x', raised: {} }))
-  assert.deepEqual(readAlertState(file), { day: null, dismissed: {}, raised: [] }, 'a hand-edited file of the wrong shape is empty')
+  assert.deepEqual(readAlertState(file), { day: null, dismissed: {}, snoozed: {}, raised: [] }, 'a hand-edited file of the wrong shape is empty')
 })
 
 // ═══ the contract ═══
@@ -99,4 +99,44 @@ test('signals: the alerts raised since the time given and the estimate misses, a
   assert.equal(list[0].agent, 'Master')
   assert.match(list[0].text, /Slow one took 5 h/)
   assert.deepEqual(signalsFrom({ raised: [], flows: [], graph, since: NOW, now: NOW }), [])
+})
+
+// ═══ snooze for a week ═══
+
+test('a snoozed flow alert stays hidden for 7 days, whatever it measures, then shows again', async () => {
+  const { SNOOZE_MS, withSnooze } = await import('../predict-state.mjs')
+  assert.equal(SNOOZE_MS, 7 * 24 * HOUR)
+  const state = withSnooze({ day: null, dismissed: {}, raised: [] }, { key: 'stuck:a:producing', now: NOW })
+  const at = (t, m = 1) => applyDismissals([alert('stuck:a:producing', m), alert('spike:s1', 5)], state, t)
+  assert.deepEqual(at(NOW + HOUR, 1e12).shown.map(a => a.key), ['spike:s1'], 'worse by any amount: still snoozed')
+  assert.equal(at(NOW + HOUR).snoozed, 1)
+  assert.equal(at(NOW + HOUR).hidden, 0, 'snoozed is counted apart from dismissed')
+  assert.deepEqual(at(NOW + SNOOZE_MS).shown.map(a => a.key), ['stuck:a:producing', 'spike:s1'], 'after 7 days it is back')
+})
+
+test('a snooze is for that flow at that step: when the flow moves on to another step it shows at once', async () => {
+  const { withSnooze } = await import('../predict-state.mjs')
+  const state = withSnooze({ day: null, dismissed: {}, raised: [] }, { key: 'stuck:a:producing', now: NOW })
+  assert.equal(applyDismissals([alert('stuck:a:qa', 1)], state, NOW + HOUR).shown.length, 1)
+})
+
+test('snoozes survive the daily reset of dismissals and the raised log; expired ones are dropped at the next write', async () => {
+  const { withSnooze, SNOOZE_MS } = await import('../predict-state.mjs')
+  let state = withSnooze({ day: null, dismissed: {}, raised: [] }, { key: 'stuck:a:producing', now: NOW })
+  state = withDismissal(state, { key: 'spike:s1', measure: 3, now: NOW + 30 * HOUR })
+  assert.ok(state.snoozed['stuck:a:producing'])
+  state = withRaised(state, [alert('spike:s2', 1)], NOW + 31 * HOUR)
+  assert.ok(state.snoozed['stuck:a:producing'])
+  state = withSnooze(state, { key: 'stuck:b:qa', now: NOW + SNOOZE_MS + HOUR })
+  assert.deepEqual(Object.keys(state.snoozed), ['stuck:b:qa'])
+})
+
+test('the state file keeps snoozes; an older file with none reads as none', async () => {
+  const { snoozeAlert } = await import('../predict-state.mjs')
+  fs.writeFileSync(file, JSON.stringify({ day: null, dismissed: {}, raised: [] }))
+  assert.deepEqual(readAlertState(file).snoozed, {})
+  snoozeAlert(file, { key: 'stuck:a:producing', now: NOW })
+  assert.equal(readAlertState(file).snoozed['stuck:a:producing'].until, new Date(NOW + 7 * 24 * HOUR).toISOString())
+  dismissAlert(file, { key: 'spike:s1', measure: 1, now: NOW })
+  assert.ok(readAlertState(file).snoozed['stuck:a:producing'], 'a dismissal keeps the snooze')
 })

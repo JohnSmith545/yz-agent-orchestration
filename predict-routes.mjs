@@ -1,13 +1,16 @@
 // Predict and warn's routes (server.mjs mounts them with makePredictRoute, beside Pipeline tokens, and shares its
 // running token index). NO model runs here: every figure is arithmetic on the flow files and the token index.
 //
-//   GET  /api/alerts                    { enabled, alerts, hidden, counts: { shown, hidden, onYou, stuck, spike,
-//                                       context, daily }, building, builtAt }: predict-alerts.mjs over the flows and
-//                                       the index, the ones the user dismissed today hidden (predict-state.mjs); each
-//                                       alert raised is logged once a day for the signals
-//   POST /api/alerts/dismiss { key }    dismisses that alert for the day. The page's OWN Origin is required; the
-//                                       measure it comes back against is the server's own, never the page's. 404 when
-//                                       the alert no longer stands
+//   GET  /api/alerts                    { enabled, alerts, hidden, snoozed, counts: { shown, hidden, snoozed, onYou,
+//                                       stuck, spike, context, daily }, building, builtAt }: predict-alerts.mjs over
+//                                       the flows and the index, the ones the user dismissed today or snoozed hidden
+//                                       (predict-state.mjs); each alert raised is logged once a day for the signals
+//   POST /api/alerts/dismiss { key } | { keys: [...] }   dismisses that alert, or a whole group (at most 100 keys),
+//                                       for the day. The page's OWN Origin is required; the measure each comes back
+//                                       against is the server's own, never the page's. Keys that no longer stand are
+//                                       skipped; 404 when none stands. { ok, keys }
+//   POST /api/alerts/snooze { key }     snoozes a FLOW alert (stuck:<flow>:<step>) for a week; the same Origin rule.
+//                                       400 for any other kind, 404 when it no longer stands. { ok, key, until }
 //   GET  /api/predict/flow?id=<flow>    { id, tokens: { tokens, usd, unpriced }, estimate, stored, actual, similar,
 //                                       building }: what the flow cost (predict-flow-tokens.mjs), its estimate (the
 //                                       stored one, else worked out now from the flows finished before it started),
@@ -38,7 +41,7 @@ import { contextAlerts, dailyAlerts, spikeAlerts, stuckAlerts } from './predict-
 import { accuracyOf, estimateFor, rankSimilar, targetOf } from './predict-estimate.mjs'
 import { placeTokens, setFlowTokenSource } from './predict-flow-tokens.mjs'
 import { alertSettings, estimateSettings } from './predict-settings.mjs'
-import { ALERT_STATE_FILE, applyDismissals, dismissAlert, noteRaised, readAlertState } from './predict-state.mjs'
+import { ALERT_STATE_FILE, applyDismissals, dismissAlert, noteRaised, readAlertState, snoozeAlert } from './predict-state.mjs'
 import { cellOf } from './score.mjs'
 import { SCORE_WINDOWS } from './score-routes.mjs'
 import { periodOf } from './time-stats.mjs'
@@ -47,7 +50,8 @@ import { priceTable, sessionLabels } from './token-usage.mjs'
 const SLUG = /^[a-z0-9-]+$/
 const TICKET = /^[A-Z]+-\d+$/
 const KEY = /^(stuck|spike|context|daily):[A-Za-z0-9:._-]{1,240}$/
-const BODY_MAX = 4096
+const BODY_MAX = 32_768
+const KEYS_MAX = 100
 const MIN = 60_000
 const CACHE_MS = 60_000
 const SWEEP_MS = 60_000
@@ -200,18 +204,18 @@ export function makePredictRoute({
   async function alertsGet() {
     kick()
     const at = now()
-    if (!settings.enabled) return { status: 200, body: { enabled: false, alerts: [], hidden: 0, counts: countsOf([], 0), building: false, builtAt: new Date(at).toISOString() } }
+    if (!settings.enabled) return { status: 200, body: { enabled: false, alerts: [], hidden: 0, snoozed: 0, counts: countsOf([], 0, 0), building: false, builtAt: new Date(at).toISOString() } }
     const { alerts, building } = await recentAlerts(at)
     try {
       noteRaised(stateFile, alerts, at)
     } catch (err) {
       log(`predict: could not note the alerts raised: ${err?.message || err}`)
     }
-    const { shown, hidden } = applyDismissals(alerts, readAlertState(stateFile), at)
-    return { status: 200, body: { enabled: true, alerts: shown, hidden, counts: countsOf(shown, hidden), building, builtAt: new Date(at).toISOString() } }
+    const { shown, hidden, snoozed } = applyDismissals(alerts, readAlertState(stateFile), at)
+    return { status: 200, body: { enabled: true, alerts: shown, hidden, snoozed, counts: countsOf(shown, hidden, snoozed), building, builtAt: new Date(at).toISOString() } }
   }
-  function countsOf(shown, hidden) {
-    const counts = { shown: shown.length, hidden, onYou: shown.filter(a => a.onYou).length }
+  function countsOf(shown, hidden, snoozed) {
+    const counts = { shown: shown.length, hidden, snoozed, onYou: shown.filter(a => a.onYou).length }
     for (const k of KINDS) counts[k] = shown.filter(a => a.kind === k).length
     return counts
   }
@@ -219,14 +223,30 @@ export function makePredictRoute({
   async function dismissPost(req) {
     if (!originAllowed(req.headers.origin, port)) return no(403, 'Only the dashboard page itself may dismiss an alert.')
     const b = await readBody(req)
-    if (typeof b?.key !== 'string' || !KEY.test(b.key)) return no(400, 'Say which alert to dismiss.')
+    const keys = b?.keys !== undefined ? b.keys : typeof b?.key === 'string' ? [b.key] : null
+    if (!Array.isArray(keys) || !keys.length || !keys.every(k => typeof k === 'string' && KEY.test(k))) return no(400, 'Say which alert to dismiss.')
+    if (keys.length > KEYS_MAX) return no(400, `At most ${KEYS_MAX} alerts can be dismissed at once.`)
+    const at = now()
+    const { alerts } = await allAlerts(at)
+    const standing = [...new Set(keys)].map(k => alerts.find(a => a.key === k)).filter(Boolean)
+    if (!standing.length) return no(404, 'That alert has gone: there is nothing to dismiss.')
+    for (const alert of standing) dismissAlert(stateFile, { key: alert.key, measure: alert.measure, now: at })
+    recent = { at, value: { alerts, building: !!snapshot().building } }
+    return { status: 200, body: { ok: true, key: standing[0].key, keys: standing.map(a => a.key) } }
+  }
+
+  async function snoozePost(req) {
+    if (!originAllowed(req.headers.origin, port)) return no(403, 'Only the dashboard page itself may snooze an alert.')
+    const b = await readBody(req)
+    if (typeof b?.key !== 'string' || !KEY.test(b.key)) return no(400, 'Say which alert to snooze.')
+    if (!b.key.startsWith('stuck:')) return no(400, 'Only a flow alert can be snoozed for a week; dismiss this one for today.')
     const at = now()
     const { alerts } = await allAlerts(at)
     const alert = alerts.find(a => a.key === b.key)
-    if (!alert) return no(404, 'That alert has gone: there is nothing to dismiss.')
-    dismissAlert(stateFile, { key: alert.key, measure: alert.measure, now: at })
+    if (!alert) return no(404, 'That alert has gone: there is nothing to snooze.')
+    const next = snoozeAlert(stateFile, { key: alert.key, now: at })
     recent = { at, value: { alerts, building: !!snapshot().building } }
-    return { status: 200, body: { ok: true, key: alert.key } }
+    return { status: 200, body: { ok: true, key: alert.key, until: next.snoozed[alert.key].until } }
   }
 
   // ═══ estimates ═══
@@ -309,14 +329,15 @@ export function makePredictRoute({
 
   async function route(req, res, url) {
     const p = url.pathname
-    if (p !== '/api/alerts' && p !== '/api/alerts/dismiss' && !p.startsWith('/api/predict/')) return false
-    const post = p === '/api/alerts/dismiss'
+    if (p !== '/api/alerts' && p !== '/api/alerts/dismiss' && p !== '/api/alerts/snooze' && !p.startsWith('/api/predict/')) return false
+    const post = p === '/api/alerts/dismiss' || p === '/api/alerts/snooze'
     if (req.method !== (post ? 'POST' : 'GET')) return json(res, 405, { error: `Only ${post ? 'POST' : 'GET'} is allowed here.` }), true
     try {
       const q = url.searchParams
       const answer =
         p === '/api/alerts' ? await alertsGet()
-          : post ? await dismissPost(req)
+          : p === '/api/alerts/dismiss' ? await dismissPost(req)
+            : p === '/api/alerts/snooze' ? await snoozePost(req)
             : p === '/api/predict/flow' ? await flowGet(q.get('id'))
               : p === '/api/predict/ticket' ? await ticketGet(q.get('id'))
                 : p === '/api/predict/accuracy' ? await accuracyGet(q.get('days'))
