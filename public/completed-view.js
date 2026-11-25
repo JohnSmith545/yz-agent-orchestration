@@ -136,7 +136,28 @@
       `<a class="link" href="#/archive?q=${encodeURIComponent(f.id)}">Uncomplete it in the flow archive</a></p>`
   }
 
+  /**
+   * Where focus goes after a press, by the part of the page it was made in: [the scope, what to focus in it]. A list
+   * redrawn under the keyboard would otherwise drop it to the top of the page. Something stable, never the button
+   * that just went away: the Outputs switch, the heading of the list (its rows are redrawn when the pipeline is read
+   * again, and may all be gone), the composer, the selected tab of the read-only flow.
+   */
+  const FOCUS_AFTER = [
+    ['.pl-panel', '[data-mode="outputs"]'],
+    ['#drawer', '#fcInput'],
+    ['.fl-open', '.fl-readonly a, .fl-tabs [aria-selected="true"]'],
+    ['.fx-pass, #fxBulk', '[name="task"], #fxBulkTask'],
+  ]
+  function focusAfter(el) {
+    for (const [scope, sel] of FOCUS_AFTER) {
+      const s = el?.closest?.(scope)
+      if (s) return [s, sel]
+    }
+    return null
+  }
+
   const api = {
+    focusAfter,
     waitingLine, reminderLine, lineHtml, reminderHtml, allHtml, tickHtml, markHtml, headHtml, flowBlock, readonlyHtml, archiveLabel, waits, overdue,
     setData(s) {
       data = s || null
@@ -209,14 +230,14 @@
   }
 
   const askOf = el => el.closest('.cv-confirm')
-  function open(box, on) {
+  function open(box, on, move = true) {
     const ask = box.querySelector('[data-cv-ask]')
     const q = box.querySelector('.cv-ask')
     ask.hidden = on
     ask.setAttribute('aria-expanded', String(on))
     box.classList.toggle('is-open', on) // an open question takes the whole row (completed.css)
     q.hidden = !on
-    ;(on ? q.querySelector('[data-cv-yes]') : ask).focus()
+    if (move) (on ? q.querySelector('[data-cv-yes]') : ask).focus()
   }
 
   doc.addEventListener('click', async e => {
@@ -233,6 +254,7 @@
     if (!yes) return
     const ids = String(yes.dataset.cvIds || '').split(' ').filter(Boolean)
     const label = yes.textContent
+    const after = focusAfter(yes) // taken now: the button may be gone once the list is drawn again
     yes.disabled = true
     yes.textContent = 'Marking…'
     const { done, error } = await complete(ids, true)
@@ -241,8 +263,10 @@
     if (yes.isConnected) {
       yes.disabled = false
       yes.textContent = label
-      open(askOf(yes), false)
+      open(askOf(yes), false, !done) // a failure: back on its own button; a success: on to a stable place below
     }
+    const lost = !doc.activeElement || doc.activeElement === doc.body || !doc.activeElement.isConnected
+    if (after && (done || lost) && after[0].isConnected) after[0].querySelector(after[1])?.focus({ preventScroll: true })
     if (error) window.alert?.(error)
     if (done) window.Notifier?.toast(esc(done === 1 ? 'Marked completed. It is in the flow archive.' : `${done} marked completed. They are in the flow archive.`), { kind: 'info', keep: false })
   })
