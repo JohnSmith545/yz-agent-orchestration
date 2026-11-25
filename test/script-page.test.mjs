@@ -37,33 +37,34 @@ function block(css, query) {
 
 // ═══ the route and the rail ═══
 
-test('#/brainstorming is the Brainstorming page (its view keeps the old name, script) and lights its own rail entry', () => {
+test('#/generators is the Generators page (its view keeps the old name, script) and lights its own rail entry', () => {
   const r = h => plain(window.Shell.resolve(h))
-  assert.deepEqual(r('#/brainstorming'), { view: 'script', params: {}, redirect: null })
-  assert.deepEqual(r('#/brainstorming/'), { view: 'script', params: {}, redirect: null })
-  assert.equal(window.Shell.railFor(window.Shell.resolve('#/brainstorming')), 'script')
+  assert.deepEqual(r('#/generators'), { view: 'script', params: {}, redirect: null })
+  assert.deepEqual(r('#/generators/'), { view: 'script', params: {}, redirect: null })
+  assert.equal(window.Shell.railFor(window.Shell.resolve('#/generators')), 'script')
 })
 
-test('the old address #/script still lands on the same page, and is swapped for #/brainstorming', () => {
+test('the old addresses #/script and #/brainstorming still land on the same page, and are swapped for #/generators', () => {
   const r = h => plain(window.Shell.resolve(h))
-  assert.deepEqual(r('#/script'), { view: 'script', params: {}, redirect: '#/brainstorming' })
-  assert.deepEqual(r('#/script/'), { view: 'script', params: {}, redirect: '#/brainstorming' })
+  assert.deepEqual(r('#/script'), { view: 'script', params: {}, redirect: '#/generators' })
+  assert.deepEqual(r('#/script/'), { view: 'script', params: {}, redirect: '#/generators' })
+  assert.deepEqual(r('#/brainstorming/'), { view: 'script', params: {}, redirect: '#/generators' })
   assert.equal(r('#/scripts').redirect, '#/', 'only the exact old address')
 })
 
-test('the rail links to Brainstorming right after QA, with its own icon, and the shell opens ScriptPage in #scriptView', () => {
+test('the rail links to Generators right after QA, with its own icon, and the shell opens ScriptPage in #scriptView', () => {
   const shell = read('shell.js')
-  assert.match(shell, /\$\{link\('qa', '#\/qa', 'QA'\)\}\$\{link\('script', '#\/brainstorming', 'Brainstorming'\)\}/)
+  assert.match(shell, /\$\{link\('qa', '#\/qa', 'QA'\)\}\$\{link\('script', '#\/generators', 'Generators'\)\}/)
   assert.match(shell, /^\s+script: svg\(/m, 'the rail icon, drawn like the others')
   assert.match(shell, /script: 'scriptView'/)
   assert.match(shell, /script: 'ScriptPage'/)
-  assert.match(shell, /script: 'Brainstorming'/, 'the page title')
+  assert.match(shell, /script: 'Generators'/, 'the page title')
   assert.match(shell, /const VIEWS = \[[^\]]*'script'/)
 })
 
 test('index.html holds the section, the stylesheet and the scripts, in dependency order', () => {
   const index = read('index.html')
-  assert.match(index, /<section id="scriptView" aria-label="Brainstorming" hidden><\/section>/)
+  assert.match(index, /<section id="scriptView" aria-label="Generators" hidden><\/section>/)
   assert.ok(index.includes('<link rel="stylesheet" href="script.css">'))
   const at = s => index.indexOf(`<script src="${s}"></script>`)
   const order = ['script-text.js', 'script-render.js', 'script-state.js', 'script-sound.js', 'script-stream.js', 'script-view.js', 'script-markup.js', 'script-page.js']
@@ -76,7 +77,7 @@ test('npm run check covers every new file, and the palette and glossary know the
   for (const f of ['script.mjs', 'script-prompt.mjs', 'script-routes.mjs', 'public/script-text.js', 'public/script-state.js', 'public/script-sound.js', 'public/script-stream.js', 'public/script-page.js', 'public/script-render.js', 'public/script-view.js', 'public/script-markup.js']) {
     assert.ok(pkg.scripts.check.includes(`node --check ${f}`), f)
   }
-  assert.match(read('palette.js'), /\['Brainstorming', '#\/brainstorming', \['script', 'prompt'\]\]/)
+  assert.match(read('palette.js'), /\['Generators', '#\/generators', \['script', 'prompt', 'brainstorming', 'standup', 'stand up'\]\]/)
   assert.ok(JSON.parse(read('glossary.json')).script?.short?.length > 20)
 })
 
@@ -237,7 +238,9 @@ test('script.css: under reduced motion nothing scales or moves, a simple fade on
 
 test('the words the user reads name the page Brainstorming: glossary, spend, Context panel, brief, CLI help, page help', () => {
   const g = JSON.parse(read('glossary.json')).script
-  assert.match(g.short, /^Brainstorming: /)
+  assert.match(g.short, /^Generators: /, 'the page title opens this entry: it names the page and its two tools (2026-11-25)')
+  assert.match(g.short, /Prompt generator/)
+  assert.match(g.short, /Standup creator/)
   assert.doesNotMatch(g.short + g.more, /SCRIPT Generator/)
   assert.match(read('spend.js'), /script: 'Prompt generator'/, 'its tool name on the Generators page (2026-11-25)')
   assert.match(read('script-context.js'), /What Brainstorming is told before it writes\./)
@@ -246,7 +249,7 @@ test('the words the user reads name the page Brainstorming: glossary, spend, Con
   assert.match(cli, /what the Brainstorming page is told before it writes/)
   assert.doesNotMatch(cli, /SCRIPT (Generator|is told|uses it)/)
   const page = read('script-page.js')
-  assert.match(page, /window\.Shell\.setTitle\('Brainstorming', 'script'\)/)
+  assert.match(page, /window\.Shell\.setTitle\('Generators', 'script'\)/, 'the page is Generators since 2026-11-25; the prompt tool keeps its words')
   assert.match(page, /brainstorming skill/, 'the help says when the skill is used')
   assert.doesNotMatch(read('script-markup.js'), />[^<]*SCRIPT[^<]*</, 'no SCRIPT in the visible markup')
 })
