@@ -26,6 +26,7 @@
 // marked Not a duplicate is never shown again.
 
 import { DONE_STATES } from './human.mjs'
+import { buildsCode } from './routing-type.mjs'
 
 export const KINDS = Object.freeze(['code', 'no-code', 'needs-a-person'])
 export const MODEL_MAX = 30
@@ -37,7 +38,9 @@ const DUP_SHARED = 2
 const DUP_RATIO = 0.6
 const REASON_MAX = 140
 
-const W = (re, weight, word) => ({ re: new RegExp(`(?:^|[^a-z0-9])(?:${re})(?![a-z0-9])`), weight, word })
+// `place`: console, DNS, billing, account and legal name WHERE work happens; a title that builds a UI or code object
+// (routing-type.mjs buildsCode: Add a refund button to billing) is code, so they do not count there (QA, 2026-11-26)
+const W = (re, weight, word, place = false) => ({ re: new RegExp(`(?:^|[^a-z0-9])(?:${re})(?![a-z0-9])`), weight, word, place })
 const WORDS = {
   code: [W('bug', 2, 'bug'), W('fix(?:es|ed)?', 1, 'fix'), W('feat(?:ure)?', 2, 'feature'), W('add(?:s|ed)?', 1, 'add'), W('implement(?:ed)?', 2, 'implement'),
     W('refactor', 3, 'refactor'), W('crash(?:es|ed)?', 2, 'crash'), W('errors?', 1, 'error'), W('api', 2, 'API'), W('endpoints?', 2, 'endpoint'),
@@ -45,13 +48,13 @@ const WORDS = {
     W('quer(?:y|ies)', 2, 'query'), W('indexes', 2, 'indexes'), W('minify', 3, 'minify'), W('caching', 2, 'caching'), W('feature flags?', 3, 'feature flag'),
     W('robots\\.txt', 2, 'robots.txt'), W('sitemap', 2, 'sitemap'), W('json-ld|schema', 2, 'schema'), W('headers', 2, 'headers'), W('unit tests?', 2, 'unit tests'),
     W('distorted|truncated', 1, 'layout')],
-  'no-code': [W('console', 3, 'console'), W('dns', 3, 'DNS'), W('gsc', 3, 'GSC'), W('webmaster', 3, 'Webmaster'), W('cloud hosting', 2, 'cloud hosting'),
+  'no-code': [W('console', 3, 'console', true), W('dns', 3, 'DNS', true), W('gsc', 3, 'GSC'), W('webmaster', 3, 'Webmaster'), W('cloud hosting', 2, 'cloud hosting'),
     W('quotas?', 3, 'quota'), W('google analytics', 2, 'Google Analytics'), W('semrush', 3, 'Semrush'), W('configured?', 1, 'configure'),
     W('enabled?', 1, 'enable'), W('iam', 2, 'IAM'), W('secret manager', 2, 'Secret Manager'), W('smoke test', 3, 'smoke test'), W('verify', 1, 'verify'),
     W('check (?:production|prod|ga|monitoring)', 3, 'check'), W('drill', 3, 'drill'), W('manual(?:ly)?', 3, 'manual'), W('by hand', 3, 'by hand'),
     W('backups? (?:scheduled|taken|restore)|take final manual db backup', 2, 'backup'), W('alerts? routed', 3, 'alert routing'), W('environment variables', 2, 'environment variables')],
-  'needs-a-person': [W('legal', 4, 'legal'), W('privacy policy', 3, 'privacy policy'), W('terms of service', 3, 'terms of service'), W('billing', 4, 'billing'),
-    W('account', 1, 'account'), W('sign[- ]?off', 4, 'sign off'), W('marketing', 4, 'marketing'), W('access review|grant access|access', 3, 'access'),
+  'needs-a-person': [W('legal', 4, 'legal', true), W('privacy policy', 3, 'privacy policy'), W('terms of service', 3, 'terms of service'), W('billing', 4, 'billing', true),
+    W('account', 1, 'account', true), W('sign[- ]?off', 4, 'sign off'), W('marketing', 4, 'marketing'), W('access review|grant access|access', 3, 'access'),
     W('contract', 4, 'contract'), W('purchase|buy', 3, 'purchase'), W('approv(?:e|al)', 3, 'approval'), W('decision|decide', 3, 'decision'),
     W('communicate|notify team', 3, 'tell the team'), W('on-call rota', 3, 'on-call rota'), W('budget', 3, 'budget'), W('kpis?', 2, 'KPIs'), W('vendor', 3, 'vendor')],
 }
@@ -71,8 +74,10 @@ export function intakeRules(ticket) {
   const prefix = /^\s*([^:]{1,40}):/.exec(title)?.[1] || ''
   const labels = Array.isArray(ticket?.labels) ? ticket.labels.map(lower).join(' | ') : ''
   const score = {}
+  const builds = buildsCode(title)
   for (const [kind, words] of Object.entries(WORDS)) {
     for (const w of words) {
+      if (w.place && builds) continue
       const inTitle = w.re.test(title)
       if (!inTitle && !w.re.test(labels)) continue
       const s = (score[kind] ||= { n: 0, words: [], story: false })

@@ -115,3 +115,13 @@ test('humanKinds: only sure sorts, by id, for the Human review list', () => {
   const s = { 'A-1': { kind: 'no-code', confidence: 'likely' }, 'A-2': { kind: 'code', confidence: 'certain' }, 'A-3': { kind: 'needs-a-person', confidence: 'unsure' } }
   assert.deepEqual(I.humanKinds(s), { 'A-1': 'no-code', 'A-2': 'code' })
 })
+
+// QA 2026-11-26: building a button or an endpoint for billing, the console or an account is code work; the place
+// word alone must not sort it as needing a person or as no code.
+test('rules: a build verb with a UI or code object is code, whatever place it names', () => {
+  for (const title of ['Add a Stripe payment refund button to billing', 'Build the admin console audit page', 'Implement an API endpoint for account deletion']) {
+    assert.equal(I.intakeRules({ id: 'X-1', title, labels: [] }).kind, 'code', title)
+  }
+  assert.equal(I.intakeRules({ id: 'X-2', title: 'Turn on billing alerts in the Cloud Console', labels: [] }).kind === 'code', false)
+  assert.equal(I.intakeRules({ id: 'X-3', title: 'Cloud Hosting: Email DNS records set (SPF, DKIM, DMARC)', labels: [] }).kind, 'no-code')
+})

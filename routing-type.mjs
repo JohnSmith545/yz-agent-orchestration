@@ -18,6 +18,12 @@
 //   certain   at least CERTAIN_MIN and at least twice the next type's score
 //   likely    at least LIKELY_MIN and more than the next
 //   unsure    anything else: a tie (the reason names both), or too little to go on (no type at all, type null)
+// ⚠️ PLACE WORDS (console, billing, account, legal) name WHERE work happens, not what kind: Add a refund button to
+// billing is a feature. They count for by-hand only beside a by-hand verb or phrase (turn on, switch on, enable in,
+// set up in, in the Cloud or Firebase console, ask, sign off, approve, create the property, linked), and never when the
+// text builds a UI or code object (a build verb such as add, build, implement, fix or refactor with a button, page,
+// screen, endpoint, API, test...). No by-hand word counts at all when the text builds such an
+// object. Add, build or implement with such an object also counts BUILD_BONUS for feature.
 // ⚠️ An unsure answer is never dressed up as a guess: the pages say Unsure, the routing rules match it only with a
 // rule that names no type, and the user can correct it. The correction is stored by the caller (the flow's
 // `routing.typeBy`, factory-state.mjs for a ticket) and always wins (withCorrection).
@@ -35,13 +41,24 @@ const STORY_WEIGHT = 1
 const CERTAIN_MIN = 5
 const LIKELY_MIN = 2
 const SHOWN_WORDS = 3
+const BUILD_BONUS = 1
+
+/** A by-hand verb or phrase: with it, a place word (console, billing, account, legal) means by-hand work. */
+const BY_HAND_PHRASE = /(?:^|[^a-z0-9])(?:turn(?:ed)? on|switch(?:ed)? on|enabled? (?:it )?in|set ?up in|in (?:the )?[a-z ]{0,20}console|ask(?:s|ed)?|sign(?:ed)?[- ]?off|approv(?:e|ed|al)|create the property|linked)(?![a-z0-9])/
+/** A build verb, and a UI or code object: together, the text builds something, so a place word is only a place. */
+const BUILD_VERB = /(?:^|[^a-z0-9])(?:add(?:s|ed|ing)?|build(?:s|ing)?|built|implement(?:s|ed|ing)?|fix(?:es|ed|ing)?|refactor(?:s|ed|ing)?)(?![a-z0-9])/
+const NEW_WORK_VERB = /(?:^|[^a-z0-9])(?:add(?:s|ed|ing)?|build(?:s|ing)?|built|implement(?:s|ed|ing)?)(?![a-z0-9])/
+const CODE_OBJECT = /(?:^|[^a-z0-9])(?:buttons?|pages?|screens?|endpoints?|apis?|tests?|components?|forms?|modals?|routes?|banners?|fields?|menus?|ui|middleware)(?![a-z0-9])/
+/** True when the text builds a UI or code object (a build verb with one): a place word in it is only a place. */
+export const buildsCode = s => BUILD_VERB.test(s) && CODE_OBJECT.test(s)
 
 /** What the pages call each type. */
 const NAMES = Object.freeze({ 'small-fix': 'small fix', 'by-hand': 'by hand' })
 export const typeName = t => (t ? NAMES[t] || t : 'not known')
 
 // [pattern, weight, the word the reason shows]: a pattern is matched on lower-case text with word edges
-const W = (re, weight, word) => ({ re: new RegExp(`(?:^|[^a-z0-9])(?:${re})(?![a-z0-9])`), weight, word })
+// `place`: a place word (see PLACE WORDS above)
+const W = (re, weight, word, place = false) => ({ re: new RegExp(`(?:^|[^a-z0-9])(?:${re})(?![a-z0-9])`), weight, word, place })
 const WORDS = {
   wording: [W('typos?', 3, 'typo'), W('wording', 3, 'wording'), W('reword(?:ing)?', 3, 'reword'), W('spelling', 3, 'spelling'), W('grammar', 3, 'grammar'),
     W('phrasing', 3, 'phrasing'), W('microcopy', 3, 'microcopy'), W('punctuation', 3, 'punctuation'), W('(?:ui |button |page )?copy (?:change|text|tweak)s?', 2, 'copy'), W('label text', 2, 'label text')],
@@ -70,8 +87,8 @@ const WORDS = {
     W('explore', 2, 'explore'), W('spike', 2, 'spike'), W('research', 3, 'research'), W('audit', 2, 'audit'), W('analy[sz]e', 2, 'analyse'), W('diagnose', 3, 'diagnose'),
     W('measure', 2, 'measure')],
   review: [W('code review', 4, 'code review'), W('review', 2, 'review'), W('pull request|pr', 2, 'pull request'), W('check the code', 3, 'check the code')],
-  'by-hand': [W('console', 4, 'console'), W('manual(?:ly)?', 3, 'manual'), W('by hand', 3, 'by hand'), W('notify', 2, 'notify'), W('communicate', 3, 'communicate'),
-    W('sign[- ]?off', 3, 'sign off'), W('legal', 3, 'legal'), W('billing', 4, 'billing'), W('account', 1, 'account'), W('rota', 3, 'rota'), W('on-call', 3, 'on-call'),
+  'by-hand': [W('console', 4, 'console', true), W('manual(?:ly)?', 3, 'manual'), W('by hand', 3, 'by hand'), W('notify', 2, 'notify'), W('communicate', 3, 'communicate'),
+    W('sign[- ]?off', 3, 'sign off'), W('legal', 3, 'legal', true), W('billing', 4, 'billing', true), W('account', 1, 'account', true), W('rota', 3, 'rota'), W('on-call', 3, 'on-call'),
     W('meeting', 3, 'meeting'), W('marketing', 3, 'marketing'), W('purchase|buy', 3, 'purchase'), W('contract', 3, 'contract'), W('drill', 2, 'drill'),
     W('hard refresh', 3, 'hard refresh'), W('game day', 3, 'game day')],
 }
@@ -99,14 +116,24 @@ function scores({ title, body, labels, storyType }) {
     out[type].score += n
     return out[type]
   }
+  const both = `${title}
+${body}`
+  const builds = buildsCode(both)
+  const placesCount = !builds && BY_HAND_PHRASE.test(both)
   for (const [type, words] of Object.entries(WORDS)) {
     for (const w of words) {
+      if (w.place && !placesCount) continue
+      if (type === 'by-hand' && builds) continue // building a button or an endpoint is code work, done by an agent
       const inTitle = w.re.test(title)
       const inText = !inTitle && w.re.test(body)
       if (!inTitle && !inText) continue
       const s = add(type, (inTitle ? w.weight : w.weight / 2) + (inTitle && w.re.test(prefix) ? PREFIX_BONUS : 0))
       if (!s.words.includes(w.word)) s.words.push(w.word)
     }
+  }
+  if (builds && NEW_WORK_VERB.test(both)) {
+    const s = add('feature', BUILD_BONUS)
+    if (!s.words.includes('a new part to build')) s.words.push('a new part to build')
   }
   for (const raw of labels) {
     const type = LABELS.get(lower(raw).trim())

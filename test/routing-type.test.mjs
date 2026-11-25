@@ -113,3 +113,51 @@ test('typeName gives the plain name of a type', () => {
   assert.equal(typeName('by-hand'), 'by hand')
   assert.equal(typeName(null), 'not known')
 })
+
+// ═══ billing, console, account and legal are places, not by-hand work on their own (QA, 2026-11-26) ═══
+// Add a Stripe payment refund button to billing was typed by hand (likely) because billing weighs 4. Those words
+// now count for by-hand only beside a by-hand verb or phrase, and never when the text builds a UI or code object.
+
+test('a build verb with a UI or code object is not by-hand work, whatever place it names', () => {
+  for (const title of [
+    'Add a Stripe payment refund button to billing',
+    'Legal: Cookie consent banner implemented',
+    'Build the billing page for the admin console',
+    'Fix the account settings screen crash',
+    'Implement an API endpoint for account deletion',
+  ]) {
+    const r = taskTypeOf({ title })
+    assert.notEqual(r.type, 'by-hand', `${title}: ${r.reason}`)
+  }
+  const refund = taskTypeOf({ title: 'Add a Stripe payment refund button to billing' })
+  assert.equal(refund.type, 'feature')
+  assert.equal(refund.confidence, 'likely')
+})
+
+test('the same places with a by-hand verb or phrase are by-hand work', () => {
+  for (const title of [
+    'Cloud Hosting: Billing account linked in the console',
+    'Turn on billing alerts in the Cloud Console',
+    'Legal: sign off the privacy policy',
+    'Ask legal to approve the terms',
+    'Enable in the Firebase console: the App Check account',
+  ]) {
+    const r = taskTypeOf({ title })
+    assert.equal(r.type, 'by-hand', `${title}: ${r.reason}`)
+  }
+})
+
+test('a place word alone no longer makes a ticket by-hand work (real titles)', () => {
+  for (const title of ['Account Settings', 'Account-deletion purges Gmail/Google data (pre-beta gate)', 'Console-Wide Audit Log', 'Legal: Privacy Policy link accessible']) {
+    assert.notEqual(taskTypeOf({ title }).type, 'by-hand', title)
+  }
+  // words that ARE by-hand work on their own keep counting
+  assert.equal(taskTypeOf({ title: 'Planning: On-call rota & incident runbook created' }).type, 'by-hand')
+  assert.equal(taskTypeOf({ title: 'All-Clear: Communicate deployment successful to team' }).type, 'by-hand')
+})
+
+test('building a UI or code object is never by-hand work, even with the word manually in it (real title)', () => {
+  const r = taskTypeOf({ title: 'Achievements - part 3 of 4: one "Add manually" form when AI is off' })
+  assert.notEqual(r.type, 'by-hand', r.reason)
+  assert.equal(taskTypeOf({ title: 'Update the record manually in the admin tool' }).type, 'by-hand')
+})
