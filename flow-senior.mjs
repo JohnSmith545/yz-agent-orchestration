@@ -101,8 +101,8 @@ export function pendingRedo(flow) {
 /**
  * Why the user may not mark a flow done yet because of Senior, in one line, or '': Senior is on `graph`, the flow has
  * no QA record, it has by-hand steps or a Senior record, and Senior has not passed it (nor stopped it: then the user
- * decides). The flow page's Mark the flow done (factory-routes.mjs, the status route) asks this, so finishing a flow
- * by hand never goes round Senior.
+ * decides). The store asks this on every move to done (flows.mjs writeFlow), so no writer, the flow page's Mark the flow
+ * done or an agent's flow set and flow write alike, can finish a flow round Senior.
  */
 export function seniorHolds(flow, graph) {
   const senior = (graph?.nodes || []).find(n => n.role === 'senior')

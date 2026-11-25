@@ -23,7 +23,7 @@ import path from 'node:path'
 import { parseDiagram } from '../diagram-text.mjs'
 import {
   addEvidence, addNode, createFlow, derive, EVIDENCE_DIR, EVIDENCE_KINDS, listFlows,
-  mergeKeepingAnswers, readFlow, setNodeStatus, validateFlow, visualOf, writeFlow,
+  mergeKeepingAnswers, readFlow, setNodeStatus, validateFlow, visualOf, withPipeline, writeFlow,
 } from '../flows.mjs'
 import { securityBlock } from '../flow-security.mjs'
 import { seniorBlock } from '../flow-senior.mjs'
@@ -532,7 +532,8 @@ export function runFlow(argv, { by, cwd, git, config } = {}) {
     const f = flags(rest, cmd === 'summary' ? SUMMARY_REPEAT : cmd === 'qa' ? QA_REPEAT : undefined, booleans)
     // Every command but new, write and list names its flow first (say, change and pr too): one guard for them all.
     if (!['new', 'write', 'list', 'rules'].includes(cmd) && isTrashed(f._[0])) return fail(TRASHED(f._[0]))
-    return command(f, { by, cwd, argv: rest, ...(git ? { git } : {}), ...(config ? { config } : {}) })
+    // every write of this command is checked against this config's pipeline (flows.mjs, the Senior gate)
+    return withPipeline(config, () => command(f, { by, cwd, argv: rest, ...(git ? { git } : {}), ...(config ? { config } : {}) }))
   } catch (err) {
     return fail(err.message)
   }

@@ -37,7 +37,7 @@
 // `text` is one plain sentence with agent labels only: no ids, no file names. Ties in time keep the order things
 // happen in (a verdict before the stop it causes), newest first. ⚠️ PURE like score.mjs: no file, no git, no config.
 
-import { DAY, FAILED, SECURITY_FAILED, SENIOR_FAILED, cellOf, securityOn, securityVerdictsOf, seniorOn, seniorVerdictsOf, verdictsOf, windowOf } from './score.mjs'
+import { DAY, FAILED, SECURITY_FAILED, SENIOR_FAILED, cellOf, securityOn, securityVerdictsOf, seniorApplies, seniorOn, seniorVerdictsOf, verdictsOf, windowOf } from './score.mjs'
 
 export const LOG_KINDS = Object.freeze(['started', 'route', 'handed', 'passed', 'failed', 'pushed', 'done', 'dropped', 'stopped', 'stalled', 'rule'])
 /** The kinds of the optional agents (above): kept apart so a pipeline without them reads exactly as before. */
@@ -139,7 +139,7 @@ function flowEvents(flow, graph, now, stallMs, labels, qaLabel, securityLabel, s
   const stoppedBySenior = kind === 'stopped' && senior.at(-1)?.status === 'senior-failed'
   const qa = stoppedBySenior ? senior.at(-1).by || seniorLabel : stoppedBySecurity ? lastReview.by || securityLabel : verdicts.at(-1)?.by || qaLabel
   const untested = verdicts.at(-1)?.status === 'passed' ? `${securityLabel} never passed` : 'QA never tested'
-  const byHand = senior.length || isObject(flow.senior) // a flow Senior gates (score.mjs seniorApplies) that slipped
+  const byHand = seniorApplies(flow, graph) // a flow Senior gates that slipped: it finished before Senior passed it
   const TEXT = {
     done: cell === 'slipped' ? (byHand && !verdicts.length ? `This finished by hand before ${seniorLabel} passed it.` : `This finished with code changes that ${untested}.`) : 'This finished with no code changes.',
     dropped: 'This was dropped.',

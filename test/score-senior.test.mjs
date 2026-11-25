@@ -29,13 +29,40 @@ const failedBefore = { history: [{ status: 'failed', by: 'Senior', startedAt: ag
 const cell = (f, g = G) => cellOf(f, g, NOW, 7 * DAY)
 const score = (flows, g = G) => scoreOf(flows, g, { now: NOW, days: 30 })
 
-test('seniorApplies: a Senior record, or by-hand steps on a flow still on its way; never a QA flow, never without Senior', () => {
+test('seniorApplies: a Senior record, or by-hand steps on a flow still on its way or planned through Senior; never a QA flow, never without Senior', () => {
   assert.equal(seniorApplies(flow('a', { ...hand, ...senior('passed') }), G), true)
   assert.equal(seniorApplies(flow('b', hand), G), true, 'by-hand steps, still open')
-  assert.equal(seniorApplies(flow('c', { status: 'done', ...hand }), G), false, 'finished with no Senior record: judged as before')
+  assert.equal(seniorApplies(flow('c', { status: 'done', ...hand }), G), false, 'finished with no Senior record and no route through it: judged as before')
   assert.equal(seniorApplies(flow('d', { status: 'done' }), G), false, 'no by-hand work at all')
   assert.equal(seniorApplies(flow('e', { ...hand, qa: { status: 'testing', attempt: 1 } }), G), false, 'code is QA work')
   assert.equal(seniorApplies(flow('f', { ...hand, ...senior('passed') }), PLAIN), false)
+})
+
+// a route planned through Senior (a new ask route), and one planned before Senior joined the pipeline
+const SENIOR_ROUTE = { type: 'ask', steps: ['request', 'master', 'agent-1', 'human', 'senior', 'outcome'], at: ago(3 * DAY), by: 'Agent 1' }
+const OLD_ROUTE = { type: 'ask', steps: ['request', 'master', 'agent-1', 'outcome'], at: ago(30 * DAY), by: 'Agent 1' }
+
+test('seniorApplies: a flow done while Senior held it (by-hand steps on a route through Senior) and never passed slipped through', () => {
+  const held = flow('held', { status: 'done', updatedAt: ago(500), route: SENIOR_ROUTE, ...hand })
+  assert.equal(seniorApplies(held, G), true)
+  assert.deepEqual(cell(held), { cell: 'slipped', why: null, kind: 'done', time: NOW - 500 })
+  assert.deepEqual(score([held]).counts, { delivered: 0, slipped: 1, missed: 0, caught: 0 })
+  const said = orchestrationLog([held], G, { now: NOW, days: 30 }).find(e => e.cell === 'slipped')
+  assert.equal(said.text, 'This finished by hand before Senior passed it.')
+  const asked = flow('asked', { status: 'done', updatedAt: ago(500), route: OLD_ROUTE, ...senior('asked', { ask: { text: 'x', by: 'Agent 1', at: ago(900) } }) })
+  assert.equal(cell(asked).cell, 'slipped', 'sent to Senior with senior-ask and finished without its pass')
+})
+
+test('seniorApplies: flows finished before Senior existed are judged as before, steps or not', () => {
+  const old = flow('old', { status: 'done', updatedAt: ago(500), route: OLD_ROUTE, ...hand })
+  assert.equal(seniorApplies(old, G), false)
+  assert.equal(cell(old).cell, 'delivered')
+  const bare = flow('bare', { status: 'done', updatedAt: ago(500), route: OLD_ROUTE })
+  assert.equal(seniorApplies(bare, G), false)
+  assert.equal(cell(bare).cell, 'delivered', 'no by-hand steps and no Senior record')
+  const answer = flow('answer', { status: 'done', updatedAt: ago(500), route: SENIOR_ROUTE })
+  assert.equal(seniorApplies(answer, G), false, 'an answer through the new route with no by-hand work passes Senior by')
+  assert.equal(cell(answer).cell, 'delivered')
 })
 
 test('cellOf: delivered at Senior pass; stopped by Senior is missed; finished with a record and no pass slipped through; on its way otherwise', () => {
