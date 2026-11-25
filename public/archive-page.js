@@ -75,7 +75,7 @@
       acts = (waits ? C.tickHtml(r) : '') + `<button type="button" class="link" data-ar-unarchive="${id}" aria-label="Restore ${title} to the Flows board">Restore</button>` +
         `<button type="button" class="link ar-bad" data-ar-delete="${id}" aria-label="Delete ${title}">Delete</button>`
     }
-    return `<li class="ar-row" data-id="${id}"><div class="ar-main">${name}<span class="ar-meta">${meta.join('<span aria-hidden="true">·</span>')}</span></div><div class="ar-acts">${acts}</div></li>`
+    return `<li class="ar-row" data-id="${id}"><div class="ar-main">${name}<span class="ar-meta">${meta.join('<span aria-hidden="true">·</span>')}</span>${window.LearnRetro?.rowHtml(r) || ''}</div><div class="ar-acts">${acts}</div></li>`
   }
 
   function group(kind, label, line, rows, all, state, error = '') {
