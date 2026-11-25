@@ -69,7 +69,7 @@
     const list = steps(f)
     if (!list.length) return ''
     const items = list.map(s => {
-      const back = s.visits > 1 ? `<span class="rt-visits" title="Here ${s.visits} times: sent back by QA">×${s.visits}</span>` : ''
+      const back = s.visits > 1 ? `<span class="rt-visits" title="Here ${s.visits} times: sent back by ${s.role === 'human' ? 'Senior' : 'QA'}">×${s.visits}</span>` : ''
       const name = `${esc(s.label)}${back}`
       const word = `<span class="rt-sr">${esc(s.state)}${s.state === 'current' && s.status ? `: ${esc(s.status)}` : ''}</span>`
       const to = detailOf(s.role)

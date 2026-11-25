@@ -85,5 +85,7 @@ test('highlight: the no code changes lane lights through the boxes it went past;
   assert.ok(back.edges.includes(idx('senior', 'human', true)))
   assert.ok(back.nodes.includes('human'))
   assert.equal(UI.detailOf('human'), 'agents')
+  const line = UI.line({ id: 'f', route: { type: 'ask' }, progress: R.routeProgress(flow({ ...redo, route: route('ask', ASK) }), G) })
+  assert.match(line, /title="Here 2 times: sent back by Senior">×2</, 'Human task twice: Senior sent it back, not QA')
   assert.equal(UI.detailOf('senior'), 'agents')
 })
