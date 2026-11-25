@@ -188,7 +188,7 @@ test('gatherFacts: What s next candidates are the author s tickets in progress, 
 test('gatherFacts: flows touched in the window, and the open Human review items as Blocker candidates', async () => {
   const f = await gather()
   assert.deepEqual(f.flows.map(x => x.id), ['fla-868-media'])
-  assert.deepEqual(f.waiting, [{ kind: 'hand', title: 'Prod database grant', reason: 'Needs a production admin to grant access.', tickets: ['FLA-870'] }])
+  assert.deepEqual(f.waiting, [{ kind: 'hand', title: 'Prod database grant', reason: 'Needs a production admin to grant access.', question: '', tickets: ['FLA-870'] }])
   assert.ok(f.tickets.some(t => t.id === 'FLA-870'), 'a waiting item s ticket gets its line too')
 })
 
@@ -300,4 +300,9 @@ test('Human review items: only questions, by-hand steps and blocked flows go in;
   assert.deepEqual(f.waiting.map(w => w.kind), ['hand', 'ask', 'blocked'])
   for (const id of ['FLA-873', 'FLA-874']) assert.ok(!f.tickets.some(t => t.id === id), id)
   assert.deepEqual(f.skipped, [], 'left out silently')
+})
+
+test('gatherFacts keeps the config agent labels it is given, for the blockers to leave out', async () => {
+  assert.deepEqual((await gather({ agentNames: ['Master', '', 7, 'Agent 1'] })).agentNames, ['Master', 'Agent 1'])
+  assert.deepEqual((await gather()).agentNames, [])
 })
