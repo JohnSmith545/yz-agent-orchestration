@@ -80,3 +80,16 @@ test('estimates: on, from the nearest 8, by default; a bad value keeps its defau
   assert.deepEqual(estimateSettings('no', warn), { ...ESTIMATE_DEFAULTS })
   assert.equal(lines.length, 3)
 })
+
+test('config.example.json carries both blocks at their defaults, and the docs name every key', async () => {
+  const fs = await import('node:fs')
+  const read = f => fs.readFileSync(new URL(`../${f}`, import.meta.url), 'utf8')
+  const example = JSON.parse(read('config.example.json'))
+  const { warn, lines } = collect()
+  assert.deepEqual(alertSettings(example.alerts, warn), { ...ALERT_DEFAULTS })
+  assert.deepEqual(estimateSettings(example.estimates, warn), { ...ESTIMATE_DEFAULTS })
+  assert.deepEqual(lines, [])
+  const guide = read('docs/USER_GUIDE.md')
+  for (const key of [...Object.keys(ALERT_DEFAULTS), 'nearest']) assert.match(guide, new RegExp(`\`${key}\``), key)
+  assert.match(read('README.md'), /## Predict and warn/)
+})

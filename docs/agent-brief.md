@@ -138,3 +138,5 @@ When the pipeline has **Security** (config `pipeline.security`), it sits after Q
 What the user sees: the flow as a card on the Flows page (`#/flows`), and each `flow ask` in the **Human review** box on the Agents page with your `--why` under the question and Yes and No; the answer is sent back to the agent as a message. An opened flow lands on **Output**: the result screenshot (or your diagram, or with neither a summary chart the dashboard draws from your steps), the summary with its commits, and the numbered test steps. If the user presses **Request test steps**, a message arrives asking for those steps: drive the app, then record each step with `flow test-step`. **Request visuals** (a flow with no screenshot and no diagram) asks for a screenshot or a diagram first.
 
 The full command list is in the README, under "Agents writing flows".
+
+A flow may carry an `estimate` the dashboard stored when it started (how long and what similar flows took). It is the server's: leave it out of a `flow write`; whatever you send there is ignored.
