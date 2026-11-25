@@ -307,3 +307,11 @@ test('skipped, overlapping and special responses are summed for the help', () =>
 test('vector slots are the documented order', () => {
   assert.deepEqual([I, O, W5, W1, R, N], [0, 1, 2, 3, 4, 5])
 })
+
+test('config.example.json carries the default prices as the block a user keeps current, every entry valid', () => {
+  const example = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'config.example.json'), 'utf8'))
+  const t = priceTable(example.tokens)
+  assert.deepEqual(t.errors, [])
+  assert.deepEqual(Object.keys(example.tokens.prices).sort(), Object.keys(DEFAULT_PRICES).sort())
+  for (const [id, p] of Object.entries(example.tokens.prices)) assert.deepEqual(p, { ...DEFAULT_PRICES[id] }, id)
+})

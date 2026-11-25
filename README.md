@@ -65,7 +65,8 @@ example first.
   from the transcripts and git.
 - **Agents**: the orchestration as a pipeline diagram, from request to outcome, under a
   pipeline score (precision, recall, F-score, accuracy and correctness) and Pipeline time (tickets finished per
-  day and per hour, time per job, where the time goes), with
+  day and per hour, time per job, where the time goes) and Pipeline tokens (what the sessions spent in tokens and
+  what that would cost at API prices), with
   a live view of one agent (its feed, its edits as diffs, its uncommitted changes)
   and a draft progress report.
 - **Subagents**: every subagent the sessions started, live or ended: what each one is working on, how it
@@ -186,6 +187,7 @@ refresh themselves; the Refresh button in the page header rebuilds at once.
 | `levels` | The branches the levels compare: `{ "work": "followup", "dev": "origin/dev", "stage": "origin/stage", "prod": "origin/main" }` (these are the defaults). A bad value keeps its default, with a warning |
 | `reminders` | Reminders at a local time, once a day: `[{ "at": "17:55", "days": "weekdays", "text": "Wrap up: commit or park your work." }]`. `days` is `weekdays` (Monday to Friday) or `daily`; `[]` turns them off. Left out, there are none. `at` is a real time, 00:00 to 23:59, and one reminder per time. A bad or repeated entry is left out with a warning in the server log |
 | `standup` | The Standup creator, every key optional: `{ "author": "", "name": "", "project": "", "base": "", "ticketUrl": "https://app.switchboardpm.ai/stories/{id}" }`. `author` is whose commits count (left out: the repo's `git config user.name`); `name` and `project` fill the weekly header (left out: the author and the repo folder name); `base` is the default branch merges are read from (left out: `origin/HEAD`, else `levels.dev`); `ticketUrl` is the ticket link pattern, http(s) with `{id}`. A bad value warns and uses the default |
+| `tokens` | Pipeline tokens' prices: `{ "prices": { "<model id or prefix>": { "input": 4, "output": 20, "cacheWrite": 5, "cacheWrite1h": 8, "cacheRead": 0.2 } } }`, dollars per million tokens (`cacheWrite` is the 5 minute cache write, `cacheWrite1h` the 1 hour one, optional: without it 1 hour writes are priced at `cacheWrite`). Your entries go over the built-in defaults: one adds or replaces a model, `null` removes one, and an entry with a rate missing or not a number is left out and named on the page. A model takes its exact id, else the longest id it starts with. **Prices change, and keeping them current is yours**: the defaults were read from https://platform.claude.com/docs/en/about-claude/pricing on 2026-11-25 for the models the transcripts held (Opus 5.5, Opus 5, Sonnet 5.5, Fable 5.2, Fable 5.1); Haiku 5.5 has none, as its price depends on the prompt length. Read at startup |
 
 ### Keep it running
 
@@ -1342,6 +1344,15 @@ Routes:
   day, count }], agents: [{ label, tickets, jobs, flows, median, perDay, sentBack }], left: { slipped, dropped,
   stopped, stalled }, fewer, builtAt }`. Times are ms; a number with nothing to count is null. The period is whole
   local days (7 or 30 to today; All from the first flow event). A bad window is the score's 400.
+- `GET /api/tokens[?days=7|30|all]` returns Pipeline tokens (`token-usage.mjs`, `token-index.mjs`,
+  `token-routes.mjs`), never cached and never waiting on the transcripts: `{ window, totals: { input, output,
+  cacheWrite, cacheRead, all, responses }, cost: { usd, unpriced, unpricedTokens, w1hAtWriteRate }, perJob: { jobs,
+  tickets, otherJobs, tokens, usd } | null, cacheShare, spend: { usd, turns }, agents: [{ label, sessions, input,
+  output, cacheWrite, cacheRead, all, responses, usd, unpriced, share, models, subs: { files, ..., usd } }], models:
+  [{ model, ..., usd, price: { match, input, output, cacheWrite, cacheWrite1h, cacheRead } | null }], bars: [{ day,
+  tokens, usd }], skipped, dupes, special, files, building, progress, prices: { source, errors, given }, builtAt,
+  lastRead }`. Dollars are null with no price; `building` is true with a `progress` from 0 to 1 until the first read
+  of the transcripts is done. A bad window is the score's 400.
 
 Each agent on `/api/status` carries `pushesOutsideQa`: how many `git push` commands it ran in the last 24 hours,
 read from the same transcript scan (0 for QA), so a page can flag a push that did not go through QA.
@@ -1582,6 +1593,25 @@ read again with every status refresh without redrawing.
   every unit; a fixed unit shows at most 2 decimals and drops to the next smaller unit rather than read 0). The
   rates keep their basis, Per day a day and Per hour an hour; in Minutes their small line adds `1 every 95 min`. It and the block folded are remembered in this browser. Under 3 finished flows says Too few to
   trust; none is an empty state, never a 0.
+- **Pipeline tokens**, a block under Pipeline time (`token-usage.mjs`, `token-index.mjs`, `GET /api/tokens`,
+  `token-strip.js`, `token-view.js`, `tokens.css`): what the project's Claude Code sessions spent in tokens, counted
+  from the transcripts only (read only, every folder of `claudeDirs`, the sessions whose folder holds
+  `sessionCwdMatch`, worktrees and subagents included). Each reply counts once: one reply is written as several
+  records with the same message id (and, while it streams, a partial one first: the final numbers count), and a
+  session moved to the other account's folder or forked carries a copy of its history, counted once for the file
+  read first. A record with no usage is skipped and counted. Five tiles line up under the others: **Tokens used**
+  (with new input, output, cache writes and cache reads), **Estimated cost** (at API prices from `tokens.prices`,
+  the unpriced models named; with no price at all there is no dollar figure), **Per finished job** (an average:
+  every token of the period over the tickets and other jobs Pipeline time counts as finished), **Cache share** (cache
+  reads over all input) and **The dashboard's own runs** (the exact dollars of `data/spend.jsonl` for the period,
+  never added to the estimate). Then tokens or dollars per day (per week for All) with a list and arrow keys, a
+  By model table with the price used, a By agent table (one row per dashboard label, with the subagents' part under
+  it) and How it is counted. Sessions are named by the live name when config maps it, else the transcript's own
+  title, else the live name; a renamed session keeps one row. Speed: `data/token-index.json` keeps, per transcript,
+  its size, time, identity, the offset read to and its per day per model totals, so a refresh reads only what was
+  added (whole lines only; a file that shrank or was replaced is read again, a file that is gone dropped). On
+  2026-11-25 the first build of 507 files (2.1 GB) took about 11 s and a warm refresh about 0.15 s; it runs in the
+  background after startup, and the block says how far it got until it is done.
 - **Log**, the side panel's third choice (`score-log.mjs`, `GET /api/log`, `pipeline-log.js`): one timeline of what
   happened, newest first. Each event is a time (as the pages show times, the exact one on hover), one plain
   sentence ("QA failed this and sent it back to Agent 1."), the flow's title, and, when it put a count in a score, a
