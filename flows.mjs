@@ -26,6 +26,10 @@
 //   clears it (trash-routes.mjs), mergeKeepingAnswers takes it from the stored file only, and listFlows
 //   leaves an archived flow out unless asked. A NEW open ask clears it (writeFlow), so archiving never
 //   hides a later question. Deleting is the Trash (trash.mjs), not a field.
+// - `completedAt` and `completedBy` (optional; 'you') are the USER'S sign-off on a finished flow (completed.mjs):
+//   only the page's Completed sets them (completed-routes.mjs), always together with archivedAt, and the agent's
+//   rewrite keeps or drops them EXACTLY as it does archivedAt (never sets them). `uncompletedAt` notes the last time
+//   the user took the mark off, for the Log. A new open ask clears the mark with the archive.
 // - `qa` (optional) is QA's record of testing the flow (flow-qa.mjs validateQa): only the QA commands
 //   (tools/qa-cli.mjs) write it, and mergeKeepingAnswers takes it from the stored file only (keepQa),
 //   so a producer's rewrite can neither drop a failure nor forge a pass.
@@ -121,6 +125,8 @@ export function validateFlow(flow) {
   if (!FLOW_STATUS.includes(flow.status)) problems.push(`status ${oneOf(FLOW_STATUS)}`)
   if (flow.why !== undefined && typeof flow.why !== 'string') problems.push('why must be text')
   if (flow.archivedAt !== undefined && !isIsoTime(flow.archivedAt)) problems.push('archivedAt must be a time')
+  for (const key of ['completedAt', 'uncompletedAt']) if (flow[key] !== undefined && !isIsoTime(flow[key])) problems.push(`${key} must be a time`)
+  if (flow.completedBy !== undefined && flow.completedBy !== 'you') problems.push('completedBy must be you')
   if (!Array.isArray(flow.nodes)) return [...problems, 'nodes must be a list']
 
   const allIds = new Set(flow.nodes.map(n => n?.id))
@@ -411,7 +417,11 @@ export function agentMoveRefusal(stored, next) {
 /** Why Senior holds `flow` now (flow-senior.mjs seniorHolds) on the pipeline the store reads, or ''. */
 export const seniorHold = flow => seniorHolds(flow, gateGraph())
 
-export function writeFlow(flow) {
+/**
+ * `stamp: false` keeps the flow's updatedAt as given (the user's Completed, completed-routes.mjs): the scorecard and
+ * Pipeline time date a finished flow by its updatedAt, and a sign-off must not move it. Every other write stamps.
+ */
+export function writeFlow(flow, { stamp = true } = {}) {
   const problems = validateFlow(flow)
   if (problems.length) throw new Error(problems.join('\n'))
   const stored = storedFlow(flow.id)
@@ -425,12 +435,15 @@ export function writeFlow(flow) {
     // the code lets the page say what the USER can do instead of the agent's sentence (public/flow-hand.js holdText)
     if (held) throw Object.assign(new Error(held), { code: 'senior-hold' })
   }
-  if (flow.archivedAt && stored && hasNewOpenAsk(flow, stored)) delete flow.archivedAt
-  flow.updatedAt = now()
+  if ((flow.archivedAt || flow.completedAt) && stored && hasNewOpenAsk(flow, stored)) for (const k of USER_PUT_AWAY) delete flow[k]
+  if (stamp || !isText(flow.updatedAt)) flow.updatedAt = now()
   writeAtomic(flowFile(flow.id), JSON.stringify(flow, null, 1))
   if (before && before !== flow.status) recordFlowStatus(flow.id, before, flow.status)
   return flow
 }
+
+/** What a new open ask takes off a flow the user put away: the archive and the sign-off on it (completed.mjs). */
+const USER_PUT_AWAY = ['archivedAt', 'completedAt', 'completedBy']
 
 /** The flow's file now, parsed, or null (no file, or not readable). */
 function storedFlow(id) {
@@ -593,9 +606,11 @@ export function mergeKeepingAnswers(incoming, existing) {
       else delete incoming.output[key]
     }
   }
-  // Archive is the user's, like a tick: only ever from the stored file, never set or cleared by an agent.
-  if (existing?.archivedAt) incoming.archivedAt = existing.archivedAt
-  else delete incoming.archivedAt
+  // Archive and Completed are the user's, like a tick: only ever from the stored file, never set or cleared by an agent.
+  for (const key of ['archivedAt', 'completedAt', 'completedBy', 'uncompletedAt']) {
+    if (existing?.[key]) incoming[key] = existing[key]
+    else delete incoming[key]
+  }
   keepQa(incoming, existing) // QA's, like a tick is the user's: only ever from the stored file
   keepRoute(incoming, existing) // the plan: only `flow route` changes a stored one
   keepHand(incoming, existing) // the user's ticks on the by-hand steps: only ever from the stored file

@@ -54,7 +54,8 @@ function decide() {
   const made = runFlow(['new', id, f.question.slice(0, 80), '--type', 'ask', ...(f.ticket ? ['--tickets', f.ticket] : [])], ctx)
   if (made.code) return made
   const asked = runFlow(['ask', id, f.question, ...opts], ctx)
-  return { out: `${made.out}\n${asked.out}`, code: asked.code, err: asked.err }
+  // both notes: the pile-up reminder from `new` (completed.mjs) and a missing why from `ask`
+  return { out: `${made.out}\n${asked.out}`, code: asked.code, err: [made.err, asked.err].filter(Boolean).join('\n') || undefined }
 }
 
 try {
