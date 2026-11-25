@@ -250,3 +250,87 @@ test('standup.css: the pills show which is checked, the archive never widens a p
   assert.match(css, /overflow-wrap: anywhere/)
   assert.doesNotMatch(css, /#[0-9a-f]{3,6}\b/i, 'colours come from the tokens, so dark mode follows')
 })
+
+// ═══ QA A-2, 2026-11-25: a refused or failed Generate showed a Made time for a stand-up that did not exist ═══
+
+test('regression: a Generate refused before any text (409, no server) never shows a Made time', () => {
+  let s = S.reduce(S.initial(), todayEv({ today: { day: '2026-11-25', daily: null, week: null }, runs: [] }))
+  s = S.reduce(s, { type: 'start', mode: 'daily', at: new Date(2026, 10, 25, 10, 28).toISOString() })
+  assert.equal(S.view(s).made, 'Daily · not written yet today', 'nothing is made until text arrives')
+  s = S.reduce(s, { type: 'end', run: s.run, ok: false, error: 'A stand-up is already being written. Wait for it to finish, then try again.' })
+  const v = S.view(s)
+  assert.equal(v.made, 'Daily · not written yet today')
+  assert.equal(v.output, '')
+  assert.match(v.error, /already being written/)
+})
+
+test('regression: a failed Generate over today s stand-up brings that stand-up and its own Made time back, with the error', () => {
+  let s = S.reduce(S.initial(), todayEv())
+  s = S.reduce(s, { type: 'start', mode: 'daily', at: new Date(2026, 10, 25, 10, 28).toISOString() })
+  s = S.reduce(s, { type: 'end', run: s.run, ok: false, error: 'Could not reach the dashboard.' })
+  const v = S.view(s)
+  assert.equal(v.output, RUN.output)
+  assert.equal(v.made, 'Daily · Made Wed 25 Nov 09:14 · Covers Tue 24 Nov')
+  assert.equal(v.error, 'Could not reach the dashboard.')
+  assert.equal(v.canRetry, true)
+})
+
+test('a run that failed after some text keeps that text and its own time, marked by the error', () => {
+  let s = S.reduce(S.initial(), todayEv())
+  s = S.reduce(s, { type: 'start', mode: 'daily', at: new Date(2026, 10, 25, 10, 28).toISOString() })
+  s = S.reduce(s, { type: 'delta', run: s.run, text: 'Stand up, Tue' })
+  s = S.reduce(s, { type: 'end', run: s.run, ok: false, error: 'Stopped.' })
+  assert.equal(S.view(s).output, 'Stand up, Tue')
+  assert.match(S.view(s).made, /Made Wed 25 Nov 10:28/)
+})
+
+test('regression (QA A-3): each archive entry says its kind, the time it was made and the dates it covers', () => {
+  const at = new Date(2026, 10, 25, 10, 28).toISOString()
+  const m = plain(A.months([{ day: '2026-11-25', runs: [
+    { id: 's-2', mode: 'week', ok: true, first: 'x', at, window: { from: new Date(2026, 10, 19).toISOString(), to: at } },
+    { id: 's-1', mode: 'daily', ok: true, first: 'y', at, window: { from: new Date(2026, 10, 24).toISOString(), to: at } },
+    { id: 's-0', mode: 'daily', ok: true, first: 'z' },
+  ] }]))
+  assert.deepEqual(m[0].days[0].entries.map(e => e.meta), ['Week · 10:28 · covers Thu 19 Nov to Wed 25 Nov', 'Daily · 10:28 · covers Tue 24 Nov', 'Daily'])
+})
+
+// ═══ QA A-8, 2026-11-25: a page left open past midnight did not reset until it was opened again ═══
+
+test('msToMidnight: the time to just after the next local midnight, from the clock given', () => {
+  assert.equal(S.msToMidnight(new Date(2026, 10, 25, 23, 59, 30)), 31_000, 'a second past midnight, so the server s day has turned')
+  assert.equal(S.msToMidnight(new Date(2026, 10, 30, 12, 0, 0)), 12 * 3_600_000 + 1_000, 'across a month end')
+  assert.equal(S.msToMidnight(new Date(2026, 11, 31, 23, 0, 0)), 3_600_000 + 1_000, 'across a year end')
+})
+
+test('the page asks for today again when the tab comes back, when Generate is pressed and just after midnight', () => {
+  const src = read('standup-page.js')
+  assert.match(src, /addEventListener\('visibilitychange'[^\n]*visible[^\n]*refresh\(\)/)
+  assert.match(src, /async function onGenerate\(\) \{[\s\S]*?await refresh\(\)[\s\S]*?dispatch\(\{ type: 'start'/)
+  assert.match(src, /setTimeout\(atMidnight, S\(\)\.msToMidnight\(new Date\(\)\)\)/)
+})
+
+test('a reload on a new day empties a stand-up shown from a live run as well', () => {
+  let s = S.reduce(S.initial(), todayEv({ today: { day: '2026-11-25', daily: null, week: null }, runs: [] }))
+  s = S.reduce(s, { type: 'start', mode: 'daily', at: RUN.at })
+  s = S.reduce(s, { type: 'delta', run: s.run, text: 'Stand up, Tue 24 Nov' })
+  s = S.reduce(s, { type: 'end', run: s.run, ok: true, runId: 's-x' })
+  s = S.reduce(s, todayEv({ today: { day: '2026-11-26', daily: null, week: null }, runs: [] }))
+  assert.equal(S.view(s).output, '')
+  assert.equal(S.view(s).made, 'Daily · not written yet today')
+})
+
+test('a refresh while another page or tool shows never writes over that page s status chip', () => {
+  assert.match(read('standup-page.js'), /if \(home && !home\.closest\('\[hidden\]'\)\) status\(\)/)
+})
+
+// ═══ QA A-4 and A-5, 2026-11-25 (nits; DOM glue, so pinned on the source) ═══
+
+test('Back to today puts the focus on the stand-up box, not on the page body', () => {
+  assert.match(read('standup-page.js'), /els\.back\.addEventListener\('click', async \(\) => \{\s*dispatch\(\{ type: 'back' \}\)\s*await refresh\(\)\s*els\.out\.focus\(\{ preventScroll: true \}\)/)
+})
+
+test('a bad or empty ticket id clears the last results before it says what an id looks like', () => {
+  const src = read('standup-archive-view.js')
+  assert.match(src, /if \(!id\) return closePanel\(\), \(note\.textContent = 'A ticket id looks like FLA-886\.'\)/)
+  assert.match(src, /function closePanel\(\) \{\s*panel\.hidden = true\s*panel\.replaceChildren\(\)\s*list\.hidden = false/)
+})

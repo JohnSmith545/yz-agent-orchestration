@@ -60,8 +60,8 @@
     function entryEl(day, e) {
       const b = make('button', `su-ar-entry${e.failed ? ' su-ar-failed' : ''}`)
       b.type = 'button'
-      b.append(make('span', 'su-ar-kind', e.failed ? `${e.kind} · did not finish` : e.kind), make('span', 'su-ar-first', e.first || '(empty)'))
-      b.setAttribute('aria-label', `${e.kind} stand-up of ${A().dayName(day)}: ${e.first}`)
+      b.append(make('span', 'su-ar-kind', e.failed ? `${e.meta || e.kind} · did not finish` : e.meta || e.kind), make('span', 'su-ar-first', e.first || '(empty)'))
+      b.setAttribute('aria-label', `${e.meta || e.kind}, ${A().dayName(day)}: ${e.first}`)
       b.addEventListener('click', () => show(day, e.id))
       return b
     }
@@ -93,6 +93,13 @@
       }))
     }
 
+    /** Back to the month list: the day or ticket results go, so a later bad query never shows them under it. */
+    function closePanel() {
+      panel.hidden = true
+      panel.replaceChildren()
+      list.hidden = false
+    }
+
     function openPanel(title, body) {
       const head = make('div', 'su-ar-ph')
       head.append(make('h3', 'su-ar-pt', ''))
@@ -100,9 +107,7 @@
       const close = make('button', 'link su-ar-close', 'Show every day')
       close.type = 'button'
       close.addEventListener('click', () => {
-        panel.hidden = true
-        list.hidden = false
-        close.blur()
+        closePanel()
         dayBox.focus({ preventScroll: true })
       })
       head.append(close)
@@ -118,7 +123,7 @@
       dayBox.value = day
       const j = await get(`/api/standup/day/${encodeURIComponent(day)}`)
       const runs = Array.isArray(j?.runs) ? j.runs : []
-      const entries = A().months([{ day, runs: runs.map(r => ({ id: r.id, mode: r.mode, ok: r.ok, first: firstOf(r) })) }])[0]?.days[0]?.entries || []
+      const entries = A().months([{ day, runs: runs.map(r => ({ id: r.id, mode: r.mode, ok: r.ok, at: r.at, window: r.window, first: firstOf(r) })) }])[0]?.days[0]?.entries || []
       const body = entries.length ? [entriesBox(day, entries)] : [make('p', 'small faint su-ar-empty', A().nothing(day))]
       openPanel(A().dayName(day), body)
       if (alsoShow && runs.length) {
@@ -142,7 +147,7 @@
 
     async function findTicket(raw) {
       const id = A().ticketQuery(raw)
-      if (!id) return (note.textContent = 'A ticket id looks like FLA-886.')
+      if (!id) return closePanel(), (note.textContent = 'A ticket id looks like FLA-886.')
       note.textContent = ''
       ticketBox.value = id
       const j = await get(`/api/standup/ticket/${encodeURIComponent(id)}`)

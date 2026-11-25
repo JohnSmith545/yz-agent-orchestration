@@ -98,7 +98,9 @@
       }
     }
     if (tool === 'standup') window.StandupPage?.open(standup, user ? {} : lastQuery)
-    else hooks.prompt()
+    // ⚠️ A switch the user made (a click, an arrow key) leaves the focus on the pill: only opening the page puts it
+    // in Your thoughts (QA A-1, 2026-11-25: ArrowLeft threw the focus out of the pill group).
+    else hooks.prompt({ focus: !user })
   }
 
   let lastQuery = {}

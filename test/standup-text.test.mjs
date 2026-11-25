@@ -54,7 +54,7 @@ test('every ticket line goes in exactly as the server built it, and each section
   const f = facts()
   const s = factsText(f, NOW)
   for (const t of f.tickets) assert.ok(s.includes(t.line), t.id)
-  for (const head of ['TICKETS', 'MERGED PULL REQUESTS', 'NOT MERGED YET', 'WAITING ON SOMEONE OR SOMETHING', 'IN PROGRESS AND YOURS', 'FLOWS TOUCHED', 'COMMITS']) assert.ok(s.includes(head), head)
+  for (const head of ['TICKETS', 'MERGED PULL REQUESTS', 'NOT MERGED YET', 'BLOCKERS', 'IN PROGRESS AND YOURS', 'FLOWS TOUCHED', 'COMMITS']) assert.ok(s.includes(head), head)
   assert.match(s, /PR #1174, branch fix\/fla-886-uploads, merged Tue 24 Nov \d\d:\d\d, tickets FLA-886/)
   assert.match(s, /feat\/fla-868-media: 1 commit, pushed, tickets FLA-868/)
   assert.match(s, /Prod database grant: Needs a production admin to grant access \(tickets FLA-870\)/)
@@ -121,4 +121,23 @@ test('systemPrompt: the rules for both modes, then that mode s format only', () 
 test('systemPrompt is the same text on every call for a mode, so the prompt cache reads it', () => {
   assert.equal(systemPrompt('daily'), systemPrompt('daily'))
   assert.doesNotMatch(systemPrompt('daily'), /2026|Yz31LL/, 'no date or name in it: those go in the facts')
+})
+
+// ═══ blockers are firm (QA A-6, 2026-11-25): two runs on the same facts disagreed, one listed the DNS wait, one said None ═══
+
+test('the facts carry the blockers under their own BLOCKERS heading, each with its ticket; none says None', () => {
+  const s = factsText(facts(), NOW)
+  assert.match(s, /\nBLOCKERS \(every item here waits on another person or an outside system: each one IS a blocker\)\n- Prod database grant: Needs a production admin to grant access \(tickets FLA-870\)/)
+  assert.doesNotMatch(s, /candidates for Blockers/)
+  assert.ok(s.indexOf('BLOCKERS') < s.indexOf('IN PROGRESS AND YOURS'), 'before the long lists, so it cannot be missed')
+  assert.match(factsText(facts('week', { waiting: [] }), NOW), /\nBLOCKERS [^\n]*\n- None\./)
+})
+
+test('the prompt makes every BLOCKERS item a blocker in both modes, and None only when the facts have none', () => {
+  for (const mode of ['daily', 'week']) {
+    const p = systemPrompt(mode)
+    assert.match(p, /Every item under BLOCKERS in the facts IS a blocker, in the daily and the weekly stand-up alike/)
+    assert.match(p, /Write `None` only when BLOCKERS in the facts says None/)
+    assert.doesNotMatch(p, /candidates only/)
+  }
 })

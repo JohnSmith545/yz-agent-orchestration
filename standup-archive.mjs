@@ -2,7 +2,7 @@
 // ticket filter). Kept for good, one file per local day, so the archive never rewrites one huge file:
 //
 //   data/standup/<YYYY-MM-DD>.json   { runs: [entry, …] }   every run made that day, newest first, at most 20
-//   data/standup/index.json          { days: { "<YYYY-MM-DD>": { runs: [{ id, mode, ok, at, cost, first }], tickets: [ids] } } }
+//   data/standup/index.json          { days: { "<YYYY-MM-DD>": { runs: [{ id, mode, ok, at, cost, first, window: { from, to } }], tickets: [ids] } } }
 //   entry = { id, at, day, mode, ms, output, ok, error, cancelled, cost, window: { from, to, label, heading },
 //             read: { line, left }, tickets: [{ id, title, link }] }
 //
@@ -104,7 +104,8 @@ export function firstLine(e) {
   return (lines.find(l => !HEADER.test(l)) || lines[0] || e.error || '').slice(0, 300)
 }
 
-const brief = e => ({ id: e.id, mode: e.mode, ok: e.ok, at: e.at, cost: e.cost, first: firstLine(e) })
+// `window` (from, to) lets the Date archive say what each entry covers without opening it (QA A-3)
+const brief = e => ({ id: e.id, mode: e.mode, ok: e.ok, at: e.at, cost: e.cost, first: firstLine(e), window: { from: e.window.from, to: e.window.to } })
 const dayIndex = runs => ({ runs: runs.map(brief), tickets: [...new Set(runs.flatMap(r => r.tickets.map(t => t.id)))] })
 
 function dayNames(dir) {
@@ -132,7 +133,7 @@ function indexDays(dir) {
   if (!names.length) return {}
   const raw = readJson(path.join(dir, INDEX))
   const days = isObject(raw?.days) ? raw.days : null
-  const same = days && Object.keys(days).length === names.length && names.every(d => isObject(days[d]) && Array.isArray(days[d].runs) && Array.isArray(days[d].tickets))
+  const same = days && Object.keys(days).length === names.length && names.every(d => isObject(days[d]) && Array.isArray(days[d].runs) && Array.isArray(days[d].tickets) && days[d].runs.every(r => isObject(r?.window)))
   return same ? days : rebuildIndex(dir)
 }
 

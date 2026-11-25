@@ -71,8 +71,10 @@
   let archive = null
   let copiedTimer = 0
   let drawn = null
+  let home = null // the section this tool is drawn in (generators.js #standupView)
 
   function mount(section) {
+    home = section
     section.innerHTML = markup()
     const $ = id => doc.getElementById(id)
     els = {
@@ -84,12 +86,23 @@
     els.go.addEventListener('click', onGenerate)
     els.retry.addEventListener('click', onGenerate)
     els.copy.addEventListener('click', onCopy)
-    els.back.addEventListener('click', () => {
+    // Back to today hides itself, so the focus goes to the stand-up box rather than the page body (QA A-4)
+    els.back.addEventListener('click', async () => {
       dispatch({ type: 'back' })
-      refresh()
+      await refresh()
+      els.out.focus({ preventScroll: true })
     })
     archive = window.StandupArchiveView.create($('suArchive'), { onShow })
+    // "Resets every day" holds for a page left open too (QA A-8): today is asked for again when the tab comes back,
+    // just after local midnight, and before each Generate (onGenerate).
+    doc.addEventListener('visibilitychange', () => doc.visibilityState === 'visible' && refresh())
+    setTimeout(atMidnight, S().msToMidnight(new Date()))
     paint()
+  }
+
+  function atMidnight() {
+    refresh()
+    setTimeout(atMidnight, S().msToMidnight(new Date()))
   }
 
   function dispatch(ev) {
@@ -154,11 +167,15 @@
       j = null
     }
     if (j && j.today) dispatch({ type: 'today', today: j.today, runs: Array.isArray(j.runs) ? j.runs : [], windows: j.windows || {}, ticketListAt: j.ticketListAt ?? null })
-    status() // now with the ticket list's date
+    // now with the ticket list's date; ⚠️ only while this tool shows: a refresh from the tab coming back or from
+    // midnight must not write over another page's status chip
+    if (home && !home.closest('[hidden]')) status()
     archive.refresh()
   }
 
   async function onGenerate() {
+    if (!S().view(state).canGenerate) return
+    await refresh() // a new day empties the other view first; this run is today's either way
     const v = S().view(state)
     if (!v.canGenerate) return
     clearTimeout(copiedTimer)

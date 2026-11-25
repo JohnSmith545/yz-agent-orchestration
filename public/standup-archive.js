@@ -2,7 +2,8 @@
 // The archive itself is the server's (standup-archive.mjs: one file a day under data/standup/).
 //
 //   StandupArchive.months(days)     GET /api/standup/days → [{ key, label: 'November 2026', days: [{ day, label: 'Wed 25 Nov',
-//                                   entries: [{ id, mode, kind: 'Daily' | 'Week', first, failed }] }] }], newest first
+//                                   entries: [{ id, mode, kind: 'Daily' | 'Week', meta, first, failed }] }] }], newest first
+//                                   meta: Daily · 10:28 · covers Tue 24 Nov
 //   StandupArchive.dayName(day)     2026-11-25 → Wed 25 Nov 2026 ('' for anything that is not a day)
 //   StandupArchive.summary(days)    Date archive · 12 days
 //   StandupArchive.nothing(day)     the line for a day with no stand-up
@@ -38,6 +39,19 @@
   /** A stand-up's first line as a list shows it: no leading bullet, no trailing — link (the stand-up keeps both). */
   const listLine = s => String(s || '').replace(/^-\s+/, '').replace(/\s+—\s+https?:\/\/\S+$/, '')
 
+  const hhmm = d => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  const valid = d => d instanceof Date && !Number.isNaN(d.getTime())
+  /** An entry's kind, the local time it was made and what it covers: Daily · 10:28 · covers Tue 24 Nov (QA A-3). */
+  function metaOf(r) {
+    const kind = r.mode === 'week' ? 'Week' : 'Daily'
+    const at = new Date(r.at)
+    const from = new Date(r.window?.from)
+    const to = new Date(r.window?.to)
+    if (!valid(at) || !valid(from)) return kind
+    const covers = r.mode === 'week' && valid(to) ? `${short(from)} to ${short(to)}` : short(from)
+    return `${kind} · ${hhmm(at)} · covers ${covers}`
+  }
+
   function months(days) {
     const out = []
     for (const d of Array.isArray(days) ? days : []) {
@@ -48,7 +62,7 @@
       if (!m) out.push((m = { key, label: `${LONG[date.getMonth()]} ${date.getFullYear()}`, days: [] }))
       m.days.push({
         day: d.day, label: short(date),
-        entries: (Array.isArray(d.runs) ? d.runs : []).map(r => ({ id: r.id, mode: r.mode, kind: r.mode === 'week' ? 'Week' : 'Daily', first: listLine(r.first), failed: r.ok !== true })),
+        entries: (Array.isArray(d.runs) ? d.runs : []).map(r => ({ id: r.id, mode: r.mode, kind: r.mode === 'week' ? 'Week' : 'Daily', meta: metaOf(r), first: listLine(r.first), failed: r.ok !== true })),
       })
     }
     out.sort((a, b) => b.key.localeCompare(a.key))
