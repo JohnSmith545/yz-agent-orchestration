@@ -23,8 +23,8 @@
 // project has no session for does no harm (noSessionFor says which agents wait for one).
 //
 // The agents part copies `pipeline` WHOLE, as it is in the config (or the defaults written out when there is
-// none), so keys this file does not know yet (another builder adds pipeline.planner and pipeline.security)
-// travel with the style.
+// none), so keys this file does not know yet travel with the style: the optional agents pipeline.planner,
+// pipeline.security and pipeline.senior ride along this way, and graphOf draws their boxes.
 
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
