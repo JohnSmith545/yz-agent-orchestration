@@ -247,3 +247,43 @@ test('config.example.json s standup block reads with no warning, and the README 
   const row = readme.split('\n').find(l => l.startsWith('| `standup` |'))
   for (const k of Object.keys(raw)) assert.ok(row.includes(`\`${k}\``) || row.includes(`"${k}"`), k)
 })
+
+// ═══ only ticket work goes in (QA of the first real run, 2026-11-25) ═══
+// The daily run said "Agent tooling in the dashboard": the dashboard s own flows (no ticket) were in the facts as
+// FLOWS TOUCHED, and a test flow s ABC-101 came in through Human review. Commits come only from the config repo, so
+// those two paths were the only way in.
+
+const NOISY_FLOWS = [
+  ...FLOWS,
+  { id: 'agent-window', title: 'Agent tooling in the dashboard', status: 'done', agent: 'Master', tickets: [], createdAt: iso(24, 8), updatedAt: iso(24, 12) },
+  { id: 'dark-mode', title: 'Add a dark mode toggle', status: 'open', agent: 'Agent 1', tickets: ['ABC-101'], createdAt: iso(24, 8), updatedAt: iso(24, 12) },
+  { id: 'mixed', title: 'Mixed tickets', status: 'open', agent: 'Agent 1', tickets: ['ABC-7', 'FLA-886'], createdAt: iso(24, 8), updatedAt: iso(24, 12) },
+]
+const NOISY_HUMAN = [
+  ...HUMAN,
+  { kind: 'ask', title: 'Add a dark mode toggle', reason: 'The team has used it for a day.', tickets: ['ABC-101'] },
+  { kind: 'blocked', title: 'A dashboard chore', reason: 'Blocked.', tickets: [] },
+  { kind: 'hand', title: 'Mixed', reason: 'Needs a grant.', tickets: ['ABC-5', 'FLA-870'] },
+]
+
+test('regression: a flow or waiting item goes in only with a ticket of the configured prefixes, and only those ids go with it', async () => {
+  const f = await gather({ readFlows: () => NOISY_FLOWS, readHuman: () => NOISY_HUMAN })
+  assert.deepEqual(f.flows.map(x => [x.id, x.tickets]), [['fla-868-media', ['FLA-868']], ['mixed', ['FLA-886']]])
+  assert.deepEqual(f.waiting.map(x => [x.title, x.tickets]), [['Prod database grant', ['FLA-870']], ['Mixed', ['FLA-870']]])
+  assert.deepEqual(f.skipped, [], 'left out silently: it is not a failed source')
+  assert.ok(!f.tickets.some(t => t.id.startsWith('ABC-')))
+  const { factsText } = await import('../standup-text.mjs')
+  const s = factsText(f, NOW)
+  for (const noise of ['Agent tooling in the dashboard', 'dark mode', 'A dashboard chore', 'ABC-']) assert.ok(!s.includes(noise), noise)
+})
+
+test('the tickets in the facts are exactly: the author s commits, merges and unmerged branches, their own tickets in progress, and the filtered flows and items', async () => {
+  const f = await gather({ readFlows: () => NOISY_FLOWS, readHuman: () => NOISY_HUMAN })
+  assert.deepEqual(f.tickets.map(t => t.id), ['FLA-803', 'FLA-775', 'FLA-868', 'FLA-886', 'FLA-870'])
+  for (const never of ['FLA-900', 'FLA-901', 'FLA-500']) assert.ok(!f.tickets.some(t => t.id === never), never)
+})
+
+test('the prompt says a line with no ticket must be work in the stand-up s repo, never on the dashboard itself', async () => {
+  const { systemPrompt } = await import('../standup-prompt.mjs')
+  for (const mode of ['daily', 'week']) assert.match(systemPrompt(mode), /no ticket[^.]*only when it is work in the repo[^.]*never work on the dashboard/i)
+})

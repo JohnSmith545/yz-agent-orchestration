@@ -55,7 +55,7 @@ export function factsText(f, now = new Date()) {
     section(`NOT MERGED YET (branches with this work that ${f.base} does not have)`, f.unmerged.map(u => `- ${u.branch}: ${plural(u.commits, 'commit')}, ${u.pushed ? 'pushed' : 'not pushed'}${idsPart(u.ids)}`)),
     section('WAITING ON SOMEONE OR SOMETHING (candidates for Blockers: keep only what needs someone else)', f.waiting.map(i => `- ${i.title}: ${i.reason.replace(/[.\s]+$/, '')}${i.tickets.length ? ` (tickets ${i.tickets.join(', ')})` : ''}`)),
     section('IN PROGRESS AND YOURS in the ticket list (candidates for What s next)', f.next.map(t => `- ${t.id} [${t.state}]`)),
-    section('FLOWS TOUCHED in this time (the dashboard s records of agent work)', f.flows.map(x => `- ${x.title}: ${x.status}, agent ${x.agent || 'unknown'}, updated ${when(x.updatedAt)}${idsPart(x.tickets)}`)),
+    section('FLOWS TOUCHED in this time (records of agent work on these tickets)', f.flows.map(x => `- ${x.title}: ${x.status}, agent ${x.agent || 'unknown'}, updated ${when(x.updatedAt)}${idsPart(x.tickets)}`)),
     ...(f.skipped.length ? [section('LEFT OUT', f.skipped.map(s => `- ${s.title}: ${s.why}`))] : []),
     section(`COMMITS by ${f.author}, merges left out (newest first)`, f.commits.map(c => `- ${when(c.at)}${c.branch ? ` [${c.branch}]` : ''} ${c.subject}${idsPart(c.ids)}`)),
   ]

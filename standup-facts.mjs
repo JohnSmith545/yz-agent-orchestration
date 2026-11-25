@@ -20,6 +20,7 @@
 //   touch data/.
 
 import { cleanSubject, readGit } from './standup-git.mjs'
+import { idsInText } from './ticket-ids.mjs'
 
 export const DEFAULT_TICKET_URL = 'https://app.switchboardpm.ai/stories/{id}'
 /** Ticket states that mean work in hand (the real states in data/sources/*.json), in the order What's next lists them. */
@@ -119,12 +120,19 @@ export async function gatherFacts({
   const flowsAll = attempt(readFlows, 'Flows', 'The flows could not be read.', skipped, [])
   const humanAll = attempt(readHuman, 'Waiting items', 'What waits on you could not be read.', skipped, [])
 
+  // ⚠️ Only TICKET work from the flows and Human review: an item goes in only when it carries a ticket id of the
+  // configured prefixes, and only those ids go with it. The dashboard's own flows (no ticket, or a test ticket such
+  // as ABC-101) once reached a stand-up as "Agent tooling in the dashboard" (QA, 2026-11-25). Left out silently:
+  // it is not a failed source, so it is not in `skipped`.
+  const oursOf = ids => (Array.isArray(ids) ? ids : []).filter(id => typeof id === 'string' && idsInText(id, prefixes)[0] === id)
   const flows = (Array.isArray(flowsAll) ? flowsAll : [])
     .filter(f => f && !f.deletedAt && (within(f.updatedAt, window) || within(f.createdAt, window)))
-    .map(f => ({ id: f.id, title: text(f.title) || f.id, status: f.status, agent: text(f.agent), tickets: Array.isArray(f.tickets) ? f.tickets : [], updatedAt: f.updatedAt }))
-  const waiting = (Array.isArray(humanAll) ? humanAll : []).slice(0, WAITING_MAX).map(i => ({
-    kind: i.kind, title: text(i.title), reason: text(i.reason), tickets: Array.isArray(i.tickets) ? i.tickets : i.ticketId ? [i.ticketId] : [],
-  }))
+    .map(f => ({ id: f.id, title: text(f.title) || f.id, status: f.status, agent: text(f.agent), tickets: oursOf(f.tickets), updatedAt: f.updatedAt }))
+    .filter(f => f.tickets.length)
+  const waiting = (Array.isArray(humanAll) ? humanAll : [])
+    .map(i => ({ kind: i.kind, title: text(i.title), reason: text(i.reason), tickets: oursOf(Array.isArray(i.tickets) ? i.tickets : i.ticketId ? [i.ticketId] : []) }))
+    .filter(i => i.tickets.length)
+    .slice(0, WAITING_MAX)
   const next = Object.values(saved)
     .filter(t => t && t.owner === 'me' && IN_PROGRESS.includes(t.state))
     .sort((a, b) => IN_PROGRESS.indexOf(a.state) - IN_PROGRESS.indexOf(b.state) || String(a.id).localeCompare(String(b.id), 'en', { numeric: true }))

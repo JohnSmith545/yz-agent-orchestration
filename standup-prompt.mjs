@@ -16,7 +16,7 @@ Rules:
 - When there were no commits and no merges in the time covered, say so in one line in that section and do not pad.
 - Plain, short sentences in British-neutral English. Say what changed for a person using the app, in words a teammate understands: no file names, no function names, no code words, no commit hashes, no branch names.
 - Group the work by ticket. Every ticket line is the ticket's line from the TICKETS facts, exactly as given: \`ID: title — link\`. Copy it character for character. Put one to three short bullets under it.
-- Work with no ticket goes last in its section, as one short line without a link.
+- A commit or line with no ticket may be mentioned only when it is work in the repo the stand-up is about (the developer's commits in the facts), never work on the dashboard itself or its agents. It goes last in its section, as one short line without a link.
 - Blockers are only things that need someone else or something outside the developer's hands: a grant, a console or account change, a review, QA, a decision, another team. Ordinary work still to do is What's next, not a blocker. The WAITING facts are candidates only. When there is none, write the single line \`None\`.
 - What's next comes from the branches not merged yet, the tickets in progress and the work just done. Keep it to the few that matter.
 - The ticket list can be out of date: trust git over a ticket state when they disagree, and never claim a ticket was accepted or closed unless the facts say so.
