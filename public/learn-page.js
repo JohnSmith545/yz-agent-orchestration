@@ -41,6 +41,7 @@
       const j = await r.json()
       if (mine !== token) return
       if (!r.ok) throw new Error(j.error || `Failed (${r.status})`)
+      ui.status = window.LearnView.statusAfter(ui.status, !!state?.running, !!j.running)
       state = j
       paint(focus)
     } catch (e) {
@@ -90,7 +91,7 @@
     const t = e.target.closest('button')
     if (!t) return
     if (t.hasAttribute('data-ln-run')) {
-      return act('run', '/api/learn/run', {}, () => 'Learn started. Its proposals show here when it is done.')
+      return act('run', '/api/learn/run', {}, () => window.LearnView.STARTED)
     }
     const accept = t.dataset.lnAccept
     if (accept) {

@@ -149,7 +149,15 @@ export function backfillChanges(lines, { file = VERDICTS_FILE, numbers, afterDay
   return added
 }
 
-const afterNumbers = (e, now, numbers) => numbers(Date.parse(e.at), Math.min(now, Date.parse(e.dueAt)))
+/**
+ * The numbers from the change to its due day (or now). ⚠️ A due day before the change (a bad verdictAfterDays, or a
+ * hand edit) would be a window that ends before it starts: it is clamped to nothing, which reads Too few flows to tell.
+ */
+function afterNumbers(e, now, numbers) {
+  const from = Date.parse(e.at)
+  const to = Math.min(now, Date.parse(e.dueAt))
+  return Number.isFinite(from) && Number.isFinite(to) && to > from ? numbers(from, to) : { finished: 0 }
+}
 
 /** For the page: the changes whose verdict is due (with the numbers since and the verdict), and every change, newest first. */
 export function verdictView({ file = VERDICTS_FILE, now = Date.now(), numbers }) {

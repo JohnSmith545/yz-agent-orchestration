@@ -181,3 +181,15 @@ test('revertBody: the specification goes back only while it still reads as the c
   const backfilled = { label: 'QA', added: [], removed: [], spec: 'changed', backfilled: true }
   assert.match(revertBody(backfilled, { spec: 'New.', rules: [] }).error, /^Nothing to revert/)
 })
+
+// QA 2026-11-26: a due date earlier than the change (a bad verdictAfterDays, or a hand edit) asked for an after window
+// that ends before it starts. It is clamped to nothing: no inverted window, and the verdict says Too few flows to tell.
+test('a due date before the change asks for no inverted window and reads Too few flows to tell', () => {
+  const file = fresh()
+  recordChange({ line: { at: '2026-11-20T10:00:00.000Z', label: 'Agent 1', spec: null, added: ['B.'], removed: [] }, before: { spec: '', rules: [] }, after: { spec: '', rules: [] } }, { file, numbers: () => nums(), afterDays: -3, newId: () => 'v1' })
+  const asked = []
+  const view = verdictView({ file, now: Date.parse('2026-11-25T12:00:00.000Z'), numbers: (from, to) => (asked.push([from, to]), nums({ rft: 0.9 })) })
+  for (const [from, to] of asked) assert.ok(to >= from, `inverted window ${new Date(from).toISOString()} to ${new Date(to).toISOString()}`)
+  assert.equal(view.due[0].verdict.overall, 'few')
+  assert.match(view.due[0].verdict.sentence, /^Too few flows to tell/)
+})

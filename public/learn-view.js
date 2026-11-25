@@ -197,5 +197,10 @@
     return `<div class="ln-page">${runCard(s, ui, now)}${verdictSec}${propSec}${earlierSec}${changeSec}</div>`
   }
 
-  window.LearnView = { pageHtml, proposalHtml, verdictCardHtml, changeRowHtml, numberText, whenText, statusLine, HELP, VERDICT_HELP }
+  /** The line Run Learn shows while its run goes on. */
+  const STARTED = 'Learn started. Its proposals show here when it is done.'
+  /** The status line after a load: the started line goes once the run that was running has finished (QA, 2026-11-26). */
+  const statusAfter = (status, wasRunning, running) => (status === STARTED && wasRunning && !running ? '' : status)
+
+  window.LearnView = { STARTED, statusAfter, pageHtml, proposalHtml, verdictCardHtml, changeRowHtml, numberText, whenText, statusLine, HELP, VERDICT_HELP }
 })()

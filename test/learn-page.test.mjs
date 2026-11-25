@@ -174,3 +174,13 @@ test('the running dot stops under reduced motion', () => {
   const css = read('learn.css')
   assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{ \.ln-dot \{ animation: none; \} \}/)
 })
+
+// QA 2026-11-26: after Run Learn finished, Learn started. Its proposals show here when it is done. stayed beside the
+// finished proposals until a reload.
+test('the started line clears once the run it announced has finished; any other line stays', () => {
+  const started = V.STARTED
+  assert.equal(V.statusAfter(started, true, false), '', 'the run finished: the line goes')
+  assert.equal(V.statusAfter(started, true, true), started, 'still running: it stays')
+  assert.equal(V.statusAfter('Accepted.', true, false), 'Accepted.')
+  assert.equal(V.statusAfter(started, false, false), started, 'no run seen yet (the first load after the press): it stays')
+})

@@ -199,3 +199,11 @@ test('a Completed that comes while the button runs is written right after it, ne
   assert.ok(readFlow('w2').retro, 'the queued one ran once the button was done')
   assert.equal(readFlow('w2').retro.source, 'completed')
 })
+
+// QA 2026-11-26: a retrospective line named a folder (docs/operations). The three lines are for one person, in plain
+// words: the prompt forbids file and folder paths, file names and commands.
+test('the retrospective prompt asks for plain words, never a file or folder path', async () => {
+  const { RETRO_SYSTEM } = await import('../learn-prompts.mjs')
+  assert.match(RETRO_SYSTEM, /Never write a file or folder path, a file name or a command/)
+  assert.match(RETRO_SYSTEM, /the operations docs, not docs\/operations/)
+})
