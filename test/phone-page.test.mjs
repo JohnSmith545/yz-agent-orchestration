@@ -11,7 +11,9 @@ import { fileURLToPath } from 'node:url'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const PUBLIC = path.join(HERE, '..', 'public')
-const read = f => fs.readFileSync(path.join(PUBLIC, f), 'utf8')
+// ⚠️ Line endings normalised: a Windows checkout (core.autocrlf true) writes the CSS with CRLF, and the token test
+// looks for a block head with a newline in it. It passed where the files were written by hand with LF only.
+const read = f => fs.readFileSync(path.join(PUBLIC, f), 'utf8').replace(/\r\n/g, '\n')
 const ctx = vm.createContext({ window: {} })
 vm.runInContext(read('phone-state.js'), ctx)
 vm.runInContext(read('phone-view.js'), ctx)
