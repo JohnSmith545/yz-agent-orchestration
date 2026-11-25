@@ -10,7 +10,10 @@
 .cv-line .link { margin-left: auto; }
 .cv-line.is-notice { padding: 10px 14px; border: 1px solid var(--line); border-left: 3px solid var(--warn); border-radius: var(--radius); background: var(--surface); }
 .cv-over { color: var(--warn); font-weight: 550; }
-#homeOutputs .cv-line { margin: 0 0 20px; }
+/* Home: under Human review's line, and the 32 px before the next zone that styles.css gives that line kept */
+#homeOutputs .cv-line { margin: 0; }
+#homeHuman:not([hidden]) + #homeOutputs:not([hidden]) { margin-top: 8px; }
+#homeOutputs:not([hidden]) + .home-zone, #homeHuman:not([hidden]) + #homeOutputs[hidden] + .home-zone { margin-top: 32px; }
 
 /* the mark on a card, a chip row or the flow's Sign-off block */
 .cv-mark { display: inline-flex; align-items: center; gap: 6px; color: var(--warn); font-size: 12px; font-weight: 500; white-space: nowrap; }
@@ -64,3 +67,9 @@
 /* the Flows board: a card's own line, a tile's mark under its title */
 .fl-card-sign { margin: 0; }
 .fl-small .cv-mark { align-self: flex-start; }
+
+/* where a new request starts: over the Ask drawer's composer, in Pass a task and its bulk bar */
+.fc-remind { flex: none; padding: 10px 16px 0; border-top: 1px solid var(--line); }
+.fc-remind .cv-remind { margin: 0; }
+.fx-bulk-remind:not([hidden]) { flex: 1 1 100%; }
+.fx-bulk-remind .cv-remind, .fx-pass .cv-remind { margin: 0 0 4px; }

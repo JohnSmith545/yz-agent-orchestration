@@ -7,6 +7,8 @@
 // shell's generic #refresh hides while this page is open (spec 5).
 // Row actions hand work to the chat agent (factory-chat.js) or, through it,
 // to other agents. The flows live on #/flows and the chat in the drawer.
+// Pass a task (on a ticket and in the bulk bar) shows the pile-up reminder once outputs.max finished flows wait for
+// the user's sign-off (completed-view.js): a reminder above the form, which still sends.
 (() => {
   const $ = (s, el = document) => el.querySelector(s)
   const $$ = (s, el = document) => [...el.querySelectorAll(s)]
@@ -355,6 +357,7 @@
     $('#fxAll').checked = shownIds.length > 0 && shownIds.every(id => selected.has(id))
     $('.fx-table thead th:nth-child(3)').textContent = `Ticket · ${list.length} of ${data.tickets.length}`
     bindRows()
+    window.CompletedView?.paint($('#fxRows')) // the pile-up reminder in each open Pass a task (completed-view.js)
     renderBulk()
   }
   function row(t, pos) {
@@ -398,6 +401,7 @@
             <button type="button" data-ask="${esc(t.id)}">Explain this ticket</button>
           </div>
           <form class="fx-pass" data-pass="${esc(t.id)}">
+            <div data-cv-reminder hidden></div>
             <label class="small">Pass a task to an agent</label>
             <select name="agent" required>${agentOpts || '<option value="">No live agents found</option>'}</select>
             <textarea name="task" rows="2" placeholder="What should they do for ${esc(t.id)}?" required></textarea>
@@ -467,7 +471,7 @@
     if (!selected.size) { bar.hidden = true; return }
     bar.hidden = false
     const ids = [...selected]
-    bar.innerHTML = `<b>${ids.length} selected</b>
+    bar.innerHTML = `<div class="fx-bulk-remind" data-cv-reminder hidden></div><b>${ids.length} selected</b>
       <button type="button" class="primary" id="fxBulkReview">Review with ${esc(window.FactoryChat?.name || 'chat')}</button>
       <select id="fxBulkAgent" aria-label="Agent">${agents.map(a => `<option value="${esc(a.name)}">${esc(a.label)}</option>`).join('')}</select>
       <input id="fxBulkTask" placeholder="Task for the agent">
@@ -480,6 +484,7 @@
       passTo(a, ids, task)
     })
     $('#fxBulkClear').addEventListener('click', () => { selected.clear(); renderRows() })
+    window.CompletedView?.paint(bar) // the pile-up reminder over Pass to agent (completed-view.js)
   }
 
   /**
