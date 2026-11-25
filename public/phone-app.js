@@ -30,6 +30,7 @@
     signIn: { status: '', busy: false }, ui: { status: {}, busy: {}, confirm: null },
   }
   let timers = []
+  let talkSeen = -1 // how many thread items were on screen at the last draw of the Master tab
 
   // ═══ the network ═══
 
@@ -133,6 +134,10 @@
       if (drafts[k] !== undefined) f.value = drafts[k]
     }
     if (focus) root.querySelector(focus)?.focus?.({ preventScroll: true })
+    // the thread reads newest at the bottom: open it there, and follow it when something new arrives
+    const count = st.signedIn && st.tab === 'talk' && st.thread ? S.threadItems(st.thread).length : -1
+    if (count >= 0 && count !== talkSeen) window.scrollTo(0, doc.body.scrollHeight)
+    talkSeen = count
   }
 
   const say = (key, text) => { st.ui.status[key] = text; draw() }

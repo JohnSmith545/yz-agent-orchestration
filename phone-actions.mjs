@@ -53,13 +53,23 @@ const startOfToday = now => {
   return d.getTime()
 }
 
-export function makePhoneActions({ relay, talk, getStatus, config = CONFIG, now = Date.now }) {
+/** How long the summary waits for the agents: a cold status build (git, every transcript) can take far longer. */
+export const AGENTS_WAIT_MS = 3000
+
+export function makePhoneActions({ relay, talk, getStatus, config = CONFIG, now = Date.now, agentsWaitMs = AGENTS_WAIT_MS }) {
+  /** Each agent in one line; null while the PC is still building the list (the page says so and asks again later). */
   async function agentLines(flows) {
     let agents = []
+    let timer
     try {
-      agents = (await getStatus(false))?.agents || []
+      const late = new Promise(resolve => { timer = setTimeout(() => resolve(null), agentsWaitMs) })
+      const st = await Promise.race([getStatus(false), late])
+      if (st === null) return null
+      agents = st?.agents || []
     } catch {
       return [] // the page says nothing about agents rather than an error
+    } finally {
+      clearTimeout(timer)
     }
     const onFlow = label => flows.filter(f => f.agent === label && live(f)).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))[0]?.title || ''
     return agents.map(a => ({ label: String(a.label || ''), busy: a.state === 'active' || a.status === 'busy', flow: onFlow(a.label) }))

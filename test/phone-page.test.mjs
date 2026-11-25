@@ -128,6 +128,7 @@ test('Now: N things need you, the counts that go to their tab, each agent in one
   assert.match(text(h), /QA Idle no open flow/)
   assert.match(text(h), /Finished today: 3/)
   assert.match(V.now({ ...SUMMARY, agents: [] }), /No agents are running/)
+  assert.match(text(V.now({ ...SUMMARY, agents: null })), /still gathering what the agents are doing/)
 })
 
 test('Needs you: Yes and No with what each means, a text box for a text question, the cost said once, by-hand ticks', () => {
@@ -150,9 +151,15 @@ test('Outputs: the story, Completed, and an inline confirm in its place', () => 
   assert.match(text(plainView), /Agent 1 Built the box\. You asked\./)
   assert.match(plainView, /data-ph-complete data-flow="shipped">Completed</)
   const confirm = V.outputs(SUMMARY, { confirm: 'shipped' })
-  assert.match(text(confirm), /Mark it completed\? It moves to the archive\. Yes, completed Cancel/)
+  assert.match(text(confirm), /Mark it completed\? It moves to the archive\. Yes Cancel/)
   assert.doesNotMatch(confirm, /data-ph-complete data-flow/)
   assert.match(text(V.outputs({ ...SUMMARY, outputs: [] }, {})), /No outputs to sign off/)
+})
+
+test('a reply shows its bold and code, escaped first; the user text is never marked up', () => {
+  const h = V.talk({ label: 'Master', messages: [{ id: 'm1', at: '2026-11-25T10:00:00Z', text: '**mine**', state: 'sent' }], replies: [{ at: '2026-11-25T10:01:00Z', text: '**Done**: run `npm test` <b>x</b>' }] }, {})
+  assert.ok(h.includes('<b>Done</b>: run <code>npm test</code> &lt;b&gt;x&lt;/b&gt;'))
+  assert.ok(h.includes('**mine**'))
 })
 
 test('Talk: what happens to a message in plain words, the thread, a warning when the coordinator is not running, one Send', () => {
@@ -210,4 +217,8 @@ test('the manifest makes it a home-screen app on /phone with the drawn icons', (
   assert.match(page, /<link rel="manifest" href="\/phone\/manifest\.webmanifest">/)
   assert.match(page, /<link rel="apple-touch-icon" href="\/phone\/icon-180\.png">/)
   assert.match(page, /<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">/)
+})
+
+test('a by-hand flow with no steps says where to ask for them: the PC, since the phone cannot', () => {
+  assert.match(text(V.needs({ ...SUMMARY, asks: [], hands: [{ ...SUMMARY.hands[0], steps: [] }] }, {})), /No steps yet\. Asking the agent for them is done at the PC\./)
 })

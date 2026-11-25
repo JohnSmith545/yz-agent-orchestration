@@ -70,6 +70,15 @@ test('finished today counts flows finished since local midnight', async () => {
   assert.equal((await actions().summary()).body.finishedToday, 1)
 })
 
+test('a cold status build does not hold the summary: agents is null and the rest comes at once', async () => {
+  put('asker', { nodes: [ask('a1')] })
+  const started = Date.now()
+  const r = await makePhoneActions({ relay, talk, getStatus: () => new Promise(() => {}), agentsWaitMs: 50 }).summary()
+  assert.ok(Date.now() - started < 2000)
+  assert.equal(r.body.agents, null)
+  assert.equal(r.body.needs.asks, 1)
+})
+
 test('the agents line degrades quietly when the status cannot be built', async () => {
   const r = await makePhoneActions({ relay, talk, getStatus: async () => { throw new Error('git broke') } }).summary()
   assert.equal(r.status, 200)

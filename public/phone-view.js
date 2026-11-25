@@ -17,6 +17,8 @@
     const t = ui?.status?.[key]
     return `<p class="ph-status" role="status"${attr('data-status', key)}>${t ? esc(t) : ''}</p>`
   }
+  /** A reply's text with its Markdown bold and code shown as such, AFTER escaping: nothing else becomes markup. */
+  const marks = s => esc(s).replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>').replace(/`([^`\n]+)`/g, '<code>$1</code>')
   const busy = (ui, key) => (ui?.busy?.[key] ? ' disabled' : '')
 
   const ICON = '<svg class="ph-logo" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><rect x="6" y="6" width="36" height="36" rx="9"/><path d="M16 25.5l5.5 5.5L32 19"/></svg>'
@@ -52,7 +54,9 @@
     if (!sum) return '<p class="ph-muted ph-pad-top">Loading…</p>'
     const counts = S.countParts(sum.needs).map(p =>
       `<button type="button" class="ph-count"${attr('data-ph-tab', p.tab)}><span class="ph-count-n">${p.n}</span><span class="ph-count-l">${esc(p.label)}</span></button>`).join('')
-    const agents = (sum.agents || []).length
+    const agents = sum.agents === null
+      ? '<p class="ph-muted">Your PC is still gathering what the agents are doing. It shows here in a moment.</p>'
+      : (sum.agents || []).length
       ? `<ul class="ph-agents">${sum.agents.map(a =>
         `<li class="ph-agent"><span class="ph-dot${a.busy ? ' is-busy' : ''}" aria-hidden="true"></span><span class="ph-agent-name">${esc(a.label)}</span>` +
         `<span class="ph-agent-state">${esc(S.agentWord(a))}</span>` +
@@ -94,7 +98,7 @@
         (s.expect ? `<span class="ph-sub">You should see: ${esc(s.expect)}</span>` : '') +
         (s.copy ? `<code class="ph-copy">${esc(s.copy)}</code>` : '') +
         '</span></label></li>').join('')}</ol>`
-      : '<p class="ph-faint">No steps yet: the agent has not written them.</p>'
+      : '<p class="ph-faint">No steps yet. Asking the agent for them is done at the PC.</p>'
     return `<article class="ph-card"${attr('data-key', key)}>` +
       `<p class="ph-kicker">By hand · ${esc(h.agent || 'an agent')}</p><h3 class="ph-q">${esc(h.title)}</h3>` +
       (h.reason ? `<p class="ph-why">${esc(h.reason)}</p>` : '') + steps + status(ui, key) + '</article>'
@@ -122,7 +126,7 @@
         : ''
       const act = ui.confirm === o.flowId
         ? `<div class="ph-confirm" role="group" aria-label="Confirm Completed"><p class="ph-line">Mark it completed? It moves to the archive.</p>` +
-          `<div class="ph-actions"><button type="button" class="primary" data-ph-complete-yes${ids}${busy(ui, key)}>Yes, completed</button><button type="button" data-ph-complete-no${ids}>Cancel</button></div></div>`
+          `<div class="ph-actions"><button type="button" class="primary" data-ph-complete-yes${ids}${busy(ui, key)}>Yes</button><button type="button" data-ph-complete-no${ids}>Cancel</button></div></div>`
         : `<div class="ph-actions"><button type="button" class="primary" data-ph-complete${ids}>Completed</button></div>`
       const when = o.finishedAt ? `finished ${S.when(o.finishedAt, nowMs)}` : 'finished'
       return `<article class="ph-card"${attr('data-key', key)}>` +
@@ -138,7 +142,7 @@
     const list = items.length
       ? `<ol class="ph-thread">${items.map(x =>
         `<li class="ph-msg ${x.who === 'you' ? 'is-you' : 'is-them'}${x.state === 'failed' ? ' is-failed' : ''}">` +
-        `<p class="ph-msg-text">${esc(x.text)}</p>` +
+        `<p class="ph-msg-text">${x.who === 'you' ? esc(x.text) : marks(x.text)}</p>` +
         `<span class="ph-meta">${esc(x.who === 'you' ? 'You' : label)}${S.clock(x.at) ? ` · ${esc(S.clock(x.at))}` : ''}${x.who === 'you' ? ` · ${esc(S.messageWord(x, label))}` : ''}</span></li>`).join('')}</ol>`
       : '<p class="ph-faint">No messages yet.</p>'
     const sending = !!th.busy || !!ui.busy?.talk
