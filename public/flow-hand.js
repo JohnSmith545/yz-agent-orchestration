@@ -18,9 +18,13 @@
 // With Senior on the pipeline (pipeline.senior) a flow whose steps are all ticked waits at Senior (its progress says
 // so): instead of Mark the flow done the head says Senior reviews it next (the server refuses done until Senior
 // passed it: flow-senior.mjs seniorHolds). A flow Senior sent back shows its verdict at the top, and each step it
-// named to redo says Do again.
+// named to redo says Do again. While Senior holds the flow (flow-senior.mjs, status due, asked, reviewing or failed)
+// the head offers Finish without Senior: the user's ONE way to lift the hold besides Senior's pass (no agent command
+// can). It asks once more inline, then posts POST /api/flows/<id>/senior-release; the scorecard counts such a flow
+// slipped through. A refused tick, finish or release is said inline under the head (QA B-7: no native alert).
 //
-//   html(f, { needs, readonly, now })   PURE: the block, or '' when there is nothing to show
+//   html(f, { needs, readonly, now, releasing, refused })   PURE: the block, or '' when there is nothing to show;
+//                                       releasing: the inline question before a release; refused: the last refusal
 //   fill(el, f, opts)                   draw into the slot, only when the markup changed, keeping the focus
 ;(() => {
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
@@ -58,14 +62,25 @@
       `<p class="fh-field fh-expect"><span class="fh-k">You should see:</span> ${esc(s.expect)}</p></div></li>`
   }
 
-  function html(f, { needs = false, readonly = false, now = Date.now() } = {}) {
+  /** Senior holds the flow, and the user may still finish it without Senior's review (human-routes.mjs). */
+  const holds = (f, readonly) => !readonly && ['due', 'asked', 'reviewing', 'failed'].includes(f?.senior?.status) && f.status !== 'done' && f.status !== 'dropped'
+  /** The release control: a quiet link, then the inline question that posts it. */
+  const releaseHtml = releasing => (releasing
+    ? '<p class="fh-release-ask" role="alert">Finish it with no Senior review? It counts as slipped through on the scorecard. ' +
+      '<button type="button" class="primary" data-hand-release-yes>Finish</button> <button type="button" class="link" data-hand-release-no>Cancel</button></p>'
+    : '')
+  const releaseLink = '<button type="button" class="link fh-release" data-hand-release>Finish without Senior</button>'
+
+  function html(f, { needs = false, readonly = false, now = Date.now(), releasing = false, refused = '' } = {}) {
     const steps = Array.isArray(f?.hand?.steps) ? f.hand.steps : []
     const req = asked(f?.hand, now)
-    if (!steps.length && !needs && !f?.hand?.requestedAt) return ''
+    const held = holds(f, readonly)
+    if (!steps.length && !needs && !f?.hand?.requestedAt && !held) return ''
     const head = n => `<div class="fh-head"><h3 class="fh-h" id="fh-h-${esc(f.id)}" tabindex="-1">Do this by hand${n}</h3>`
+    const notes = (held ? releaseHtml(releasing) : '') + (refused ? `<p class="fh-refused" role="alert">${esc(refused)}</p>` : '')
     if (!steps.length) {
       const state = req ? `<span class="fh-asked${req.why ? ' is-bad' : ''}"${req.why ? ` title="${esc(req.why)}"` : ''}>${esc(req.text)}</span>` : ''
-      return `<section class="fh fh-empty" aria-labelledby="fh-h-${esc(f.id)}">${head('')}</div>` +
+      return `<section class="fh fh-empty" aria-labelledby="fh-h-${esc(f.id)}">${head('')}${held && !releasing ? releaseLink : ''}</div>${notes}` +
         '<p class="fh-none">This is work only you can do, and the agent has not written the steps yet.</p>' +
         `<div class="fh-acts"><button type="button" class="primary" data-hand-ask>Ask the agent for steps</button>${state}</div></section>`
     }
@@ -76,21 +91,25 @@
       ? senior ? `<span class="fh-next">${esc(senior.label || 'Senior')} reviews it next: send ${esc(senior.label || 'Senior')} a message naming flow ${esc(f.id)}.</span>` : '<button type="button" class="primary" data-hand-done>Mark the flow done</button>' : ''
     const back = redoOf(f)
     const redo = back ? `<p class="fh-redo" role="note"><b>${esc(back.by || 'Senior')} sent this back.</b> ${esc(back.summary || 'Do the unticked steps again.')}</p>` : ''
-    return `<section class="fh${all ? ' is-all' : ''}" aria-labelledby="fh-h-${esc(f.id)}">${head(` <span class="faint">· ${done} of ${steps.length} done</span>`)}${finish}</div>` +
-      `${redo}<ol class="fh-steps">${steps.map((s, i) => step(f, s, i, readonly)).join('')}</ol></section>`
+    return `<section class="fh${all ? ' is-all' : ''}" aria-labelledby="fh-h-${esc(f.id)}">${head(` <span class="faint">· ${done} of ${steps.length} done</span>`)}${finish}${held && !releasing ? releaseLink : ''}</div>` +
+      `${notes}${redo}<ol class="fh-steps">${steps.map((s, i) => step(f, s, i, readonly)).join('')}</ol></section>`
   }
 
   // ═══ the slot ═══
 
-  const shown = new WeakMap() // el -> { flow, html }
+  const shown = new WeakMap() // el -> { flow, html, opts }
   const bound = new WeakSet()
+  const asides = new WeakMap() // el -> { flowId, releasing, refused }: the inline question and the last refusal
 
   function fill(el, f, opts = {}) {
     if (!el) return
     bind(el)
-    const markup = f ? html(f, opts) : ''
+    const side = asides.get(el)
+    const mine = side && side.flowId === f?.id ? side : { flowId: f?.id, releasing: false, refused: '' }
+    asides.set(el, mine)
+    const markup = f ? html(f, { ...opts, releasing: mine.releasing, refused: mine.refused }) : ''
     const prev = shown.get(el)
-    shown.set(el, { flow: f, html: markup })
+    shown.set(el, { flow: f, html: markup, opts })
     if (prev?.html === markup) return
     const a = el.ownerDocument?.activeElement
     const keep = a && el.contains(a) ? [...a.attributes].find(x => /^data-hand-/.test(x.name)) : null
@@ -107,7 +126,13 @@
       return { ok: false, j: { error: e?.message || String(e) }, status: 0 }
     }
   }
-  const refused = r => window.alert?.(r.j?.error || `Failed (${r.status})`)
+  /** Say a refusal inline under the head (or clear it with ''), and draw the block again. */
+  const aside = (el, change) => {
+    const s = shown.get(el)
+    Object.assign(asides.get(el) || {}, change)
+    if (s?.flow) fill(el, s.flow, s.opts)
+  }
+  const refusal = r => r.j?.error || `Failed (${r.status})`
   const reload = () => {
     window.FlowsView?.load()
     window.HumanReview?.refresh()
@@ -121,7 +146,8 @@
       const f = shown.get(el)?.flow
       if (!box || !f || box.disabled) return
       const r = await call(`/api/flows/${enc(f.id)}/hand`, { step: box.dataset.handTick, done: box.checked })
-      if (!r.ok) { box.checked = !box.checked; refused(r) }
+      if (!r.ok) box.checked = !box.checked
+      aside(el, { refused: r.ok ? '' : refusal(r) })
       reload()
     })
     el.addEventListener('click', async e => {
@@ -143,7 +169,14 @@
       }
       if (e.target.closest('[data-hand-done]')) {
         const r = await call(`/api/flows/${enc(f.id)}/status`, { status: 'done' })
-        if (!r.ok) refused(r)
+        aside(el, { refused: r.ok ? '' : refusal(r) })
+        return reload()
+      }
+      if (e.target.closest('[data-hand-release]')) return aside(el, { releasing: true, refused: '' })
+      if (e.target.closest('[data-hand-release-no]')) return aside(el, { releasing: false })
+      if (e.target.closest('[data-hand-release-yes]')) {
+        const r = await call(`/api/flows/${enc(f.id)}/senior-release`)
+        aside(el, { releasing: false, refused: r.ok ? '' : refusal(r) })
         return reload()
       }
       const ask = e.target.closest('[data-hand-ask]')
@@ -151,7 +184,7 @@
         ask.disabled = true
         const r = await call(`/api/flows/${enc(f.id)}/request-hand`)
         ask.disabled = false
-        if (!r.ok) return refused(r)
+        if (!r.ok) return aside(el, { refused: refusal(r) })
         if (r.j?.via === 'chat') window.FactoryChat?.prefill(r.j.text)
         reload()
       }
