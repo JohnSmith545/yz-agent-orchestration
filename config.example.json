@@ -61,6 +61,7 @@
   },
   "claudeDirs": [],
   "tokens": {
+    "note": "Dollars per million tokens, read from the public pricing page on 2026-11-25. Prices change: keeping them current is yours. A model takes its exact id, else the longest id it starts with. null means no price for that id and every id under it with no price of its own, never a shorter id.",
     "prices": {
       "claude-opus-5-5": { "input": 4, "output": 20, "cacheWrite": 5, "cacheWrite1h": 8, "cacheRead": 0.2 },
       "claude-opus-5": { "input": 5, "output": 25, "cacheWrite": 6.25, "cacheWrite1h": 10, "cacheRead": 0.5 },

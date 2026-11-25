@@ -178,19 +178,24 @@ export function tallyRecord(t, rec, { self, owners, tallyOf = () => null }) {
 
 const RATES = ['input', 'output', 'cacheWrite', 'cacheRead']
 
-/** DEFAULT_PRICES with config.json's `tokens.prices` over them: an entry adds or replaces one, null removes one. */
+/**
+ * DEFAULT_PRICES with config.json's `tokens.prices` over them: an entry adds or replaces one. null keeps the id with
+ * NO price, so neither it nor any id under it with no price of its own falls back to a shorter one (claude-opus-5-5:
+ * null must not price Opus 5.5 at Opus 5 rates, QA 2026-11-25). A bad entry is named in `errors` and has no price too:
+ * the user meant to set that id, so a shorter one must not price it either.
+ */
 export function priceTable(block) {
   const prices = { ...DEFAULT_PRICES }
   const errors = []
   const given = isObject(block) && isObject(block.prices) ? block.prices : {}
   for (const [id, p] of Object.entries(given)) {
     if (p === null) {
-      delete prices[id]
+      prices[id] = null
       continue
     }
     const ok = isObject(p) && RATES.every(k => isCount(p[k])) && (p.cacheWrite1h === undefined || isCount(p.cacheWrite1h))
     if (!ok) {
-      delete prices[id]
+      prices[id] = null
       errors.push(id)
       continue
     }
@@ -199,13 +204,12 @@ export function priceTable(block) {
   return { prices, errors }
 }
 
-/** The price `model` takes: its exact id, else the longest id it starts with; null when none. */
+/** The price `model` takes: its exact id, else the longest id it starts with; null when none, or when that id is null. */
 export function priceFor(model, prices) {
   if (!isText(model) || !isObject(prices)) return null
-  if (Object.hasOwn(prices, model)) return { match: model, price: prices[model] }
-  let best = null
-  for (const id of Object.keys(prices)) if (id && model.startsWith(id) && (!best || id.length > best.length)) best = id
-  return best ? { match: best, price: prices[best] } : null
+  let best = Object.hasOwn(prices, model) ? model : null
+  if (best === null) for (const id of Object.keys(prices)) if (id && model.startsWith(id) && (!best || id.length > best.length)) best = id
+  return best !== null && isObject(prices[best]) ? { match: best, price: prices[best] } : null
 }
 
 /** Dollars for a vector at `price`; 1 hour writes at cacheWrite1h, or at cacheWrite when it is not given. */

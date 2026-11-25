@@ -174,7 +174,7 @@ test('the default prices: the models seen in the transcripts, from the public pa
   assert.equal(DEFAULT_PRICES['claude-haiku-5-5'], undefined)
 })
 
-test('the user prices add to the defaults, replace one, null removes one, and a bad entry is named and left out', () => {
+test('the user prices add to the defaults, replace one, null takes one away, and a bad entry is named and priced as none', () => {
   const t = priceTable({ prices: {
     'claude-haiku-5-5': { input: 0.1, output: 0.5, cacheWrite: 0.125, cacheRead: 0.01 },
     'claude-opus-5-5': { input: 1, output: 2, cacheWrite: 3, cacheRead: 4 },
@@ -184,13 +184,25 @@ test('the user prices add to the defaults, replace one, null removes one, and a 
   } })
   assert.deepEqual(t.prices['claude-haiku-5-5'], { input: 0.1, output: 0.5, cacheWrite: 0.125, cacheRead: 0.01 })
   assert.deepEqual(t.prices['claude-opus-5-5'], { input: 1, output: 2, cacheWrite: 3, cacheRead: 4 })
-  assert.equal(t.prices['claude-fable-5-1'], undefined)
-  assert.equal(t.prices['claude-bad'], undefined)
+  assert.equal(t.prices['claude-fable-5-1'], null) // kept as no price, so no shorter id prices it instead
+  assert.equal(t.prices['claude-bad'], null)
   assert.deepEqual(t.errors, ['claude-bad', 'claude-negative'])
   assert.ok(t.prices['claude-sonnet-5-5'])
   // no tokens block at all, or a broken one: the defaults
   assert.deepEqual(Object.keys(priceTable(undefined).prices).sort(), Object.keys(DEFAULT_PRICES).sort())
   assert.deepEqual(Object.keys(priceTable({ prices: 'none' }).prices).sort(), Object.keys(DEFAULT_PRICES).sort())
+})
+
+test('null means no price for that id and every id under it with no price of its own, never a shorter prefix', () => {
+  const { prices } = priceTable({ prices: { 'claude-opus-5-5': null, 'claude-opus-5-5-fast': { input: 8, output: 40, cacheWrite: 10, cacheRead: 0.4 } } })
+  assert.equal(priceFor('claude-opus-5-5', prices), null) // not Opus 5 rates
+  assert.equal(priceFor('claude-opus-5-5-20261201', prices), null)
+  assert.equal(priceFor('claude-opus-5-5-fast', prices).match, 'claude-opus-5-5-fast') // its own price stands
+  assert.equal(priceFor('claude-opus-5', prices).match, 'claude-opus-5')
+  // and so in the block: tokens, no dollars, named as unpriced
+  const s = tokenStats({ files: [{ path: 'm', sessionId: 's', sub: false, mtimeMs: 1, title: 'Master', days: { '2026-11-25': { 'claude-opus-5-5': [1, 1, 0, 0, 0, 1] } } }], now: new Date(2026, 10, 25, 12).getTime(), days: 7, prices })
+  assert.equal(s.models[0].price, null)
+  assert.deepEqual(s.cost.unpriced, ['claude-opus-5-5'])
 })
 
 test('a model takes its exact price, else the longest prefix, else none', () => {
@@ -366,4 +378,10 @@ test('config.example.json carries the default prices as the block a user keeps c
   assert.deepEqual(t.errors, [])
   assert.deepEqual(Object.keys(example.tokens.prices).sort(), Object.keys(DEFAULT_PRICES).sort())
   for (const [id, p] of Object.entries(example.tokens.prices)) assert.deepEqual(p, { ...DEFAULT_PRICES[id] }, id)
+})
+
+test('config.example.json says what null means, beside the prices', () => {
+  const example = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'config.example.json'), 'utf8'))
+  assert.match(example.tokens.note, /null means no price for that id and every id under it with no price of its own/)
+  assert.match(example.tokens.note, /keeping them current is yours/)
 })
