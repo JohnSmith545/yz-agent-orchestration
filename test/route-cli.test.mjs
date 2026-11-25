@@ -50,7 +50,8 @@ test('flow new without --type is refused in one line that names the three types,
 })
 
 test('flow new --type build plans Request, the coordinator, the agent, QA, Push, Output, signed and timed', () => {
-  assert.deepEqual(run('new', 'dark', 'Add a dark mode toggle', '--type', 'build', '--tickets', 'ABC-1'), { out: 'Flow dark created', code: 0 })
+  const made = run('new', 'dark', 'Add a dark mode toggle', '--type', 'build', '--tickets', 'ABC-1')
+  assert.deepEqual({ out: made.out, code: made.code }, { out: 'Flow dark created', code: 0 }) // the routing note is on stderr
   const { route } = F.readFlow('dark')
   assert.equal(route.type, 'build')
   assert.deepEqual(route.steps, BUILD3)

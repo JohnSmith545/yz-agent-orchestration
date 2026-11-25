@@ -37,6 +37,7 @@ import { planBlock, planCommands } from './plan-cli.mjs'
 import { prBlock, prCommands } from './pr-cli.mjs'
 import { qaBlock, qaCommands } from './qa-cli.mjs'
 import { newRoute, routeBlock, routeCommands, settleRoute } from './route-cli.mjs'
+import { withRoutingNew, withRoutingPlan } from './routing-cli.mjs'
 import { rulesCommands, withQaRules, withRules } from './rules-cli.mjs'
 import { securityCommands } from './security-cli.mjs'
 import { seniorCommands } from './senior-cli.mjs'
@@ -495,7 +496,7 @@ function cmdList(f) {
 }
 
 const COMMANDS = {
-  new: withRules(cmdNew),
+  new: withRules(withRoutingNew(cmdNew)),
   step: addCmd('step'),
   check: addCmd('check'),
   ask: addCmd('ask'),
@@ -518,7 +519,7 @@ const COMMANDS = {
   ...routeCommands(NO_NAME),
   ...withQaRules(qaCommands({ noName: NO_NAME, evidenceTarget, copyEvidence, shotExt: SHOT_EXT, shotError: SHOT_ERROR })),
   ...rulesCommands(NO_NAME),
-  ...plannerCommands(planCommands({ noName: NO_NAME, copyEvidence })),
+  ...plannerCommands(withRoutingPlan(planCommands({ noName: NO_NAME, copyEvidence }))),
   ...reviewerCommands(securityCommands({ noName: NO_NAME, copyEvidence })),
   ...seniorWithRules(seniorCommands({ noName: NO_NAME })),
 }

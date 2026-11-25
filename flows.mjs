@@ -64,6 +64,7 @@ import { CONFIG } from './config.mjs'
 import { pipelineGraph } from './pipeline.mjs'
 import { keepHand, validateHand } from './hand-steps.mjs'
 import { keepRoute, validateRoute } from './flow-route.mjs'
+import { keepRouting, validateRouting } from './routing-flow.mjs'
 import { sayShorter, STORY_ID, STORY_MAX, storyOf, YOU } from './flow-story.mjs'
 import { lookup } from './glossary.mjs'
 import { DATA_DIR } from './project-store.mjs'
@@ -170,6 +171,7 @@ export function validateFlow(flow) {
   if (flow.hand !== undefined) problems.push(...validateHand(flow.hand))
   if (flow.plan !== undefined) problems.push(...validatePlan(flow.plan, flow.id))
   if (flow.senior !== undefined) problems.push(...validateSenior(flow.senior))
+  if (flow.routing !== undefined) problems.push(...validateRouting(flow.routing))
   return problems
 }
 
@@ -622,6 +624,7 @@ export function mergeKeepingAnswers(incoming, existing) {
   keepHand(incoming, existing) // the user's ticks on the by-hand steps: only ever from the stored file
   keepPlan(incoming, existing) // the planner's hand-out: only the plan commands write it
   keepSenior(incoming, existing) // Senior's verdict: only the Senior commands write it
+  keepRouting(incoming, existing) // the routing record: only the dashboard writes it (routing-flow.mjs)
   if (existing?.createdAt) incoming.createdAt = existing.createdAt
   delete incoming.derived
   return incoming
