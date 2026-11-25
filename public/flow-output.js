@@ -7,6 +7,7 @@
 //   HOW TO TEST   the test steps as cards in a row (flow-steps.js)
 //   ▸ Details     the long summary and Changes · N, collapsed (here)
 //   Send          the pull request the work becomes: review it, send it, its state (flow-send.js)
+//   Sign-off      Completed, on a finished flow the user has not put away (completed-view.js flowBlock)
 //
 // Marked words ([word]) in any of them are term chips (terms.js) that explain
 // themselves on hover (term-card.js). A head is one or two words; what a block
@@ -179,8 +180,8 @@
     // view; a before and after pair needs the whole width, How to test under it
     const C = window.FlowCompare
     const split = window.FlowVisual.shows(m) === 'screens' && !C.pairs(m).pairs.length ? ' ob-split' : ''
-    const html = `<div class="ob-col${split}">${window.FlowStory.html(c)}${changeBlock(c)}${window.FlowVisual.html(c)}${window.FlowSteps.html(c)}${detailsBlock(c)}${window.FlowSend.html(c)}</div>`
-    const send = [flow.output?.merge, flow.output?.pr, flow.derived?.output?.merge, window.FlowSend.sig(flow.id)]
+    const html = `<div class="ob-col${split}">${window.FlowStory.html(c)}${changeBlock(c)}${window.FlowVisual.html(c)}${window.FlowSteps.html(c)}${detailsBlock(c)}${window.FlowSend.html(c)}${window.CompletedView?.flowBlock(c) || ''}</div>`
+    const send = [flow.output?.merge, flow.output?.pr, flow.derived?.output?.merge, window.FlowSend.sig(flow.id), window.CompletedView?.waits(flow.id), window.CompletedView?.overdue(flow.id)]
     return { html, keys, charts, sig: JSON.stringify([m, [...done], c.asked, flow.agent, window.FlowVisual.pref.get(), C.step.raw(flow.id), send]) }
   }
 

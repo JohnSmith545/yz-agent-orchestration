@@ -21,7 +21,7 @@
 //
 //   PURE   waitingLine(n), reminderLine(n)   MUST CHANGE IN LOCKSTEP with completed.mjs (the CLI says the same)
 //          lineHtml(s), reminderHtml(s), allHtml(s), tickHtml(t, opts), markHtml(overdue, days), headHtml(s),
-//          flowBlock(c), archiveLabel(row, now), waits(id), overdue(id), setData(s), data
+//          flowBlock(c), readonlyHtml(f, now), archiveLabel(row, now), waits(id), overdue(id), setData(s), data
 //   DOM    refresh(), paint(root), complete(ids, on), show()
 ;(() => {
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
@@ -109,21 +109,35 @@
     if (f.status !== 'done' && !waits(f.id)) return ''
     const late = overdue(f.id)
     return `<section class="ob ob-complete" aria-label="Sign-off" ${c.keyed('complete', [f.id, f.title, late])}>` +
+      (typeof c.head === 'function' ? c.head('Sign-off') : '') +
       `<div class="cv-row"><p class="cv-say">${late ? markHtml(true, Number(data?.warnAfterDays) || 2) : ''}` +
       '<span>Happy with this output? Mark it completed: it goes to the flow archive and off the boards, and still counts in the score.</span></p>' +
       `${tickHtml(f)}</div></section>`
   }
 
-  /** `Completed 24 Nov` (with the year when it is not this one), in local time; '' without a time. */
-  function archiveLabel(row, now = new Date()) {
-    const t = new Date(row?.completedAt ?? NaN)
+  /** `24 Nov` (with the year when it is not this one), in local time; '' without a time. */
+  function dayOf(iso, now = new Date()) {
+    const t = new Date(iso ?? NaN)
     if (Number.isNaN(t.getTime())) return ''
     const year = t.getFullYear() === now.getFullYear() ? '' : ` ${t.getFullYear()}`
-    return `Completed ${t.getDate()} ${MONTHS[t.getMonth()]}${year}`
+    return `${t.getDate()} ${MONTHS[t.getMonth()]}${year}`
+  }
+  /** `Completed 24 Nov`: the flow archive's label for a completed flow; '' without a time. */
+  const archiveLabel = (row, now = new Date()) => (dayOf(row?.completedAt, now) ? `Completed ${dayOf(row.completedAt, now)}` : '')
+
+  /**
+   * The read-only line of a COMPLETED flow opened by link (flows.js, in place of the archived one): when, and where to
+   * take the mark off. No Restore: Unarchive refuses a completed flow (trash-routes.mjs), Uncomplete is the way.
+   */
+  function readonlyHtml(f, now = new Date()) {
+    if (!f?.completedAt) return ''
+    const when = dayOf(f.completedAt, now)
+    return `<p class="fl-readonly" role="note"><span>This flow is <b>completed</b>${when ? ` (${esc(when)})` : ''}. It is in the flow archive, and nothing can be changed here.</span>` +
+      `<a class="link" href="#/archive?q=${encodeURIComponent(f.id)}">Uncomplete it in the flow archive</a></p>`
   }
 
   const api = {
-    waitingLine, reminderLine, lineHtml, reminderHtml, allHtml, tickHtml, markHtml, headHtml, flowBlock, archiveLabel, waits, overdue,
+    waitingLine, reminderLine, lineHtml, reminderHtml, allHtml, tickHtml, markHtml, headHtml, flowBlock, readonlyHtml, archiveLabel, waits, overdue,
     setData(s) {
       data = s || null
     },

@@ -4,6 +4,9 @@
 //   [ Search by title or ticket id ]
 //   Archived · 2                                    put away by you; the flow itself is unchanged
 //   Add a dark mode toggle   Agent 3 · open · FLA-12 · archived 3d          Restore   Delete
+//   Ship the login fix       Agent 1 · done · Completed 24 Nov              Uncomplete   Delete
+//                                                   (a COMPLETED flow, completed.mjs: the user's sign-off archived it;
+//                                                   Uncomplete takes both off and puts it back on the boards)
 //   Deleted · 1                                     deleted by you; kept whole until Delete for good
 //   Ship the login fix       Agent 1 · done · deleted 2h                    Restore   Delete for good
 //     Delete Ship the login fix for good? Its screenshots go too, and this cannot be undone.  [Delete for good] [Cancel]
@@ -23,6 +26,8 @@
   const HELP = '<p><b>Archived</b> flows are put away: off the Flows board, unchanged, and still counted in the pipeline score.</p>' +
     '<p><b>Deleted</b> flows are kept whole here until you choose <b>Delete for good</b>, which also removes their screenshots. ' +
     'Their agents were told to stop, and deleted flows are left out of the score.</p>' +
+    '<p><b>Completed</b> flows are the outputs you signed off. Only you mark a flow completed, on its Output tab or in the Output list on the Agents page; ' +
+    'it then waits here, still counted in the score. <b>Uncomplete</b> puts it back on the boards.</p>' +
     '<p>Open a flow to read it; nothing can be changed there. <b>Restore</b> puts it back.</p>'
 
   // ═══ pure ═══
@@ -41,8 +46,9 @@
   function row(r, kind, { confirm, asking }) {
     const id = esc(r.id)
     const title = esc(r.title)
+    const done = kind === 'archived' && r.completedAt ? window.CompletedView?.archiveLabel(r) || 'Completed' : '' // the user's sign-off (completed.mjs)
     const when = kind === 'deleted' ? `deleted ${short(r.deletedAt)}` : `archived ${short(r.archivedAt)}`
-    const meta = [esc(r.agent), pill(r.status), ...(r.tickets || []).slice(0, 3).map(t => `<span class="id">${esc(t)}</span>`), esc(when.trim())].filter(Boolean)
+    const meta = [esc(r.agent), pill(r.status), ...(r.tickets || []).slice(0, 3).map(t => `<span class="id">${esc(t)}</span>`), done ? `<span class="ar-done">${esc(done)}</span>` : esc(when.trim())].filter(Boolean)
     const name = r.broken
       ? `<span class="ar-title ar-broken">${id} <span class="faint">(this copy cannot be read)</span></span>`
       : `<button type="button" class="link ar-title" data-ar-open="${id}" aria-label="Open ${title}, read only">${title}</button>`
@@ -56,6 +62,9 @@
     } else if (kind === 'deleted') {
       acts = (r.broken ? '' : `<button type="button" class="link" data-ar-restore="${id}" aria-label="Restore ${title}">Restore</button>`) +
         `<button type="button" class="link ar-bad" data-ar-purge="${id}" aria-label="Delete ${title} for good">Delete for good</button>`
+    } else if (done) {
+      acts = `<button type="button" class="link" data-ar-uncomplete="${id}" aria-label="Uncomplete ${title}: back on the boards">Uncomplete</button>` +
+        `<button type="button" class="link ar-bad" data-ar-delete="${id}" aria-label="Delete ${title}">Delete</button>`
     } else {
       acts = `<button type="button" class="link" data-ar-unarchive="${id}" aria-label="Restore ${title} to the Flows board">Restore</button>` +
         `<button type="button" class="link ar-bad" data-ar-delete="${id}" aria-label="Delete ${title}">Delete</button>`
@@ -78,7 +87,7 @@
     const st = { q: '', confirm: null, asking: null, ...state }
     const archived = Array.isArray(data?.archived) ? data.archived : []
     const deleted = Array.isArray(data?.deleted) ? data.deleted : []
-    return group('archived', 'Archived', 'Put away by you. The flow is unchanged and still counts in the score.', archived, archived, st) +
+    return group('archived', 'Archived', 'Put away by you. The flow is unchanged and still counts in the score. Completed ones are the outputs you signed off.', archived, archived, st) +
       group('deleted', 'Deleted', 'Deleted by you. Kept whole until you delete it for good.', deleted, deleted, st, data?.deletedError || '')
   }
 
@@ -183,6 +192,12 @@
       if (!r.ok) refused(r)
       else toast(r.j?.archived ? `${titleOf(id)} is back under Archived.` : `${titleOf(id)} is back on the Flows board.`)
       window.FlowsView?.load()
+      return reload()
+    }
+    if ((id = pick('data-ar-uncomplete'))) {
+      const { done, error } = await window.CompletedView.complete([id], false) // POST complete { completed: false }
+      if (error) window.alert?.(error)
+      else if (done) toast(`${titleOf(id)} is back on the boards, waiting for your sign-off.`)
       return reload()
     }
     if ((id = pick('data-ar-unarchive'))) {

@@ -355,6 +355,7 @@
   /** PURE: the read-only line for an archived or deleted flow, else ''. */
   function readonlyBanner(f) {
     if (!readonly(f)) return ''
+    if (f.completedAt && window.CompletedView) return window.CompletedView.readonlyHtml(f) // Uncomplete is in the archive
     const what = f.deletedAt ? `This flow is <b>deleted</b> (${window.Shell.ago(f.deletedAt)}).` : `This flow is <b>archived</b> (${window.Shell.ago(f.archivedAt)}).`
     return `<p class="fl-readonly" role="note"><span>${what} It is in the flow archive, and nothing can be changed here.</span>` +
       `<button type="button" class="link" data-ro-restore>Restore</button><a class="link" href="#/archive">Open the flow archive</a></p>`
@@ -599,6 +600,9 @@
     timer = null
     gen++ // a load still in flight lands nowhere
   }
+
+  // what waits for the user's sign-off changed (completed-view.js): the marks on the board and the Sign-off block follow
+  window.document?.addEventListener('outputs:change', () => render())
 
   window.FlowsView = {
     /** The Flows page: the board (flows-page.js). */

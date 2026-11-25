@@ -13,7 +13,7 @@
 #homeOutputs .cv-line { margin: 0 0 20px; }
 
 /* the mark on a card, a chip row or the flow's Sign-off block */
-.cv-mark { display: inline-flex; align-items: center; gap: 6px; color: var(--warn); font-size: 12px; font-weight: 550; white-space: nowrap; }
+.cv-mark { display: inline-flex; align-items: center; gap: 6px; color: var(--warn); font-size: 12px; font-weight: 500; white-space: nowrap; }
 .cv-mark .cv-dot { width: 7px; height: 7px; }
 
 /* the Completed buttons and their inline question */
@@ -60,3 +60,7 @@
 .pl-out-count.is-over { color: var(--warn); }
 .pl-out-count.is-notice { color: var(--warn); font-weight: 600; }
 .pl-outputs .cv-line { margin: 4px 0 10px; }
+
+/* the Flows board: a card's own line, a tile's mark under its title */
+.fl-card-sign { margin: 0; }
+.fl-small .cv-mark { align-self: flex-start; }
