@@ -66,6 +66,8 @@ export function handCommands(noName) {
     if (f.replace && f.id === undefined) return fail('--replace needs --id <the step to rewrite>')
     if (f.id !== undefined && !STEP_ID.test(f.id)) return fail('--id must match /^[a-z0-9-]+$/')
     const flow = load(id)
+    // a finished flow waits on no one, so steps on it would never be done (QA round two B-F2)
+    if (flow.status === 'done' || flow.status === 'dropped') return fail(`${flow.id} is ${flow.status}: start a new flow for this work, or ask the user to reopen this one.`)
     const steps = flow.hand?.steps || []
     const at = f.id === undefined ? -1 : steps.findIndex(s => s.id === f.id)
     if (f.replace && at < 0) return fail(`${flow.id} has no by-hand step ${f.id} to replace`)

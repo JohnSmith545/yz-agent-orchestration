@@ -389,6 +389,25 @@ export function withPipeline(config, fn) {
   }
 }
 
+/** Who stopped a flow after too many failures, so the user decides what happens next: Senior, QA, Security, or ''. */
+export function stoppedBy(flow) {
+  const qa = flow?.qa && typeof flow.qa === 'object' ? flow.qa : null
+  if (!qa && flow?.senior?.status === 'senior-failed') return 'Senior'
+  if (qa?.status === 'qa-failed') return 'QA'
+  if (qa?.status === 'passed' && qa.security?.status === 'security-failed') return 'Security'
+  return ''
+}
+
+/**
+ * Why an AGENT may not move `stored` to `next` (QA round two B-F3): a flow Senior, QA or Security stopped is moved on
+ * (done or open again) by the user only, on the dashboard. The agent CLI's set and write ask this; the page does not.
+ * Dropping it is not moving it on, so it is allowed.
+ */
+export function agentMoveRefusal(stored, next) {
+  const who = stored && (next === 'done' || next === 'open') && next !== stored.status ? stoppedBy(stored) : ''
+  return who ? `${stored.id} was stopped by ${who}: only the user moves it on, on the dashboard.` : ''
+}
+
 /** Why Senior holds `flow` now (flow-senior.mjs seniorHolds) on the pipeline the store reads, or ''. */
 export const seniorHold = flow => seniorHolds(flow, gateGraph())
 

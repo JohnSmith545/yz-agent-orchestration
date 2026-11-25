@@ -183,11 +183,13 @@ test('senior-ask sends a no-code flow with no steps to Senior; Senior may not as
   assert.equal(f.senior.history.length, 1)
 })
 
-test('senior-ask on a finished flow opens it again until Senior passes it', () => {
+test('senior-ask on a finished flow is refused: it waits on no one (QA round two B-F2)', () => {
   assert.equal(A1('new', 'done-ask', 'A finished change', '--type', 'ask').code, 0)
   F.writeFlow({ ...read('done-ask'), status: 'done' })
-  assert.equal(A1('senior-ask', 'done-ask', 'Check the DNS record I changed').code, 0)
-  assert.equal(read('done-ask').status, 'open')
+  const r = A1('senior-ask', 'done-ask', 'Check the DNS record I changed')
+  assert.equal(r.code, 1)
+  assert.match(r.out, /is done: start a new flow for this work, or ask the user to reopen this one/)
+  assert.equal(read('done-ask').status, 'done')
 })
 
 test('a rewrite of the flow keeps the stored Senior record: an agent can neither drop a failure nor forge a pass', () => {

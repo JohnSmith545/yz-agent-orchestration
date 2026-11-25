@@ -86,6 +86,8 @@ export function seniorCommands({ noName }) {
     if (!text) return fail('senior-ask needs what to review: senior-ask <flow> "<what was changed, where, and how to check it>"')
     if (text.length > SENIOR_MAX.ask) return fail(`say what to review in at most ${SENIOR_MAX.ask} characters (this is ${text.length})`)
     const flow = load(id)
+    // a finished flow is not sent anywhere: Senior would review work nobody waits for (QA round two B-F2)
+    if (flow.status === 'done' || flow.status === 'dropped') return fail(`${flow.id} is ${flow.status}: start a new flow for this work, or ask the user to reopen this one.`)
     const off = offRoute(flow)
     if (off) return fail(off)
     const rec = isObject(flow.senior) ? flow.senior : null
@@ -94,7 +96,6 @@ export function seniorCommands({ noName }) {
     if (rec?.status === 'released') return fail(`${flow.id}: the user finished it without a Senior review.`)
     const at = now()
     flow.senior = { status: 'asked', by, at, ask: { text, by, at }, ...fresh(rec) }
-    if (flow.status === 'done') flow.status = 'open' // it is on its way again until Senior passes it
     const problems = validateFlow(flow)
     if (problems.length) return fail(problems.join('\n'))
     writeFlow(flow)

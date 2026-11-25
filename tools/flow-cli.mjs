@@ -23,7 +23,7 @@ import path from 'node:path'
 import { parseDiagram } from '../diagram-text.mjs'
 import {
   addEvidence, addNode, createFlow, derive, EVIDENCE_DIR, EVIDENCE_KINDS, listFlows,
-  mergeKeepingAnswers, readFlow, setNodeStatus, validateFlow, visualOf, withPipeline, writeFlow,
+  agentMoveRefusal, mergeKeepingAnswers, readFlow, setNodeStatus, validateFlow, visualOf, withPipeline, writeFlow,
 } from '../flows.mjs'
 import { securityBlock } from '../flow-security.mjs'
 import { seniorBlock } from '../flow-senior.mjs'
@@ -285,6 +285,8 @@ function cmdSet(f) {
   const changes = { status: f.status, title: f.title, why: f.why, tickets: tickets(f.tickets) }
   const keys = Object.keys(changes).filter(k => changes[k] !== undefined)
   if (!keys.length) return fail('set needs --status, --title, --why or --tickets')
+  const stopped = changes.status !== undefined ? agentMoveRefusal(flow, changes.status) : ''
+  if (stopped) return fail(stopped)
   for (const k of keys) flow[k] = changes[k]
   writeFlow(flow)
   return ok(`Flow ${flow.id}: ${keys.join(', ')} set`)
@@ -310,7 +312,10 @@ function cmdWrite(f, { by, cwd, config }) {
   // as a problem line rather than crashing the merge.
   const problems = [...routeProblems, ...validateFlow(incoming)]
   if (problems.length) return fail(problems.join('\n'))
-  const flow = mergeKeepingAnswers(incoming, readFlow(incoming.id))
+  const stored = readFlow(incoming.id)
+  const stopped = agentMoveRefusal(stored, incoming.status)
+  if (stopped) return fail(stopped)
+  const flow = mergeKeepingAnswers(incoming, stored)
   flow.createdAt ||= new Date().toISOString()
   writeFlow(flow)
   const bare = (incoming.nodes || []).filter(noWhy).map(n => n.id)
