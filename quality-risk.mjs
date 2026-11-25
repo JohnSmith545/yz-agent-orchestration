@@ -185,9 +185,12 @@ export function riskRoute(route, risk, graph) {
 export const NEED_WORDS = Object.freeze({ security: 'a Security review', senior: 'a Senior review', 'deep-qa': 'a deeper QA pass' })
 const joinAnd = parts => (parts.length < 2 ? parts.join('') : `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}`)
 
-/** One plain line: `Risk: high. It touches sign-in or sessions. It asks for a Security review and a deeper QA pass.` */
+/**
+ * One plain line: `Risk: high. It touches sign-in or sessions. It asks for a Security review and a deeper QA pass.`
+ * Low is '' (nothing to say), as the page shows no chip for it (QA, 2026-11-26).
+ */
 export function riskText(risk) {
-  if (!isObject(risk) || !LEVELS.includes(risk.level)) return ''
+  if (!isObject(risk) || !LEVELS.includes(risk.level) || risk.level === 'low') return ''
   const needs = (risk.needs || []).map(n => NEED_WORDS[n]).filter(Boolean)
   return [`Risk: ${risk.level}.`, ...(risk.reasons || []), ...(needs.length ? [`It asks for ${joinAnd(needs)}.`] : [])].join(' ')
 }

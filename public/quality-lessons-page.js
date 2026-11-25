@@ -87,8 +87,9 @@
 
   function lessonRow(l, titles) {
     const sources = (l.sources || []).map(s => `${flowLink(s.flow, titles.get(s.flow))} <span class="faint">(${esc(GATE[s.gate] || s.gate)})</span>`)
-    const who = l.by === 'you' ? 'Typed by you' : 'From a failure, accepted by you'
-    const meta = [`Seen ${plural(l.count, 'time')}`, who, ...(sources.length ? [`Taught by ${sources.join(', ')}`] : [])].map(m => `<span>${m}</span>`)
+    const who = l.by === 'you' ? 'Added by you' : 'From a failure, accepted by you'
+    // a typed lesson no failure has taught yet has no Seen count (QA, 2026-11-26): it was never seen, only written
+    const meta = [...(l.count > 0 ? [`Seen ${plural(l.count, 'time')}`] : []), who, ...(sources.length ? [`Taught by ${sources.join(', ')}`] : [])].map(m => `<span>${m}</span>`)
     const act = l.status === 'retired'
       ? `<button type="button" class="link" data-ql-restore="${esc(l.id)}">Restore</button>`
       : `<button type="button" class="link" data-ql-retire="${esc(l.id)}">Retire</button>`

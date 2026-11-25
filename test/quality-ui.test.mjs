@@ -51,7 +51,7 @@ test('Lessons: grouped by area in the area order, most hit first, each with its 
   assert.match(h, /data-ql-retire="L2"/)
   assert.match(h, /data-ql-restore="L3"/)
   assert.doesNotMatch(h, /<dark>/, 'escaped')
-  assert.match(t, /Typed by you/)
+  assert.match(t, /Added by you/)
 })
 
 test('Candidates: a new one has Accept, Edit and Reject; a same-as says which lesson it counts again', () => {
@@ -180,4 +180,16 @@ test('the CSS uses the theme tokens only, and moves nothing for reduced motion',
   const css = read('quality.css')
   assert.doesNotMatch(css.replace(/\/\*[\s\S]*?\*\//g, ''), /#[0-9a-f]{3,6}\b/i, 'no raw colours: light and dark both follow the tokens')
   assert.doesNotMatch(css, /animation|transition/)
+})
+
+// QA 2026-11-26: a lesson the user typed showed Seen 1 time although no failure produced it.
+test('a typed lesson no failure has taught yet says Added by you and no Seen count; one seen since says how often', () => {
+  const Q = load('quality-lessons-page.js', 'QualityLessons')
+  const typed = { id: 'L9', text: 'Stop the preview server.', area: 'general', count: 0, status: 'active', by: 'you', sources: [] }
+  const t0 = text(Q.html({ ...DATA, lessons: [typed] }))
+  assert.match(t0, /Added by you/)
+  assert.doesNotMatch(t0, /Seen \d/)
+  const t1 = text(Q.html({ ...DATA, lessons: [{ ...typed, count: 2 }] }))
+  assert.match(t1, /Seen 2 times/)
+  assert.match(t1, /Added by you/)
 })

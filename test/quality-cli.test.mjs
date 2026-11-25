@@ -148,7 +148,8 @@ test('flow qa-start prints the producer self-check for QA to test the claims, an
   assert.match(r.out, /QA attempt 1 testing/)
   assert.match(r.out, /Self-check by Agent 1/)
   assert.match(r.out, /no: .*wrote it after/)
-  assert.match(r.out, /Risk: /)
+  assert.doesNotMatch(r.out, /Risk: low/, 'a harmless task prints no risk line, as the page shows none (QA, 2026-11-26)')
+  assert.doesNotMatch(r.out, /\n\s*$/, 'and leaves no blank line at the end')
 })
 
 test('flow qa-start with no self-check says so; a deep-qa label adds one line for QA', () => {

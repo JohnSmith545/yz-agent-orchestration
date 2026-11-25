@@ -195,5 +195,5 @@ test('GET /api/quality/flow/<id>: a gate the pipeline has but this route never p
   F.writeFlow({ id: 'tf', title: 'Change the terraform module', agent: 'Agent 1', status: 'open', nodes: [], route: { type: 'build', steps: ['request', 'master', 'agent-1', 'qa', 'security', 'push', 'outcome'], at, by: 'Agent 1' }, risk: { level: 'high', reasons: ['It touches infrastructure or CI.'], needs: ['security', 'senior'] } })
   const r = await get('/api/quality/flow/tf')
   assert.deepEqual(r.body.missing, [])
-  assert.equal(r.body.missingLine, 'Senior reviews work done by hand, not a code change, so on this route QA and Security check it.')
+  assert.equal(r.body.missingLine, 'This risk would ask for Senior, but Senior only reviews work with no code, so QA and Security check this change.')
 })

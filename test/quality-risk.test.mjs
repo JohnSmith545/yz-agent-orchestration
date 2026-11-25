@@ -140,7 +140,7 @@ test('riskRoute: a gate on the pipeline that this kind of route never passes is 
 })
 
 test('riskText: one plain line for an agent or QA', () => {
-  assert.equal(riskText({ level: 'low', reasons: [], needs: [] }), 'Risk: low.')
+  assert.equal(riskText({ level: 'low', reasons: [], needs: [] }), '', 'low prints nothing, as on the page (QA, 2026-11-26)')
   assert.equal(riskText({ level: 'high', reasons: ['It touches sign-in or sessions.'], needs: ['security', 'deep-qa'] }),
     'Risk: high. It touches sign-in or sessions. It asks for a Security review and a deeper QA pass.')
 })

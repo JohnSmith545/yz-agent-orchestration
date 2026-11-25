@@ -41,11 +41,11 @@ test('a lesson: one plain sentence of at most 160 characters, in a known area', 
   assert.deepEqual(ok, { text: 'Stop the server you started', area: 'infra' }, 'spaces folded, no full stop added')
 })
 
-test('a lesson the user types is active at once, with count 1 and no sources', () => {
+test('a lesson the user types is active at once, with count 0 (no failure taught it yet) and no sources (QA, 2026-11-26)', () => {
   const s = fresh()
   const r = L.addLesson(s, { text: 'Stop the preview server you started.', area: 'infra', by: 'you' }, opts)
   assert.equal(r.error, undefined)
-  assert.deepEqual(r.lesson, { id: r.lesson.id, text: 'Stop the preview server you started.', area: 'infra', sources: [], count: 1, status: 'active', by: 'you', at: '2026-11-25T10:00:00.000Z' })
+  assert.deepEqual(r.lesson, { id: r.lesson.id, text: 'Stop the preview server you started.', area: 'infra', sources: [], count: 0, status: 'active', by: 'you', at: '2026-11-25T10:00:00.000Z' })
   assert.match(L.addLesson(s, { text: 'Stop the preview server you started.', area: 'ui', by: 'you' }, opts).error, /already/, 'the same text twice is refused')
 })
 
@@ -85,11 +85,11 @@ test('a same-as candidate raises the named lesson count and adds its source, nev
   const [c] = L.addCandidates(s, { key: 'k2', ...source }, [{ kind: 'same', id: lesson.id }], opts)
   assert.equal(c.kind, 'same')
   assert.equal(c.text, lesson.text, 'the page shows the lesson it repeats')
-  assert.equal(s.lessons[0].count, 1, 'not before the user accepts it')
+  assert.equal(s.lessons[0].count, 0, 'not before the user accepts it')
   const r = L.acceptCandidate(s, c.id, {}, opts)
   assert.equal(r.lesson.id, lesson.id)
   assert.equal(s.lessons.length, 1)
-  assert.equal(s.lessons[0].count, 2)
+  assert.equal(s.lessons[0].count, 1, 'the first failure that taught it')
   assert.deepEqual(s.lessons[0].sources, [{ flow: 'login-page', at: source.at, gate: 'qa' }])
   // a same-as naming a lesson that is not there is dropped
   assert.deepEqual(L.addCandidates(s, { key: 'k3', ...source }, [{ kind: 'same', id: 'L999' }], opts), [])
@@ -216,4 +216,12 @@ test('ensureLessons writes an empty library once, so its start time is kept acro
   L.ensureLessons(file)
   assert.equal(L.readLessons(file).startedAt, first)
   assert.equal(L.readLessons(file).startedAt, first)
+})
+
+test('in the brief, a typed lesson no failure has taught yet says so instead of seen 0 times (QA, 2026-11-26)', () => {
+  const s = fresh()
+  L.addLesson(s, { text: 'Stop the preview server you started.', area: 'general', by: 'you' }, opts)
+  const [picked] = L.lessonsFor({ title: 'Anything' }, { store: s })
+  assert.match(picked.why, /added by you, not seen in a failure yet/)
+  assert.doesNotMatch(picked.why, /seen 0 times/)
 })

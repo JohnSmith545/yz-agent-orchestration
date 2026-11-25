@@ -103,7 +103,7 @@ function flowData(flow, config) {
   const lines = []
   if (missing.length) lines.push(`This task asks for ${missing.map(m => NEED_WORDS[m.toLowerCase()]).join(' and ')}, but there is no ${missing.join(' or ')} agent on the pipeline (config.json pipeline).`)
   // on the pipeline, but this kind of route never passes it: say who checks it instead, never a silent gap
-  if (laid.unmet.includes('senior')) lines.push(`Senior reviews work done by hand, not a code change, so on this route ${laid.missing.includes('security') || !graph.nodes.some(n => n.role === 'security') ? 'QA checks it' : 'QA and Security check it'}.`)
+  if (laid.unmet.includes('senior')) lines.push(`This risk would ask for Senior, but Senior only reviews work with no code, so ${laid.missing.includes('security') || !graph.nodes.some(n => n.role === 'security') ? 'QA checks' : 'QA and Security check'} this change.`)
   if (laid.unmet.includes('security')) lines.push('Security reviews code changes, and this route makes none, so it does not go through Security.')
   const missingLine = lines.join(' ')
   const critic = flow.critic || null

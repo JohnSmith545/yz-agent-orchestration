@@ -152,7 +152,7 @@ export function qualityCommands(given, { noName }) {
     if (r.code) return r
     const started = readFlow(f._[0])
     const risk = started.risk || riskOf(started, { ...riskFacts(started), rules: qualityOf(config).riskRules })
-    return add(r, [selfCheckBlock(started), riskText(risk), ...(risk.needs?.includes('deep-qa') ? [DEEP_QA] : [])].join('\n'))
+    return add(r, [selfCheckBlock(started), riskText(risk), ...(risk.needs?.includes('deep-qa') ? [DEEP_QA] : [])].filter(Boolean).join('\n'))
   }
 
   return { 'self-check': selfCheck, new: afterNew, rules: afterRules, plan: afterPlan, 'qa-start': aroundQaStart }

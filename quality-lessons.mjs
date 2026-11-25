@@ -8,7 +8,7 @@
 //     done: { "<failure key>": { at, result: lessons | none | error, cost? } } }
 //
 // - A LESSON is at most 160 characters, one plain sentence in the imperative, in one area (quality-areas.mjs). `count`
-//   is how many failures taught it, `sources` which ones (the newest SOURCE_MAX kept). Only ACTIVE lessons reach a
+//   is how many failures taught it (0 for one the user typed that no failure has taught yet), `sources` which ones (the newest SOURCE_MAX kept). Only ACTIVE lessons reach a
 //   brief; Retire takes one out, Restore brings it back. The user can type one (by: you).
 // - A CANDIDATE is what one model run proposed from one failure (quality-extract.mjs): a new lesson, or `same as <id>`
 //   for a failure an existing lesson already covers. ⚠️ A model never writes a lesson by itself: every candidate
@@ -57,7 +57,7 @@ function cleanLesson(l) {
   return {
     id: l.id, text: fold(l.text).slice(0, LESSON_MAX.text), area: l.area,
     sources: (Array.isArray(l.sources) ? l.sources : []).map(cleanSource).filter(Boolean).slice(-LESSON_MAX.sources),
-    count: Number.isInteger(l.count) && l.count >= 1 ? l.count : 1,
+    count: Number.isInteger(l.count) && l.count >= 0 ? l.count : 1, // 0: typed, no failure has taught it yet
     status: LESSON_STATUS.includes(l.status) ? l.status : 'active',
     by: l.by === 'model' ? 'model' : 'you',
     at: isTime(l.at) ? l.at : null,
@@ -114,14 +114,14 @@ export function checkLesson({ text, area } = {}, areas = DEFAULT_AREAS) {
 const findLesson = (store, id) => store.lessons.find(l => l.id === id) || null
 const sameText = (store, text) => store.lessons.find(l => key(l.text) === key(text)) || null
 
-/** A lesson the user typed (or accepted): active at once, count 1. */
+/** A lesson the user typed (count 0: no failure taught it yet) or accepted from a failure (count 1): active at once. */
 export function addLesson(store, { text, area, by = 'you', source = null } = {}, { areas = DEFAULT_AREAS, now = nowIso, newId = null } = {}) {
   const c = checkLesson({ text, area }, areas)
   if (c.error) return c
   if (sameText(store, c.text)) return { error: 'That lesson is already in the library.' }
   if (store.lessons.length >= LESSON_MAX.lessons) return { error: `The library holds ${LESSON_MAX.lessons} lessons at most. Retire some first.` }
   const src = cleanSource(source)
-  const lesson = { id: newId ? newId() : nextLessonId(store), text: c.text, area: c.area, sources: src ? [src] : [], count: 1, status: 'active', by: by === 'model' ? 'model' : 'you', at: now() }
+  const lesson = { id: newId ? newId() : nextLessonId(store), text: c.text, area: c.area, sources: src ? [src] : [], count: src ? 1 : 0, status: 'active', by: by === 'model' ? 'model' : 'you', at: now() }
   store.lessons.push(lesson)
   return { lesson }
 }
@@ -238,7 +238,7 @@ export function lessonsFor(task = {}, { store = readLessons(), areas = DEFAULT_A
   const touched = taskAreas({ title: task.title, text: task.text, labels: task.labels, files: task.files }, areas)
   const active = store.lessons.filter(l => l.status === 'active')
   const byHits = (a, b) => b.count - a.count || String(b.at).localeCompare(String(a.at))
-  const seen = n => `seen ${n} time${n === 1 ? '' : 's'}`
+  const seen = n => (n > 0 ? `seen ${n} time${n === 1 ? '' : 's'}` : 'added by you, not seen in a failure yet')
   const matched = active.filter(l => touched.has(l.area)).sort(byHits).map(l => ({ l, why: `${touched.get(l.area)}; ${seen(l.count)}` }))
   const general = active.filter(l => l.area === 'general').sort(byHits).map(l => ({ l, why: `fits any task; ${seen(l.count)}` }))
   return [...matched, ...general].slice(0, max).map(({ l, why }) => ({ id: l.id, text: l.text, area: l.area, count: l.count, why }))
