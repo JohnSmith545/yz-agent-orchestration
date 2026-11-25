@@ -30,7 +30,7 @@
 // - riskOf is feat/smart-quality's provider (a flow's risk level); none by default, and the estimates still work.
 
 import { CONFIG } from './config.mjs'
-import { listFlows, readFlow, writeFlow } from './flows.mjs'
+import { listFlowIds, readFlow, validateFlow, writeFlow } from './flows.mjs'
 import { originAllowed } from './local-origin.mjs'
 import { pipelineGraph } from './pipeline.mjs'
 import { contextAlerts, dailyAlerts, spikeAlerts, stuckAlerts } from './predict-alerts.mjs'
@@ -83,6 +83,23 @@ async function sourceTickets(config) {
   return out
 }
 
+/**
+ * Every valid flow file, archived ones too, as stored: listFlows without its `derived` (which this feature never
+ * reads, and which costs most of a listing). A file that fails to parse or validate is left out, as listFlows does.
+ */
+export function storedFlows() {
+  const out = []
+  for (const id of listFlowIds()) {
+    try {
+      const f = readFlow(id)
+      if (f && !validateFlow(f).length) out.push(f)
+    } catch {
+      /* a broken file: the boards show it as such; it is no flow to count */
+    }
+  }
+  return out
+}
+
 const safe = async fn => {
   try {
     return (await fn()) || new Map()
@@ -99,7 +116,7 @@ export function makePredictRoute({
   config = CONFIG,
   port = CONFIG.port,
   stateFile = ALERT_STATE_FILE,
-  flowsOf = () => listFlows({ archived: 'any' }).flows,
+  flowsOf = storedFlows,
   ticketsOf = () => sourceTickets(config),
   riskOf = null,
   now = () => Date.now(),

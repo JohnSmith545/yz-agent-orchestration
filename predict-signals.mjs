@@ -10,10 +10,10 @@
 // signal is arithmetic on stored records, worded once, when it was raised.
 
 import { CONFIG } from './config.mjs'
-import { listFlows } from './flows.mjs'
 import { pipelineGraph } from './pipeline.mjs'
 import { misses } from './predict-estimate.mjs'
 import { flowTokens } from './predict-flow-tokens.mjs'
+import { storedFlows } from './predict-routes.mjs'
 import { ALERT_STATE_FILE, readAlertState } from './predict-state.mjs'
 
 const WEEK = 7 * 86_400_000
@@ -33,5 +33,5 @@ export function signalsFrom({ raised = [], flows = [], graph, since, now = Date.
 }
 
 export function signals({ since, now = Date.now(), file = ALERT_STATE_FILE, config = CONFIG } = {}) {
-  return signalsFrom({ raised: readAlertState(file).raised, flows: listFlows({ archived: 'any' }).flows, graph: pipelineGraph(config), since, now, tokensOf: flowTokens })
+  return signalsFrom({ raised: readAlertState(file).raised, flows: storedFlows(), graph: pipelineGraph(config), since, now, tokensOf: flowTokens })
 }
