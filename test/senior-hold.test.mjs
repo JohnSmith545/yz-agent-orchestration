@@ -73,12 +73,12 @@ test('flow write with status done is refused while Senior holds it, for a stored
   assert.equal(F.readFlow('held-new'), null)
 })
 
-test('a flow sent with senior-ask and no steps is held too', () => {
+test('a flow sent with senior-ask and no steps is held too, with its own sentence: it has no work done by hand (QA B-9)', () => {
   assert.equal(A1('new', 'asked', 'Turn on the CI cache in the console', '--type', 'ask').code, 0)
   assert.equal(A1('senior-ask', 'asked', 'I turned on the CI cache in the dev project settings.').code, 0)
   const r = A1('set', 'asked', '--status', 'done')
   assert.equal(r.code, 1)
-  assert.equal(r.out, HELD('asked'))
+  assert.equal(r.out, 'Senior reviews the change sent with senior-ask before the flow is done: send Senior a message naming flow asked.')
 })
 
 test('the store is the one place: any writer (the dashboard status route included) gets the same refusal', () => {

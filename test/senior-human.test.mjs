@@ -63,7 +63,7 @@ test('seniorHolds: done waits for a Senior pass on a flow it gates; nothing hold
 })
 
 test('wired: the store asks seniorHolds before a move to done (test/senior-hold.test.mjs); Human review gets the Senior label', () => {
-  assert.match(read('flows.mjs'), /if \(flow\.status === 'done' && before !== 'done'\) \{\r?\n\s+const held = seniorHolds\(flow, gateGraph\(\)\)/)
+  assert.match(read('flows.mjs'), /recordHold\(flow, stored, graph\)\r?\n\s+if \(flow\.status === 'done' && before !== 'done'\) \{\r?\n\s+const held = seniorHolds\(flow, graph\)/)
   assert.match(read('human-routes.mjs'), /senior: gateLabels\(CONFIG\)\.senior/)
   assert.match(read('public/human.css'), /\.fh-redo \{/)
 })

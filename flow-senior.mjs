@@ -5,7 +5,12 @@
 // Its record is `flow.senior`:
 //
 //   flow.senior = {
-//     status     asked | reviewing | passed | failed | senior-failed (failed too often: stopped, the flow blocked)
+//     status     due | asked | reviewing | passed | failed | senior-failed (failed too often: stopped, the flow blocked)
+//                | released.  due: THE HOLD, recorded by the store (flows.mjs writeFlow) the moment the flow has by-hand
+//                steps while Senior is configured (QA 2026-11-25 B-1: a hold read off the steps an agent could clear was
+//                no hold). Every write keeps the stored record, so clearing or dropping the steps never lifts it: only
+//                Senior's pass, or the user's release on the dashboard (released, human-routes.mjs seniorReleaseRoute:
+//                the flow is done, and the scorecard counts it slipped through, since nobody reviewed it).
 //     by, at     who wrote the record last (the asking agent for `asked`, else Senior's label) and when
 //     startedAt  when Senior started its review
 //     ask        { text, by, at }: `flow senior-ask`, an agent sending a no-code flow to Senior on purpose
@@ -22,7 +27,9 @@
 
 import { handSteps } from './pipeline-hand.mjs'
 
-export const SENIOR_STATUS = Object.freeze(['asked', 'reviewing', 'passed', 'failed', 'senior-failed'])
+export const SENIOR_STATUS = Object.freeze(['due', 'asked', 'reviewing', 'passed', 'failed', 'senior-failed', 'released'])
+/** The statuses that no longer hold the flow: Senior passed it, stopped it (the user decides), or the user released it. */
+export const SENIOR_FREE = Object.freeze(['passed', 'senior-failed', 'released'])
 export const SENIOR_MAX = Object.freeze({ summary: 1000, ask: 500, history: 20 })
 
 /** MUST CHANGE IN LOCKSTEP with flows.mjs AGENT_LABEL. */
@@ -108,16 +115,33 @@ export function seniorHolds(flow, graph) {
   const senior = (graph?.nodes || []).find(n => n.role === 'senior')
   if (!senior || isObject(flow?.qa)) return ''
   const s = isObject(flow?.senior) ? flow.senior : null
-  if (s?.status === 'passed' || s?.status === 'senior-failed') return ''
-  if (!s && !handSteps(flow).length) return ''
+  if (SENIOR_FREE.includes(s?.status)) return ''
+  const steps = handSteps(flow).length
+  if (!s && !steps) return ''
+  // sent on purpose with no steps: it is a change an agent made, not work done by hand (QA B-9)
+  if (!steps && isObject(s?.ask) && s.status !== 'due') return `${senior.label} reviews the change sent with senior-ask before the flow is done: send ${senior.label} a message naming flow ${flow.id}.`
   return `${senior.label} reviews the work done by hand before the flow is done: send ${senior.label} a message naming flow ${flow.id}.`
+}
+
+/**
+ * For writeFlow (flows.mjs), the store's half of the hold: the stored record when the write has none (a rewrite or
+ * an agent's file never drops it), then a `due` record when Senior is on `graph`, the flow has by-hand steps, no QA
+ * record and no record yet. A flow that was done already and stays done gets none: it finished before Senior held it.
+ */
+export function recordHold(flow, stored, graph) {
+  if (isObject(stored?.senior) && flow.senior === undefined) flow.senior = stored.senior
+  if (flow.senior !== undefined || isObject(flow.qa) || !handSteps(flow).length) return flow
+  if (!(graph?.nodes || []).some(n => n.role === 'senior')) return flow
+  if (stored?.status === 'done' && flow.status === 'done') return flow
+  flow.senior = { status: 'due', at: new Date().toISOString() }
+  return flow
 }
 
 /** One or two lines on Senior for `flow show` (stderr), or nothing when it has no record. */
 export function seniorBlock(flow) {
   const s = flow?.senior
   if (!isObject(s)) return []
-  const lines = [`  senior: ${s.status}${s.by ? ` (${s.by})` : ''}${failedSoFar(s).length ? `, sent back ${failedSoFar(s).length} time${failedSoFar(s).length === 1 ? '' : 's'}` : ''}`]
+  const lines = [`  senior: ${s.status === 'due' ? 'due (Senior holds this flow until it passes it)' : s.status}${s.by ? ` (${s.by})` : ''}${failedSoFar(s).length ? `, sent back ${failedSoFar(s).length} time${failedSoFar(s).length === 1 ? '' : 's'}` : ''}`]
   if (isObject(s.ask) && s.status === 'asked') lines.push(`    asked by ${s.ask.by}: ${s.ask.text}`)
   if (isText(s.summary)) lines.push(`    ${s.status === 'failed' ? 'redo' : 'verdict'}: ${s.summary}${Array.isArray(s.redo) && s.redo.length ? ` (steps ${s.redo.join(', ')})` : ''}`)
   return lines
