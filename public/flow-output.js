@@ -181,7 +181,7 @@
     const C = window.FlowCompare
     const split = window.FlowVisual.shows(m) === 'screens' && !C.pairs(m).pairs.length ? ' ob-split' : ''
     const html = `<div class="ob-col${split}">${window.FlowStory.html(c)}${changeBlock(c)}${window.FlowVisual.html(c)}${window.FlowSteps.html(c)}${detailsBlock(c)}${window.FlowSend.html(c)}${window.CompletedView?.flowBlock(c) || ''}</div>`
-    const send = [flow.output?.merge, flow.output?.pr, flow.derived?.output?.merge, window.FlowSend.sig(flow.id), window.CompletedView?.waits(flow.id), window.CompletedView?.overdue(flow.id)]
+    const send = [flow.output?.merge, flow.output?.pr, flow.derived?.output?.merge, window.FlowSend.sig(flow.id), window.CompletedView?.waits(flow.id), window.CompletedView?.overdue(flow.id), flow.completedAt, flow.archivedAt]
     return { html, keys, charts, sig: JSON.stringify([m, [...done], c.asked, flow.agent, window.FlowVisual.pref.get(), C.step.raw(flow.id), send]) }
   }
 

@@ -232,9 +232,17 @@
     const yes = t.closest('[data-cv-yes]')
     if (!yes) return
     const ids = String(yes.dataset.cvIds || '').split(' ').filter(Boolean)
+    const label = yes.textContent
     yes.disabled = true
     yes.textContent = 'Marking…'
     const { done, error } = await complete(ids, true)
+    // ⚠️ a redraw that kept this block (a failure, or a page that has not read the completed flow yet) must never
+    // leave Marking… with a live Cancel: the button is put back and the question closed
+    if (yes.isConnected) {
+      yes.disabled = false
+      yes.textContent = label
+      open(askOf(yes), false)
+    }
     if (error) window.alert?.(error)
     if (done) window.Notifier?.toast(esc(done === 1 ? 'Marked completed. It is in the flow archive.' : `${done} marked completed. They are in the flow archive.`), { kind: 'info', keep: false })
   })
