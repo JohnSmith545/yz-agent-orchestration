@@ -25,7 +25,7 @@
   const cls = s => String(s ?? '').replace(/[^A-Za-z0-9_-]/g, '')
 
   /** Pure: one box's inside. `list` is the tickets standing on it, `pushes` its pushes outside QA today. */
-  function nodeInner(node, { list = [], labels = {}, pushes = 0, running = 0, counts = null } = {}) {
+  function nodeInner(node, { list = [], labels = {}, pushes = 0, running = 0, counts } = {}) {
     if (node.role === 'human' && window.PipelineHuman) return window.PipelineHuman.inner(node, { list, labels, counts })
     const T = window.PipelineTickets
     const { shown, more } = T.chips(list)
@@ -133,7 +133,8 @@
       const groups = T.byNode(tickets)
       // the Human task box has its count lines over its chips: a row each
       const human = (graph.nodes || []).some(n => n.role === 'human') && window.PipelineHuman
-      const counts = humanReview ? window.HumanReview?.data?.counts || null : null
+      // the live page's counts (null while loading); a saved orchestration has none (pipeline-human.js)
+      const counts = humanReview ? window.HumanReview?.data?.counts || null : undefined
       const rows = Math.max(T.chipRows(groups), human ? window.PipelineHuman.rows(groups.human, counts) : 0)
       const sig = signature(graph)
       let relayout = rows !== st.rows

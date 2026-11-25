@@ -41,6 +41,12 @@ test('the README and the user guide name the key, the graph and the commands; th
   assert.equal(JSON.parse(read('config.example.json')).pipeline.senior, null)
 })
 
+test('the Senior brief glosses CI/CD once, in plain words (QA B-9)', () => {
+  const b = flat(read('docs/senior-agent-brief.md'))
+  assert.ok(b.includes('CI/CD (the pipeline that tests and deploys code automatically)'))
+  assert.equal(b.split('(the pipeline that tests and deploys code automatically)').length - 1, 1, 'once')
+})
+
 test('the Senior brief credits no AI tool', () => {
   assert.doesNotMatch(read('docs/senior-agent-brief.md'), /Co-Authored-By|Generated with/i)
 })

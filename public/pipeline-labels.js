@@ -67,18 +67,31 @@
   const overlaps = (a, b) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3]
 
   /**
-   * Put every label where nothing touches it. Free is: no drawn line or arrowhead touches its text, and it sits on no
-   * box, no agent's pill (agent-window.css: the bottom edge centred left to right, the top right corner top to
-   * bottom) and no label placed before it, inside the canvas. A label already free stays exactly where it was.
+   * Put every label where nothing touches it, BY ITS OWN ARROW. Free is: no drawn line or arrowhead touches its text,
+   * and it sits on no box, no agent's pill (agent-window.css: the bottom edge centred left to right, the top right
+   * corner top to bottom) and no label placed before it, inside the canvas. By its own arrow is: no other arrow is
+   * nearer to its text than its own (QA 2026-11-25 B-8: `reviewed` sat over the chat lane, `done by hand` far above
+   * its arrow, QA's `failed` under the Human task box). A label already free and by its own arrow stays where it was.
    *   - QA's return labels (`src`) stay beside each producer while each one is free there or a step or two away;
    *     when one is not (the gap is full of lines: Security's bus, the skips), QA's returns share ONE label instead,
-   *     beside QA where they leave it: over its top left corner left to right, left of it top to bottom.
-   *   - Every other label, and that shared one, moves to the nearest free spot, in rings of 3 px up to 60 px out;
-   *     one with no free spot nearby stays where it was.
+   *     beside QA where they leave it, or wherever nearest that is by one of them.
+   *   - Every other label, and that shared one, moves to the nearest spot that is free and by its own arrow, in rings
+   *     of 3 px up to 90 px out; failing that, the nearest free spot up to 60 px out (as before); failing both it stays.
+   * `edges` are the layout's drawn edges, { i, d, head }: a label's `edges` name its own by `i`.
    */
-  function clearLabels(labels, paths, boxes, width, height, lr) {
+  function clearLabels(labels, edges, boxes, width, height, lr) {
     const lines = new Set()
-    for (const d of paths) for (const [x, y] of pathPoints(d)) lines.add(`${Math.floor(x / CELL)},${Math.floor(y / CELL)}`)
+    const HASH = 16 // the grid the points are kept on for the nearest-arrow search
+    const points = new Map() // `${hx},${hy}` -> [[x, y, edge i]]
+    for (const e of edges) {
+      for (const d of [e.d, e.head]) {
+        for (const [x, y] of pathPoints(d)) {
+          lines.add(`${Math.floor(x / CELL)},${Math.floor(y / CELL)}`)
+          const key = `${Math.floor(x / HASH)},${Math.floor(y / HASH)}`
+          ;(points.get(key) || points.set(key, []).get(key)).push([x, y, e.i])
+        }
+      }
+    }
     const taken = boxes.map(b => [b.x, b.y, b.x + b.w, b.y + b.h])
     for (const b of boxes.filter(x => x.agent)) {
       const mid = b.x + b.w / 2
@@ -94,16 +107,36 @@
       }
       return true
     }
-    /** The nearest free spot within `rings` rings, or null. */
-    const near = (l, rings) => {
-      if (free(l, l.x, l.y)) return [l.x, l.y]
+    const REACH = 64 // how far round its text a label looks for arrows
+    /** Its own arrow is nearer to its text than any other (within REACH; its own must be there). */
+    const byOwn = (l, x, y) => {
+      const r = textBox(l, x, y, 0)
+      let own = Infinity
+      let other = Infinity
+      for (let hx = Math.floor((r[0] - REACH) / HASH); hx <= Math.floor((r[2] + REACH) / HASH); hx++) {
+        for (let hy = Math.floor((r[1] - REACH) / HASH); hy <= Math.floor((r[3] + REACH) / HASH); hy++) {
+          for (const [px, py, i] of points.get(`${hx},${hy}`) || []) {
+            const d = Math.hypot(Math.max(r[0] - px, 0, px - r[2]), Math.max(r[1] - py, 0, py - r[3]))
+            if (l.edges.includes(i)) own = Math.min(own, d)
+            else other = Math.min(other, d)
+          }
+        }
+      }
+      return own <= REACH && own < other
+    }
+    /** The nearest spot within `rings` rings that is free (and by its own arrow when `own`), or null. */
+    const near = (l, rings, own = false) => {
+      const ok = (x, y) => free(l, x, y) && (!own || byOwn(l, x, y))
+      if (ok(l.x, l.y)) return [l.x, l.y]
       for (let ring = 1; ring <= rings; ring++) {
         const r = ring * 3
-        const spot = [[0, -r], [0, r], [r, 0], [-r, 0], [r, -r], [-r, -r], [r, r], [-r, r]].map(([dx, dy]) => [l.x + dx, l.y + dy]).find(([x, y]) => free(l, x, y))
+        const spot = [[0, -r], [0, r], [r, 0], [-r, 0], [r, -r], [-r, -r], [r, r], [-r, r], [2 * r, 0], [-2 * r, 0]].map(([dx, dy]) => [l.x + dx, l.y + dy]).find(([x, y]) => ok(x, y))
         if (spot) return spot
       }
       return null
     }
+    /** By its own arrow if it can be, else merely free, as before. */
+    const best = (l, rings = 20) => near(l, 30, true) || near(l, rings)
     const settle = (l, spot) => {
       if (spot) [l.x, l.y] = spot.map(r1)
       taken.push(textBox(l, l.x, l.y, 0))
@@ -112,7 +145,7 @@
     const groups = new Map()
     for (const l of labels) if (l.src) (groups.get(l.src) || groups.set(l.src, []).get(l.src)).push(l)
     for (const [src, list] of groups) {
-      const spots = list.map(l => near(l, 3))
+      const spots = list.map(l => near(l, 3, true))
       const clash = (a, b) => overlaps(textBox(a.l, ...a.s), textBox(b.l, ...b.s))
       const placed = list.map((l, i) => ({ l, s: spots[i] }))
       if (spots.every(Boolean) && !placed.some((a, i) => placed.slice(i + 1).some(b => clash(a, b)))) {
@@ -122,22 +155,38 @@
       const box = byId.get(src)
       const one = list[0]
       one.edges = list.flatMap(l => l.edges)
-      // beside QA where its returns leave it: the first of these spots that is free (top to bottom, the box left of
-      // QA may be the Human task box, so its right side and the gap under it are tried too), else the nearest free
+      // beside QA where its returns leave it: the first of these spots that is free and by a return (top to bottom,
+      // the box left of QA may be the Human task box, so its right side and the gap under it are tried too)
       const sides = lr
         ? [{ x: box.x + 2, y: box.y - 5, anchor: 'start' }, { x: box.x + 2, y: box.y + box.h + 13, anchor: 'start' }]
-        : [{ x: box.x - 6, y: box.y + 14, anchor: 'end' }, { x: box.x + box.w + 6, y: box.y + 28, anchor: 'start' }, { x: box.x + 2, y: box.y + box.h + 13, anchor: 'start' }]
-      const pick = sides.find(s => free({ ...one, ...s }, s.x, s.y)) || sides[0]
-      Object.assign(one, { x: r1(pick.x), y: r1(pick.y), anchor: pick.anchor })
+        : [{ x: box.x - 6, y: box.y + 14, anchor: 'end' }, { x: box.x + box.w + 6, y: box.y + 28, anchor: 'start' }, { x: box.x + 2, y: box.y - 5, anchor: 'start' },
+          { x: box.x + box.w - 2, y: box.y - 5, anchor: 'end' }, { x: box.x + 2, y: box.y + box.h + 13, anchor: 'start' }]
+      // each spot as it is, or a step or two away from it; then by a return anywhere near the producers' own spots
+      const tried = sides.map(s => ({ s, at: near({ ...one, ...s }, 3, true) }))
+      let pick = tried.find(t => t.at)
+      if (!pick) {
+        for (const l of list) {
+          const at = near({ ...one, x: l.x, y: l.y, anchor: l.anchor }, 30, true)
+          if (at) {
+            pick = { s: { x: l.x, y: l.y, anchor: l.anchor }, at }
+            break
+          }
+        }
+      }
+      if (!pick) {
+        const s = sides.find(x => near({ ...one, ...x }, 3)) || sides[0]
+        pick = { s, at: near({ ...one, ...s }, 3) }
+      }
+      Object.assign(one, { x: r1(pick.s.x), y: r1(pick.s.y), anchor: pick.s.anchor })
       for (const l of list.slice(1)) labels.splice(labels.indexOf(l), 1)
-      settle(one, near(one, 20))
+      settle(one, pick.at || near(one, 20))
     }
     for (const l of labels) {
       if (l.src) {
         delete l.src
         continue
       }
-      settle(l, near(l, 20))
+      settle(l, best(l))
     }
   }
 

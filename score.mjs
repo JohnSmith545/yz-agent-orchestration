@@ -53,7 +53,8 @@
 // ⚠️ PURE like pipeline.mjs: no file, no git, no config (the route passes the flows and the graph). The wording in
 // MEANING is the page's too: MUST CHANGE IN LOCKSTEP with public/score-view.js MEANING (a test compares them).
 //
-//   scoreOf(flows, graph, { now, days, stallDays })   the whole scorecard
+//   scoreOf(flows, graph, { now, days, stallDays })   the whole scorecard; `gates` says whether Security and Senior are
+//                                                     on the graph, and each stopped flow in lists.missed `stoppedBy`
 //   securityVerdictsOf(flow)                          every Security verdict on a flow, oldest first
 //   seniorVerdictsOf(flow) / seniorApplies(flow, graph)   every Senior verdict on a flow; whether Senior gates it
 //   fBeta(p, r, beta)                                 the F-score of a precision and a recall
@@ -246,6 +247,12 @@ export function cellOf(flow, graph, now, stallMs) {
   return out(null, null, updated)
 }
 
+/** Who stopped a missed flow: Senior (work done by hand), Security (a QA pass it failed too often), else QA. */
+function stoppedBy(flow) {
+  if (!isObject(flow.qa) && flow.senior?.status === 'senior-failed') return 'senior'
+  return flow.qa?.status === 'passed' && flow.qa?.security?.status === 'security-failed' ? 'security' : 'qa'
+}
+
 /** The whole scorecard of `flows` on `graph`, over the last `days` days (null: all time) up to `now`. */
 export function scoreOf(flows, graph, { now = Date.now(), days = 30, stallDays = 7 } = {}) {
   const win = windowOf(now, days, stallDays)
@@ -269,7 +276,7 @@ export function scoreOf(flows, graph, { now = Date.now(), days = 30, stallDays =
       if (cell === null) inFlight++
       else counts[cell]++
       if (cell === 'slipped') lists.slipped.push({ id: flow.id, title: flow.title ?? '', time })
-      if (cell === 'missed') lists.missed.push({ id: flow.id, title: flow.title ?? '', why, time })
+      if (cell === 'missed') lists.missed.push({ id: flow.id, title: flow.title ?? '', why, time, ...(why === 'stopped' ? { stoppedBy: stoppedBy(flow) } : {}) })
     }
     const attempts = verdictsOf(flow)
     for (const a of attempts) {
@@ -325,6 +332,8 @@ export function scoreOf(flows, graph, { now = Date.now(), days = 30, stallDays =
     window: win.view,
     counts,
     lists: { slipped: lists.slipped.sort(newestFirst).map(strip), missed: lists.missed.sort(newestFirst).map(strip) },
+    // which optional reviewers count on this graph, so the page names only them (public/score-view.js)
+    gates: { security: securityOn(graph), senior: seniorOn(graph) },
     precision,
     recall,
     accuracy: ratio(counts.delivered + counts.caught, counts.delivered + counts.slipped + counts.missed + counts.caught),

@@ -17,7 +17,10 @@ const H = await import('../hand-steps.mjs')
 const { runFlow, USAGE } = await import('../tools/flow-cli.mjs')
 after(() => fs.rmSync(process.env.FACTORY_DATA_DIR, { recursive: true, force: true }))
 
-const run = (...argv) => runFlow(argv, { by: 'Agent 1', cwd: ROOT })
+const { CONFIG } = await import('../config.mjs')
+// these tests are about the steps alone: no Senior on the pipeline, whatever the live config.json says (Senior's hold on
+// hand-clear is test/senior-hold-durable.test.mjs)
+const run = (...argv) => runFlow(argv, { by: 'Agent 1', cwd: ROOT, config: { ...CONFIG, pipeline: { ...CONFIG.pipeline, senior: undefined } } })
 const hand = id => F.readFlow(id).hand
 beforeEach(() => {
   fs.rmSync(F.FLOWS_DIR, { recursive: true, force: true })

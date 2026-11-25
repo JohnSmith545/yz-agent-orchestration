@@ -68,6 +68,7 @@ export function seniorCommands({ noName }) {
     const rec = isObject(flow.senior) ? flow.senior : null
     if (rec?.status === 'passed') return { error: `${flow.id}: Senior already passed it.` }
     if (rec?.status === 'senior-failed') return { error: `${flow.id}: Senior failed it too often and it is stopped: the user decides what happens next.` }
+    if (rec?.status === 'released') return { error: `${flow.id}: the user finished it without a Senior review.` }
     if (rec?.status === 'asked' || rec?.status === 'reviewing') return { rec }
     const steps = handSteps(flow)
     if (!steps.length) return { error: rec?.status === 'failed' ? `${flow.id}: Senior sent it back, and it has no by-hand steps to tick again: the agent sends it again with senior-ask once the work is redone.` : `${flow.id} has no by-hand steps and no one sent it to Senior (senior-ask): there is nothing to review.` }
@@ -90,6 +91,7 @@ export function seniorCommands({ noName }) {
     const rec = isObject(flow.senior) ? flow.senior : null
     if (rec?.status === 'reviewing') return fail(`${flow.id}: Senior is reviewing it now. Wait for its verdict.`)
     if (rec?.status === 'passed' || rec?.status === 'senior-failed') return fail(`${flow.id}: Senior already gave its last verdict (${rec.status}).`)
+    if (rec?.status === 'released') return fail(`${flow.id}: the user finished it without a Senior review.`)
     const at = now()
     flow.senior = { status: 'asked', by, at, ask: { text, by, at }, ...fresh(rec) }
     if (flow.status === 'done') flow.status = 'open' // it is on its way again until Senior passes it

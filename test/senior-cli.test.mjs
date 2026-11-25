@@ -60,7 +60,7 @@ test('only Senior records a review: no Senior on the pipeline, no name, or anoth
     assert.equal(r.code, 1)
     assert.match(r.out, /Only Senior records a review: --by must be "Senior"/)
   }
-  assert.equal(read(id).senior, undefined)
+  assert.equal(read(id).senior.status, 'due', 'only the hold the first step recorded: no review')
 })
 
 test('senior-start waits for every by-hand step to be ticked, and says how many are', () => {
@@ -139,7 +139,7 @@ test('a verdict needs pass or fail and words; too long is refused', () => {
   assert.match(SEN('senior', id, 'pass').out, /say what you checked/)
   assert.match(SEN('senior', id, 'fail', '  ').out, /say what to redo/)
   assert.match(SEN('senior', id, 'pass', 'x'.repeat(1001)).out, /at most 1000 characters/)
-  assert.equal(read(id).senior, undefined)
+  assert.equal(read(id).senior.status, 'due', 'no verdict was written')
 })
 
 test('failures share pipeline.maxReworks: past it the flow is stopped at Senior and blocked', () => {

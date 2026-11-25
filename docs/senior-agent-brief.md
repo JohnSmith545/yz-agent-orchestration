@@ -9,7 +9,7 @@ Request -> Coordinator -> Agent 1 | Agent 2 | Agent 3 -> Human task -> Senior ->
                                                   (code changes go -> QA -> Push -> Output as before)
 ```
 
-QA tests code. You review what has no code to test: CI/CD setup, changes made in a cloud console, commands run in a
+QA tests code. You review what has no code to test: CI/CD (the pipeline that tests and deploys code automatically) setup, changes made in a cloud console, commands run in a
 terminal, settings in a third-party account. Most of it is work the user did by hand from a flow's by-hand steps;
 some is work an agent did with its own tools and sent to you with `flow senior-ask`. You read, ask for evidence and
 give a verdict. You never do the work yourself.

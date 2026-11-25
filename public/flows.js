@@ -100,16 +100,20 @@
       return null
     }
   }
-  async function post(flowId, action, body) {
+  /** POST to the flow's route: { j } on success, { error } on a refusal, never thrown (the caller says it). */
+  async function tryPost(flowId, action, body) {
     try {
       const r = await fetch(`/api/flows/${enc(flowId)}/${action}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}) })
       const j = await r.json().catch(() => ({}))
-      if (!r.ok) throw new Error(j.error || `Failed (${r.status})`)
-      return j
+      return r.ok ? { j } : { error: j.error || `Failed (${r.status})` }
     } catch (e) {
-      alert(e.message)
-      return null
+      return { error: e.message }
     }
+  }
+  async function post(flowId, action, body) {
+    const res = await tryPost(flowId, action, body)
+    if (res.error) alert(res.error)
+    return res.error ? null : res.j
   }
   /** The ONE way an ask is answered on the page: here, in an opened flow, and in the Human review box. */
   async function answer(flowId, nodeId, value, note) {
@@ -230,7 +234,7 @@
 
   /** The head (flow-head.js), in two slots so the view tabs sit on the title row; each redrawn only when it changed. */
   function renderHead(f) {
-    const h = window.FlowHead.html(f, { tickets, envPill, statusPill, statuses: FLOW_STATUS, asking: opened.asking })
+    const h = window.FlowHead.html(f, { tickets, envPill, statusPill, statuses: FLOW_STATUS, asking: opened.asking, refused: opened.refused })
     $('.fl-open', board).dataset.flow = f.id // where a word card finds its flow (term-card.js)
     if (opened.head !== h.head) { $('.fl-open-head', board).innerHTML = h.head; opened.head = h.head }
     if (opened.sub !== h.sub) { $('.fl-open-sub', board).innerHTML = h.sub; opened.sub = h.sub }
@@ -439,7 +443,18 @@
     if (!f || readonly(f)) return
     const el = e.target
     let r = null
-    if (el.matches('[data-flow-status]')) r = await post(f.id, 'status', { status: el.value })
+    if (el.matches('[data-flow-status]')) {
+      // a refusal (Senior holds the flow, say) is said inline under the menu, which goes back to the real status
+      const res = await tryPost(f.id, 'status', { status: el.value })
+      if (res.error) {
+        el.value = f.status
+        opened.refused = res.error
+        opened.drawn = null
+        return load()
+      }
+      opened.refused = null
+      r = res.j
+    }
     else if (el.matches('[data-node-status]')) r = await post(f.id, 'status', { node: el.dataset.nodeStatus, status: el.value })
     else if (el.matches('[data-verify]')) r = await post(f.id, 'verify', { node: el.dataset.verify, verified: el.checked })
     else return

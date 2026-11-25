@@ -66,8 +66,17 @@ test('routeProgress: a flow waiting on the user is current at Human task, even o
   const waiting = { hand: { steps: [step('h1')] } }
   assert.deepEqual(states(R.routeProgress(flow({ ...waiting, route: route('ask', ASK) }), G)),
     ['request:done', 'master:done', 'agent-1:done', 'human:current:waiting', 'senior:upcoming', 'outcome:upcoming'])
+  // Senior is planned from the start once the flow has steps (QA B-6), not only once it reaches Senior
   assert.deepEqual(states(R.routeProgress(flow({ ...waiting, route: route('ask', OLD_ASK) }), G)),
-    ['request:done', 'master:done', 'agent-1:done', 'human:current:waiting', 'outcome:upcoming'])
+    ['request:done', 'master:done', 'agent-1:done', 'human:current:waiting', 'senior:upcoming', 'outcome:upcoming'])
+  const build = ['request', 'master', 'agent-1', 'qa', 'push', 'outcome']
+  assert.deepEqual(states(R.routeProgress(flow({ ...waiting, route: route('build', build) }), G)).slice(-3),
+    ['human:current:waiting', 'senior:upcoming', 'outcome:upcoming'], 'a build route that turned out to be work by hand')
+  const plain = pipelineGraph({ ...CONFIG, pipeline: { ...DEFAULT_PIPELINE } })
+  assert.deepEqual(states(R.routeProgress(flow({ ...waiting, route: route('ask', OLD_ASK) }), plain)),
+    ['request:done', 'master:done', 'agent-1:done', 'human:current:waiting', 'outcome:upcoming'], 'no Senior on the pipeline: none planned')
+  assert.deepEqual(states(R.routeProgress(flow({ route: route('ask', OLD_ASK) }), G)),
+    ['request:done', 'master:done', 'agent-1:current:working', 'outcome:upcoming'], 'no steps: an answer plans no Senior')
   const atSenior = { hand: { steps: [step('h1', true)] }, senior: { status: 'reviewing', by: 'Senior', at: AT } }
   assert.deepEqual(states(R.routeProgress(flow({ ...atSenior, route: route('ask', OLD_ASK) }), G)),
     ['request:done', 'master:done', 'agent-1:done', 'human:done', 'senior:current:reviewing', 'outcome:upcoming'])

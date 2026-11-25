@@ -69,7 +69,7 @@ test('GET /api/score: the scorecard over the flow files for the last 30 days by 
   assert.deepEqual(j.lists.missed, [{ id: 'dropped', title: 'Flow dropped', why: 'dropped' }])
   assert.equal(j.inFlight, 1)
   assert.deepEqual(j.precision, { value: 0.5, top: 1, bottom: 2 })
-  assert.deepEqual(Object.keys(j).sort(), ['accuracy', 'agents', 'builtAt', 'correctness', 'counts', 'f', 'inFlight', 'lists', 'precision', 'recall', 'window'])
+  assert.deepEqual(Object.keys(j).sort(), ['accuracy', 'agents', 'builtAt', 'correctness', 'counts', 'f', 'gates', 'inFlight', 'lists', 'precision', 'recall', 'window'])
 })
 
 test('GET /api/score?days=7 and days=all set the window', async () => {

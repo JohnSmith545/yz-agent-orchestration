@@ -50,6 +50,33 @@
   const nodeHeight = rows => Math.max(MIN_H, HEAD_H + Math.max(0, rows | 0) * CHIP_H + (rows > 0 ? 6 : 0))
   const LABEL_W = 6.3 // an 11 px label's width per character (pipeline-labels.js LABEL_CHAR)
 
+  /**
+   * Each gap's width, left to right: the even gap, but a gap whose arrow label is wider than that (`done by hand`) gets
+   * room from the others, none going under gMin or under its own label, so the label sits by its arrow in the gap
+   * (QA 2026-11-25 B-8: it sat 80 px above it). Top to bottom, or when the others cannot give the room, all even.
+   */
+  function gapWidths(edges, rank, L, gm, lr) {
+    const gaps = Array.from({ length: Math.max(0, L - 1) }, () => gm)
+    if (!lr || gaps.length < 2) return gaps
+    // a `no code changes` into Human task shares the corridor label of the coordinator's lane: it needs no room
+    const shared = new Set(edges.filter(e => e.type === 'long' && e.kind === 'skip' && e.label).map(e => `${e.to}|${e.label}`))
+    const need = gaps.map((_, g) => Math.max(LR.gMin, ...edges
+      .filter(e => e.type === 'adj' && e.label && rank.get(e.from) === g && !(e.kind === 'skip' && shared.has(`${e.to}|${e.label}`)))
+      .map(e => Math.ceil(e.label.length * LABEL_W) + 20)))
+    const total = gm * gaps.length
+    if (!need.some(n => n > gm) || need.reduce((a, b) => a + b, 0) > total) return gaps
+    // the ones that need more get it; the rest share what is left evenly, each never under its own need
+    const fixed = need.map(n => n > gm)
+    for (;;) {
+      const left = total - need.reduce((s, n, g) => s + (fixed[g] ? n : 0), 0)
+      const free = fixed.filter(x => !x).length
+      const even = free ? left / free : 0
+      const short = need.findIndex((n, g) => !fixed[g] && n > even)
+      if (short < 0) return need.map((n, g) => (fixed[g] ? n : even))
+      fixed[short] = true
+    }
+  }
+
   /** id -> the ids in the layer before that send it work, for a box every forward arrow into which is a skip. */
   function anchorsOf(nodes, edges, rank) {
     const out = new Map()
@@ -77,14 +104,18 @@
       for (const n of pinned) {
         const src = anchors.get(n.id).map(id => box.get(id)).sort((a, b) => a.c - b.c)[0]
         const b = box.get(n.id)
-        Object.assign(b, { c: src.c, cs: src.cs, mid: src.mid })
+        // top to bottom (a phone) the box keeps its own row's width, starting under its sender: three producers share
+        // a narrow row, and the user's box must read whole (QA B-4: Huma…, 8 qu…)
+        const cs = lr ? src.cs : Math.max(src.cs, crossOf(layer.length))
+        const c = lr ? src.c : Math.max(c0, Math.min(src.c, c0 + crossSpan - cs)) // never past the width a phone has
+        Object.assign(b, { c, cs, mid: c + cs / 2 })
         placed.push(b)
       }
       const rest = layer.filter(n => !anchors.has(n.id))
       const cs = crossOf(layer.length)
       const start = c0 + (crossSpan - (rest.length * cs + Math.max(0, rest.length - 1) * gc)) / 2
       const clash = c => placed.some(p => c < p.c + p.cs + gc && p.c < c + cs + gc)
-      const inside = c => c >= c0 - 0.5 && c + cs <= c0 + crossSpan + 0.5
+      const inside = c => c >= c0 - 0.01 && c + cs <= c0 + crossSpan + 0.01
       let fits = true
       const spots = rest.map((n, i) => {
         const want = start + i * (cs + gc)
@@ -253,7 +284,9 @@
     const spanOf = k => k * crossOf(k) + Math.max(0, k - 1) * S.gc
     let crossSpan = Math.max(spanOf(kMax), ...layers.map(l => spanOf(l.length)))
     const c0 = S.pad + mNeg
-    const mainOf = r => S.pad + r * (S.main + S.gm)
+    const gaps = gapWidths(edges, rank, L, S.gm, lr)
+    const before = gaps.map((_, g) => gaps.slice(0, g).reduce((a, b) => a + b, 0))
+    const mainOf = r => S.pad + r * S.main + (r < gaps.length ? before[r] : gaps.reduce((a, b) => a + b, 0))
 
     // every box: main is its layer, cross its place in the layer, the layer centred
     const box = new Map()
@@ -298,7 +331,12 @@
       const inSide = fwd ? 'start' : 'end'
       const otherOut = e.type === 'long' ? lane.get(e) : box.get(e.to).mid
       const otherIn = e.type === 'long' ? lane.get(e) : box.get(e.from).mid
-      const order = e.type === 'ret' ? 1 : 0
+      // where a return sits beside its forward arrow, so each label is by its own arrow (QA B-8): left to right a QA
+      // return runs ABOVE the work it sends back (its shared label over QA's corner is then by a return), and Senior's
+      // redo below Human task -> Senior (whose label sits above); top to bottom every return runs right of its forward
+      // arrow, and a skip (Human task -> Senior) right of its return, its label outside
+      const bySkip = e.type === 'ret' && edges.some(f => f.from === e.to && f.to === e.from && f.kind === 'skip')
+      const order = e.type === 'ret' ? (lr && !bySkip ? -1 : 1) : !lr && e.kind === 'skip' ? 2 : 0
       ends.push({ e, end: 'out', node: e.from, side: outSide, other: otherOut, order })
       if (!joins.has(e)) ends.push({ e, end: 'in', node: e.to, side: inSide, other: otherIn, order })
     }
@@ -321,7 +359,7 @@
     for (const [e, twin] of joins) port.set(`${e.i}:in`, port.get(`${twin.i}:in`))
 
     // ── gap lanes for the long edges: the gap g lies between layer g and g + 1
-    const gapMid = g => mainOf(g) + S.main + S.gm / 2
+    const gapMid = g => mainOf(g) + S.main + gaps[g] / 2
     const gapUse = new Map() // gap -> [{ e, end }]
     const useGap = (g, e, end) => (gapUse.get(g) || gapUse.set(g, []).get(g)).push({ e, end })
     for (const e of edges) {
@@ -340,7 +378,7 @@
       const ins = list.filter(u => u.end === 'in').sort((a, b) => depth(a.e) - depth(b.e) || a.e.i - b.e.i)
       const all = [...outs, ...ins]
       const n = all.length
-      const step = n > 1 ? Math.min(LANE, (S.gm - 16) / (n - 1)) : 0
+      const step = n > 1 ? Math.min(LANE, (gaps[g] - 16) / (n - 1)) : 0
       all.forEach((u, i) => gapAt.set(`${u.e.i}:${u.end}`, gapMid(g) + (i - (n - 1) / 2) * step))
     }
 
@@ -375,7 +413,7 @@
         if (e.label && e.type === 'adj') {
           const mid = [(p0[0] + p3[0]) / 2, (p0[1] + p3[1]) / 2]
           // left to right, a label wider than its gap starts over the two boxes' top edge, where the gap opens out
-          const wide = lr && e.label.length * LABEL_W + 8 > S.gm
+          const wide = lr && e.label.length * LABEL_W + 8 > gaps[rank.get(e.from)]
           const spot = lr ? { x: r1(mid[0]), y: r1(wide ? top(e) - 7 : mid[1] - 6), rotate: 0, anchor: 'middle' } : { x: r1(mid[1] + 6), y: r1(mid[0] + 4), rotate: 0, anchor: 'start' }
           // every `no code changes` into Human task shares ONE label (on the coordinator's corridor lane)
           if (e.kind === 'skip') share(`skip|${e.to}|${e.label}`, e, spot, mid[1], true)
@@ -405,7 +443,7 @@
       delete l.adj
     }
 
-    const mainLen = 2 * S.pad + L * S.main + Math.max(0, L - 1) * S.gm
+    const mainLen = 2 * S.pad + L * S.main + gaps.reduce((a, b) => a + b, 0)
     const crossLen = 2 * S.pad + mNeg + crossSpan + mPos
     const placed = [...box.values()].map(b => {
       const [x, y] = xy(lr, b.m, b.c)
@@ -413,7 +451,7 @@
     })
     const [W, Ht] = lr ? [mainLen, crossLen] : [crossLen, mainLen]
     const kinds = new Map(nodes.map(n => [n.id, n.kind]))
-    window.PipelineLabels.clear(labels, out.flatMap(e => [e.d, e.head]), placed.map(b => ({ ...b, agent: kinds.get(b.id) === 'agent' })), Math.ceil(W), Math.ceil(Ht), lr)
+    window.PipelineLabels.clear(labels, out, placed.map(b => ({ ...b, agent: kinds.get(b.id) === 'agent' })), Math.ceil(W), Math.ceil(Ht), lr)
     return { dir: lr ? 'LR' : 'TB', width: Math.ceil(W), height: Math.ceil(Ht), nodes: placed, edges: out, labels }
   }
 

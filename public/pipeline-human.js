@@ -13,7 +13,9 @@
 // (agents-page.js pickNode calls HumanReview.show); a chip opens its flow's explanation like every chip. The list
 // itself stays where it is. Pure: a node and what is known in, HTML out (test/pipeline-human.test.mjs).
 //
-//   inner(node, { list, labels, counts })   the box's inside
+//   inner(node, { list, labels, counts })   the box's inside. counts: the live Human review's, null while it is still
+//                                           loading (Loading…), or left out for a saved orchestration (the bank page,
+//                                           QA B-5): then no count line at all, as there is no live list behind it
 //   rows(list, counts)                      the chip rows it needs: its count lines, then its chips
 //   countParts(counts) / countText(counts)  ['8 questions', '2 by hand'] / `8 questions · 2 by hand`; empty when
 //                                           nothing keeps an agent waiting
@@ -27,18 +29,19 @@
     .filter(([v]) => Number(v) > 0).map(([v, one, many]) => plural(Number(v), one, many))
   const countText = counts => countParts(counts).join(' · ')
 
-  /** One line per kind waiting (at least one line, which says nothing waits), then up to MAX chips. */
-  const rows = (list, counts) => Math.max(1, countParts(counts).length) + Math.min(MAX, Array.isArray(list) ? list.length : 0)
+  /** One line per kind waiting (one that says nothing waits, or Loading), none with no counts; then up to MAX chips. */
+  const rows = (list, counts) => (counts === undefined ? 0 : Math.max(1, countParts(counts).length)) + Math.min(MAX, Array.isArray(list) ? list.length : 0)
 
-  function inner(node, { list = [], labels = {}, counts = null } = {}) {
+  function inner(node, { list = [], labels = {}, counts } = {}) {
     const T = window.PipelineTickets
     const shown = list.slice(0, MAX)
     const more = list.length - shown.length
     const text = countText(counts)
     const parts = countParts(counts)
-    const lines = parts.length ? parts : [counts ? 'Nothing waits on you' : 'Loading…']
+    const saved = counts === undefined
+    const lines = saved ? [] : parts.length ? parts : [counts ? 'Nothing waits on you' : 'Loading…']
     const here = list.length ? `, ${plural(list.length, 'flow', 'flows')} waiting here` : ''
-    const said = `${node.label}: ${counts ? text || 'nothing waits on you' : 'loading'}${here}. Show Human review.`
+    const said = saved ? `${node.label}${here}.` : `${node.label}: ${counts ? text || 'nothing waits on you' : 'loading'}${here}. Show Human review.`
     return `<button type="button" class="pl-node-head" aria-label="${esc(said)}"><span class="pl-name">${esc(node.label)}</span>` +
       `${more ? `<span class="pl-more" title="${more} more here">+${more}</span>` : ''}</button>` +
       lines.map(l => `<p class="pl-human-count${text ? '' : ' is-calm'}"><i class="hr-dot${text ? '' : ' is-calm'}" aria-hidden="true"></i>${esc(l)}</p>`).join('') +

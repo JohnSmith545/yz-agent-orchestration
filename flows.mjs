@@ -54,7 +54,7 @@ import { hasBefore, validateChange } from './flow-change.mjs'
 import { mergeReady, validateSend } from './flow-merge.mjs'
 import { keepPlan, validatePlan } from './flow-plan.mjs'
 import { keepQa, validateQa } from './flow-qa.mjs'
-import { keepSenior, seniorHolds, validateSenior } from './flow-senior.mjs'
+import { keepSenior, recordHold, seniorHolds, validateSenior } from './flow-senior.mjs'
 import { CONFIG } from './config.mjs'
 import { pipelineGraph } from './pipeline.mjs'
 import { keepHand, validateHand } from './hand-steps.mjs'
@@ -389,14 +389,20 @@ export function withPipeline(config, fn) {
   }
 }
 
+/** Why Senior holds `flow` now (flow-senior.mjs seniorHolds) on the pipeline the store reads, or ''. */
+export const seniorHold = flow => seniorHolds(flow, gateGraph())
+
 export function writeFlow(flow) {
   const problems = validateFlow(flow)
   if (problems.length) throw new Error(problems.join('\n'))
   const stored = storedFlow(flow.id)
   const before = stored?.status ?? null
-  // the Senior gate: only the move to done is checked, so a flow done before Senior existed may still be written
+  // the Senior gate: the hold is recorded on the flow and kept across every rewrite (flow-senior.mjs recordHold), then
+  // only the move to done is checked, so a flow done before Senior existed may still be written
+  const graph = gateGraph()
+  recordHold(flow, stored, graph)
   if (flow.status === 'done' && before !== 'done') {
-    const held = seniorHolds(flow, gateGraph())
+    const held = seniorHolds(flow, graph)
     if (held) throw new Error(held)
   }
   if (flow.archivedAt && stored && hasNewOpenAsk(flow, stored)) delete flow.archivedAt

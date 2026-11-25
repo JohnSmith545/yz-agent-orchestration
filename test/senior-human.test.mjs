@@ -47,7 +47,13 @@ test('the checklist: Senior sent it back, so its verdict shows over the steps an
 test('Human review: a flow Senior sent back says why; all ticked says Senior reviews it next; without Senior as before', () => {
   const back = humanItems({ flows: [flow({ hand: { steps: [step('h1', true), step('h2', false)] }, senior: sentBack })], senior: 'Senior' })
   assert.equal(back.items[0].reason, 'Senior sent it back: The key was rotated in prod, not dev.')
-  assert.equal(humanItems({ flows: [flow()], senior: 'Senior' }).items[0].reason, 'All 2 steps are done by you: Senior reviews them next.')
+  // every step ticked: it waits on Senior, not on you, so it is no row and no count (QA B-2)
+  const waiting = humanItems({ flows: [flow()], senior: 'Senior' })
+  assert.deepEqual(waiting.items, [])
+  assert.deepEqual(waiting.counts, { total: 0, ask: 0, hand: 0, blocked: 0, ticket: 0 })
+  for (const status of ['asked', 'reviewing']) assert.equal(humanItems({ flows: [flow({ hand: undefined, senior: { status, by: 'Senior', at: '2026-11-25T11:00:00Z' } })], senior: 'Senior' }).counts.total, 0, status)
+  assert.equal(humanItems({ flows: [flow({ status: 'blocked', senior: { status: 'senior-failed', by: 'Senior', at: '2026-11-25T11:00:00Z' } })], senior: 'Senior' }).counts.hand, 1, 'stopped by Senior: the user decides')
+  assert.equal(humanItems({ flows: [flow({ qa: { status: 'testing', attempt: 1 } })], senior: 'Senior' }).counts.hand, 1, 'a code flow is not Senior work')
   assert.equal(humanItems({ flows: [flow()] }).items[0].reason, 'All 2 steps are done by you: mark the flow done.')
   assert.equal(humanItems({ flows: [flow({ status: 'done', senior: { status: 'passed', by: 'Senior', at: '2026-11-25T12:00:00Z' } })], senior: 'Senior' }).items.length, 0, 'a finished flow waits on no one')
 })
@@ -63,7 +69,7 @@ test('seniorHolds: done waits for a Senior pass on a flow it gates; nothing hold
 })
 
 test('wired: the store asks seniorHolds before a move to done (test/senior-hold.test.mjs); Human review gets the Senior label', () => {
-  assert.match(read('flows.mjs'), /if \(flow\.status === 'done' && before !== 'done'\) \{\r?\n\s+const held = seniorHolds\(flow, gateGraph\(\)\)/)
+  assert.match(read('flows.mjs'), /recordHold\(flow, stored, graph\)\r?\n\s+if \(flow\.status === 'done' && before !== 'done'\) \{\r?\n\s+const held = seniorHolds\(flow, graph\)/)
   assert.match(read('human-routes.mjs'), /senior: gateLabels\(CONFIG\)\.senior/)
   assert.match(read('public/human.css'), /\.fh-redo \{/)
 })

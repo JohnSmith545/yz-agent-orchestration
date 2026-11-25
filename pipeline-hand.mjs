@@ -9,6 +9,8 @@
 //   every step ticked, no Senior             human, waiting, until the flow is marked done; then the Output, done
 //   finished (done) with no Senior record    the Output, done, whatever the ticks: a flow finished before Senior
 //                                            existed, or before this box did, never turns into unfinished work
+// due (the hold the store records, flow-senior.mjs) reads like no record, except that a flow held with its steps
+// cleared waits at Human task; released (the user finished it without Senior) is at the Output, done.
 // With a Senior record (flow-senior.mjs flow.senior), and Senior on the graph, the record decides:
 //   asked (senior-ask)                       senior, waiting: an agent sent it on purpose, steps or not
 //   reviewing                                senior, reviewing
@@ -42,12 +44,15 @@ export function handStage(flow, graph, path) {
   const human = nodes.find(n => n.role === 'human')
   if (!human) return null
   const senior = nodes.find(n => n.role === 'senior') || null
-  const rec = senior && isObject(flow?.senior) ? flow.senior : null
+  const record = senior && isObject(flow?.senior) ? flow.senior : null
+  const due = record?.status === 'due'
+  const rec = due ? null : record
   const steps = handSteps(flow)
-  if (!rec && !steps.length) return null
+  if (!rec && !steps.length && !due) return null
   const out = (node, status, p, reworks = 0) => ({ node, status, path: p, reworks })
   const p = [...path]
-  if (steps.length) p.push(human.id)
+  if (steps.length || (due && live(flow))) p.push(human.id)
+  if (rec?.status === 'released') return out('outcome', 'done', [...p, 'outcome'])
   if (!rec) {
     if (flow?.status === 'done' || !live(flow)) return out('outcome', 'done', [...p, 'outcome'])
     if (senior && allTicked(flow)) return out(senior.id, 'waiting', [...p, senior.id])

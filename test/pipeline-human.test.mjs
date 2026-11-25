@@ -38,7 +38,13 @@ test('inner: the name, the count line, up to three flows standing here and +N fo
   const none = H.inner(HUMAN, { counts: { ask: 0, hand: 0 } })
   assert.match(none, /class="pl-human-count is-calm"><i class="hr-dot is-calm" aria-hidden="true"><\/i>Nothing waits on you</)
   assert.doesNotMatch(none, /pl-chips|pl-more/)
-  assert.match(H.inner(HUMAN, {}), />Loading…</, 'before the first read of the list')
+  assert.match(H.inner(HUMAN, { counts: null }), />Loading…</, 'the live page before the first read of the list')
+  // a saved orchestration (the bank page, QA B-5) has no counts at all: no count line and never Loading
+  const saved = H.inner(HUMAN, {})
+  assert.doesNotMatch(saved, /Loading|pl-human-count/)
+  assert.match(saved, /aria-label="Human task\.">/)
+  assert.doesNotMatch(V.nodeInner(HUMAN, {}), /Loading/)
+  assert.match(fs.readFileSync(path.join(HERE, '..', 'public', 'pipeline-view.js'), 'utf8'), /const counts = humanReview \? window\.HumanReview\?\.data\?\.counts \|\| null : undefined/)
 })
 
 test('inner: its name is a button that says what waits and where a click goes; no settings, no pill, no push mark', () => {
@@ -48,7 +54,8 @@ test('inner: its name is a button that says what waits and where a click goes; n
 })
 
 test('rows: a line per kind waiting (one when none), plus at most three chips', () => {
-  assert.deepEqual([H.rows(undefined), H.rows([]), H.rows([1, 2].map(tk)), H.rows([1, 2, 3, 4, 5].map(tk))], [1, 1, 3, 4])
+  assert.deepEqual([H.rows(undefined, null), H.rows([], null), H.rows([1, 2].map(tk), null), H.rows([1, 2, 3, 4, 5].map(tk), null)], [1, 1, 3, 4])
+  assert.deepEqual([H.rows([]), H.rows([1, 2].map(tk))], [0, 2], 'no counts (a saved orchestration): chips only')
   assert.deepEqual([H.rows([], { ask: 8, hand: 2 }), H.rows([1, 2, 3, 4].map(tk), { hand: 1 })], [2, 4])
   assert.deepEqual([...H.countParts({ ask: 8, hand: 2 })], ['8 questions', '2 by hand'])
 })

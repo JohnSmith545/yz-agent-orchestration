@@ -156,7 +156,7 @@ test('wired: one line in pipeline-view.js, the box tall when the screen has room
   assert.match(view, /window\.HumanReview\?\.place\(st\.canvas, lay\)/)
   // pipeline-view.js reads the box twice: it places it, and the Human task box shows its counts (pipeline-human.js)
   assert.equal(view.split('HumanReview').length - 1, 2)
-  assert.match(view, /humanReview \? window\.HumanReview\?\.data\?\.counts/)
+  assert.match(view, /humanReview \? window\.HumanReview\?\.data\?\.counts \|\| null : undefined/)
   // the LIST is still no node and no step of any route: the graph's own Human task box (id human) points at it
   const graph = fs.readFileSync(path.join(HERE, '..', 'pipeline.mjs'), 'utf8')
   assert.doesNotMatch(graph, /Human review/, 'the list is not a node or an edge of any route')

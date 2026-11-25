@@ -25,6 +25,7 @@
 //   POST /api/flows/<id>/deliver       { node }: relay.deliverNow, returns { ok, error? }
 //   GET  /api/human; POST /api/flows/<id>/hand { step, done }; POST /api/flows/<id>/request-hand { note? };
 //   POST /api/tickets/<id>/request-hand { note? }: Human review and the by-hand steps (human-routes.mjs)
+//   POST /api/flows/<id>/senior-release: the user finishes a flow Senior holds without its review (human-routes.mjs)
 //   POST /api/flows/<id>/request-tests { note? ≤ 500 }: stamps output.requestedAt, then relay.queueRequest,
 //                                      { ok, via: 'relay', requestedAt }; the chat agent's own flow: { ok, via: 'chat', text }
 //   GET  /api/flows/<id>/pr            { merge, pr, ready, facts }: what Send would do (pr-routes.mjs)
@@ -76,7 +77,7 @@ import { settingsGet, settingsPin, settingsSend } from './settings-routes.mjs'
 import { explain as explainTurn } from './explain.mjs'
 import { buildFactory, collections, readSource, refreshSource } from './factory.mjs'
 import { setMark, updateState } from './factory-state.mjs'
-import { handRequestRoute, handTickRoute, humanGet, ticketHandRoute } from './human-routes.mjs'
+import { handRequestRoute, handTickRoute, humanGet, seniorReleaseRoute, ticketHandRoute } from './human-routes.mjs'
 import { askTermRoute, explainRoute, learnRoute, listGlossary, removeRoute, termRoute } from './glossary-routes.mjs'
 import { learnTerms } from './learn.mjs'
 import { originAllowed } from './local-origin.mjs'
@@ -185,6 +186,7 @@ export async function factoryRoute(req, res, url, { git, gh, push, pr, port = CO
     if (action === 'deliver' && post) return await deliver(res, id, await body(req), relay), true
     if (action === 'request-tests' && post) return requestTests(res, id, await body(req), relay), true
     if (action === 'hand' && post) return send(res, handTickRoute(id, await body(req))), true
+    if (action === 'senior-release' && post) return send(res, seniorReleaseRoute(id)), true
     if (action === 'request-hand' && post) return send(res, handRequestRoute(id, await body(req), relay)), true
     if (p === '/api/human' && !post) return send(res, humanGet()), true
     const ticketHand = /^\/api\/tickets\/([^/]+)\/request-hand$/.exec(p)

@@ -12,7 +12,7 @@ import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
 
 import { DEFAULT_PIPELINE, pipelineGraph } from '../pipeline.mjs'
-import { labelBox, pathPoints, touchedLabels } from './diagram-geometry.mjs'
+import { labelBox, pathPoints, strayLabels, touchedLabels } from './diagram-geometry.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const window = {}
@@ -66,6 +66,23 @@ test('on a phone, top to bottom: Human task and Senior in the column of Agent 1 
   assert.equal(b.get('human').y, b.get('qa').y)
 })
 
+// QA B-4 (390 wide): the Human task box read Huma…, 8 qu…, 2 by…. Its name (13 px bold) and its longest count line
+// (12 px, `99 questions`) must fit whole in the box at a phone width, with the box padding (10 px each side).
+const TEXT_12 = 7 // px a character at 12 to 13 px, a little over the real average
+test('on a phone the Human task and Senior boxes are wide enough to read their name and count lines whole', () => {
+  for (const [name, g] of SHAPES) {
+    const b = at(L.layout(g, { width: 358, rows: 3 }))
+    for (const id of ['human', 'senior']) {
+      if (!b.has(id)) continue
+      const need = Math.max('Human task'.length, '99 questions'.length) * TEXT_12 + 20
+      assert.ok(b.get(id).w >= need, `${name}: ${id} is ${b.get(id).w} px, needs ${need}`)
+    }
+    // still under Agent 1: from its left edge, or as far left as the row allows, and under part of it
+    const [h, a] = [b.get('human'), b.get('agent-1')]
+    assert.ok(h.x <= a.x && h.x + h.w > a.x, `${name}: Human task ${h.x}..${h.x + h.w}, Agent 1 ${a.x}..${a.x + a.w}`)
+  }
+})
+
 test('the no code changes arrows of the coordinator and the producers end at Human task, under ONE label on the outermost lane', () => {
   for (const [name, g] of SHAPES) {
     for (const width of WIDTHS) {
@@ -88,6 +105,16 @@ test('the no code changes arrows of the coordinator and the producers end at Hum
   }
 })
 
+test('left to right, the gap of done by hand is wide enough for it, so it sits by its arrow, not over the boxes', () => {
+  for (const g of [LIVE, ONE]) {
+    const lay = L.layout(g, { width: 1320, rows: 2 })
+    const label = lay.labels.find(l => l.text === 'done by hand')
+    const b = at(lay)
+    assert.ok(label.y > b.get('human').y, 'below the top of the boxes: in the gap, by its arrow')
+    assert.ok(b.get('senior').x - (b.get('human').x + b.get('human').w) >= 'done by hand'.length * 6.3 + 8, 'the gap holds it')
+  }
+})
+
 test('Senior: done by hand, reviewed and redo are each labelled once; with no Senior, Human task goes to the Output', () => {
   const lay = L.layout(LIVE, { width: 1320, rows: 1 })
   for (const text of ['done by hand', 'reviewed', 'redo']) assert.equal(lay.labels.filter(l => l.text === text).length, 1, text)
@@ -96,6 +123,23 @@ test('Senior: done by hand, reviewed and redo are each labelled once; with no Se
   assert.ok(done)
   assert.equal(plain.labels.filter(l => l.text === 'done by hand').length, 1)
 })
+
+// QA 2026-11-25 B-8: `reviewed` sat over the chat lane, `done by hand` 80 px above its arrow, QA's `failed` under the
+// Human task box. Every label is nearer to its own arrow than to any other, in every shape and width QA looks at.
+// ONE known exception, said here rather than hidden: top to bottom with no optional agents, the gap between the three
+// producers and QA is full of lines, and QA's shared `failed` label finds no spot by a return; it is still free (no
+// line touches it, the geometry test below) and sits by QA.
+for (const [name, g] of SHAPES) {
+  for (const width of WIDTHS) {
+    test(`labels by their own arrows: ${name} at ${width}`, () => {
+      for (const rows of [0, 1, 3]) {
+        const lay = L.layout(g, { width, rows })
+        const stray = strayLabels(lay).filter(s => !(g === NONE && lay.dir === 'TB' && s.text === 'failed'))
+        assert.deepEqual(stray, [], `${name}, ${width}, ${lay.dir}, ${rows} chip rows`)
+      }
+    })
+  }
+}
 
 for (const [name, g] of SHAPES) {
   for (const width of WIDTHS) {
