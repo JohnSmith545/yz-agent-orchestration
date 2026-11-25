@@ -24,6 +24,13 @@ import { ANY_BOOLEAN, flags, NO_NAME, runFlow } from './flow-cli.mjs'
 import { runContext } from './context-cli.mjs'
 import { runPinCli } from './pr-pin.mjs'
 import { runTerm } from './term-cli.mjs'
+import { wireRouting } from '../smart-wiring.mjs'
+import { riskOf } from '../quality-risk.mjs'
+import { flowTokens } from '../predict-flow-tokens.mjs'
+
+// Routing's suggestion (flow new, flow plan) reads the risk level from quality (smart-wiring.mjs). flowTokens has no
+// source in a CLI process (only the server places tokens), so it answers null here and routing leaves tokens out.
+wireRouting({ riskOf, flowTokens })
 
 const [cmd, ...rest] = process.argv.slice(2)
 // Every flag that is boolean anywhere is boolean here, so `--before --by X` keeps the name (each command parses its own).

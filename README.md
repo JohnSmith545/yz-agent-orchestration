@@ -1946,6 +1946,22 @@ Routes: `GET /api/learn`; `POST /api/learn/run`, `/api/learn/weekly`, `/api/lear
 each POST with the page's own Origin. Spend kinds `retro` and `learn`. Settings (all optional): `learn.enabled`
 (false: no Learn or retrospective runs at all), `autoRetro`, `weekly`, `verdictAfterDays`, `model`, `retroModel`.
 
+## How Quality, Predict, Routing and Learn feed each other
+
+Each of the four works alone; `smart-wiring.mjs` connects them (in `server.mjs`, and for Routing in
+`tools/factory.mjs` too):
+
+- **Learn's evidence pack** gets the active lessons (Quality) and the alerts and estimate misses (Predict) of its
+  window, as the LESSONS LEARNED and ALERTS AND ESTIMATES sections.
+- **Estimates** count the same risk level as one more point of likeness (Quality's label stored on the flow, else
+  worked out from the flow).
+- **Routing** reads the same risk level for its rules (so high-risk work is suggested the strongest model) and each
+  finished flow's tokens and cost (Predict) for its outcome line. A command-line process has no token index, so
+  there the tokens are left out.
+
+A feature that fails to answer never breaks the one that reads it: Learn names the section as left out, the others
+carry on without that part.
+
 ## License
 
 MIT, see `LICENSE`. The bundled fonts in `public/fonts/` keep their own SIL Open Font License.

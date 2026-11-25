@@ -53,6 +53,12 @@ import { makeProjectRoutes } from './projects-routes.mjs'
 import { makeTokenRoute } from './token-routes.mjs'
 import { makePredictRoute } from './predict-routes.mjs'
 import { makeRoutingRoute } from './routing-routes.mjs'
+// the four smart features connected through their contracts (smart-wiring.mjs)
+import { learnLessons, learnSignals, riskLevelOf, wireRouting } from './smart-wiring.mjs'
+import { listLessons } from './quality-lessons.mjs'
+import { riskOf } from './quality-risk.mjs'
+import { signals } from './predict-signals.mjs'
+import { flowTokens } from './predict-flow-tokens.mjs'
 import { listenWhenFree, makeRestarter, underKeepAlive, waitForPredecessor } from './restart.mjs'
 import {
   CLAUDE_DIRS,
@@ -880,10 +886,11 @@ const agentSettingsRoute = makeAgentSettingsRoute({ port: PORT })
 /** Pipeline tokens (token-routes.mjs): what the transcripts spent, from a running index built in the background. */
 const tokenRoute = makeTokenRoute({ claudeDirs: CLAUDE_DIRS, match: CONFIG.sessionCwdMatch, names: async () => new Map((await liveSessions()).map(s => [s.sessionId, s.name])), labelOf, placed: o => predictRoute.placed(o) })
 /** Predict and warn (predict-routes.mjs): alerts, estimates and per flow tokens, on Pipeline tokens' own index. No model runs. */
-const predictRoute = makePredictRoute({ index: tokenRoute.index, names: async () => new Map((await liveSessions()).map(s => [s.sessionId, s.name])), live: async () => new Map((await liveSessions()).filter(s => !s.pinned).map(s => [s.sessionId, s.name])), labelOf })
+const predictRoute = makePredictRoute({ index: tokenRoute.index, names: async () => new Map((await liveSessions()).map(s => [s.sessionId, s.name])), live: async () => new Map((await liveSessions()).filter(s => !s.pinned).map(s => [s.sessionId, s.name])), labelOf, riskOf: riskLevelOf(riskOf) })
+wireRouting({ riskOf, flowTokens }) // Routing reads the risk level (quality) and a flow's tokens (predict)
 const routingRoute = makeRoutingRoute({ port: PORT }) // the Routing page, ticket intake, a flow task type (routing-routes.mjs)
 /** The Learn page (learn-wiring.mjs): retrospectives, the weekly Learn run and a verdict on every rule change. */
-const learnRoute = makeLearnServerRoute({ port: PORT, tokens: () => tokenRoute.snapshot() })
+const learnRoute = makeLearnServerRoute({ port: PORT, tokens: () => tokenRoute.snapshot(), lessons: learnLessons(listLessons), signals: learnSignals(signals) })
 /** The paths factory-routes.mjs answers. */
 const FACTORY_PREFIXES = ['/api/factory', '/api/chat', '/api/flows', '/api/trash', '/api/archive', '/api/human', '/api/tickets/', '/api/commit', '/api/explain', '/api/glossary', '/api/since', '/api/spend', '/api/settings', '/api/pipeline', '/api/qa', '/api/agents/rules', '/api/score', '/api/log', '/api/time', '/evidence/', '/api/outputs']
 
