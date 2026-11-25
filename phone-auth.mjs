@@ -8,10 +8,14 @@
 //
 // THE LOCK: 5 wrong PINs lock phone sign-in for 15 minutes, for EVERY address (an attacker can change address;
 // the user can wait or sign in at the PC). While locked, even the right PIN is refused without being checked.
-// The count and the lock are kept ON DISK, so restarting the dashboard does not reset them, and a lock this
-// process has seen holds even if the file is damaged. Each lockout writes one line to the console and one event
-// the orchestration Log shows (logEvents). ⚠️ Safety over convenience: anyone on the network can lock the user
-// out of their phone for 15 minutes by guessing badly. That is the price of a lock they cannot get around.
+// The count and the lock are kept ON DISK, so restarting the dashboard does not reset them, and IN MEMORY too: a
+// write that fails never loses a wrong try, and a lock this process has seen holds whatever the file says. A file
+// that is there but does not parse is kept beside it and LOCKS sign-in for the lock time, so damaging the file is
+// never a way to wipe a lock. Each lockout writes one line to the console and one event the Log shows.
+// ESCALATION: 3 lockouts within 24 hours turn phone access OFF (the wiring writes remote.enabled false), so the
+// guess budget is about 15 tries a day, not 480. A correct sign-in resets the wrong tries, NOT the lockouts.
+// ⚠️ Safety over convenience: anyone on the network can lock the user out by guessing badly, and three rounds of
+// that turn phone access off until the user turns it on again at the PC. That is the price of a lock that holds.
 //
 // A SESSION is a random 256-bit token (32 bytes, base64url) in an HttpOnly, SameSite=Strict cookie scoped to
 // /phone. Only its SHA-256 is kept, so the auth file alone signs no one in. A session lasts `sessionHours` from
@@ -41,11 +45,13 @@ import { validPinHash, verifyPin } from './send-pin.mjs'
 /** Machine-wide, never per project: the lock and the sessions belong to the PC, whichever project is open. */
 export const AUTH_FILE = path.join(DATA_ROOT, 'phone-auth.json')
 export const LOCK = Object.freeze({ tries: 5, ms: 15 * 60_000 })
+/** ESCALATION: this many lockouts within `withinMs` turn phone access OFF (phone-wiring.mjs), so only the PC can turn it back on. */
+export const ESCALATE = Object.freeze({ lockouts: 3, withinMs: 24 * 3600_000 })
 export const EVENTS_MAX = 50
 const SESSIONS_MAX = 20
 const COOKIE = 'phone_session'
 const TOKEN = /^[A-Za-z0-9_-]{43}$/
-export const EVENT_KINDS = Object.freeze(['login', 'wrong', 'lockout', 'signout', 'signout-all'])
+export const EVENT_KINDS = Object.freeze(['login', 'wrong', 'lockout', 'escalate', 'damaged', 'signout', 'signout-all', 'pin', 'config'])
 
 export function phonePinProblem(pin) {
   if (typeof pin !== 'string') return 'The phone PIN must be typed as digits.'
@@ -79,7 +85,7 @@ export function tokenFromCookie(header) {
 }
 
 const isTime = v => typeof v === 'string' && !Number.isNaN(Date.parse(v))
-const EMPTY = () => ({ fails: 0, lockedUntil: null, sessions: [], events: [] })
+const EMPTY = () => ({ fails: 0, lockedUntil: null, lockouts: [], sessions: [], events: [] })
 
 /** The file, cleaned: anything malformed is dropped, so a hand edit can add nothing that signs anyone in. */
 function clean(raw) {
@@ -87,30 +93,62 @@ function clean(raw) {
   if (!raw || typeof raw !== 'object') return s
   s.fails = Number.isInteger(raw.fails) && raw.fails >= 0 && raw.fails < LOCK.tries ? raw.fails : 0
   s.lockedUntil = isTime(raw.lockedUntil) ? raw.lockedUntil : null
+  s.lockouts = (Array.isArray(raw.lockouts) ? raw.lockouts : []).filter(isTime).slice(-20)
   s.sessions = (Array.isArray(raw.sessions) ? raw.sessions : [])
     .filter(x => x && /^[0-9a-f]{64}$/.test(x.id) && isTime(x.createdAt) && isTime(x.expiresAt))
     .map(x => ({ id: x.id, createdAt: x.createdAt, expiresAt: x.expiresAt, address: String(x.address || '').slice(0, 64) }))
   s.events = (Array.isArray(raw.events) ? raw.events : [])
     .filter(e => e && isTime(e.at) && EVENT_KINDS.includes(e.kind))
-    .map(e => ({ at: e.at, kind: e.kind, address: String(e.address || '').slice(0, 64), ...(Number.isInteger(e.count) ? { count: e.count } : {}) }))
+    .map(e => ({ at: e.at, kind: e.kind, address: String(e.address || '').slice(0, 64), ...(Number.isInteger(e.count) ? { count: e.count } : {}), ...(typeof e.text === 'string' ? { text: e.text.slice(0, 300) } : {}) }))
     .slice(-EVENTS_MAX)
   return s
 }
 
-export function makeAuthStore({ file = AUTH_FILE, now = Date.now, log = line => console.log(line), verify = verifyPin } = {}) {
+export function makeAuthStore({ file = AUTH_FILE, now = Date.now, log = line => console.log(line), verify = verifyPin, write: writeFile = writeAtomic } = {}) {
   /** The latest lock this process has seen: a damaged or deleted file never lifts it early. */
   let knownLock = 0
+  /** The wrong tries this process has counted: a write that failed never loses one (the larger of this and the file wins). */
+  let knownFails = 0
 
-  function read() {
+  const iso = t => new Date(t).toISOString()
+  const event = (s, kind, address = '', extra = {}) => s.events.push({ at: iso(now()), kind, address: String(address || '').slice(0, 64), ...extra })
+  /** A write that fails is logged, never thrown: the memory above still holds what matters (the count and the lock). */
+  function tryWrite(s) {
     try {
-      return clean(JSON.parse(readFileSync(file, 'utf8')))
+      write(s)
+      return true
+    } catch (err) {
+      log(`phone: could not save ${path.basename(file)} (${err?.code || err?.message || err})`)
+      return false
+    }
+  }
+
+  /**
+   * The file, cleaned. A MISSING file is a first start. A file that is there but does not parse is DAMAGE: it is
+   * kept beside it (<file>.damaged-<time>), sign-in is locked for the lock time (a damaged file must never be a
+   * way to wipe a lock), and a good file with that lock is written back.
+   */
+  function read() {
+    let text
+    try {
+      text = readFileSync(file, 'utf8')
     } catch {
       return EMPTY()
     }
+    try {
+      return clean(JSON.parse(text))
+    } catch {
+      const stamp = iso(now()).replace(/[:.]/g, '-')
+      try { writeFile(`${file}.damaged-${stamp}`, text) } catch { /* the lock below still holds */ }
+      knownLock = Math.max(knownLock, now() + LOCK.ms)
+      const s = { ...EMPTY(), lockedUntil: iso(knownLock) }
+      event(s, 'damaged')
+      log(`phone: ${path.basename(file)} was damaged; a copy is kept beside it and phone sign-in is locked for ${LOCK.ms / 60_000} minutes.`)
+      tryWrite(s)
+      return s
+    }
   }
-  const iso = t => new Date(t).toISOString()
-  const write = s => writeAtomic(file, `${JSON.stringify({ ...s, events: s.events.slice(-EVENTS_MAX) }, null, 2)}\n`)
-  const event = (s, kind, address = '', extra = {}) => s.events.push({ at: iso(now()), kind, address: String(address || '').slice(0, 64), ...extra })
+  const write = s => writeFile(file, `${JSON.stringify({ ...s, events: s.events.slice(-EVENTS_MAX) }, null, 2)}\n`)
   const live = (x, hours) => {
     const end = Math.min(Date.parse(x.expiresAt), Date.parse(x.createdAt) + hours * 3600_000)
     return now() < end
@@ -130,27 +168,38 @@ export function makeAuthStore({ file = AUTH_FILE, now = Date.now, log = line => 
     if (!validPinHash(pinHash)) return { ok: false, status: 503, error: 'Phone access has no PIN yet: set one at the PC with node tools/factory.mjs phone-pin.' }
     if (s.lockedUntil) s.lockedUntil = null // a lock that ran out: forget it
     if (typeof pin !== 'string' || !verify(pin, pinHash)) {
-      s.fails += 1
+      s.fails = Math.max(s.fails, knownFails) + 1
+      knownFails = s.fails
       event(s, 'wrong', address)
       if (s.fails >= LOCK.tries) {
         knownLock = now() + LOCK.ms
         s.lockedUntil = iso(knownLock)
         s.fails = 0
+        knownFails = 0
         event(s, 'lockout', address)
-        write(s)
+        // the lockouts are NOT reset by a good sign-in: only time takes them away (ESCALATE)
+        s.lockouts = [...s.lockouts.filter(t => now() - Date.parse(t) < ESCALATE.withinMs), iso(now())]
+        const escalated = s.lockouts.length >= ESCALATE.lockouts
+        if (escalated) {
+          event(s, 'escalate', address)
+          s.lockouts = []
+        }
+        tryWrite(s)
         log(`phone: ${LOCK.tries} wrong PINs, the last from ${address || 'an unknown address'}: phone sign-in is locked for ${LOCK.ms / 60_000} minutes.`)
-        return lockedAnswer(LOCK.ms)
+        if (escalated) log(`phone: ${ESCALATE.lockouts} lockouts within 24 hours: phone access is turned off. Only the PC can turn it back on.`)
+        return escalated ? { ...lockedAnswer(LOCK.ms), escalated: true, error: 'Too many wrong PINs. Phone access is now off: only the PC can turn it back on.' } : lockedAnswer(LOCK.ms)
       }
-      write(s)
+      tryWrite(s)
       const tries = LOCK.tries - s.fails
       return { ok: false, status: 401, error: `Wrong PIN. ${tries} ${tries === 1 ? 'try' : 'tries'} left before a 15 minute lock.` }
     }
     const token = randomBytes(32).toString('base64url')
     const at = now()
-    s.fails = 0
+    s.fails = 0 // the wrong tries go; the lockouts stay (ESCALATE)
+    knownFails = 0
     s.sessions = [...s.sessions.filter(x => live(x, sessionHours)), { id: sha(token), createdAt: iso(at), expiresAt: iso(at + sessionHours * 3600_000), address: String(address || '').slice(0, 64) }].slice(-SESSIONS_MAX)
     event(s, 'login', address)
-    write(s)
+    if (!tryWrite(s)) return { ok: false, status: 503, error: 'The PC could not save the sign-in. Try again in a moment.' }
     return { ok: true, token, csrf: csrfOf(token), expiresAt: iso(at + sessionHours * 3600_000) }
   }
 
@@ -173,16 +222,17 @@ export function makeAuthStore({ file = AUTH_FILE, now = Date.now, log = line => 
     if (!mine) return false
     s.sessions = s.sessions.filter(x => x !== mine)
     event(s, 'signout', mine.address)
-    write(s)
+    tryWrite(s)
     return true
   }
 
-  function signOutEverywhere() {
+  /** Ends every session; the count is of the sessions still live under `sessionHours` (expired ones are not counted). */
+  function signOutEverywhere(sessionHours = 168) {
     const s = read()
-    const count = s.sessions.filter(x => now() < Date.parse(x.expiresAt)).length
+    const count = s.sessions.filter(x => live(x, sessionHours)).length
     s.sessions = []
     event(s, 'signout-all', '', { count })
-    write(s)
+    tryWrite(s)
     return count
   }
 

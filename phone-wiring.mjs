@@ -12,6 +12,7 @@ import { CONFIG, CONFIG_FILE } from './config.mjs'
 import { makePhoneActions } from './phone-actions.mjs'
 import { makeAuthStore } from './phone-auth.mjs'
 import { makeRemoteReader } from './phone-bind.mjs'
+import { turnPhoneOff } from './phone-config.mjs'
 import { makePhoneHandler, startPhoneListener } from './phone-server.mjs'
 import { makeTalk } from './phone-talk.mjs'
 
@@ -54,7 +55,13 @@ export function startPhone({ getStatus, relay, run, sessions, transcriptFile }) 
     server?.close()
     server?.closeIdleConnections?.()
   }
-  const handler = makePhoneHandler({ settings: remoteNow, own: () => own, auth: makeAuthStore(), actions: makePhoneActions({ relay, talk, getStatus }), onOff })
+  // 3 lockouts in 24 hours (phone-auth.mjs ESCALATE): phone access OFF in config.json, the same write as Turn phone access off
+  const onEscalate = () => {
+    turnPhoneOff(CONFIG_FILE)
+    remoteNow.invalidate()
+    onOff()
+  }
+  const handler = makePhoneHandler({ settings: remoteNow, own: () => own, auth: makeAuthStore(), actions: makePhoneActions({ relay, talk, getStatus }), onOff, onEscalate })
   server = startPhoneListener({ settings, handler })
   // Turned off with no phone asking (Settings, Turn phone access off; or config.json edited): the door closes within OFF_CHECK_MS
   watch = setInterval(() => {

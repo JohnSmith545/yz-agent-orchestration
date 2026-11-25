@@ -24,9 +24,9 @@ import readline from 'node:readline'
 import { fileURLToPath } from 'node:url'
 
 import { writeAtomic } from '../atomic-write.mjs'
-import { withConfigKeys } from '../config-write.mjs'
 import { makeAuthStore, phonePinProblem } from '../phone-auth.mjs'
 import { eligibleAddresses, REMOTE_DEFAULTS } from '../phone-bind.mjs'
+import { withRemote } from '../phone-config.mjs'
 import { hashPin, verifyPin } from '../send-pin.mjs'
 import { readHidden } from './pr-pin.mjs'
 
@@ -46,15 +46,6 @@ export function terminal() {
       rl.on('close', () => { if (!answered) resolve(null) })
     }),
   }
-}
-
-/** The file's text with these keys of the remote block set: in place when the block is there, else a whole new block. */
-function withRemote(text, changes) {
-  const obj = JSON.parse(text)
-  const r = obj.remote
-  if (r && typeof r === 'object' && !Array.isArray(r)) return withConfigKeys(text, Object.fromEntries(Object.entries(changes).map(([k, v]) => [`remote.${k}`, v])))
-  const { pinSetAt: _, ...base } = REMOTE_DEFAULTS
-  return withConfigKeys(text, { remote: { ...base, ...changes } })
 }
 
 export async function runPhonePin({ io = terminal(), configFile = CONFIG, auth = makeAuthStore(), now = () => new Date() } = {}) {

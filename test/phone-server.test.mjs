@@ -365,3 +365,24 @@ test('server.mjs keeps its one 127.0.0.1 listener and starts the phone through s
   assert.equal((src.match(/startPhone\(/g) || []).length, 1)
   assert.doesNotMatch(src, /0\.0\.0\.0/)
 })
+
+test('13 sign-ins at once: exactly 5 PINs are checked, the rest are refused by the lock without a check', async () => {
+  let checked = 0
+  auth = makeAuthStore({ file: authFile, now: () => clock.t, log: () => {}, verify: () => (checked++, false) })
+  current = handler()
+  const all = await Promise.all(Array.from({ length: 13 }, () => signIn('11223344')))
+  assert.equal(checked, 5)
+  assert.deepEqual(all.map(a => a.r.status).sort(), [...Array(4).fill(401), ...Array(9).fill(429)].sort())
+})
+
+test('a third lockout within 24 hours turns phone access off through onEscalate, and says so', async () => {
+  let escalations = 0
+  current = handler({ onEscalate: () => escalations++ })
+  for (let round = 0; round < 3; round++) {
+    for (let i = 0; i < 5; i++) await signIn('11223344')
+    if (round < 2) clock.t += 15 * 60_000 + 1
+  }
+  assert.equal(escalations, 1)
+  const last = await signIn('11223344')
+  assert.equal(last.r.status, 429)
+})

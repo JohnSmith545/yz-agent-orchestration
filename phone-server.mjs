@@ -111,7 +111,7 @@ async function jsonBody(req) {
   return value
 }
 
-export function makePhoneHandler({ settings, own, auth, actions, limits = PHONE_LIMITS, now = Date.now, publicDir = PUBLIC, onOff = () => {} }) {
+export function makePhoneHandler({ settings, own, auth, actions, limits = PHONE_LIMITS, now = Date.now, publicDir = PUBLIC, onOff = () => {}, onEscalate = () => {} }) {
   let closing = false
   const byAddress = makeLimiter({ ...limits.address, now })
   const bySession = makeLimiter({ ...limits.session, now })
@@ -133,6 +133,7 @@ export function makePhoneHandler({ settings, own, auth, actions, limits = PHONE_
     if (!limited.ok) return tooMany(res, limited, 'Too many tries from this device')
     const b = await jsonBody(req)
     const r = auth.login({ pin: b.pin, pinHash: s.pinHash, address, sessionHours: s.sessionHours })
+    if (r.escalated) onEscalate() // too many lockouts in a day: phone access goes OFF (phone-wiring.mjs)
     if (!r.ok) return send(res, r.status, { error: r.error })
     return send(res, 200, { ok: true, csrf: r.csrf, expiresAt: r.expiresAt }, { 'set-cookie': sessionCookie(r.token, s.sessionHours) })
   }

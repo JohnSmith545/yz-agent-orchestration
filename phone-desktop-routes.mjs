@@ -16,13 +16,11 @@
 //
 //   makePhoneDesktopRoute({ port, settings, auth, configFile })   async (req, res, url) -> true when it answered
 
-import { readFileSync } from 'node:fs'
-
 import { CONFIG_FILE } from './config.mjs'
-import { writeConfigKeys } from './config-write.mjs'
 import { originAllowed } from './local-origin.mjs'
 import { makeAuthStore } from './phone-auth.mjs'
 import { remoteSummary } from './phone-bind.mjs'
+import { turnPhoneOff } from './phone-config.mjs'
 import { remoteNow } from './phone-wiring.mjs'
 
 const EVENTS_SHOWN = 12
@@ -47,16 +45,9 @@ export function makePhoneDesktopRoute({ port, settings = remoteNow, auth = makeA
   }
 
   function turnOff() {
-    let raw
-    try {
-      raw = JSON.parse(readFileSync(configFile, 'utf8')).remote
-    } catch {
-      return { ok: false, error: 'config.json could not be read.' }
-    }
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw) || raw.enabled === false) return { ok: true, changed: false }
-    writeConfigKeys(configFile, { 'remote.enabled': false })
+    const r = turnPhoneOff(configFile)
     settings.invalidate?.()
-    return { ok: true, changed: true }
+    return r
   }
 
   return async function phoneDesktopRoute(req, res, url) {
@@ -65,7 +56,7 @@ export function makePhoneDesktopRoute({ port, settings = remoteNow, auth = makeA
     if (p === '/api/phone' && req.method === 'GET') return json(res, 200, summary()), true
     if (req.method === 'POST' && (p === '/api/phone/signout-all' || p === '/api/phone/off')) {
       if (!pageOnly(req)) return json(res, 403, { error: 'Only from the dashboard page itself.' }), true
-      if (p === '/api/phone/signout-all') return json(res, 200, { ok: true, count: auth.signOutEverywhere() }), true
+      if (p === '/api/phone/signout-all') return json(res, 200, { ok: true, count: auth.signOutEverywhere(settings().sessionHours) }), true
       const r = turnOff()
       return json(res, r.ok ? 200 : 500, r), true
     }

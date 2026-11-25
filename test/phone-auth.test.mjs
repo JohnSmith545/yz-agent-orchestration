@@ -181,15 +181,14 @@ test('the token is read from a Cookie header among others, and only a well-forme
   assert.equal(A.tokenFromCookie('phone_session=<script>'), '')
 })
 
-test('a broken auth file signs everyone out but never unlocks a lock in memory', () => {
-  const { store, file } = fresh()
+test('a broken auth file signs everyone out and locks sign-in; a lock this process knows of holds', () => {
+  const { store, file, clock } = fresh()
   const { token } = login(store)
   fs.writeFileSync(file, '{ not json')
   assert.equal(store.session(token, 12), null)
-  assert.equal(login(store).ok, true, 'and a new sign-in writes a good file again')
-  for (let i = 0; i < 5; i++) login(store, '000000')
-  fs.writeFileSync(file, '{ not json')
-  assert.equal(login(store).status, 429, 'the lock this process knows of holds')
+  assert.equal(login(store).status, 429, 'damage locks sign-in for the lock time')
+  clock.t += 15 * 60_000 + 1
+  assert.equal(login(store).ok, true, 'then a sign-in works and the file is good again')
 })
 
 test('the list of events is capped and newest first; the Log gets the lockouts only', () => {
@@ -204,4 +203,99 @@ test('the list of events is capped and newest first; the Log gets the lockouts o
   assert.equal(log[0].kind, 'phone')
   assert.equal(log[0].flow, null)
   assert.match(log[0].text, /Phone sign-in was locked for 15 minutes after 5 wrong PINs/)
+})
+
+// ═══ review round: the guess budget, a damaged file, a failed write ═══
+
+const lockOnce = store => { for (let i = 0; i < 5; i++) login(store, '000000') }
+
+test('3 lockouts within 24 hours escalate: the third says so, once, and it is listed', () => {
+  const { store, clock, logged } = fresh()
+  lockOnce(store)
+  clock.t += 15 * 60_000 + 1
+  lockOnce(store)
+  clock.t += 15 * 60_000 + 1
+  for (let i = 0; i < 4; i++) assert.equal(login(store, '000000').escalated, undefined)
+  const third = login(store, '000000')
+  assert.equal(third.status, 429)
+  assert.equal(third.escalated, true)
+  assert.ok(store.events().some(e => e.kind === 'escalate'))
+  assert.ok(logged.some(l => /3 lockouts/.test(l)))
+})
+
+test('lockouts more than 24 hours apart do not escalate', () => {
+  const { store, clock } = fresh()
+  lockOnce(store)
+  clock.t += 13 * 3600_000
+  lockOnce(store)
+  clock.t += 13 * 3600_000
+  for (let i = 0; i < 4; i++) login(store, '000000')
+  assert.equal(login(store, '000000').escalated, undefined)
+})
+
+test('a correct sign-in resets the wrong tries but NOT the lockout count', () => {
+  const { store, clock } = fresh()
+  lockOnce(store)
+  clock.t += 15 * 60_000 + 1
+  assert.equal(login(store).ok, true)
+  lockOnce(store)
+  clock.t += 15 * 60_000 + 1
+  assert.equal(login(store).ok, true)
+  assert.match(login(store, '000000').error, /4 tries left/, 'the wrong-try count did reset')
+  for (let i = 0; i < 3; i++) login(store, '000000')
+  assert.equal(login(store, '000000').escalated, true)
+})
+
+test('a damaged auth file is kept beside it, and sign-in is locked for the lock time, even after a restart', () => {
+  const { store, file, clock, make } = fresh()
+  const { token } = login(store)
+  fs.writeFileSync(file, '{ damaged')
+  const restarted = make()
+  const r = login(restarted)
+  assert.equal(r.status, 429)
+  assert.equal(restarted.session(token, 12), null)
+  const kept = fs.readdirSync(path.dirname(file)).filter(f => f.startsWith(`${path.basename(file)}.damaged-`))
+  assert.equal(kept.length, 1)
+  assert.equal(fs.readFileSync(path.join(path.dirname(file), kept[0]), 'utf8'), '{ damaged')
+  assert.ok(JSON.parse(fs.readFileSync(file, 'utf8')).lockedUntil, 'a good file with the lock is written back')
+  assert.ok(restarted.events().some(e => e.kind === 'damaged'))
+  assert.equal(make().lockedFor() > 0, true, 'another restart: still locked')
+  clock.t += 15 * 60_000 + 1
+  assert.equal(login(make()).ok, true)
+})
+
+test('a missing auth file is a first start, not damage: no lock', () => {
+  const { store } = fresh()
+  assert.equal(store.lockedFor(), 0)
+  assert.equal(login(store).ok, true)
+})
+
+test('a failed write never loses a wrong try: the count is kept in memory too, the larger one wins', () => {
+  const file = path.join(dir, `auth-${n++}.json`)
+  let failing = false
+  const store = A.makeAuthStore({ file, now: () => Date.parse('2026-11-25T09:00:00Z'), log: () => {}, write: (f, t) => { if (failing) throw new Error('EPERM'); fs.writeFileSync(f, t) } })
+  login(store, '000000')
+  login(store, '000000')
+  failing = true
+  assert.equal(login(store, '000000').status, 401, 'a failed write still answers')
+  assert.equal(login(store, '000000').status, 401)
+  failing = false
+  assert.equal(login(store, '000000').status, 429, 'the fifth try locks although the disk saw only two')
+})
+
+test('a sign-in whose session cannot be saved is refused, not half done', () => {
+  const file = path.join(dir, `auth-${n++}.json`)
+  const store = A.makeAuthStore({ file, log: () => {}, write: () => { throw new Error('EPERM') } })
+  const r = login(store)
+  assert.equal(r.ok, false)
+  assert.equal(r.status, 503)
+})
+
+test('Sign out everywhere counts only the sessions still live', () => {
+  const { store, clock } = fresh()
+  login(store, PIN, 'a', 12)
+  clock.t += 2 * 3600_000
+  login(store, PIN, 'b', 12)
+  assert.equal(store.signOutEverywhere(1), 1, 'with 1 hour sessions now, only the one made just now is live')
+  assert.equal(store.events()[0].count, 1)
 })
