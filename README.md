@@ -1798,7 +1798,10 @@ token counts already record. **No model is run**: nothing here costs anything.
   flows`, never a number. An open ticket on the Tickets page shows one worked out on the fly. Once a flow finishes,
   its Cost block sets the estimate against the actual, and **How good the estimates have been** (folded inside
   Pipeline time) gives the median error, `Too few to trust` under 5. `predict-estimate.mjs`.
-- **Alerts.** One line over the Agents diagram (Home shows the count), the rows folded under it. **Taking long**:
+- **Alerts.** One line at the top of the Agents page, above Pipeline score (Home shows the count), the rows folded
+  under it; one agent holding 3 or more flows past their usual time is ONE row with **Dismiss all for today** and
+  its flows folded under it, and a flow alert can be **snoozed for a week** (it returns after 7 days, or at once when
+  the flow moves to another step: for long-lived tracking flows). **Taking long**:
   an open flow at its step more than `alerts.stuckFactor` (3) times that step's median over 30 days and at least
   `alerts.stuckMinMinutes` (60); with fewer than 5 past flows for the step, the plain `alerts.stuckHours` (24).
   A step that waits on you says so. **Token spike**: a session's last hour above `alerts.spikeFactor` (4) times its

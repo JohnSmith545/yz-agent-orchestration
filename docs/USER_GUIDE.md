@@ -694,7 +694,9 @@ already record.
   flows**. Open a ticket on the Tickets page to see one for work not started yet. When the flow finishes, its Cost
   block sets the estimate against what it really took. **How good the estimates have been**, folded inside Pipeline
   time, shows how far off they were; under 5 flows it says Too few to trust.
-- **Alerts.** A line over the Agents diagram, and on Home, says how many there are; **Show them** opens the list.
+- **Alerts.** A line at the top of the Agents page, and on Home, says how many there are; **Show them** opens the
+  list. When one agent holds 3 or more flows far past their usual time, they are one alert: **Dismiss all for today**
+  hides them together, and **The N flows** opens them one by one.
   - **Taking long**: a flow has stood at a step far longer than that step usually takes.
   - **Waiting on you**: the same for a question, a blocked flow or steps only you can do.
   - **Token spike**: a session used far more tokens in the last hour than it usually does.
@@ -704,6 +706,8 @@ already record.
   - **Daily limit**: only when you set one.
 
   **Dismiss for today** hides an alert until midnight; it comes back sooner only if it gets half as bad again.
+  **Snooze for a week** is for a flow meant to stay open a long time, such as a tracking flow for a checklist: it
+  stays quiet for 7 days, and comes back at once if the flow moves to another step.
 - **Settings** (`config.json`): `alerts` (`stuckFactor`, `stuckMinMinutes`, `stuckHours`, `spikeFactor`,
   `spikeMinTokens`, `contextTokens`, `dailyUsd`, `dailyTokens`, `enabled`) and `estimates` (`enabled`,
   `nearest`). Restart the dashboard after a change.

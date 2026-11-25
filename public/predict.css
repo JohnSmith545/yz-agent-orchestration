@@ -5,7 +5,7 @@
 
 .pe-dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--warn); }
 
-/* the line: over the diagram it is a notice; on Home a plain line like Completed's */
+/* the line: a notice at the top of the Agents page and on Home */
 .pe-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 0; font-size: 13.5px; color: var(--ink-2); }
 .pe-line b { color: var(--ink); font-weight: 550; }
 .pe-kinds { color: var(--ink-2); }
@@ -28,6 +28,15 @@
 .pe-acts { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px 12px; white-space: nowrap; }
 .pe-acts button:not(.link) { padding: 2px 10px; font-size: 12.5px; }
 .pe-hidden { margin: 8px 0 0; color: var(--muted); font-size: 12.5px; }
+
+/* one agent holding many flows: one row, its flows folded under it across the whole width */
+.pe-fold { grid-column: 1 / -1; margin: 2px 0 0; }
+.pe-fold > summary { width: fit-content; color: var(--muted); font-size: 12.5px; cursor: pointer; }
+.pe-fold > summary:hover { color: var(--ink); }
+.pe-sub { margin: 6px 0 0; padding: 0 0 0 14px; list-style: none; border-left: 2px solid var(--line); }
+/* inside a group every row is Taking long already: the tag would only repeat the group's */
+.pe-sub .pe-row { grid-template-columns: minmax(0, 1fr) auto; padding: 6px 0; }
+.pe-sub .pe-tags { display: none; }
 
 /* the quiet mark on a diagram box whose session re-reads a large history: a warn dot in its bottom corner, clear of
    the head's counts and the running pill, words in its title */
@@ -61,7 +70,7 @@
 .pe-placed[hidden] { display: none; }
 
 @media (max-width: 700px) {
-  .pe-row { grid-template-columns: minmax(0, 1fr); }
+  .pe-row, .pe-sub .pe-row { grid-template-columns: minmax(0, 1fr); }
   .pe-tags { flex-direction: row; gap: 10px; }
   .pe-acts { justify-content: flex-start; }
   .pe-line-end, .pe-line > .link { margin-left: 0; }

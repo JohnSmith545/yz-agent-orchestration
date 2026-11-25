@@ -1,14 +1,17 @@
 // Predict and warn's alerts on the page, the DOM half (the words and HTML are predict-view.js):
 //
-//   the Agents page   one line over the diagram while any alert stands (`3 alerts`, what kinds, Show them, a ?),
-//                     its rows folded under it: Open the flow, Copy handover request, Dismiss for today
+//   the Agents page   one line at the TOP of the page, above Pipeline score, while any alert stands (`3 alerts`, what
+//                     kinds, Show them, a ?), its rows folded under it: Open the flow, Copy handover request, Snooze
+//                     for a week, Dismiss for today; one agent holding many flows is one row with Dismiss all for
+//                     today and its flows folded under it (an open fold stays open across the redraws)
 //   Home              the same count on one line, linking to them (#homeAlerts, `#/agents?alerts` opens the rows)
 //   the diagram       a quiet mark on the box of an agent whose session re-reads a large history (a context alert)
 //
 // Slots: a page puts `data-pe-alerts` (the line and its rows) or `data-pe-home` on an element and calls
 // PredictAlerts.paint(root) after it draws; every load paints every slot again, and a slot whose HTML did not change
 // is left alone (an open list stays open, the focus stays put). Data: GET /api/alerts every 30 s on every page and
-// right after a dismiss. Dismiss is POST /api/alerts/dismiss with the page's own Origin (the browser sends it).
+// right after a dismiss or a snooze. Dismiss (one key, or a group's keys) is POST /api/alerts/dismiss and Snooze is
+// POST /api/alerts/snooze, both with the page's own Origin (the browser sends it).
 //
 // Rules: no sound, no pop-up, no toast; the list's open or closed state is remembered in this browser (every storage
 // access in try/catch); Copy handover request copies a sentence and sends nothing.
@@ -39,8 +42,11 @@
       const html = line ? `${line}<div class="pe-list" id="peList"${open ? '' : ' hidden'}>${V().listHtml(data)}</div>` : ''
       if (el._peHtml === html) continue
       const focusKey = doc.activeElement && el.contains(doc.activeElement) ? focusOf(doc.activeElement) : null
+      // a group's fold the user opened stays open: its times change every minute, so the HTML does too
+      const opened = new Set([...el.querySelectorAll('[data-pe-fold][open]')].map(d => d.getAttribute('data-pe-fold')))
       el._peHtml = html
       el.innerHTML = html
+      for (const d of el.querySelectorAll('[data-pe-fold]')) if (opened.has(d.getAttribute('data-pe-fold'))) d.open = true
       el.hidden = !html
       const help = el.querySelector('.help')
       if (help) window.Help?.attach(help, V().ALERTS_HELP)
@@ -58,7 +64,7 @@
   /** A selector for the focused control, so a redraw puts the focus back on the same one. */
   function focusOf(el) {
     if (el.matches('[data-pe-toggle]')) return '[data-pe-toggle]'
-    for (const a of ['data-pe-dismiss', 'data-pe-copy']) if (el.hasAttribute(a)) return `[${a}="${CSS.escape(el.getAttribute(a))}"]`
+    for (const a of ['data-pe-dismiss', 'data-pe-dismiss-all', 'data-pe-snooze', 'data-pe-copy']) if (el.hasAttribute(a)) return `[${a}="${CSS.escape(el.getAttribute(a))}"]`
     return null
   }
 
@@ -69,7 +75,7 @@
       const name = node.querySelector('.pl-name')?.textContent || ''
       const a = agents.get(name)
       node.classList.toggle('pe-ctx', !!a)
-      const title = a ? 'Long history: each turn re-reads a large conversation. See the alerts over the diagram.' : ''
+      const title = a ? 'Long history: each turn re-reads a large conversation. See the alerts at the top of this page.' : ''
       if ((node.getAttribute('title') || '') !== title) {
         if (title) node.setAttribute('title', title)
         else node.removeAttribute('title')
@@ -104,17 +110,21 @@
     if (focusRows) doc.querySelector('[data-pe-alerts] .pe-list-rows a, [data-pe-alerts] .pe-list-rows button')?.focus({ preventScroll: true })
   }
 
+  /** Dismiss for today (one alert), Dismiss all for today (a group's keys) or Snooze for a week: POST, then read again. */
   async function dismiss(btn) {
-    const key = btn.getAttribute('data-pe-dismiss')
+    const all = btn.hasAttribute('data-pe-dismiss-all')
+    const snooze = btn.hasAttribute('data-pe-snooze')
+    const body = all ? { keys: btn.getAttribute('data-pe-dismiss-all').split(' ').filter(Boolean) } : { key: btn.getAttribute(snooze ? 'data-pe-snooze' : 'data-pe-dismiss') }
+    const label = btn.textContent
     btn.disabled = true
-    btn.textContent = 'Dismissing…'
+    btn.textContent = snooze ? 'Snoozing…' : 'Dismissing…'
     try {
-      const r = await fetch('/api/alerts/dismiss', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ key }) })
+      const r = await fetch(snooze ? '/api/alerts/snooze' : '/api/alerts/dismiss', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
       const j = await r.json().catch(() => ({}))
       if (!r.ok && r.status !== 404) throw new Error(j.error || `Failed (${r.status})`)
     } catch (e) {
       btn.disabled = false
-      btn.textContent = 'Dismiss for today'
+      btn.textContent = label
       window.alert?.(e?.message || String(e))
       return
     }
@@ -158,7 +168,7 @@
     if (!t?.closest) return
     const toggle = t.closest('[data-pe-toggle]')
     if (toggle) return setOpen(!open)
-    const d = t.closest('[data-pe-dismiss]')
+    const d = t.closest('[data-pe-dismiss], [data-pe-dismiss-all], [data-pe-snooze]')
     if (d) return void dismiss(d)
     const c = t.closest('[data-pe-copy]')
     if (c) return void copy(c)

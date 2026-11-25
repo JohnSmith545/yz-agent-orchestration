@@ -170,3 +170,65 @@ test('every storage access in the page halves is guarded', () => {
     assert.equal(uses, guarded, f)
   }
 })
+
+// ═══ one agent holding many flows: one grouped alert ═══
+
+const slow = (id, agent = 'Master') => ({ key: `stuck:${id}:producing`, kind: 'stuck', text: `Flow ${id} has been with ${agent} for 9 h, 13 times the usual 40 min for that step.`, flow: id, agent, measure: 1 })
+const GROUPED = {
+  enabled: true, hidden: 0, snoozed: 2,
+  alerts: [slow('a'), slow('b'), slow('c'), slow('d'), slow('x', 'Agent 1'), slow('y', 'Agent 1'), ALERTS.alerts[1], ALERTS.alerts[2]],
+}
+
+test('3 or more Taking long alerts of one agent are ONE alert, the flows folded under it; 2 stay apart', () => {
+  const items = V.groupAlerts(GROUPED.alerts)
+  assert.equal(items.length, 5)
+  assert.equal(items[0].kind, 'group')
+  assert.equal(items[0].agent, 'Master')
+  assert.deepEqual(JSON.parse(JSON.stringify(items[0].alerts.map(a => a.flow))), ['a', 'b', 'c', 'd'])
+  assert.deepEqual(JSON.parse(JSON.stringify(items.slice(1, 3).map(a => a.flow))), ['x', 'y'])
+  // waiting on you is never grouped: it is the user s own, one by one
+  assert.equal(V.groupAlerts([1, 2, 3].map(i => ({ ...ALERTS.alerts[1], key: `stuck:q${i}:ask`, agent: 'Master' }))).length, 3)
+})
+
+test('the line counts a group as one alert and names it', () => {
+  const html = V.lineHtml(GROUPED)
+  assert.match(html, /5 alerts/)
+  assert.match(html, /Master holds 4 flows longer than usual/)
+  assert.match(html, /2 flows far past their usual time/)
+  assert.match(V.homeHtml(GROUPED), /5 alerts/)
+})
+
+test('the group row: one sentence, Dismiss all for today with every key, the flows folded with their own buttons', () => {
+  const html = V.listHtml(GROUPED)
+  assert.match(html, /Master holds 4 flows longer than usual for their step/)
+  assert.match(html, /data-pe-dismiss-all="stuck:a:producing stuck:b:producing stuck:c:producing stuck:d:producing"/)
+  assert.match(html, /Dismiss all for today/)
+  assert.match(html, /<details class="pe-fold" data-pe-fold="group:Master">/)
+  assert.match(html, /The 4 flows/)
+  for (const id of ['a', 'b', 'c', 'd']) {
+    assert.match(html, new RegExp(`data-pe-dismiss="stuck:${id}:producing"`))
+    assert.match(html, new RegExp(`data-pe-snooze="stuck:${id}:producing"`))
+  }
+})
+
+test('Snooze for a week on every flow alert, never on a session alert; the snoozed are counted under the list', () => {
+  const html = V.listHtml(ALERTS)
+  assert.match(html, /data-pe-snooze="stuck:a:qa"/)
+  assert.match(html, /data-pe-snooze="stuck:b:ask"/)
+  assert.doesNotMatch(html, /data-pe-snooze="context:s1"/)
+  assert.match(html, /Snooze for a week/)
+  assert.match(V.listHtml(GROUPED), /2 snoozed for a week/)
+})
+
+test('the help says what Snooze is for and that a group is one agent holding many flows', () => {
+  assert.match(V.ALERTS_HELP, /Snooze for a week/)
+  assert.match(V.ALERTS_HELP, /tracking flow/)
+  assert.match(V.ALERTS_HELP, /another step/)
+  assert.match(V.ALERTS_HELP, /3 or more/)
+})
+
+test('the Alerts line sits at the top of the Agents page, above Pipeline score', () => {
+  const src = read('public/agents-page.js')
+  assert.ok(src.indexOf('id="plAlerts"') > 0)
+  assert.ok(src.indexOf('id="plAlerts"') < src.indexOf('id="plScore"'), 'the alerts come before the score')
+})
