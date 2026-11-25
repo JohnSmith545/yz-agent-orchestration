@@ -46,6 +46,7 @@
 // page all read the same answer. ⚠️ Pure: no file, no config (callers pass the graph). It must not import
 // flows.mjs (flows.mjs imports this file) or config.mjs.
 
+import { handSteps } from './pipeline-hand.mjs'
 import { isCodeProducing, stageOf } from './pipeline.mjs'
 
 export const ROUTE_TYPES = ['build', 'review', 'ask']
@@ -236,7 +237,11 @@ export function routeProgress(flow, graph, route = routeOf(flow, graph)) {
   const stage = stageOf(dropped ? { ...flow, status: 'open' } : flow, graph)
   // a by-hand box the flow really reached but its route does not name (a route from before it): put in before the end
   const planned = Array.isArray(route?.steps) ? route.steps : []
-  const extra = [...new Set(stage.path.filter(id => BY_HAND.has(byId.get(id)?.role) && !planned.includes(id)))]
+  // and, once a no-code flow has by-hand steps or a Senior record, Senior's box is planned from the start (QA B-6)
+  const senior = roleNode(graph, 'senior')
+  const due = senior && !isObject(flow?.qa) && (handSteps(flow).length > 0 || isObject(flow?.senior))
+  const byHandIds = due ? [...stage.path, roleNode(graph, 'human')?.id, senior.id] : stage.path
+  const extra = [...new Set(byHandIds.filter(id => BY_HAND.has(byId.get(id)?.role) && !planned.includes(id)))].sort((a, b) => (byId.get(a).role === 'senior') - (byId.get(b).role === 'senior'))
   const steps = extra.length && planned.at(-1) === 'outcome' ? [...planned.slice(0, -1), ...extra, 'outcome'] : planned
   const visits = new Map()
   for (const id of stage.path) visits.set(id, (visits.get(id) || 0) + 1)
