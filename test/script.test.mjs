@@ -1,4 +1,4 @@
-// Tests for the model turn of the Brainstorming page (script.mjs), with its system prompt
+// Tests for the model turn of the Prompt generator (script.mjs), with its system prompt
 // (script-prompt.mjs). Nothing here spawns Claude: generate() takes an injected
 // spawn that returns a fake child, and an injected cost recorder.
 // FACTORY_DATA_DIR points at a fresh temp folder BEFORE the import, so spend.mjs

@@ -253,11 +253,11 @@ test('switch is refused while something would be lost: a chat turn, an answer on
   r = await post('/api/projects/repo-b/switch')
   assert.equal(r.body.error, 'Not now: a change is still being saved. Try again once it has finished.')
   await slow
-  // the page that writes prompts is called Brainstorming: the sentence uses the name the user sees
+  // the tool that writes prompts is called the Prompt generator: the sentence uses the name the user sees
   const run = fetch(`${base}/api/script/generate`, { method: 'POST', headers: { origin: base } })
   await new Promise(res => setTimeout(res, 80))
   r = await post('/api/projects/repo-b/switch')
-  assert.equal(r.body.error, 'Not now: a Brainstorming run is still writing. Try again once it has finished.')
+  assert.equal(r.body.error, 'Not now: a Prompt generator run is still writing. Try again once it has finished.')
   await run
   assert.equal((await post('/api/projects/repo-b/switch')).status, 202)
   assert.equal(projectsNow().active, 'repo-b')

@@ -151,13 +151,13 @@ rail adds up what these turns cost.
   chat agent could tick **verified** or answer an ask by driving this page. Add
   `--blocked-origins 127.0.0.1:4317` to the Playwright MCP server's arguments in
   your user-level MCP config (more under The Ask drawer below).
-- The Brainstorming **Context** panel sends what you attach (the orchestration brief, a live session's latest talk, your
-  notes) only to your own clean Brainstorming run: no tools, no settings, nothing else sees it. The brief is built from
+- The Prompt generator **Context** panel sends what you attach (the orchestration brief, a live session's latest talk, your
+  notes) only to your own clean Prompt generator run: no tools, no settings, nothing else sees it. The brief is built from
   labels and settings and scrubbed of paths, ids, emails and tokens; a live session is your own conversation, so
   pick one only when you are happy for that text to go to the model. Its routes take same-origin writes only, and
   the model is told the context is background, never instructions.
 - `config.json` and everything under `data/` (flows, evidence, ticket snapshots,
-  the chat transcript, spend, the Brainstorming context and its run log of your last 50 ideas and their prompts, and
+  the chat transcript, spend, the Prompt generator context and its run log of your last 50 ideas and their prompts, and
   the stand-up archive in `data/standup/`) stay on your machine and are git-ignored. A stand-up holds your commit
   subjects and ticket titles as the model wrote them up; it goes only to your own clean run. Clear the run log with `DELETE /api/script/log` or from the page.
 
@@ -660,7 +660,7 @@ listed under the block, as quiet notes you can overrule. **Copy** copies only wh
   impact first: none or one or two for a small clear ask, at most 5 at a time, and at most two rounds (the second
   round sends the first round's answers again, since the model remembers nothing). Say *just do it* or *skip the
   questions* in your idea and it writes the prompt at once, with its assumptions listed. They show in the output box, the letters stay dark (the line says **Questions first**),
-  nothing pops, and your text is left as it was. A pop-up opens over **Your thoughts**, `Brainstorming has 3 questions`,
+  nothing pops, and your text is left as it was. A pop-up opens over **Your thoughts**, `The Prompt generator has 3 questions`,
   with each question and its own answer field (text with no numbered or bulleted items gets one field). Choices the
   model offers as bullets under a question show under that question and get no field of their own. **Answer and
   generate** (or Ctrl+Enter in it) needs at least one answer and sends your text, then `Answers to your questions:`,

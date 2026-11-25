@@ -1,4 +1,4 @@
-// The Brainstorming page's model turn (#/brainstorming, public/script-page.js): ONE headless
+// The Prompt generator's model turn (#/generators, public/script-page.js): ONE headless
 // Claude Code turn that turns the user's rough idea into a prompt with six labelled
 // sections (Situation, Character, Request, Intent, Presentation, Tone), streamed.
 // (The page was called SCRIPT; its files, routes and names here keep that word, see shell.js.)

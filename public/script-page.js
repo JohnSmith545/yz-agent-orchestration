@@ -1,4 +1,4 @@
-// The Brainstorming page (#/brainstorming). The user writes a rough idea; one Opus run
+// The Prompt generator, the first tool on the Generators page (#/generators). The user writes a rough idea; one Opus run
 // (POST /api/script/generate, script-routes.mjs) streams back a ready-to-paste prompt
 // in six labelled sections, Situation, Character, Request, Intent, Presentation, Tone
 // (the SCRIPT method), using the brainstorming skill when it is installed (script.mjs).

@@ -1,4 +1,4 @@
-// Tests for the Brainstorming page (#/brainstorming, once called SCRIPT): how it is wired into the shell, index.html, the
+// Tests for the Prompt generator on the Generators page (#/generators; it was Brainstorming, and SCRIPT before): how it is wired into the shell, index.html, the
 // check script, the palette, the glossary and the server, the page's markup (labels,
 // controls, accessible names), and its stylesheet (one accent, the narrow layout, the
 // completion motion and its reduced-motion fade). Browser scripts in a vm with a bare
@@ -200,7 +200,7 @@ function rules(css) {
 }
 const ms = v => (/^[\d.]+ms$/.test(v) ? Number.parseFloat(v) : /^[\d.]+s$/.test(v) ? Number.parseFloat(v) * 1000 : NaN)
 
-test('regression: under reduced motion the Brainstorming fade and tint beat the global zeroing with !important and a real duration', () => {
+test('regression: under reduced motion the Prompt generator fade and tint beat the global zeroing with !important and a real duration', () => {
   const star = rules(block(read('styles.css'), '(prefers-reduced-motion: reduce)')).find(r => /^\*\s*,/.test(r.sel))
   assert.ok(star, 'the global reduced-motion rule is still there')
   assert.equal(star.decls.get('animation-duration')?.important, true, 'the global rule still zeroes the rest of the app')
@@ -212,7 +212,7 @@ test('regression: under reduced motion the Brainstorming fade and tint beat the 
     const own = rules(calm).filter(r => r.decls.get('animation-name')?.value === name)
     assert.ok(own.length >= 1, `a reduced-motion rule that runs ${name}, named with animation-name`)
     for (const r of own) {
-      assert.ok(/\.sc-/.test(r.sel) && !/^\*/.test(r.sel), `${r.sel}: a Brainstorming page selector, more specific than *`)
+      assert.ok(/\.sc-/.test(r.sel) && !/^\*/.test(r.sel), `${r.sel}: a Prompt generator selector, more specific than *`)
       assert.equal(r.decls.get('animation-name').important, true, `${r.sel}: animation-name !important`)
       for (const p of zeroed) assert.equal(r.decls.get(p)?.important, true, `${r.sel}: ${p} must be declared !important to beat the * rule`)
       const dur = ms(r.decls.get('animation-duration').value)
@@ -234,9 +234,9 @@ test('script.css: under reduced motion nothing scales or moves, a simple fade on
   assert.doesNotMatch(fade, /transform/)
 })
 
-// ═══ the rename: every label the user reads says Brainstorming; SCRIPT stays only as the six-part method ═══
+// ═══ the rename: every label the user reads says Generators or the Prompt generator; SCRIPT stays only as the six-part method ═══
 
-test('the words the user reads name the page Brainstorming: glossary, spend, Context panel, brief, CLI help, page help', () => {
+test('the words the user reads name the page Generators and the tool the Prompt generator: glossary, spend, Context panel, brief, CLI help, page help', () => {
   const g = JSON.parse(read('glossary.json')).script
   assert.match(g.short, /^Generators: /, 'the page title opens this entry: it names the page and its two tools (2026-11-25)')
   assert.match(g.short, /Prompt generator/)
@@ -245,9 +245,9 @@ test('the words the user reads name the page Brainstorming: glossary, spend, Con
   assert.match(read('spend.js'), /script: 'Prompt generator'/, 'its tool name on the Generators page (2026-11-25)')
   assert.match(read('script-context.js'), /What the Prompt generator is told before it writes\./)
   assert.doesNotMatch(read('script-context.js'), /Brainstorming(?! skill)/, 'the panel names the tool as the page does now')
-  assert.match(fs.readFileSync(path.join(ROOT, 'script-brief.mjs'), 'utf8'), /\['Brainstorming', 'turns a rough idea/)
+  assert.match(fs.readFileSync(path.join(ROOT, 'script-brief.mjs'), 'utf8'), /\['Generators', 'two writing tools: the Prompt generator turns a rough idea/)
   const cli = fs.readFileSync(path.join(ROOT, 'tools', 'context-cli.mjs'), 'utf8') + fs.readFileSync(path.join(ROOT, 'tools', 'factory.mjs'), 'utf8')
-  assert.match(cli, /what the Brainstorming page is told before it writes/)
+  assert.match(cli, /what the Prompt generator is told before it writes/)
   assert.doesNotMatch(cli, /SCRIPT (Generator|is told|uses it)/)
   const page = read('script-page.js')
   assert.match(page, /window\.Shell\.setTitle\('Generators', 'script'\)/, 'the page is Generators since 2026-11-25; the prompt tool keeps its words')

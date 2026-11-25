@@ -70,7 +70,7 @@ const joinAnd = parts => (parts.length < 2 ? parts.join('') : `${parts.slice(0, 
 
 /** What an unfinished write is, by its path, for the refusal sentence. */
 function writeKind(p) {
-  if (p.startsWith('/api/script')) return 'a Brainstorming run is still writing'
+  if (p.startsWith('/api/script')) return 'a Prompt generator run is still writing'
   if (p.startsWith('/api/standup')) return 'a stand-up is still being written'
   if (/^\/api\/flows\/[^/]+\/pr$/.test(p)) return 'a Send is still pushing a branch'
   return 'a change is still being saved'

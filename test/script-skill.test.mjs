@@ -1,4 +1,4 @@
-// Tests for script-skill.mjs: where the Brainstorming run finds the brainstorming skill and reads its text at run
+// Tests for script-skill.mjs: where the Prompt generator run finds the brainstorming skill and reads its text at run
 // time. It reads the account folder's own record of installed plugins (<config dir>/plugins/installed_plugins.json),
 // keeps the superpowers installs that really have the skill file, reads the newest one's SKILL.md and drops its
 // front matter. Anything missing, unreadable or malformed is "not found" (null), never a throw; a skill too long to
