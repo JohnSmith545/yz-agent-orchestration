@@ -1,5 +1,5 @@
 // The rail's spend chip (spec F4): what the dashboard's OWN headless turns
-// (the chat, the answer relay, the explainer, the ticket refreshes, the Brainstorming page) cost
+// (the chat, the answer relay, the explainer, the ticket refreshes, the two Generators tools) cost
 // today, from GET /api/spend (spend.mjs). The user's money, spent by things
 // they do not see, as one number.
 //
@@ -17,8 +17,9 @@
 // - Every string is escaped; colours come from the tokens (shell.css).
 ;(() => {
   const POLL_MS = 60_000
-  const KIND_LABEL = { chat: 'Chat', relay: 'Answer relay', explain: 'Explain', refresh: 'Ticket refresh', script: 'Brainstorming' }
-  const KIND_ORDER = ['chat', 'relay', 'explain', 'refresh', 'script']
+  // `script` is the Prompt generator and `standup` the Standup creator, the two tools on the Generators page
+  const KIND_LABEL = { chat: 'Chat', relay: 'Answer relay', explain: 'Explain', refresh: 'Ticket refresh', script: 'Prompt generator', standup: 'Standup creator' }
+  const KIND_ORDER = ['chat', 'relay', 'explain', 'refresh', 'script', 'standup']
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
   const num = v => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0)
 

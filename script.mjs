@@ -49,6 +49,10 @@
 // - The turn's total_cost_usd is recorded ONCE as `script` spend (spend.mjs), failed
 //   turns included: a turn that errored after it ran was still paid for.
 // - spawn, bin, record and the temp folder are injected, so tests never spawn Claude.
+// - Another tool's run (the Standup creator, standup-routes.mjs) is the SAME clean run with its own `turn`:
+//   { system, effort?, name?, kind, messages? }. Only the system prompt, the effort, the session name, the spend
+//   kind and any message it overrides change; the flags, the temp folder, the idle timeout and cancel stay, so
+//   what is measured above holds for it too. Without a turn it is the prompt generator, exactly as before.
 
 import { spawn as nodeSpawn } from 'node:child_process'
 import { mkdtempSync, rmSync } from 'node:fs'
@@ -76,14 +80,23 @@ export const MESSAGES = Object.freeze({
 
 /**
  * The argv of one run: headless, streamed, no tools, no MCP, no settings, no session. The text goes on stdin.
- * With `skill` ({ text }, script-skill.mjs) the system prompt also carries the skill, after its mapping.
+ * `system` replaces Claude Code's own system prompt; `name` names the session (which also stops the CLI's paid
+ * title call, see the header).
+ */
+export function turnArgs({ system, effort = SCRIPT_EFFORT, name = 'SCRIPT' }) {
+  return [
+    '-p', '--model', SCRIPT_MODEL, '--effort', effort, '--system-prompt', system,
+    '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
+    '--tools', '', '--strict-mcp-config', '--setting-sources', '', '--no-session-persistence', '--name', name,
+  ]
+}
+
+/**
+ * The prompt generator's argv. With `skill` ({ text }, script-skill.mjs) the system prompt also carries the
+ * skill, after its mapping.
  */
 export function scriptArgs(skill = null) {
-  return [
-    '-p', '--model', SCRIPT_MODEL, '--effort', SCRIPT_EFFORT, '--system-prompt', systemPrompt(skill?.text),
-    '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
-    '--tools', '', '--strict-mcp-config', '--setting-sources', '', '--no-session-persistence', '--name', 'SCRIPT',
-  ]
+  return turnArgs({ system: systemPrompt(skill?.text) })
 }
 
 /** '' when `text` can be sent, else the reason in plain words. */
@@ -139,12 +152,16 @@ function dropDir(dir) {
  * Run one generation for `text` (already checked). `onDelta(text)` hears each text delta as it
  * arrives. Returns { done, cancel }: `done` resolves once the child has closed (never rejects),
  * `cancel()` kills it (the browser went away). `skill` ({ text } from script-skill.mjs, or null)
- * makes the run carry the brainstorming skill.
+ * makes the run carry the brainstorming skill. `turn` ({ system, effort?, name?, kind, messages? }, see the
+ * header) makes it another tool's run instead, and the skill is then not used.
  */
 export function generate(text, {
   onDelta = () => {}, spawn = nodeSpawn, bin = claudeBin, record = recordCost,
-  idleMs = SCRIPT_IDLE_MS, makeDir = tempDir, removeDir = dropDir, skill = null,
+  idleMs = SCRIPT_IDLE_MS, makeDir = tempDir, removeDir = dropDir, skill = null, turn = null,
 } = {}) {
+  const args = turn ? turnArgs(turn) : scriptArgs(skill)
+  const kind = turn?.kind || 'script'
+  const say = { ...MESSAGES, ...(turn?.messages || {}) }
   let child = null
   let cancelled = false
   let timedOut = false
@@ -161,7 +178,7 @@ export function generate(text, {
     if (cancelled) return
     cancelled = true
     if (child) kill()
-    else finish({ error: MESSAGES.cancelled, cancelled: true })
+    else finish({ error: say.cancelled, cancelled: true })
   }
 
   void (async () => {
@@ -169,16 +186,16 @@ export function generate(text, {
     try {
       binPath = await bin()
     } catch {
-      return finish({ error: MESSAGES.missing })
+      return finish({ error: say.missing })
     }
-    if (cancelled) return finish({ error: MESSAGES.cancelled, cancelled: true })
+    if (cancelled) return finish({ error: say.cancelled, cancelled: true })
     let dir = ''
     try {
       dir = makeDir()
-      child = spawn(binPath, scriptArgs(skill), { cwd: dir, windowsHide: true, env: { ...process.env } })
+      child = spawn(binPath, args, { cwd: dir, windowsHide: true, env: { ...process.env } })
     } catch {
       if (dir) removeDir(dir)
-      return finish({ error: MESSAGES.missing })
+      return finish({ error: say.missing })
     }
 
     let buf = ''
@@ -196,7 +213,7 @@ export function generate(text, {
       }, idleMs)
       timer.unref?.()
     }
-    const say = t => {
+    const hear = t => {
       try {
         onDelta(t)
       } catch {
@@ -207,18 +224,18 @@ export function generate(text, {
       const r = readEvent(e)
       if (r?.delta !== undefined) {
         sawDelta = true
-        return say(r.delta)
+        return hear(r.delta)
       }
       if (r?.stop) stop = r.stop
       if (r?.result && !result) {
         result = r.result
-        record('script', result.cost)
+        record(kind, result.cost)
         return
       }
       // An older CLI without partial messages: the whole reply arrives once, as the assistant message.
       if (e?.type === 'assistant' && !sawDelta) {
         const whole = (e.message?.content || []).filter(c => c?.type === 'text').map(c => c.text).join('')
-        if (whole) say(whole)
+        if (whole) hear(whole)
       }
     }
     arm()
@@ -253,12 +270,12 @@ export function generate(text, {
       const cost = result?.cost ?? undefined
       const stopReason = result?.stopReason || stop || null
       const base = cost == null ? {} : { cost }
-      if (spawnFailed) return finish({ error: MESSAGES.missing })
-      if (cancelled) return finish({ ...base, error: MESSAGES.cancelled, cancelled: true })
-      if (timedOut) return finish({ ...base, error: MESSAGES.timeout })
-      if (stopReason === 'refusal') return finish({ ...base, error: MESSAGES.refusal, stopReason })
-      if (result?.isError) return finish({ ...base, error: withDetail(MESSAGES.failed, result.text) })
-      if (code !== 0 || !result) return finish({ ...base, error: withDetail(MESSAGES.failed, errText) })
+      if (spawnFailed) return finish({ error: say.missing })
+      if (cancelled) return finish({ ...base, error: say.cancelled, cancelled: true })
+      if (timedOut) return finish({ ...base, error: say.timeout })
+      if (stopReason === 'refusal') return finish({ ...base, error: say.refusal, stopReason })
+      if (result?.isError) return finish({ ...base, error: withDetail(say.failed, result.text) })
+      if (code !== 0 || !result) return finish({ ...base, error: withDetail(say.failed, errText) })
       finish({ ok: true, stopReason, cost: result.cost })
     })
     child.stdin.end(text)

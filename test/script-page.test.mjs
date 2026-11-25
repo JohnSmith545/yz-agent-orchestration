@@ -239,7 +239,7 @@ test('the words the user reads name the page Brainstorming: glossary, spend, Con
   const g = JSON.parse(read('glossary.json')).script
   assert.match(g.short, /^Brainstorming: /)
   assert.doesNotMatch(g.short + g.more, /SCRIPT Generator/)
-  assert.match(read('spend.js'), /script: 'Brainstorming'/)
+  assert.match(read('spend.js'), /script: 'Prompt generator'/, 'its tool name on the Generators page (2026-11-25)')
   assert.match(read('script-context.js'), /What Brainstorming is told before it writes\./)
   assert.match(fs.readFileSync(path.join(ROOT, 'script-brief.mjs'), 'utf8'), /\['Brainstorming', 'turns a rough idea/)
   const cli = fs.readFileSync(path.join(ROOT, 'tools', 'context-cli.mjs'), 'utf8') + fs.readFileSync(path.join(ROOT, 'tools', 'factory.mjs'), 'utf8')

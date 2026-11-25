@@ -116,7 +116,7 @@ test('the panel lists every kind and the recent lines with how long ago, escaped
   await settle()
   const html = t.helped.at(-1)
   assert.match(html, /\$0\.95 today/)
-  for (const label of ['Chat', 'Answer relay', 'Explain', 'Ticket refresh', 'Brainstorming']) assert.ok(html.includes(label), label)
+  for (const label of ['Chat', 'Answer relay', 'Explain', 'Ticket refresh', 'Prompt generator', 'Standup creator']) assert.ok(html.includes(label), label)
   assert.match(html, /\$0\.94/)
   assert.match(html, />3m</)
   assert.ok(!html.includes('<img'), 'an odd kind is escaped')
