@@ -227,3 +227,16 @@ test('the agent asked: the one who marked the ticket when it does the work (coor
   assert.equal(agentForTicket({ by: 'you' }, graph), 'Master')
   assert.equal(agentForTicket(undefined, graph), 'Master')
 })
+
+test('a request for by-hand steps to an agent with no session open runs no paid turn and says why (QA, 2026-11-26)', async () => {
+  const prompts = []
+  const q = makeRelay({ run: async p => (prompts.push(p), { ok: true, out: 'SENT', err: '' }), delayMs: 5, present: async () => false, waitMs: 60_000 })
+  const f = F.readFlow('ci')
+  f.hand.requestedAt = new Date().toISOString()
+  f.hand.requestSentAt = null
+  F.writeFlow(f)
+  q.queueHandRequest('ci', 'later')
+  await new Promise(r => setTimeout(r, 60))
+  assert.equal(prompts.length, 0)
+  assert.match(F.readFlow('ci').hand.requestError, /has no session open/)
+})

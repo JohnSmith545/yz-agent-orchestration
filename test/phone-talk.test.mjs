@@ -222,3 +222,14 @@ test('docs/agent-brief.md gives the coordinator the same rule, word for word, un
   assert.match(brief, /## Phone messages/)
   assert.ok(brief.includes(`> ${T.PHONE_MARKER}`))
 })
+
+test('a message while the coordinator has no session open runs no paid turn: failed, with the reason (QA, 2026-11-26)', async () => {
+  const { t, prompts } = talk({ running: async () => false })
+  const r = await t.send('are you there')
+  assert.equal(r.status, 202)
+  await t.settled()
+  assert.equal(prompts.length, 0)
+  const m = t.thread().messages.at(-1)
+  assert.equal(m.state, 'failed')
+  assert.equal(m.error, 'Master has no session open. Open it on the PC, then send again.')
+})

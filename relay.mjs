@@ -31,6 +31,13 @@
 // sent to `qa.rework.to` (not necessarily the flow's agent), stamped as `qa.rework.sentAt` or `.error`,
 // and marked by the startup sweep like a request when the restart lost it.
 //
+// ⚠️ NO PAID TURN FOR NOBODY (QA, 2026-11-26): before any turn, `present(agent)` is asked whether that agent has a
+// session open (server.mjs: a live, not pinned-and-closed, session by that name or label). With none, the turn does
+// NOT run (it could only answer FAILED and still cost money): each item is stamped not delivered with the plain reason
+// (NO_SESSION) and waits in the queue; every `waitMs` the waiting agents are asked again, and the first time one has
+// a session its items go in one turn, which stamps them sent. A presence check that fails or cannot tell lets the
+// turn run, as before. A restart forgets the waiting items; their stamped reason stays, and the page offers its retry.
+//
 // Rules this file keeps:
 // - `queue` runs AFTER the answer route has sent its 200, so it never throws
 //   and the delivery promise never rejects: every failure lands in the node's
@@ -65,6 +72,10 @@ const FACTORY_CLI = path.join(HERE, 'tools', 'factory.mjs').replace(/\\/g, '/')
 const RUN_TIMEOUT_MS = 90_000
 const ERROR_CAP = 300
 const DEFAULT_DELAY_MS = 30_000
+/** How often agents with no session open are asked again. */
+const DEFAULT_WAIT_MS = 60_000
+/** The reason a delivery waits: the agent has no session open (see the header). */
+export const noSession = agent => `${agent} has no session open; it is sent when one opens.`
 /** What the startup sweep writes on an answer the restart lost (see sweep). */
 export const RESTARTED = 'not sent: the dashboard restarted'
 /** How long the page shows a request as requested (public/flow-output.js FRESH_MS): older ones are not swept. */
@@ -363,10 +374,10 @@ function stamp(entries, outcome, at) {
 // ═══ The queue ═══
 
 /**
- * makeRelay({ run, now?, delayMs? }) -> { queue, queueStatus, queueRequest, queueQuestion, queueDeleted, queueRework, drop, deliverNow, status, sweep }.
+ * makeRelay({ run, now?, delayMs?, present?, waitMs? }) -> { queue, queueStatus, queueRequest, queueQuestion, queueDeleted, queueRework, drop, deliverNow, status, sweep }.
  * `run(prompt)` resolves { ok, out, err }; it may reject, which counts as a failure.
  */
-export function makeRelay({ run, now = () => new Date().toISOString(), delayMs = DEFAULT_DELAY_MS }) {
+export function makeRelay({ run, now = () => new Date().toISOString(), delayMs = DEFAULT_DELAY_MS, present = null, waitMs = DEFAULT_WAIT_MS }) {
   /** agent -> { items: [{ flowId, nodeId, kind: 'answer' | 'status' | 'request' | 'question' | 'deleted' | 'rework', note?, term?, sentence?, title? }], timer } */
   const batches = new Map()
   let running = 0
@@ -379,6 +390,37 @@ export function makeRelay({ run, now = () => new Date().toISOString(), delayMs =
     return outcome
   }
   const fail = message => ({ ok: false, error: String(message).slice(0, ERROR_CAP) })
+
+  /** false only when `present` says the agent has no session open; no check, or a check that fails, is true. */
+  async function isPresent(agent) {
+    if (typeof present !== 'function') return true
+    try {
+      return (await present(agent)) !== false
+    } catch {
+      return true
+    }
+  }
+  /** agent -> items waiting for a session to open (see the header); one timer asks again for all of them. */
+  const waiting = new Map()
+  let waitTimer = null
+  function wait(agent, items) {
+    const list = waiting.get(agent) || []
+    for (const i of items) if (!list.some(x => x.flowId === i.flowId && x.nodeId === i.nodeId && x.kind === i.kind && x.term === i.term)) list.push(i)
+    waiting.set(agent, list)
+    if (waitTimer) return
+    waitTimer = setInterval(async () => {
+      for (const [a, list] of [...waiting]) {
+        if (!(await isPresent(a))) continue
+        waiting.delete(a)
+        void deliver(a, list)
+      }
+      if (!waiting.size) {
+        clearInterval(waitTimer)
+        waitTimer = null
+      }
+    }, waitMs)
+    waitTimer.unref?.()
+  }
 
   /** One turn for `agent` with every item still answered; resolves { ok, error? } and never rejects. */
   async function deliver(agent, items) {
@@ -396,7 +438,10 @@ export function makeRelay({ run, now = () => new Date().toISOString(), delayMs =
       if (!entries.length) return record(fail(skipped || 'nothing to deliver'))
       let outcome
       if (!agent) outcome = fail('the flow names no agent to send the answer to')
-      else {
+      else if (!(await isPresent(agent))) {
+        outcome = fail(noSession(agent)) // no turn: it could only fail, and it would still cost (see the header)
+        wait(agent, items)
+      } else {
         let r
         try {
           r = unwrap(await run(buildPrompt(agent, entries)))

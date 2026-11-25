@@ -833,8 +833,16 @@ async function subagentBuilds() {
 }
 
 const orchestration = makeOrchestration({ git, getStatus, listWorktrees, subagentBuilds })
+/**
+ * Whether `agent` has a session open: a live session by that name or by its dashboard label; a pinned agent whose
+ * session is closed does not count. The relay asks this before every paid turn (relay.mjs, no turn for nobody).
+ */
+async function agentHasSession(agent) {
+  const want = String(agent ?? '').trim().toLowerCase()
+  return (await liveSessions()).some(s => !s.pinned && [s.name, labelOf(s.name)].some(n => String(n ?? '').trim().toLowerCase() === want))
+}
 /** Pushes the user's flow answers to the agent that asked, with a headless Claude turn (relay.mjs). */
-const relay = makeRelay({ run: claudeRun })
+const relay = makeRelay({ run: claudeRun, present: agentHasSession })
 // Answers a previous run queued but never delivered get a retry on the page, not silence (relay.mjs sweep).
 const lostAnswers = relay.sweep()
 if (lostAnswers.length) console.log(`relay: ${lostAnswers.length} answer(s) not sent before the last stop are marked for retry`)

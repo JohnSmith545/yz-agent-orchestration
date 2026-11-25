@@ -105,6 +105,9 @@ export function makeTalk({ file = TALK_FILE, agent, label, run, transcript, runn
   async function deliver(message) {
     let outcome
     try {
+      // no paid turn for a coordinator with no session open: it could only fail (QA, 2026-11-26); the page puts the
+      // text back in the box, so Send again is the user's own press once the session is open
+      if (!(await isRunning())) throw new Error(`${label} has no session open. Open it on the PC, then send again.`)
       outcome = relayOutcome(await run(messagePrompt(agent, [PHONE_MARKER, talkLine(message.text)])), 'phone')
     } catch (err) {
       outcome = { ok: false, error: String(err?.message || err).slice(0, ERROR_MAX) }

@@ -595,3 +595,58 @@ test('a question for a missing flow never throws', () => {
   const relay = makeRelay({ run: recorder().run, delayMs: 10 })
   assert.doesNotThrow(() => relay.queueQuestion('no-such-flow', 'cache', ''))
 })
+
+// ═══ no paid turn for an agent with no session open (QA, 2026-11-26) ═══
+// A rework to Agent 1 ran a $0.24 relay turn that could only answer FAILED: no session named Agent 1 is listed.
+// `present(agent)` is asked first; with no session the turn does not run, the delivery says why, and the items
+// wait in the queue, sent once the session opens.
+
+test('an answer for an agent with no session runs no turn, says why, and goes once the session opens', async () => {
+  askFlow('absent-a', 'Agent 1')
+  const { prompts, run } = recorder()
+  let open = false
+  const relay = makeRelay({ run, delayMs: 5, present: async a => (a === 'Agent 1' ? open : true), waitMs: 10 })
+  relay.queue('absent-a', 'n1')
+  await waitFor(() => ask('absent-a').deliveryError)
+  assert.equal(prompts.length, 0, 'no paid turn')
+  assert.equal(ask('absent-a').deliveryError, 'Agent 1 has no session open; it is sent when one opens.')
+  assert.equal(ask('absent-a').sentAt ?? null, null)
+  open = true
+  await waitFor(() => ask('absent-a').sentAt)
+  assert.equal(prompts.length, 1)
+  assert.equal(ask('absent-a').deliveryError, null)
+})
+
+test('deliverNow for an absent agent runs no turn either; a presence check that fails does not block the turn', async () => {
+  askFlow('absent-b', 'Agent 2')
+  const { prompts, run } = recorder()
+  const relay = makeRelay({ run, delayMs: 5, present: async () => false, waitMs: 60_000 })
+  const r = await relay.deliverNow('absent-b', 'n1')
+  assert.equal(r.ok, false)
+  assert.match(r.error, /Agent 2 has no session open/)
+  assert.equal(prompts.length, 0)
+  askFlow('unknown-c', 'Agent 2')
+  const second = recorder()
+  const relay2 = makeRelay({ run: second.run, delayMs: 5, present: async () => { throw new Error('cannot list') } })
+  relay2.queue('unknown-c', 'n1')
+  await waitFor(() => ask('unknown-c').sentAt)
+  assert.equal(second.prompts.length, 1, 'cannot tell: the turn runs as before')
+})
+
+test('a request for test steps to an absent agent records requestError with the reason and no turn', async () => {
+  const flow = F.createFlow({ id: 'absent-req', title: 'Absent request', agent: 'Agent 3' })
+  flow.output = { requestedAt: new Date().toISOString() }
+  F.writeFlow(flow)
+  const { prompts, run } = recorder()
+  const relay = makeRelay({ run, delayMs: 5, present: async () => false, waitMs: 60_000 })
+  relay.queueRequest('absent-req', 'please')
+  await waitFor(() => F.readFlow('absent-req').output.requestError)
+  assert.match(F.readFlow('absent-req').output.requestError, /Agent 3 has no session open/)
+  assert.equal(prompts.length, 0)
+})
+
+test('server.mjs gives the relay its presence check: a live session (not a closed pinned one) by name or label', () => {
+  const src = fs.readFileSync(new URL('../server.mjs', import.meta.url), 'utf8')
+  assert.match(src, /makeRelay\(\{ run: claudeRun, present: agentHasSession \}\)/)
+  assert.match(src, /async function agentHasSession\(agent\) \{[\s\S]{0,400}!s\.pinned[\s\S]{0,200}labelOf\(s\.name\)/)
+})
