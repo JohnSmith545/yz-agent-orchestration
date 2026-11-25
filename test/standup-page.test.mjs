@@ -293,3 +293,32 @@ test('regression (QA A-3): each archive entry says its kind, the time it was mad
   ] }]))
   assert.deepEqual(m[0].days[0].entries.map(e => e.meta), ['Week · 10:28 · covers Thu 19 Nov to Wed 25 Nov', 'Daily · 10:28 · covers Tue 24 Nov', 'Daily'])
 })
+
+// ═══ QA A-8, 2026-11-25: a page left open past midnight did not reset until it was opened again ═══
+
+test('msToMidnight: the time to just after the next local midnight, from the clock given', () => {
+  assert.equal(S.msToMidnight(new Date(2026, 10, 25, 23, 59, 30)), 31_000, 'a second past midnight, so the server s day has turned')
+  assert.equal(S.msToMidnight(new Date(2026, 10, 30, 12, 0, 0)), 12 * 3_600_000 + 1_000, 'across a month end')
+  assert.equal(S.msToMidnight(new Date(2026, 11, 31, 23, 0, 0)), 3_600_000 + 1_000, 'across a year end')
+})
+
+test('the page asks for today again when the tab comes back, when Generate is pressed and just after midnight', () => {
+  const src = read('standup-page.js')
+  assert.match(src, /addEventListener\('visibilitychange'[^\n]*visible[^\n]*refresh\(\)/)
+  assert.match(src, /async function onGenerate\(\) \{[\s\S]*?await refresh\(\)[\s\S]*?dispatch\(\{ type: 'start'/)
+  assert.match(src, /setTimeout\(atMidnight, S\(\)\.msToMidnight\(new Date\(\)\)\)/)
+})
+
+test('a reload on a new day empties a stand-up shown from a live run as well', () => {
+  let s = S.reduce(S.initial(), todayEv({ today: { day: '2026-11-25', daily: null, week: null }, runs: [] }))
+  s = S.reduce(s, { type: 'start', mode: 'daily', at: RUN.at })
+  s = S.reduce(s, { type: 'delta', run: s.run, text: 'Stand up, Tue 24 Nov' })
+  s = S.reduce(s, { type: 'end', run: s.run, ok: true, runId: 's-x' })
+  s = S.reduce(s, todayEv({ today: { day: '2026-11-26', daily: null, week: null }, runs: [] }))
+  assert.equal(S.view(s).output, '')
+  assert.equal(S.view(s).made, 'Daily · not written yet today')
+})
+
+test('a refresh while another page or tool shows never writes over that page s status chip', () => {
+  assert.match(read('standup-page.js'), /if \(home && !home\.closest\('\[hidden\]'\)\) status\(\)/)
+})

@@ -119,5 +119,11 @@
     }
   }
 
-  window.StandupState = { initial, reduce, view, dayLabel, KIND }
+  /**
+   * How long from `now` until a second after the next LOCAL midnight: when a page left open asks for today again, so
+   * the new day empties both views (QA A-8). A second late, so the server's own day has surely turned too.
+   */
+  const msToMidnight = now => new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime() - now.getTime() + 1_000
+
+  window.StandupState = { initial, reduce, view, dayLabel, msToMidnight, KIND }
 })()
