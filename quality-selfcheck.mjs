@@ -104,11 +104,3 @@ export function selfCheckRefusal(flow, quality) {
   return `${flow.id} has no self-check yet: ${flow.agent} runs flow self-check ${flow.id} before handing it to QA.`
 }
 
-/** One line for the flow page and `flow show`: the counts, or ''. */
-export function selfCheckLine(flow) {
-  const s = flow?.selfcheck
-  if (!isObject(s) || !Array.isArray(s.items)) return ''
-  const no = s.items.filter(it => it.ok === false).length
-  return `self-check by ${s.by}: ${s.items.length - no} ok, ${no} no`
-}
-
