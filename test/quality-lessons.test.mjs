@@ -208,3 +208,12 @@ test('qualitySettings: defaults, the switches, extra areas, the pipeline require
   assert.deepEqual([bad.autoLessons, bad.critic, bad.requireSelfCheck], [true, 'manual', false])
   assert.equal(w2.length, 3)
 })
+
+test('ensureLessons writes an empty library once, so its start time is kept across reads', () => {
+  const file = path.join(process.env.FACTORY_DATA_DIR, 'ensure.json')
+  L.ensureLessons(file)
+  const first = L.readLessons(file).startedAt
+  L.ensureLessons(file)
+  assert.equal(L.readLessons(file).startedAt, first)
+  assert.equal(L.readLessons(file).startedAt, first)
+})

@@ -252,3 +252,12 @@ export function lessonsBlock(picked) {
     ...picked.map((l, i) => `${i + 1}. ${l.text} (${l.area}: ${l.why}) [${l.id}]`),
   ].join('\n')
 }
+
+/**
+ * Write an empty library when there is none, so its startedAt is kept: the server calls it once at start
+ * (quality-wiring.mjs). Without it every read of a missing file would start the library anew, and no failure would
+ * ever count as after the start.
+ */
+export function ensureLessons(file = LESSONS_FILE) {
+  if (!existsSync(file)) writeLessons(emptyStore(), file)
+}

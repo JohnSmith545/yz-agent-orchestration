@@ -33,6 +33,7 @@ import { makeAgentSettingsRoute } from './agent-settings-routes.mjs'
 import { makeScriptLogRoute } from './script-log-routes.mjs'
 import { appendRun } from './script-log.mjs'
 import { makeStandupServerRoute } from './standup-wiring.mjs'
+import { makeQualityServer } from './quality-wiring.mjs'
 import { orchestrationBrief } from './script-brief.mjs'
 import { briefExtras } from './script-brief-extras.mjs'
 import { pipelineGraph } from './pipeline.mjs'
@@ -860,6 +861,7 @@ const scriptContextRoute = makeScriptContextRoute({ port: PORT, ...scriptContext
 const scriptLogRoute = makeScriptLogRoute({ port: PORT })
 /** The Standup creator (standup-routes.mjs): POST /api/standup/generate and GET /api/standup/log. */
 const standupRoute = makeStandupServerRoute({ port: PORT, git, prefixes: ticketPrefixes })
+const qualityRoute = makeQualityServer({ port: PORT, git }) // the lessons, the self-check, the plan critic, risk labels
 /**
  * The Project menu and the Orchestration bank (projects-routes.mjs). A switch restarts this process (restart.mjs):
  * whether the keep-alive loop runs it is read once now, off the request path.
@@ -893,6 +895,7 @@ const server = createServer(async (req, res) => {
     if (await scriptContextRoute(req, res, url)) return
     if (await scriptLogRoute(req, res, url)) return
     if (await standupRoute(req, res, url)) return
+    if (await qualityRoute(req, res, url)) return
     if (await agentSettingsRoute(req, res, url)) return
     if (await subagentRoute(req, res, url)) return
     if (await tokenRoute(req, res, url)) return
@@ -956,6 +959,7 @@ await fetchOrigin()
 setInterval(fetchOrigin, FETCH_EVERY_MS).unref()
 startAutoRefresh()
 tokenRoute.start() // Pipeline tokens: the first read of the transcripts, in the background
+qualityRoute.start() // risk labels, and the automatic lesson and second-opinion runs (quality-watch.mjs)
 
 // ─── end-of-day stop ───────────────────────────────────────────────────────────────
 
