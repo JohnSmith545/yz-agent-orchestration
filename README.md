@@ -588,7 +588,8 @@ chips and the Log's default view (its **Completed** chip shows them); it waits i
 `uncompleted` event). Unarchive refuses a completed flow. Only you complete a flow: agents have no command for it, and
 `flow write` keeps or drops the stored mark exactly as it does `archivedAt`. Every press is kept in the flow's
 `signoff` history (`[{ at, did: "completed" | "uncompleted" }]`, the newest 100), which a rewrite keeps too, so the Log
-shows every sign-off; `completedAt` is the current mark. Archiving is not a sign-off: a flow at the
+shows every sign-off; `completedAt` is the current mark. A new question that reopens a completed flow clears the mark
+and adds `{ at, did: "reopened", by: <the agent> }`: the Log says A question from that agent reopened this. Archiving is not a sign-off: a flow at the
 Output that is archived but not completed still waits (it counts, the Output list shows it with an Archived mark and its
 tick, and so does its archive row).
 

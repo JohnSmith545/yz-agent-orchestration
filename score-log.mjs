@@ -22,6 +22,7 @@
 //   completed    the user marked the finished flow completed, by You: each entry of its sign-off history (completed.mjs
 //                `signoff`), or completedAt for a flow with no history
 //   uncompleted  the user took that mark off in the flow archive, by You: each such entry of the history
+//   reopened     a new question from the agent reopened a completed flow (the store cleared the mark), by that agent
 // GATE_KINDS, only on a pipeline with the planner or Security (pipeline.mjs gateLabels), their own kinds:
 //   security  each Security verdict (flow-security.mjs, the verdict's at): a failure says who it went back to and is
 //             a catch, like a QA failure; the final pass carries the delivered cell (with Security on the graph a QA
@@ -49,7 +50,7 @@ export const GATE_KINDS = Object.freeze(['security', 'planned', 'senior'])
 /** The graph role each gate kind needs: its kind is offered only on a pipeline with that agent (score-routes.mjs). */
 export const GATE_ROLE = Object.freeze({ security: 'security', planned: 'planner', senior: 'senior' })
 /** The user's sign-off (completed.mjs): kept apart from LOG_KINDS, so the log of a flow never completed reads exactly as before. */
-export const SIGN_OFF_KINDS = Object.freeze(['completed', 'uncompleted'])
+export const SIGN_OFF_KINDS = Object.freeze(['completed', 'uncompleted', 'reopened'])
 export const LOG_CELLS = Object.freeze(['delivered', 'caught', 'missed', 'slipped'])
 
 const ROUTE_WORD = { build: 'a code change', review: 'a code review', ask: 'a question' }
@@ -146,6 +147,7 @@ function flowEvents(flow, graph, now, stallMs, labels, qaLabel, securityLabel, s
     if (t === null) continue
     if (m.did === 'completed') add(t, 'completed', 'You', 'You marked this completed.')
     else if (m.did === 'uncompleted') add(t, 'uncompleted', 'You', 'You took the completed mark off.')
+    else if (m.did === 'reopened' && isText(m.by)) add(t, 'reopened', m.by, `A question from ${m.by} reopened this.`)
   }
 
   // the flow's own cell event (a pass already carries its cell above)

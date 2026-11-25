@@ -13,7 +13,7 @@
 //                                    only on a pipeline that has that agent, and only then named in the refusal.
 //                                    The DEFAULT view (no cell, kind or completed) leaves out every event of a flow the
 //                                    user marked completed (completed.mjs): it is put away. `completed=1` lists only
-//                                    those, with every `uncompleted` event; a cell or kind filter keeps them, so the
+//                                    those, with every `uncompleted` and `reopened` event; a cell or kind filter keeps them, so the
 //                                    scorecard's See these in the log still finds every event it counted.
 // Any other value is a 400 with one plain sentence. The log also carries every saved change to an agent's rules
 // (agent-rules.mjs readLog and ruleEvents) as `rule` events; orchestrationLog keeps the ones inside the window.
@@ -63,7 +63,7 @@ export function logGet({ days: rawDays, cell, kind, completed } = {}, { config =
   const all = orchestrationLog(flows, graph, { now, days, extra })
   const signed = new Set(flows.filter(f => f.completedAt).map(f => f.id))
   const isSigned = e => !!e.flow && signed.has(e.flow.id)
-  const view = completed === '1' ? e => isSigned(e) || e.kind === 'uncompleted' : !cell && !kind ? e => !isSigned(e) : () => true
+  const view = completed === '1' ? e => isSigned(e) || e.kind === 'uncompleted' || e.kind === 'reopened' : !cell && !kind ? e => !isSigned(e) : () => true
   const events = all.filter(e => (!cell || e.cell === cell) && (!kind || e.kind === kind) && view(e))
   return { status: 200, body: { events: events.slice(0, LOG_MAX), total: events.length, window: windowOf(now, days).view, builtAt: new Date(now).toISOString() } }
 }

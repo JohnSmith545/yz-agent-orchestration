@@ -39,7 +39,7 @@ test('completing adds one completed event by You at completedAt, with no cell, a
   assert.equal(extra.length, 1)
   assert.deepEqual(extra[0], { at: SIGNED.completedAt, kind: 'completed', flow: { id: 'a', title: 'Flow a' }, agent: 'You', text: 'You marked this completed.', cell: null })
   assert.deepEqual(signed.filter(e => e.kind !== 'completed'), plain)
-  assert.deepEqual(SIGN_OFF_KINDS, ['completed', 'uncompleted'])
+  assert.deepEqual(SIGN_OFF_KINDS, ['completed', 'uncompleted', 'reopened'])
 })
 
 test('every sign-off in the history is an event: toggling twice loses none', () => {

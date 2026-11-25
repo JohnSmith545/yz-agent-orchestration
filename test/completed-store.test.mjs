@@ -46,7 +46,7 @@ test('validation: completedAt is a real ISO time, completedBy is you, signoff a 
   assert.deepEqual(F.validateFlow(fx('dark', f => { f.completedAt = '2026' })), ['completedAt must be a time'])
   assert.deepEqual(F.validateFlow(fx('dark', f => { f.signoff = 'x' })), ['signoff must be a list'])
   assert.deepEqual(F.validateFlow(fx('dark', f => { f.signoff = [{ at: '7', did: 'completed' }, { at: AT, did: 'maybe' }, 3] })), [
-    'signoff #1 at must be a time', 'signoff #2 did must be completed or uncompleted', 'signoff #3 must be a JSON object',
+    'signoff #1 at must be a time', 'signoff #2 did must be completed, uncompleted or reopened', 'signoff #3 must be a JSON object',
   ])
   assert.deepEqual(F.validateFlow(fx('dark', f => { f.completedBy = 'Agent 3' })), ['completedBy must be you'])
 })

@@ -53,7 +53,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 
 import { writeAtomic } from './atomic-write.mjs'
-import { validateSignoff } from './completed.mjs'
+import { SIGNOFF_MAX, validateSignoff } from './completed.mjs'
 import { DIAGRAM_KINDS, DIAGRAM_MAX } from './diagram-text.mjs'
 import { hasBefore, validateChange } from './flow-change.mjs'
 import { mergeReady, validateSend } from './flow-merge.mjs'
@@ -437,7 +437,11 @@ export function writeFlow(flow, { stamp = true } = {}) {
     // the code lets the page say what the USER can do instead of the agent's sentence (public/flow-hand.js holdText)
     if (held) throw Object.assign(new Error(held), { code: 'senior-hold' })
   }
-  if ((flow.archivedAt || flow.completedAt) && stored && hasNewOpenAsk(flow, stored)) for (const k of USER_PUT_AWAY) delete flow[k]
+  if ((flow.archivedAt || flow.completedAt) && stored && hasNewOpenAsk(flow, stored)) {
+    // a completed flow reopened by a question: the history says so, by the agent (completed.mjs), so the Log stays true
+    if (flow.completedAt) flow.signoff = [...(Array.isArray(flow.signoff) ? flow.signoff : []), { at: now(), did: 'reopened', by: flow.agent }].slice(-SIGNOFF_MAX)
+    for (const k of USER_PUT_AWAY) delete flow[k]
+  }
   if (stamp || !isText(flow.updatedAt)) flow.updatedAt = now()
   writeAtomic(flowFile(flow.id), JSON.stringify(flow, null, 1))
   if (before && before !== flow.status) recordFlowStatus(flow.id, before, flow.status)

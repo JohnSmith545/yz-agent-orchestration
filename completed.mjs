@@ -29,7 +29,9 @@
 //   flow out leaves a completed one out too; uncompleting clears both.
 // - THE HISTORY: every press that changes the mark appends { at, did: 'completed' | 'uncompleted' } to `flow.signoff`
 //   (the newest SIGNOFF_MAX kept), so toggling twice loses nothing and the Log shows every one. completedAt stays the
-//   CURRENT mark. The list is the user's like the mark: a flow write keeps the stored one (flows.mjs).
+//   CURRENT mark. The list is the user's like the mark: a flow write keeps the stored one (flows.mjs). When a NEW
+//   question from the agent reopens a completed flow (flows.mjs writeFlow clears the mark), the store appends
+//   { at, did: 'reopened', by: <the agent label> }: never the user's, so the Log never says You did it.
 // - Completing moves NOTHING else: no status, no story line, and the flow's updatedAt is kept as it was (flows.mjs
 //   writeFlow { stamp: false }), so the scorecard, Pipeline time and the Log count it exactly as before. Its only
 //   trace is the Log's `completed` (and `uncompleted`) event, by You (score-log.mjs).
@@ -50,7 +52,9 @@ const LIMITS = Object.freeze({ max: [1, 1000], warnAfterDays: [1, 365] })
 export const COMPLETED_BY = 'you'
 /** How many sign-offs a flow keeps in its history, the newest. */
 export const SIGNOFF_MAX = 100
-export const SIGNOFF_DID = Object.freeze(['completed', 'uncompleted'])
+/** completed and uncompleted are the user's presses; reopened is a new question from the agent (`by`) clearing the mark. */
+export const SIGNOFF_DID = Object.freeze(['completed', 'uncompleted', 'reopened'])
+const LABEL = /^[A-Za-z0-9 ._-]{1,40}$/ // flows.mjs AGENT_LABEL (not imported: flows.mjs imports this file)
 
 const isObject = v => !!v && typeof v === 'object' && !Array.isArray(v)
 const timeOf = v => {
@@ -167,7 +171,9 @@ export function validateSignoff(list, isTime) {
     const at = `signoff #${i + 1}`
     if (!isObject(e)) return problems.push(`${at} must be a JSON object`)
     if (!isTime(e.at)) problems.push(`${at} at must be a time`)
-    if (!SIGNOFF_DID.includes(e.did)) problems.push(`${at} did must be completed or uncompleted`)
+    if (!SIGNOFF_DID.includes(e.did)) problems.push(`${at} did must be completed, uncompleted or reopened`)
+    else if (e.did === 'reopened' && (typeof e.by !== 'string' || !LABEL.test(e.by) || /^you$/i.test(e.by.trim()))) problems.push(`${at} by must be the agent label, never You`)
+    else if (e.did !== 'reopened' && e.by !== undefined) problems.push(`${at} by is only for reopened`)
   })
   return problems
 }
