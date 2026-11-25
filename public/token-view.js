@@ -84,7 +84,8 @@
     const spend = stats?.spend || { usd: 0, turns: 0 }
     const out = []
     if (!all) {
-      out.push(tile('tokens', 'No tokens yet', stats?.building ? 'Still reading the transcripts.' : `No Claude Code session of this project replied ${spanOf(stats)}.`, { empty: true }))
+      // 7 or 30 days with none says so for that window only: an older window can have tokens, so never 'yet'
+      out.push(tile('tokens', stats?.window?.days ? `None in the last ${stats.window.days} days` : 'No tokens yet', stats?.building ? 'Still reading the transcripts.' : `No Claude Code session of this project replied ${spanOf(stats)}.`, { empty: true }))
       const wait = stats?.building ? 'Still reading the transcripts.' : ''
       out.push(tile('cost', 'Nothing to price', wait || 'No tokens in this period.', { empty: true }))
       out.push(tile('perJob', null, wait || 'It needs tokens and a finished job.'))
@@ -140,7 +141,7 @@
     return bars.map(b => {
       const v = value(b)
       const label = dayLabel(b.day, week)
-      return { day: b.day, label, value: v, height: max ? Math.round((v / max) * 10000) / 100 : 0, says: `${label}: ${m === 'usd' ? `about ${usd(v)}` : `${count(v)} tokens`}`, title: m === 'usd' ? `$${v.toFixed(2)}` : `${exact(v)} tokens` }
+      return { day: b.day, label, value: v, height: max ? Math.round((v / max) * 10000) / 100 : 0, says: `${label}: ${m === 'usd' ? (v ? `about ${usd(v)}` : '$0') : `${count(v)} tokens`}`, title: m === 'usd' ? `$${v.toFixed(2)}` : `${exact(v)} tokens` }
     })
   }
 

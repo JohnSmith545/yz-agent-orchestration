@@ -120,7 +120,9 @@ test('three or more unpriced models are counted, not listed one by one', () => {
 
 test('nothing in the period: honest empty tiles, never a zero that reads as a result', () => {
   const t = plain(V.tiles(EMPTY))
-  assert.equal(t[0].number, 'No tokens yet')
+  assert.equal(t[0].number, 'None in the last 7 days') // older windows may have tokens: never says yet
+  assert.equal(plain(V.tiles({ ...EMPTY, window: { ...EMPTY.window, days: 30 } }))[0].number, 'None in the last 30 days')
+  assert.equal(plain(V.tiles({ ...EMPTY, window: { ...EMPTY.window, days: null, bucket: 'week' } }))[0].number, 'No tokens yet')
   assert.ok(t.slice(0, 4).every(x => x.empty))
   assert.ok(t.slice(0, 4).every(x => !/\b0\b/.test(x.number)))
   assert.match(t[0].line, /in the last 7 days/)
@@ -153,6 +155,8 @@ test('the bars: tokens or dollars, a height for each, the day and value to read,
   const d = plain(V.barModel(STATS, 'usd'))
   assert.deepEqual(d.map(x => x.height), [0, 0.5, 50, 0, 0, 100, 35])
   assert.equal(d[5].says, 'Tue 24 Nov: about $200')
+  assert.equal(d[0].says, 'Thu 19 Nov: $0') // an empty day is no estimate: not about $0.00
+  assert.match(V.chartHtml(STATS, 'usd'), /<li>Thu 19 Nov: \$0<\/li>/)
   const html = V.chartHtml(STATS, 'tokens')
   assert.match(html, /class="ptm-chart"/)
   assert.match(html, /aria-label="Tokens per day; use the arrow keys to move along the bars"/)
