@@ -1,0 +1,67 @@
+/* The quality marks: the Lessons page (#/lessons, quality-lessons-page.js), the quality panel of an opened flow and the
+   risk chip on a card (quality-flow.js). Every colour is a styles.css token, so light and dark both follow; the risk
+   chip reuses the board's .fl-chip shape (flows.css) with the warn and bad tones. Nothing moves, so reduced motion
+   needs nothing of its own. */
+
+/* ═══ the Lessons page ═══ */
+.ql-page { max-width: 960px; }
+.ql-group { margin-bottom: 22px; padding: 16px 20px 8px; }
+.ql-group h3 { margin: 0; font-size: 15px; font-weight: 600; }
+.ql-group h3 .faint { font-weight: 400; }
+.ql-line { margin: 4px 0 0; color: var(--muted); font-size: 12.5px; }
+.ql-empty { margin: 4px 0 8px; color: var(--muted); font-size: 13px; }
+.ql-rows { list-style: none; margin: 10px 0 0; padding: 0; }
+.ql-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 16px; padding: 10px 0; border-top: 1px solid var(--line); }
+.ql-main { flex: 1 1 360px; min-width: 0; display: grid; gap: 3px; }
+.ql-text { color: var(--ink); font-size: 13.5px; overflow-wrap: anywhere; }
+.ql-text .faint { font-size: 12px; }
+.ql-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; color: var(--muted); font-size: 12.5px; }
+.ql-meta .link, .ql-text .link { font-size: inherit; text-align: left; overflow-wrap: anywhere; }
+.ql-from { min-width: 0; }
+/* a failure's summary may be 1,000 characters: three lines here, the whole of it in the tooltip */
+.ql-summary { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; max-width: 72ch; color: var(--ink-2); font-size: 12.5px; }
+.ql-row > p.ql-meta { flex: 1 1 100%; margin: 0; }
+.ql-area, .ql-pill { padding: 0 7px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); font-size: 11.5px; line-height: 1.7; }
+.ql-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; font-size: 13px; }
+.ql-acts .ql-bad, .ql-acts .ql-bad:hover { color: var(--bad); }
+.ql-row.is-retired .ql-text { color: var(--muted); }
+.ql-edit, .ql-add { flex: 1 1 100%; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px 10px; margin: 10px 0 6px; }
+.ql-edit input, .ql-add input { min-width: 0; padding: 6px 10px; font: inherit; font-size: 13px; color: var(--ink); background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius); }
+.ql-edit select, .ql-add select { justify-self: start; }
+.ql-add button, .ql-edit .ql-acts { grid-column: 2; justify-self: start; }
+.ql-label { color: var(--muted); font-size: 12.5px; }
+.ql-edit .warn, .ql-add .warn { grid-column: 1 / -1; margin: 0; }
+
+/* ═══ the risk chip (a card, the panel) ═══ */
+.fl-chip.qf-risk.is-medium { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+.fl-chip.qf-risk.is-high { background: color-mix(in srgb, var(--bad) 13%, transparent); color: var(--bad); }
+.fl-chip.qf-risk.is-low { background: var(--surface-2); color: var(--ink-2); }
+
+/* ═══ the quality panel of an opened flow ═══ */
+.fl-open > .fl-quality { padding: 12px 24px 14px; border-bottom: 1px solid var(--line); }
+.qf-risk-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+.qf-why { color: var(--ink-2); font-size: 13px; }
+.qf-missing { margin: 8px 0 0; padding: 6px 10px; border-left: 3px solid var(--warn); background: color-mix(in srgb, var(--warn) 7%, var(--surface)); color: var(--ink-2); font-size: 12.5px; }
+.qf-blocks { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px 28px; margin-top: 10px; }
+.qf-block { min-width: 0; }
+.qf-h { margin: 0 0 4px; font-size: 13px; font-weight: 600; color: var(--ink); }
+.qf-h .faint { font-weight: 400; }
+.qf-line { margin: 4px 0 0; font-size: 12.5px; color: var(--ink-2); }
+.qf-line.faint { color: var(--muted); }
+.qf-checks, .qf-points { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: 12.5px; color: var(--ink-2); }
+.qf-checks li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 6px; align-items: baseline; }
+.qf-tick { font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .02em; }
+.qf-checks .is-ok .qf-tick { color: var(--ok); }
+.qf-checks .is-no .qf-tick { color: var(--bad); }
+.qf-note { display: block; color: var(--muted); }
+.qf-points li { padding-left: 12px; position: relative; overflow-wrap: anywhere; }
+.qf-points li::before { content: ''; position: absolute; left: 2px; top: .6em; width: 4px; height: 4px; border-radius: 50%; background: var(--warn); }
+.qf-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 8px 0 0; }
+.fl-open.is-readonly [data-qf-critic] { display: none !important; }
+
+@media (max-width: 600px) {
+  .ql-group { padding: 14px 14px 6px; }
+  .ql-edit, .ql-add { grid-template-columns: minmax(0, 1fr); }
+  .ql-add button, .ql-edit .ql-acts { grid-column: 1; }
+  .fl-open > .fl-quality { padding: 12px 16px; }
+}

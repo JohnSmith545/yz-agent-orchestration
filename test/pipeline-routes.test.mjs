@@ -101,7 +101,7 @@ test('GET /api/pipeline: the graph from the config, and each flow with its stage
   assert.ok(Date.parse(j.builtAt))
   assert.deepEqual(j.tickets.map(t => t.id), ['open-one', 'shipped'])
   const [open, shipped] = j.tickets
-  assert.deepEqual(Object.keys(open).sort(), ['agent', 'archived', 'codeProducing', 'completed', 'hasOutput', 'id', 'progress', 'qa', 'route', 'stage', 'status', 'tickets', 'title', 'updatedAt', 'waiting'])
+  assert.deepEqual(Object.keys(open).sort(), ['agent', 'archived', 'codeProducing', 'completed', 'hasOutput', 'id', 'progress', 'qa', 'risk', 'route', 'stage', 'status', 'tickets', 'title', 'updatedAt', 'waiting'])
   assert.deepEqual([open.title, open.agent, open.tickets, open.status, open.qa, open.archived, open.codeProducing], ['Flow open-one', 'Agent 3', ['ABC-102'], 'open', null, false, true])
   assert.equal(open.stage.path[0], 'request')
   assert.deepEqual([shipped.stage.node, shipped.stage.status], ['outcome', 'passed'])

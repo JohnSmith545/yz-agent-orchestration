@@ -16,6 +16,7 @@
 ;(() => {
   const VIEWS = ['home', 'flows', 'qa', 'script', 'tickets', 'timeline', 'agents', 'subagents', 'glossary', 'settings', 'archive', 'agent']
   VIEWS.push('bank') // the Orchestration bank (bank-page.js): #/bank, #/bank/<id>, #/bank/<id>/use
+  VIEWS.push('lessons') // the Lessons page (quality-lessons-page.js): #/lessons[?area=tests|edit=<candidate>]
   const OLD = { factory: 'tickets', flow: 'timeline' }
   const route = (view, params = {}, redirect = null) => ({ view, params, redirect })
   const decode = s => {
@@ -151,6 +152,7 @@
   const SECTION = { home: 'home', flows: 'flowsView', qa: 'qaView', script: 'scriptView', tickets: 'factoryView', timeline: 'flowView', agents: 'agentsView', subagents: 'subagentsView', glossary: 'glossaryView', settings: 'settingsView', archive: 'archiveView', agent: 'agentView' }
   const PAGE = { flows: 'FlowsPage', qa: 'QaPage', script: 'ScriptPage', tickets: 'FactoryView', timeline: 'FlowView', agents: 'AgentsPage', subagents: 'SubagentsPage', glossary: 'GlossaryPage', settings: 'SettingsPage', archive: 'ArchivePage', agent: 'AgentView' }
   Object.assign(TITLE, { bank: 'Orchestration bank' }), Object.assign(SECTION, { bank: 'bankView' }), Object.assign(PAGE, { bank: 'BankPage' })
+  Object.assign(TITLE, { lessons: 'Lessons' }), Object.assign(SECTION, { lessons: 'lessonsView' }), Object.assign(PAGE, { lessons: 'QualityLessons' })
 
   // ─── icons: 24-unit boxes drawn at 20 px, 1.75 stroke (shell.css) ───
   const svg = d => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`
@@ -206,6 +208,9 @@
   // (Added after the template, not in it, so the rail's one long line stays as it was; ?. for the tests' bare DOM.)
   rail.querySelector('.rail-top')?.insertAdjacentHTML?.('afterend', '<div class="rail-project" id="railProject"></div>')
   rail.querySelector('a.rail-item[data-view="agents"]')?.insertAdjacentHTML?.('afterend', link('bank', '#/bank', 'Orchestration bank'))
+  // Lessons, at the END of the page links: an open book with a tick on its right page (what earlier work taught)
+  ICON.lessons = svg('<path d="M3 5.5c3-1.2 6-1 9 1 3-2 6-2.2 9-1V19c-3-1.2-6-1-9 1-3-2-6-2.2-9-1Z"/><path d="M12 6.5V20"/><path d="m14.8 12.2 1.7 1.7 3-3.4"/>')
+  rail.querySelector('.rail-nav')?.insertAdjacentHTML?.('beforeend', link('lessons', '#/lessons', 'Lessons'))
 
   // Labels as tooltips by default; after a 300 ms hover the rail opens to
   // 200 px over the page. Pinned, it stays open and pushes the page instead.

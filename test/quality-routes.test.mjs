@@ -188,3 +188,12 @@ test('GET /api/quality/flow/<id>: the risk, the gates it asks for that are missi
   assert.equal(r.body.criticMode, 'manual')
   assert.equal((await get('/api/quality/flow/none')).status, 404)
 })
+
+test('GET /api/quality/flow/<id>: a gate the pipeline has but this route never passes says who checks it instead', async () => {
+  config = { ...CONFIG, pipeline: { ...CONFIG.pipeline, senior: 'Senior' } }
+  const at = new Date().toISOString()
+  F.writeFlow({ id: 'tf', title: 'Change the terraform module', agent: 'Agent 1', status: 'open', nodes: [], route: { type: 'build', steps: ['request', 'master', 'agent-1', 'qa', 'security', 'push', 'outcome'], at, by: 'Agent 1' }, risk: { level: 'high', reasons: ['It touches infrastructure or CI.'], needs: ['security', 'senior'] } })
+  const r = await get('/api/quality/flow/tf')
+  assert.deepEqual(r.body.missing, [])
+  assert.equal(r.body.missingLine, 'Senior reviews work done by hand, not a code change, so on this route QA and Security check it.')
+})

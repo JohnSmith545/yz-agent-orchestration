@@ -82,6 +82,8 @@ function lessonsData(config, busy) {
   return {
     lessons: listLessons({}, null, store),
     candidates: store.candidates.map(c => ({ ...c, title: titles.get(c.source.flow) || c.source.flow })),
+    // the titles of the flows the lessons name, for their source links
+    titles: Object.fromEntries([...new Set(store.lessons.flatMap(l => l.sources.map(s => s.flow)))].filter(id => titles.has(id)).map(id => [id, titles.get(id)])),
     failures,
     areas: q.areas,
     settings: { autoLessons: q.autoLessons, critic: q.critic },
@@ -96,10 +98,14 @@ function flowData(flow, config) {
   const q = qualityOf(config)
   const graph = pipelineGraph(config)
   const risk = flow.risk || riskOf(flow, { ...riskFacts(flow), rules: q.riskRules })
-  const missing = riskRoute(flow.route || { type: 'ask', steps: [] }, risk, graph).missing.map(n => GATE_LABEL[n])
-  const missingLine = missing.length
-    ? `This task asks for ${missing.map(m => NEED_WORDS[m.toLowerCase()]).join(' and ')}, but there is no ${missing.join(' or ')} agent on the pipeline (config.json pipeline).`
-    : ''
+  const laid = riskRoute(flow.route || { type: 'ask', steps: [] }, risk, graph)
+  const missing = laid.missing.map(n => GATE_LABEL[n])
+  const lines = []
+  if (missing.length) lines.push(`This task asks for ${missing.map(m => NEED_WORDS[m.toLowerCase()]).join(' and ')}, but there is no ${missing.join(' or ')} agent on the pipeline (config.json pipeline).`)
+  // on the pipeline, but this kind of route never passes it: say who checks it instead, never a silent gap
+  if (laid.unmet.includes('senior')) lines.push(`Senior reviews work done by hand, not a code change, so on this route ${laid.missing.includes('security') || !graph.nodes.some(n => n.role === 'security') ? 'QA checks it' : 'QA and Security check it'}.`)
+  if (laid.unmet.includes('security')) lines.push('Security reviews code changes, and this route makes none, so it does not go through Security.')
+  const missingLine = lines.join(' ')
   const critic = flow.critic || null
   return {
     risk, missing, missingLine,
