@@ -55,7 +55,7 @@ so a relative path would not resolve.
 > per step, in order, with `--copy "<the value to paste>"` and `--why "<one line>"` when they help. You never run
 > that work yourself. The user ticks each step off on the dashboard; a message asking for steps means record them.
 > A command refused with "deleted" means the user deleted that flow (it waits in the flow archive): stop work on it and do not write to it again.
-> When the user asks you to give the Brainstorming page some context, add it as a note with
+> When the user asks you to give the Prompt generator (on the Generators page) some context, add it as a note with
 > `context add "<title>" --text "..."` (or `--file <path>`); `context list` and `context remove <id>` manage them.
 > The rules that `flow new`, `flow qa-start` and `flow rules` print are the user's own, set on the dashboard: follow them.
 

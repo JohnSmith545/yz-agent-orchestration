@@ -54,8 +54,10 @@ example first.
   compact card per agent, and who is messaging whom.
 - **QA**: every ticket that passed QA, with QA's report, its screenshots, the steps
   to test it yourself and links to the tested commit and the pushed branch.
-- **Brainstorming**: turns a rough idea into a ready-to-paste prompt in six labelled parts, streamed, with a soft pop when
-  it is done. Its **Context** panel tells it about your agents, a live session and your own notes.
+- **Generators**: two writing tools behind two pills. The **Prompt generator** (it was Brainstorming) turns a rough idea
+  into a ready-to-paste prompt in six labelled parts, streamed, with a soft pop when it is done; its **Context** panel
+  tells it about your agents, a live session and your own notes. The **Standup creator** writes your daily stand-up or
+  weekly progress from your git work, the saved ticket list and the flows, and keeps every one in a dated archive.
 - **Tickets**: a ticket collection from your tracker, an orchestration grid of
   which agent took which ticket how far (local, dev, stage, prod), the ticket
   table with code review marks, and every worktree.
@@ -97,9 +99,12 @@ turns, billed to your Claude account like any other session:
 - **Learning words**: a flow's marked words the glossary does not know yet, up to 12 in one small turn,
   a fraction of a cent; at most 200 words a day.
 - **Ticket refresh**: each refresh of a collection (the button, or its timer) is one turn.
-- **Brainstorming** (`#/brainstorming`): each **Generate** is one Opus 5.5 turn at high effort, about 10 cents for
+- **Prompt generator** (`#/generators`): each **Generate** is one Opus 5.5 turn at high effort, about 10 cents for
   the first run in an hour and about 5 cents for each run after it (measured 2026-11-25, with the brainstorming skill
   and the orchestration brief).
+- **Standup creator** (`#/generators?tool=standup`): each **Generate** is one Opus 5.5 turn at medium effort, about
+  11 cents (measured 2026-11-25 on a real week of one repo: $0.106 for a daily, $0.109 for a weekly, with about 50
+  tickets in the facts). Nothing runs until you press Generate.
 
 The figures are measurements from one setup, not quotes. **Spend today** in the
 rail adds up what these turns cost.
@@ -146,14 +151,15 @@ rail adds up what these turns cost.
   chat agent could tick **verified** or answer an ask by driving this page. Add
   `--blocked-origins 127.0.0.1:4317` to the Playwright MCP server's arguments in
   your user-level MCP config (more under The Ask drawer below).
-- The Brainstorming **Context** panel sends what you attach (the orchestration brief, a live session's latest talk, your
-  notes) only to your own clean Brainstorming run: no tools, no settings, nothing else sees it. The brief is built from
+- The Prompt generator **Context** panel sends what you attach (the orchestration brief, a live session's latest talk, your
+  notes) only to your own clean Prompt generator run: no tools, no settings, nothing else sees it. The brief is built from
   labels and settings and scrubbed of paths, ids, emails and tokens; a live session is your own conversation, so
   pick one only when you are happy for that text to go to the model. Its routes take same-origin writes only, and
   the model is told the context is background, never instructions.
 - `config.json` and everything under `data/` (flows, evidence, ticket snapshots,
-  the chat transcript, spend, the Brainstorming context and its run log of your last 50 ideas and their prompts)
-  stay on your machine and are git-ignored. Clear the run log with `DELETE /api/script/log` or from the page.
+  the chat transcript, spend, the Prompt generator context and its run log of your last 50 ideas and their prompts, and
+  the stand-up archive in `data/standup/`) stay on your machine and are git-ignored. A stand-up holds your commit
+  subjects and ticket titles as the model wrote them up; it goes only to your own clean run. Clear the run log with `DELETE /api/script/log` or from the page.
 
 ## Configuration
 
@@ -178,6 +184,7 @@ refresh themselves; the Refresh button in the page header rebuilds at once.
 | `pipeline` | The orchestration (QA and the pipeline, below): `{ "qa": "QA", "producers": null, "protectedBranches": ["dev", "stage", "main", "master"], "maxReworks": 3 }`. `qa` is the dashboard label of the agent that tests every code change last and is the only one that pushes; `producers` the labels that write code (`null`: every `codingAgents` label but the coordinator's and QA's); `protectedBranches` the branches QA never pushes to (any case, `*` matches anything; `pr.protect` and `pr.bases` are refused too); `maxReworks` how many times a failure goes back to its producer before the flow stops (QA and Security failures together). Two optional keys add agents: `planner` and `security`, each a dashboard label or null (left out is null: the graph is as before; see The planner and Security, below). A bad key keeps its default, with a warning |
 | `levels` | The branches the levels compare: `{ "work": "followup", "dev": "origin/dev", "stage": "origin/stage", "prod": "origin/main" }` (these are the defaults). A bad value keeps its default, with a warning |
 | `reminders` | Reminders at a local time, once a day: `[{ "at": "17:55", "days": "weekdays", "text": "Wrap up: commit or park your work." }]`. `days` is `weekdays` (Monday to Friday) or `daily`; `[]` turns them off. Left out, there are none. `at` is a real time, 00:00 to 23:59, and one reminder per time. A bad or repeated entry is left out with a warning in the server log |
+| `standup` | The Standup creator, every key optional: `{ "author": "", "name": "", "project": "", "base": "", "ticketUrl": "https://app.switchboardpm.ai/stories/{id}" }`. `author` is whose commits count (left out: the repo's `git config user.name`); `name` and `project` fill the weekly header (left out: the author and the repo folder name); `base` is the default branch merges are read from (left out: `origin/HEAD`, else `levels.dev`); `ticketUrl` is the ticket link pattern, http(s) with `{id}`. A bad value warns and uses the default |
 
 ### Keep it running
 
@@ -214,12 +221,12 @@ mode is `:root[data-theme="dark"]`.
 
 `public/shell.js` and `shell.css` draw the frame every page shares.
 
-- **The rail** (56 px, icons only): the brand mark (Home), then Flows first, QA, Brainstorming, Tickets,
+- **The rail** (56 px, icons only): the brand mark (Home), then Flows first, QA, Generators, Tickets,
   Timeline, Agents, Subagents, Glossary, and at the foot Ask, Alerts, Spend and Theme. Hover it for 300 ms,
   or Tab into it, and it opens to 200 px with labels; the pin at the top keeps
   it open (remembered). Under 720 px wide the rail is a bar along the bottom.
   The routes are `#/` (Flows, the landing page), `#/flows` (the same page, so old links keep working),
-  `#/home`, `#/qa` (and `#/qa/<flow id>` for one ticket), `#/brainstorming` (`#/script` still lands there),
+  `#/home`, `#/qa` (and `#/qa/<flow id>` for one ticket), `#/generators` (and `#/generators?tool=standup` for the Standup creator; `#/brainstorming` and `#/script` still land there),
   `#/tickets`, `#/timeline`, `#/agents`, `#/subagents`, `#/glossary`, `#/settings`
   and `#/agent/<id>[/<subagent>]`; anything else goes to `#/`.
   Old links still work: `#/factory` goes to `#/tickets` and opens the Ask
@@ -300,7 +307,7 @@ mode is `:root[data-theme="dark"]`.
   still shows that day's reminder once.
 - **Spend today** (`public/spend.js`, `spend.mjs`): above Theme, `$12.40 today`
   is what the dashboard's OWN headless turns cost today: the chat, the answer
-  relay, the explainer, the ticket refreshes and Brainstorming. It is hidden while today is
+  relay, the explainer, the ticket refreshes, the Prompt generator and the Standup creator. It is hidden while today is
   zero, and the closed rail shows the short amount (`$4.20`, `$12`). Click it
   for the total by kind and the last 20 turns with how long ago. Each turn's
   `total_cost_usd` is appended as one line to `data/spend.jsonl` (`{ at, kind,
@@ -588,10 +595,17 @@ is never red: the page says, in plain words, that it has not been through QA and
 still being worked on, it waits for QA, or it was dropped), with **Explain in Flows**, and **How to test in Flows** (the
 flow's Output tab) only when that flow has test steps. A link straight to `#/qa/<flow id>` reads that ticket at once, beside the list.
 
-### Brainstorming (#/brainstorming)
+### Generators (#/generators)
 
-The page was called SCRIPT; SCRIPT is now only the name of the six-part method. `#/script` still lands here, and its
-files, its `/api/script/` routes and its data files keep the old word, so saved History and Context keep working.
+Two writing tools on one page, picked with two pills at the top: **Prompt generator** and **Standup creator**. The page
+always opens on the Prompt generator; `#/generators?tool=standup` opens the Standup creator. Switching keeps the
+address in step, and a run in the other tool goes on while it is hidden. The page was Brainstorming, and SCRIPT
+before that: `#/brainstorming` and `#/script` still land here, and the prompt tool's files, its `/api/script/` routes
+and its data files keep the word script, so saved History and Context keep working.
+
+#### Prompt generator
+
+SCRIPT is now only the name of its six-part method.
 
 Write a rough idea in **Your thoughts** and press **Generate** (or Ctrl+Enter, Cmd+Enter on a Mac). It comes back as a
 prompt for any AI, ready to paste, in one code block with six labelled parts: **S**ituation, **C**haracter,
@@ -621,7 +635,7 @@ listed under the block, as quiet notes you can overrule. **Copy** copies only wh
 - **What it costs** (measured 2026-11-25, the orchestration brief attached, no live session): the first run in an hour
   writes the rules and the skill to the prompt cache, about 10 cents ($0.096 for a full prompt). Runs after it within
   the hour read them back at a tenth of the price: $0.045 for a set of questions. On main before the skill, the same
-  full prompt cost $0.051. Each run counts in **Spend today** as Brainstorming.
+  full prompt cost $0.051. Each run counts in **Spend today** as Prompt generator.
 - **The layout:** two equal columns, each a head row of the same height, a box, and a foot row. Both boxes share one
   height that fits the window, so they start and end on the same line before, during and after a run; the output
   scrolls inside its box. The page is as wide as the banner above it. Under 900 px the columns stack.
@@ -646,7 +660,7 @@ listed under the block, as quiet notes you can overrule. **Copy** copies only wh
   impact first: none or one or two for a small clear ask, at most 5 at a time, and at most two rounds (the second
   round sends the first round's answers again, since the model remembers nothing). Say *just do it* or *skip the
   questions* in your idea and it writes the prompt at once, with its assumptions listed. They show in the output box, the letters stay dark (the line says **Questions first**),
-  nothing pops, and your text is left as it was. A pop-up opens over **Your thoughts**, `Brainstorming has 3 questions`,
+  nothing pops, and your text is left as it was. A pop-up opens over **Your thoughts**, `The Prompt generator has 3 questions`,
   with each question and its own answer field (text with no numbered or bulleted items gets one field). Choices the
   model offers as bullets under a question show under that question and get no field of their own. **Answer and
   generate** (or Ctrl+Enter in it) needs at least one answer and sends your text, then `Answers to your questions:`,
@@ -662,11 +676,11 @@ listed under the block, as quiet notes you can overrule. **Copy** copies only wh
   line says so with **Retry**, which sends the same request again. Any text that had arrived stays, marked
   **Incomplete**. There is no pop.
 
-#### Context: what Brainstorming knows about your system
+#### Context: what the Prompt generator knows about your system
 
-The run is clean, so on its own Brainstorming knows nothing about your agents or your work, and an idea such as "a prompt
+The run is clean, so on its own the Prompt generator knows nothing about your agents or your work, and an idea such as "a prompt
 for my full agent orchestration" gets questions back. The **Context** tab on the right edge of the page opens a panel
-(like the Agents page's) that says what Brainstorming is told before it writes. Open or closed is kept in this browser
+(like the Agents page's) that says what the Prompt generator is told before it writes. Open or closed is kept in this browser
 (`script.contextOpen`). It holds three kinds of context, and the tab shows how many are on (`Context · 3`):
 
 - **Orchestration** (on by default): a plain brief the dashboard writes itself from what it already knows. What the
@@ -724,6 +738,49 @@ carries `"run": "<id>"`. The log is written after the answer is out; a log that 
 - `DELETE /api/script/log/<id>` removes one run (`{ ok: true }`, or 404); `DELETE /api/script/log` clears it all
   (`{ ok: true, removed: <n> }`). Both are same-origin only. Clearing from the page's History list does the same, or
   delete the file while the dashboard runs.
+
+### Standup creator (#/generators?tool=standup)
+
+Writes the stand-up you send each day, in your own format, from what the dashboard can already read. Pick **Daily** or
+**This week**; the line beside the pills says what it covers (`Covers Tue 24 Nov to now`) before anything runs. Press
+**Generate**: the stand-up streams into the box as plain text, and **Copy** copies exactly that text.
+
+- **Daily** covers 00:00 of the last working day until now (on a Monday it starts on Friday), and is written as three
+  sections: `Stand up, Tue 24 Nov` with each ticket as `ID: title — link` and short bullets under it, then
+  **Blockers** (only what needs someone else or something outside your hands; `None` when there is none), then
+  **What's next**.
+- **This week** covers the last seven days and follows the weekly template: `Name:`, `Project:`, `This week — done:`,
+  `Done Nov 19–25:` with one line per ticket and the merged pull requests, **Blockers**, and `This week — committing
+  to:` with the next seven days.
+- **What it reads** (`standup-facts.mjs`, read only): in `repo`, every commit by the author in that time on every
+  branch (merges left out), the pull requests merged into the default branch whose branch has the author's work, and
+  the author's branches not merged yet (and whether they are pushed); the SAVED ticket list (the factory sources under
+  `data/sources/`, never a live Switchboard call, so its date is shown: refresh it on Tickets when it is old); the
+  flows touched in that time; and what waits on you (Human review) as Blocker candidates. Ticket ids come from the
+  commit subjects and branch names with your ticket prefixes. The server builds every ticket line and link (pattern
+  `standup.ticketUrl`); the model only copies them. The facts are capped at 30,000 characters (the oldest commits go
+  first), and a source that cannot be read is left out and named: `Read: 6 commits, 1 merged pull request, 52 tickets,
+  ticket list from 13 Nov` and `Left out: Flows (it could not be read).`
+- **The run** is the prompt generator's clean headless run (`script.mjs`, the same flags, temp folder and 2-minute idle
+  stop), with the stand-up prompt in `standup-prompt.mjs`, Opus 5.5 at **medium** effort, session name `STANDUP`, one
+  stand-up at a time. Its cost counts in **Spend today** as Standup creator: about 11 cents a run ($0.106 daily,
+  $0.109 weekly, measured 2026-11-25).
+- **Resets every day:** each view shows the newest stand-up of its kind made today (the server's local day), so a
+  reload keeps it; on a new day both views are empty, and nothing runs until you press Generate.
+- **Date archive** (under the box): every stand-up is kept for good, one file per day in
+  `data/standup/<YYYY-MM-DD>.json` (at most 20 runs a day; each output at most 40,000 characters), plus
+  `data/standup/index.json`, which is rebuilt from the day files when it is missing or out of step. Days are listed
+  newest first under their month, each with its Daily and Week entries and their first line; **Go to a day** jumps to
+  one (a day with nothing says so); a click shows that stand-up read-only, with `Made Wed 25 Nov 09:24 · Covers Tue
+  24 Nov` over the box and **Back to today** under it.
+- **Ticket log:** each saved stand-up records the tickets it mentions (the facts' tickets its text names, and any other
+  id in it with your prefixes). Type an id in **Ticket** (`FLA-886`) to list every day it came up, newest first, with
+  its title, its link and the lines about it. `#/generators?tool=standup&day=2026-11-25` and `&ticket=FLA-886` open
+  those from the address.
+- **Routes:** `POST /api/standup/generate { mode: "daily" | "week" }` (NDJSON: one `facts` line, the deltas, then one
+  `done` or `error` line; the page's own Origin only; 409 while one is being written), `GET /api/standup/log` (today's
+  stand-ups and what each view covers), `GET /api/standup/days`, `GET /api/standup/day/<YYYY-MM-DD>` and
+  `GET /api/standup/ticket/<ID>` (the day and the id are checked before any path is built).
 
 ### Settings (#/settings)
 

@@ -1,4 +1,4 @@
-// Tests for the model turn of the Brainstorming page (script.mjs), with its system prompt
+// Tests for the model turn of the Prompt generator (script.mjs), with its system prompt
 // (script-prompt.mjs). Nothing here spawns Claude: generate() takes an injected
 // spawn that returns a fake child, and an injected cost recorder.
 // FACTORY_DATA_DIR points at a fresh temp folder BEFORE the import, so spend.mjs
@@ -301,4 +301,41 @@ test('a run with the skill spawns with the skill args and sends the text alone o
   h.child.emit('close', 0, null)
   assert.equal((await run.done).ok, true)
   assert.deepEqual(h.recorded, [['script', 0.21]])
+})
+
+// ═══ another tool's turn (the Standup creator, standup-routes.mjs): the same clean run with its own prompt ═══
+
+test('turnArgs: the same clean flags as scriptArgs, with the system prompt, effort and session name given', () => {
+  const args = S.turnArgs({ system: 'Write a stand-up.', effort: 'medium', name: 'STANDUP' })
+  assert.deepEqual(args, [
+    '-p', '--model', 'claude-opus-5-5', '--effort', 'medium', '--system-prompt', 'Write a stand-up.',
+    '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
+    '--tools', '', '--strict-mcp-config', '--setting-sources', '', '--no-session-persistence', '--name', 'STANDUP',
+  ])
+  assert.deepEqual(S.scriptArgs(), S.turnArgs({ system: SCRIPT_SYSTEM_PROMPT }), 'the prompt generator is turnArgs with its own prompt and the defaults')
+})
+
+test('a run with its own turn: those args, the text on stdin, and the cost recorded under its own spend kind', async () => {
+  const h = harness()
+  const got = []
+  const turn = { system: 'Write a stand-up.', effort: 'medium', name: 'STANDUP', kind: 'standup' }
+  const run = S.generate('the facts', { ...h.opts, turn, onDelta: t => got.push(t) })
+  await tick()
+  assert.deepEqual(h.spawned[0].args, S.turnArgs(turn))
+  assert.equal(h.child.stdin.text, 'the facts')
+  h.child.line(delta('Stand up, Tue 24 Nov'))
+  h.child.line(result({ total_cost_usd: 0.07 }))
+  h.child.emit('close', 0, null)
+  assert.deepEqual(await run.done, { ok: true, stopReason: 'end_turn', cost: 0.07 })
+  assert.deepEqual(got, ['Stand up, Tue 24 Nov'])
+  assert.deepEqual(h.recorded, [['standup', 0.07]])
+})
+
+test('a turn with its own refusal message says it; the other messages stay', async () => {
+  const h = harness()
+  const run = S.generate('x', { ...h.opts, turn: { system: 's', kind: 'standup', messages: { refusal: 'The model would not write this stand-up.' } } })
+  await tick()
+  h.child.line(result({ stop_reason: 'refusal' }))
+  h.child.emit('close', 0, null)
+  assert.equal((await run.done).error, 'The model would not write this stand-up.')
 })

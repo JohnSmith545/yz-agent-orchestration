@@ -1,0 +1,95 @@
+/* The Generators page's tool switch (generators.js) and the Standup creator (standup-page.js, standup-archive-view.js).
+   The pills are the segmented switch the other pages use (flow-output.css .ob-seg), as a radio group. Every colour is
+   a styles.css token, so light and dark both follow; the box reuses the prompt generator's quiet look (script.css). */
+
+/* ─── the pills: Prompt generator | Standup creator, and Daily | This week ─── */
+.gen-switch { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); margin: 0 0 18px; max-width: 100%; }
+.gen-switch [role="radio"] { border: 1px solid transparent; background: none; padding: 4px 14px; font-size: 13px; font-weight: 550; color: var(--muted); white-space: nowrap; }
+.gen-switch [role="radio"]:hover { color: var(--ink); }
+.gen-switch [role="radio"][aria-checked="true"] { background: var(--surface); border-color: var(--line-strong); color: var(--ink); }
+.gen-switch [role="radio"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* ─── the Standup creator: one readable column ─── */
+.su-wrap { max-width: 920px; }
+.su-lede { margin-bottom: 16px; }
+.su-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-bottom: 14px; }
+.su-bar .su-modes { margin: 0; }
+.su-covers { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+
+.su-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; min-height: 32px; margin-bottom: 8px; }
+.su-made { color: var(--ink-2); font-weight: 550; min-width: 0; overflow-wrap: anywhere; }
+.su-made.su-archived { color: var(--accent); }
+.su-progress { min-width: 0; }
+.su-copied { margin-left: auto; color: var(--ink-2); }
+.su-copied:empty { display: none; }
+.su-head #suCopy { margin-left: auto; flex: none; }
+.su-copied:not(:empty) + #suCopy { margin-left: 0; }
+
+/* the stand-up itself: plain text in the UI font (never monospace), as it will read in Slack */
+.su-out {
+  min-height: 220px; max-height: clamp(260px, calc(100dvh - 360px), 640px); overflow: auto; box-sizing: border-box; margin: 0;
+  padding: 16px 18px; font: 14px/1.65 var(--font); color: var(--ink);
+  white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 2;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+}
+.su-out:empty::before { content: attr(data-empty); color: var(--faint); font-size: 13.5px; }
+.su-out[aria-busy="true"] { border-color: var(--line-strong); }
+.su-out:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.su-foot { margin-top: 10px; }
+.su-wrap button.primary { background: var(--ink); border-color: var(--ink); color: var(--surface); padding: 7px 18px; }
+.su-wrap button.primary:disabled { opacity: .55; cursor: default; }
+.su-read { margin: 10px 0 0; display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
+.su-wrap .sc-error { margin-top: 10px; }
+
+/* ─── the Date archive ─── */
+.su-archive { margin-top: 32px; border-top: 1px solid var(--line); padding-top: 16px; }
+.su-ar-top { display: flex; align-items: baseline; gap: 10px; }
+.su-ar-h { margin: 0; font-size: 14px; font-weight: 600; color: var(--ink); }
+.su-ar-tools { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 18px; margin: 12px 0 14px; }
+.su-ar-field { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 0; }
+.su-ar-field label { color: var(--ink-2); }
+.su-ar-tools input {
+  font: inherit; font-size: 13px; color: var(--ink); background: var(--surface); color-scheme: light dark;
+  border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 5px 8px; min-width: 0;
+}
+.su-ar-tools input[type="search"] { width: 9.5em; text-transform: uppercase; }
+.su-ar-tools input[type="search"]::placeholder { text-transform: none; color: var(--faint); }
+.su-ar-note:empty { display: none; }
+
+.su-ar-month + .su-ar-month { margin-top: 14px; }
+.su-ar-mh { margin: 0 0 6px; font-size: 12.5px; font-weight: 600; color: var(--muted); text-transform: none; }
+.su-ar-days { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.su-ar-day { display: grid; grid-template-columns: 8.5em minmax(0, 1fr); gap: 4px 12px; align-items: start; padding: 8px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.su-ar-date { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; padding-top: 3px; }
+.su-ar-entries { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.su-ar-entry {
+  display: flex; align-items: baseline; gap: 10px; min-width: 0; width: 100%; text-align: left;
+  border: 0; background: none; padding: 3px 6px; margin-left: -6px; font-size: 13px; color: var(--ink);
+}
+.su-ar-entry:hover { background: var(--surface-2); }
+.su-ar-kind { flex: none; min-width: 3.6em; font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.su-ar-failed .su-ar-kind, .su-ar-failed .su-ar-first { color: var(--muted); }
+.su-ar-first { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.su-ar-lines { flex: 1 1 auto; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink); }
+.su-ar-empty { margin: 4px 0; }
+
+.su-ar-panel { margin-bottom: 8px; }
+.su-ar-ph { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 12px; margin-bottom: 8px; }
+.su-ar-pt { margin: 0; font-size: 13.5px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.su-ar-ttl { font-weight: 500; color: var(--ink-2); }
+.su-ar-linkline { margin: 0 0 8px; overflow-wrap: anywhere; }
+.su-ar-close { font-size: 12.5px; }
+
+/* a phone: the day name goes over its entries, and the tools stack */
+@media (max-width: 560px) {
+  .su-ar-day { grid-template-columns: minmax(0, 1fr); }
+  .su-ar-tools { flex-direction: column; align-items: stretch; }
+  .gen-switch [role="radio"] { padding: 4px 10px; }
+  .su-out { max-height: 60dvh; }
+}
+
+/* reduced motion: nothing here moves; the smooth scroll to the box is chosen in standup-page.js */
+@media (prefers-reduced-motion: reduce) {
+  .gen-switch [role="radio"], .su-ar-entry { transition: none; }
+}

@@ -19,8 +19,8 @@
     "more": "QA tests each change that touched code, writes a short report, and pushes the branch at the very commit it tested. A failure goes back to the agent that made the change."
   },
   "script": {
-    "short": "Brainstorming: write a rough idea and get back a ready-to-paste prompt for any AI, in six labelled parts (the SCRIPT method): Situation, Character, Request, Intent, Presentation and Tone.",
-    "more": "Each Generate is one paid run of Opus 5.5 at high effort, with no tools and none of your settings, using the brainstorming skill when it is installed. When the idea leaves gaps that matter, it asks a few short questions first (at most five at a time, in at most two rounds); say just do it to skip them."
+    "short": "Generators: two writing tools. Prompt generator turns a rough idea into a ready-to-paste prompt for any AI, in six labelled parts (the SCRIPT method): Situation, Character, Request, Intent, Presentation and Tone. Standup creator writes your daily or weekly stand-up from your git work, the saved ticket list and the flows.",
+    "more": "Each Generate is one paid run of Opus 5.5 (high effort for a prompt, medium for a stand-up), with no tools and none of your settings. The prompt generator uses the brainstorming skill when it is installed, and when the idea leaves gaps that matter it asks a few short questions first (at most five at a time, in at most two rounds); say just do it to skip them. Every stand-up is kept in the Date archive, one file a day in data/standup/."
   },
   "tickets": {
     "short": "The page for a ticket collection: the grid of who built what and how far it got, and the tables of every ticket below it."

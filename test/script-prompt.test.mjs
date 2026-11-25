@@ -1,4 +1,4 @@
-// Tests for the Brainstorming page's system prompt (script-prompt.mjs). The user's own method, the rules for
+// Tests for the Prompt generator's system prompt (script-prompt.mjs). The user's own method, the rules for
 // how a prompt is built from C:/Users/jjt_j/Downloads/MAGIC_Instructions.pdf, rewritten for this page
 // (2026-11-25, on the user's word). Each rule the user asked for is pinned on its own, everything specific to
 // Claude on the web is pinned ABSENT, one exact-text snapshot catches an accidental edit, and the reply shapes
@@ -125,7 +125,7 @@ test('a reply shaped as the prompt asks for questions is questions, with one fie
   const s = Q.split(reply)
   assert.deepEqual(JSON.parse(JSON.stringify(s.items.map(i => i.n))), [1, 2, 3])
   assert.equal(s.lead.length, 1, 'the acknowledging line sits above the questions')
-  assert.equal(Q.title(s), 'Brainstorming has 3 questions')
+  assert.equal(Q.title(s), 'The Prompt generator has 3 questions')
 })
 
 test('a reply shaped as the prompt asks for a prompt is a card with six sections and quiet assumptions after it', () => {

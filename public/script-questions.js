@@ -8,7 +8,7 @@
 //                                     list of spans), shown under the question and given no field. `lead` and `tail` are the renderer's
 //                                     paragraph parts around them, shown as quiet text. null when there
 //                                     are no items: the pop-up then shows the whole text with ONE field.
-//   ScriptQuestions.title(split)      the pop-up's head: "Brainstorming has 3 questions".
+//   ScriptQuestions.title(split)      the pop-up's head: "The Prompt generator has 3 questions".
 //   ScriptQuestions.answersText(split, answers)   the answers as Generate again sends them: a
 //                                     numbered list matching the questions, "(no answer)" for an
 //                                     empty one; with no items, the one answer as typed.
@@ -34,8 +34,8 @@
   }
 
   function title(s) {
-    if (!s) return 'Brainstorming has a question'
-    return `Brainstorming has ${s.items.length} question${s.items.length === 1 ? '' : 's'}`
+    if (!s) return 'The Prompt generator has a question'
+    return `The Prompt generator has ${s.items.length} question${s.items.length === 1 ? '' : 's'}`
   }
 
   const clean = a => String(a ?? '').trim()

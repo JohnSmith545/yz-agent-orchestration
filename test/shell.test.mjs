@@ -38,13 +38,16 @@ test('each page route resolves to its own view without a redirect', () => {
   for (const view of ['flows', 'home', 'qa', 'tickets', 'timeline', 'agents', 'subagents', 'glossary', 'settings']) {
     assert.deepEqual(r(`#/${view}`), { view, params: {}, redirect: null })
   }
-  assert.deepEqual(r('#/brainstorming'), { view: 'script', params: {}, redirect: null }, 'its view keeps the old name')
+  assert.deepEqual(r('#/generators'), { view: 'script', params: {}, redirect: null }, 'Generators: its view keeps the old name')
+  assert.deepEqual(r('#/generators?tool=standup'), { view: 'script', params: { query: { tool: 'standup' } }, redirect: null }, 'a link that opens the Standup creator')
 })
 
 // ═══ old routes ═══
 
-test('#/script (the page before it was Brainstorming) redirects to #/brainstorming', () => {
-  assert.deepEqual(r('#/script'), { view: 'script', params: {}, redirect: '#/brainstorming' })
+test('#/script and #/brainstorming (the page s earlier names) redirect to #/generators, a query kept', () => {
+  assert.deepEqual(r('#/script'), { view: 'script', params: {}, redirect: '#/generators' })
+  assert.deepEqual(r('#/brainstorming'), { view: 'script', params: {}, redirect: '#/generators' })
+  assert.deepEqual(r('#/brainstorming?tool=standup'), { view: 'script', params: { query: { tool: 'standup' } }, redirect: '#/generators?tool=standup' })
 })
 
 test('#/factory redirects to #/tickets', () => {

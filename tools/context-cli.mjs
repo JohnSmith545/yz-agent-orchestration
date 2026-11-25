@@ -1,4 +1,4 @@
-// `node tools/factory.mjs context …`: what the Brainstorming page is told, from a shell. This is how the user
+// `node tools/factory.mjs context …`: what the Prompt generator is told, from a shell. This is how the user
 // "asks Master": they ask in chat, and Master (or any agent) adds what it knows as a note.
 //
 //   context add "<title>" (--text "..." | --file <path>)   a note, on, saved to data/script-context.json
@@ -15,8 +15,8 @@ import { addNote, LIMITS, readContext, removeNote, updateContext } from '../scri
 import { flags } from './flow-cli.mjs'
 
 export const CONTEXT_USAGE = `usage:
-  context add "<title>" (--text "..." | --file <path>)   add a note Brainstorming is told before it writes
-  context list                                          what Brainstorming is told now
+  context add "<title>" (--text "..." | --file <path>)   add a note the Prompt generator is told before it writes
+  context list                                          what the Prompt generator is told now
   context remove <id>                                   remove a note`
 
 const fmt = n => n.toLocaleString('en-GB')
@@ -45,7 +45,7 @@ function add(f) {
   if (got.text.length > LIMITS.textMax) return { out: `A note can hold at most ${fmt(LIMITS.textMax)} characters. This one has ${fmt(got.text.length)}.`, code: 1 }
   const r = updateContext(c => addNote(c, { title, text: got.text }))
   if (r.error) return { out: r.error, code: 1 }
-  return { out: `Added ${r.note.id} "${r.note.title}" (${fmt(r.note.text.length)} characters). Brainstorming uses it while it is on.`, code: 0 }
+  return { out: `Added ${r.note.id} "${r.note.title}" (${fmt(r.note.text.length)} characters). The Prompt generator uses it while it is on.`, code: 0 }
 }
 
 function list() {

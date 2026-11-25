@@ -189,6 +189,24 @@ The agent writes it out as steps and stops.
 - The pipeline score still counts archived flows. Deleted flows are left out.
 - Only you archive or delete flows. Agents cannot.
 
+### Generators
+
+Two tools that write for you, picked with the two pills at the top of the page (the rail's **Generators**, or
+`#/generators`). It always opens on the first one.
+
+- **Prompt generator** (it was called Brainstorming): write a rough idea, press **Generate**, and get back a prompt for
+  any AI in six labelled parts, ready to paste.
+- **Standup creator** (`#/generators?tool=standup`): press **Generate** and it writes your stand-up, in the format you
+  send: each ticket as its name and link with a few short lines under it, then **Blockers** (only what needs someone
+  else), then **What's next**. Pick **Daily** (the last working day until now; on a Monday that starts on Friday) or
+  **This week** (the last seven days, in your weekly template with Name, Project and the dates). It reads your commits
+  on every branch, the pull requests merged into dev, your branches not merged yet, the SAVED ticket list (its date is
+  shown, so refresh it on Tickets when it is old) and the flows. **Copy** copies the stand-up exactly as shown.
+- Each view starts empty every day and keeps today's stand-up across a reload. Every stand-up is kept in the **Date
+  archive** under the box: days by month, **Go to a day** to jump to one, and **Ticket** (type `FLA-886`) to see every
+  day a ticket came up, with the lines about it. The files are on your machine, one per day, in `data/standup/`.
+  Set your name, project and ticket link pattern in config.json's `standup` block (the README lists the keys).
+
 ### Tickets
 
 The page for a ticket collection from your tracker (section 6). The chip says when it was last read;
@@ -499,6 +517,8 @@ The sizes below were measured on one setup; yours will differ.
 | Explain | A selection the glossary does not know | $0.001 |
 | Learning words | A flow's marked words the glossary does not know, up to 12 per turn, at most 200 words a day | a fraction of a cent |
 | Ticket refresh | Every press of Refresh, and every timer tick | one short turn per collection |
+| Prompt generator | Every Generate on Generators | about $0.10 for the first run in an hour, then about $0.05 |
+| Standup creator | Every Generate on Generators › Standup creator (nothing runs by itself) | about $0.11 (Opus 5.5, medium effort) |
 
 **Spend today** in the rail adds up these turns. Your own terminal sessions are not counted.
 

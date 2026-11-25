@@ -71,7 +71,7 @@ test('the QA rules come from the pipeline settings', () => {
 })
 
 test('the pages, one line each, and what the dashboard is built with', () => {
-  for (const page of ['Flows', 'Home', 'QA', 'Brainstorming', 'Tickets', 'Timeline', 'Agents', 'Subagents', 'Glossary', 'Settings']) {
+  for (const page of ['Flows', 'Home', 'QA', 'Generators', 'Tickets', 'Timeline', 'Agents', 'Subagents', 'Glossary', 'Settings']) {
     assert.match(brief, new RegExp(`^- ${page}: `, 'm'), page)
   }
   assert.match(brief, /Node(\.js)? 20/)
