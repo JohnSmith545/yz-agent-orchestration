@@ -9,6 +9,8 @@
 //   priceTable(tokensBlock)                { prices, errors }: DEFAULT_PRICES with config.json's tokens.prices over them
 //   priceFor(model, prices) / costOf(vec, price)   the price a model takes, and dollars for a vector
 //   tokenStats({ files, now, days, prices, names, labelOf, finished, spend, building, progress })   the whole block
+//   hourOf(ms) / sessionLabels(files, names, labelOf)   Predict and warn (predict-*.mjs): the epoch hour a reply is
+//                                          counted in, and each session's label exactly as the block names it
 //
 // A VECTOR is [new input, output, 5 minute cache writes, 1 hour cache writes, cache reads, responses] (I O W5 W1 R N).
 //
@@ -38,6 +40,11 @@
 //   name as it is; then config's maps (labelOf) make the label. With no name at all: Unnamed sessions.
 //   A subagent's transcript (<session>/subagents/agent-*.jsonl) counts under the session that started it.
 //
+// - Predict and warn (predict-flow-tokens.mjs, predict-alerts.mjs) needs finer than days: each file's tally also keeps
+//   per HOUR totals (`hours`, keyed by the epoch hour, Math.floor(ms / 3,600,000), so no time zone or clock change
+//   moves a reply) and its newest RECENT_MAX replies (`recent`: { id, at, model, vec }, newest last), the size of the
+//   history a session re-reads each turn. A reply that is replaced or taken over moves in both, as it does in `days`.
+//
 // ⚠️ PURE: no file, no clock, no config; token-routes.mjs passes them in.
 
 import { periodOf } from './time-stats.mjs'
@@ -51,6 +58,9 @@ export const N = 5
 const SLOTS = 6
 const MILLION = 1_000_000
 const UNNAMED = 'Unnamed sessions'
+const HOUR_MS = 3_600_000
+/** How many of a file's newest replies its tally keeps (predict-alerts.mjs reads the median of the last ten). */
+export const RECENT_MAX = 10
 
 /**
  * Dollars per million tokens, from Anthropic's public pricing page, read on 2026-11-25:
@@ -80,6 +90,8 @@ export function localDay(ms) {
   const d = new Date(ms)
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
+/** The epoch hour `ms` falls in, as the key of a tally's `hours`. */
+export const hourOf = ms => String(Math.floor(ms / HOUR_MS))
 /** Local midnight of a 'YYYY-MM-DD' key. */
 const dayMs = key => {
   const [y, m, d] = String(key).split('-').map(Number)
@@ -113,7 +125,7 @@ export function responseOf(rec) {
  * last custom-title, and the counts the help shows. Plain JSON, so token-index.mjs stores it as it is.
  */
 export function newTally() {
-  return { days: {}, counted: {}, title: null, skipped: 0, dupes: 0, special: 0, dupOf: [] }
+  return { days: {}, hours: {}, recent: [], counted: {}, title: null, skipped: 0, dupes: 0, special: 0, dupOf: [] }
 }
 
 /** The tokens a vector holds (the four kinds, cache writes of both lifetimes). */
@@ -123,6 +135,29 @@ const addInto = (t, day, model, vec, sign = 1) => {
   const models = (t.days[day] ||= {})
   const into = (models[model] ||= zero())
   for (let i = 0; i < SLOTS; i++) into[i] += sign * vec[i]
+}
+/** The same into the tally's hour `hour` (a counted entry's fourth item); an entry with no hour has none to move. */
+const addHour = (t, hour, model, vec, sign = 1) => {
+  if (hour === undefined) return
+  const models = ((t.hours ||= {})[hour] ||= {})
+  const into = (models[model] ||= zero())
+  for (let i = 0; i < SLOTS; i++) into[i] += sign * vec[i]
+}
+/** Puts reply `r` among the file's newest replies (or updates its counts), newest last, at most RECENT_MAX. */
+function remember(t, r) {
+  const list = (t.recent ||= [])
+  const seen = list.find(x => x.id === r.id)
+  if (seen) {
+    seen.vec = r.vec
+    return
+  }
+  if (list.length >= RECENT_MAX && r.at < list[0].at) return
+  list.push({ id: r.id, at: r.at, model: r.model, vec: r.vec })
+  list.sort((a, b) => a.at - b.at)
+  if (list.length > RECENT_MAX) list.splice(0, list.length - RECENT_MAX)
+}
+const forget = (t, id) => {
+  if (Array.isArray(t.recent)) t.recent = t.recent.filter(x => x.id !== id)
 }
 
 /**
@@ -144,9 +179,12 @@ export function tallyRecord(t, rec, { self, owners, tallyOf = () => null }) {
   const owner = owners.get(r.id)
   const take = () => {
     const day = localDay(r.at)
+    const hour = hourOf(r.at)
     owners.set(r.id, self)
     addInto(t, day, r.model, r.vec)
-    t.counted[r.id] = [day, r.model, r.vec]
+    addHour(t, hour, r.model, r.vec)
+    remember(t, r)
+    t.counted[r.id] = [day, r.model, r.vec, hour]
     if (r.special) t.special++
   }
   if (owner === undefined) return take()
@@ -156,7 +194,10 @@ export function tallyRecord(t, rec, { self, owners, tallyOf = () => null }) {
     if (!seen || sizeOf(r.vec) <= sizeOf(seen[2])) return
     addInto(t, seen[0], seen[1], seen[2], -1)
     addInto(t, seen[0], seen[1], r.vec)
+    addHour(t, seen[3], seen[1], seen[2], -1)
+    addHour(t, seen[3], seen[1], r.vec)
     seen[2] = r.vec
+    remember(t, r)
     return
   }
   const other = tallyOf(owner)
@@ -168,6 +209,8 @@ export function tallyRecord(t, rec, { self, owners, tallyOf = () => null }) {
   }
   // a larger copy than the one another file counted: this file takes the reply over, that file now holds the dupe
   addInto(other, theirs[0], theirs[1], theirs[2], -1)
+  addHour(other, theirs[3], theirs[1], theirs[2], -1)
+  forget(other, r.id)
   delete other.counted[r.id]
   other.dupes++
   if (!other.dupOf.includes(self)) other.dupOf.push(self)
@@ -250,6 +293,18 @@ function sessionNames(files, names, labelOf) {
     const live = names?.get(id)
     const mapped = isText(live) && labelOf(live) !== live
     return (mapped ? live : null) ?? best.get(id)?.title ?? live ?? null
+  }
+}
+
+/**
+ * Each session's LABEL, exactly as the block's By agent rows name it (the name above, then config's maps; Unnamed
+ * sessions with none): for Predict and warn, so a flow's tokens and an alert name a session the way Pipeline tokens does.
+ */
+export function sessionLabels(files, names, labelOf = n => n) {
+  const nameOf = sessionNames(Array.isArray(files) ? files.filter(isObject) : [], names, labelOf)
+  return id => {
+    const name = nameOf(id)
+    return name === null ? UNNAMED : String(labelOf(name) ?? name)
   }
 }
 
