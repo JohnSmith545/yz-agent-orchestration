@@ -63,7 +63,12 @@
   }
 
   /** Senior holds the flow, and the user may still finish it without Senior's review (human-routes.mjs). */
-  const holds = (f, readonly) => !readonly && ['due', 'asked', 'reviewing', 'failed'].includes(f?.senior?.status) && f.status !== 'done' && f.status !== 'dropped'
+  const holds = (f, readonly) => {
+    if (readonly || f?.status === 'done' || f?.status === 'dropped' || (f?.qa && typeof f.qa === 'object')) return false
+    if (['due', 'asked', 'reviewing', 'failed'].includes(f?.senior?.status)) return true
+    // a flow written before the hold was recorded: it has steps and its route plans Senior (flow-route.mjs)
+    return !f?.senior && (f?.hand?.steps || []).length > 0 && (f?.progress || []).some(s => s.role === 'senior')
+  }
   /** The release control: a quiet link, then the inline question that posts it. */
   const releaseHtml = releasing => (releasing
     ? '<p class="fh-release-ask" role="alert">Finish it with no Senior review? It counts as slipped through on the scorecard. ' +

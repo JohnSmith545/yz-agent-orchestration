@@ -43,6 +43,10 @@ test('a flow Senior holds offers Finish without Senior, asked once more inline b
     assert.doesNotMatch(FlowHand.html(f), /data-hand-release/, JSON.stringify(f.senior))
   }
   assert.doesNotMatch(FlowHand.html(held, { readonly: true }), /data-hand-release/)
+  // a flow written before the hold was recorded: its route plans Senior and it has steps, so Senior holds it too
+  const older = { ...base, hand: { steps: [step(false)] }, progress: [{ node: 'human', role: 'human', state: 'current' }, { node: 'senior', role: 'senior', state: 'upcoming' }] }
+  assert.match(FlowHand.html(older), /data-hand-release/)
+  assert.doesNotMatch(FlowHand.html({ ...older, qa: { status: 'testing' } }), /data-hand-release/, 'code is QA work')
 })
 
 test('wired: the release posts to senior-release; a refused tick or finish is said inline, never with a native alert', () => {
