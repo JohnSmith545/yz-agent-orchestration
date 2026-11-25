@@ -208,10 +208,22 @@ test('server.mjs wires Learn, Predict and Routing through smart-wiring.mjs', () 
   assert.match(src, /from '\.\/smart-wiring\.mjs'/)
   assert.match(src, /makeLearnServerRoute\(\{[^\n]*lessons: learnLessons\(listLessons\)[^\n]*signals: learnSignals\(signals\)/)
   assert.match(src, /makePredictRoute\(\{[^\n]*riskOf: riskLevelOf\(riskOf\)/)
-  assert.match(src, /wireRouting\(\{ riskOf, flowTokens, tokensReady: \(\) => !tokenRoute\.snapshot\(\)\.building && predictRoute\.ready\(\) \}\)/)
+  assert.match(src, /wireRouting\(\{ riskOf, flowTokens, tokensReady: at => tokensFinal\(at, \{ building: tokenRoute\.snapshot\(\)\.building, placedThrough: predictRoute\.placedThrough\(\) \}\) \}\)/)
 })
 
 test('the CLI entry wires Routing too', () => {
   const src = readFileSync(new URL('../tools/factory.mjs', import.meta.url), 'utf8')
   assert.match(src, /wireRouting\(\{ riskOf, flowTokens \}\)/)
+})
+
+// ═══ a flow's tokens are final once its finishing hour has closed and a placement was made from data read after ═══
+test('tokensFinal: the finishing hour must have closed in the data the placement was made from', async () => {
+  const { tokensFinal } = await import('../smart-wiring.mjs')
+  const at = Date.parse('2026-11-25T10:20:00Z')
+  assert.equal(tokensFinal(at, { building: false, placedThrough: Date.parse('2026-11-25T10:59:59Z') }), false, 'the hour is still open in the data')
+  assert.equal(tokensFinal(at, { building: false, placedThrough: Date.parse('2026-11-25T11:00:00Z') }), true)
+  assert.equal(tokensFinal(at, { building: true, placedThrough: Date.parse('2026-11-25T12:00:00Z') }), false, 'the index is still building')
+  assert.equal(tokensFinal(at, { building: false, placedThrough: null }), false, 'no placement yet')
+  assert.equal(tokensFinal(NaN, { building: false, placedThrough: Date.parse('2026-11-25T12:00:00Z') }), false)
+  assert.equal(tokensFinal(Date.parse('2026-11-25T11:00:00Z'), { building: false, placedThrough: Date.parse('2026-11-25T11:00:00Z') }), false, 'finished on the hour: that hour is open')
 })

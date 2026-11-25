@@ -9,7 +9,9 @@
 //       usd?, delivered, end, missing? }
 //
 //   outcomeOf(flow, graph, { now, stallDays, flowTokens })   the line for a FINISHED flow, or null
-//   recordOutcomes({ flows, graph, now, file, flowTokens })  append the lines of finished flows not yet in the file
+//   recordOutcomes({ flows, graph, now, file, flowTokens, readyFor })  append the lines of finished flows not yet in
+//                                                    the file whose tokens are final: readyFor(finishedAt ms) true
+//                                                    (routing-providers.mjs tokensReady); until then a flow has no line
 //   readOutcomes(file) / listOutcomes({ since }, file)       the lines, oldest first (the CONTRACT other features read)
 //   outcomeTable(lines)                                      the Routing page's table, per task type and model
 //
@@ -132,15 +134,24 @@ export function listOutcomes({ since } = {}, file = OUTCOMES_FILE) {
   return from === null ? all : all.filter(l => Date.parse(l.at) >= from)
 }
 
+/** readyFor(at), where a throw is not ready. */
+function isReady(readyFor, at) {
+  try {
+    return readyFor(at) !== false
+  } catch {
+    return false
+  }
+}
+
 /** Append the line of each finished flow not yet in the file. Returns how many were written; never throws. */
-export function recordOutcomes({ flows = [], graph, now = Date.now(), file = OUTCOMES_FILE, flowTokens = null, stallDays = 7 } = {}) {
+export function recordOutcomes({ flows = [], graph, now = Date.now(), file = OUTCOMES_FILE, flowTokens = null, stallDays = 7, readyFor = () => true } = {}) {
   try {
     const seen = new Set(readOutcomes(file).map(l => l.flow))
     const lines = []
     for (const f of flows) {
       if (!isObj(f) || seen.has(f.id)) continue
       const line = outcomeOf(f, graph, { now, stallDays, flowTokens })
-      if (!line) continue
+      if (!line || !isReady(readyFor, Date.parse(line.at))) continue // written once, so only with its final tokens
       seen.add(f.id)
       lines.push(JSON.stringify(line))
     }

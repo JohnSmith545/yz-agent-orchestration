@@ -24,6 +24,9 @@
 //                                       stores an estimate ONCE on each open flow that has none (writeFlow with
 //                                       stamp false, so the scorecard does not move); the count written
 //   route.ready()                       true once a placement was made: flowTokens has something to answer from
+//   route.placedThrough()               when the transcripts behind the last placement were read (the index's
+//                                       builtAt, in ms), or null: Routing waits for a flow's finishing hour to
+//                                       close in that data before it writes the flow's one outcome line
 //   route.start()                       the sweep now and every minute, in the background
 //   ⚠️ The sweep places EVERY minute once the index is built, even with nothing to estimate: Routing writes each
 //   finished flow's outcome line once, with flowTokens (smart-wiring.mjs), so a placement left from hours before, or
@@ -156,6 +159,7 @@ export function makePredictRoute({
     if (hit && hit.key === key && at - hit.at < CACHE_MS) return hit.value
     const labelFn = sessionLabels(snap.files, await safe(names), labelOf)
     const value = placeTokens({ files: snap.files, flows, graph: graph(), labelOf: labelFn, prices: prices(), now: at, from })
+    value.dataAt = Date.parse(snap.builtAt) // what this placement knows of: the transcripts as read then
     if (cache.size > 8) cache = new Map()
     cache.set(from, { key, at, value })
     return value
@@ -165,6 +169,7 @@ export function makePredictRoute({
   // THE CONTRACT flowTokens(flowId) (predict-flow-tokens.mjs) answers from the last placement this route made
   setFlowTokenSource(id => tokensOf(id))
   const placed = async () => (lastPlacement = await placement(null))
+  const dataAtOf = p => (Number.isFinite(p?.dataAt) ? p.dataAt : null)
 
   let tickets = { at: 0, map: new Map() }
   async function ticketMap() {
@@ -310,6 +315,7 @@ export function makePredictRoute({
   // ═══ the sweep: an estimate stored once on each open flow ═══
   let sweeping = null
   async function sweepOnce() {
+    kick() // a fresh read of the transcripts for the next sweep, even with no page open (at most every 30 s)
     if (snapshot().building) return 0
     await placed() // flowTokens answers from this: kept current every minute (see the header)
     if (!est.enabled) return 0
@@ -361,6 +367,7 @@ export function makePredictRoute({
   }
   route.sweep = sweep
   route.ready = () => lastPlacement !== null
+  route.placedThrough = () => dataAtOf(lastPlacement)
   route.start = () => {
     sweep().catch(err => log(`predict: ${err?.message || err}`))
     setInterval(() => sweep().catch(err => log(`predict: ${err?.message || err}`)), SWEEP_MS).unref()

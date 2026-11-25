@@ -116,3 +116,20 @@ test('the table: per task type and model, flows, right first time, median time a
   assert.equal(t.rows[0].type, 'wording', 'most flows first')
   assert.deepEqual(O.outcomeTable([]), { rows: [], recorded: 0, target: 100 })
 })
+
+// QA 2026-11-26: the line was written the moment the flow finished, while the hour it finished in was still open,
+// so its tokens and cost were early and too low (820,812 tokens, $0.21, against 1,177,086 and $0.29 minutes later),
+// and a line is never corrected. readyFor(finishedAt) holds a flow back until its tokens are final.
+test('recordOutcomes leaves a flow with no line until readyFor says its tokens are final, then writes it once', () => {
+  const file = tmpFile('ready.jsonl')
+  const flows = [passed('a'), passed('b', { qa: { status: 'passed', attempt: 1, at: '2026-11-25T11:20:00Z', startedAt: '2026-11-25T11:00:00Z' }, updatedAt: '2026-11-25T11:20:00Z' })]
+  const asked = []
+  const finalThrough = Date.parse('2026-11-25T11:00:00Z') // the placement holds everything read up to 11:00
+  const readyFor = at => (asked.push(at), at < finalThrough)
+  assert.equal(O.recordOutcomes({ flows, graph, now: NOW, file, readyFor }), 1, 'a (finished 10:00) only')
+  assert.ok(asked.includes(Date.parse('2026-11-25T11:20:00Z')))
+  assert.deepEqual(O.readOutcomes(file).map(l => l.flow), ['a'])
+  assert.equal(O.recordOutcomes({ flows, graph, now: NOW, file, readyFor: () => true }), 1, 'b, once ready')
+  assert.equal(O.recordOutcomes({ flows, graph, now: NOW, file, readyFor: () => true }), 0, 'never twice')
+  assert.equal(O.recordOutcomes({ flows: [passed('c')], graph, now: NOW, file, readyFor: () => { throw new Error('x') } }), 0, 'a readiness check that throws writes nothing')
+})

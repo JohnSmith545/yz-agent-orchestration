@@ -84,9 +84,9 @@ export function makeRoutingRoute({
 
   function sweep() {
     try {
-      // each line is written once: while the token index is still being built its cost is not known yet, so wait
-      if (providers().tokensReady?.() === false) return 0
-      return recordOutcomes({ flows: flows(), graph: graph(), now: now(), file: outcomesFile, flowTokens: providers().flowTokens })
+      // each line is written once, so a flow waits until its tokens are final (routing-providers.mjs tokensReady)
+      const p = providers()
+      return recordOutcomes({ flows: flows(), graph: graph(), now: now(), file: outcomesFile, flowTokens: p.flowTokens, readyFor: at => p.tokensReady?.(at) !== false })
     } catch {
       return 0
     }

@@ -4,12 +4,12 @@
 //
 //   riskOf(flow)        low | medium | high, or null           feat/smart-quality; default: no risk (null)
 //   flowTokens(flowId)  { tokens, usd } or null                 feat/smart-predict; default: not known (null)
-//   tokensReady()       false while the token index is still    the server (smart-wiring.mjs); default: true
-//                       being built
+//   tokensReady(at)     true once the tokens of a flow that     the server (smart-wiring.mjs tokensFinal);
+//                       finished at `at` (ms) are final           default: true
 //
-// ⚠️ tokensReady exists because an outcome line is written ONCE per finished flow (routing-outcomes.mjs): on a first
-// start the token index takes a while to build, flowTokens answers null meanwhile, and without the wait every
-// finished flow would keep `missing: ['tokens', 'usd']` for good. The outcome sweep waits instead (routing-routes.mjs).
+// ⚠️ tokensReady exists because an outcome line is written ONCE per finished flow (routing-outcomes.mjs): while the
+// token index builds flowTokens answers null, and while the hour a flow finished in is still open its figure is early
+// and too low. Without the wait those would stay in the line for good; the flow simply has no line until then.
 //
 // A provider that throws or answers something else counts as not known: routing never fails because another
 // feature did. routingProviders() returns the current set; tests set their own and put the defaults back.

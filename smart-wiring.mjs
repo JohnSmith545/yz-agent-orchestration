@@ -9,7 +9,7 @@
 //     riskLevelOf(riskOf)         quality-risk.mjs riskOf(flow, facts) -> { level, reasons, needs }  ->  (flow) -> level | null
 //   Routing (routing-providers.mjs setRoutingProviders { riskOf, flowTokens, tokensReady })
 //     wireRouting({ riskOf, flowTokens, tokensReady })   the same level, predict-flow-tokens.mjs flowTokens(id) as
-//                                    { tokens, usd }, and (server only) whether the token index is built yet
+//                                    { tokens, usd }, and (server only) tokensFinal, whether a finished flow has its final tokens
 //
 // ⚠️ Shapes that differ, and why each adapter exists:
 // - Quality's riskOf answers an OBJECT; Predict and Routing compare a level STRING (`riskOf(flow) === target.risk`).
@@ -87,10 +87,23 @@ export function routingTokens(flowTokens) {
   }
 }
 
+const HOUR = 3_600_000
+
+/**
+ * Whether the tokens of a flow that finished at `at` (ms) are final: the index is built, and the last placement was made
+ * from transcripts read after the hour `at` falls in had closed (the index keeps per hour totals, so an open hour is
+ * still growing). Until then Routing writes no line for the flow; with one placement a minute, that is the next hour
+ * plus about a minute.
+ */
+export function tokensFinal(at, { building = true, placedThrough = null } = {}) {
+  if (building || !Number.isFinite(at) || !Number.isFinite(placedThrough)) return false
+  return placedThrough >= (Math.floor(at / HOUR) + 1) * HOUR
+}
+
 /** A readiness check that answers false when it throws. */
-const readyOf = check => () => {
+const readyOf = check => at => {
   try {
-    return check() !== false
+    return check(at) !== false
   } catch {
     return false
   }

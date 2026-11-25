@@ -188,6 +188,21 @@ test('the sweep keeps flowTokens current: it places every time the index is buil
   assert.ok(flowTokens('f')?.tokens > 0)
 })
 
+// Routing writes an outcome line once a flow's finishing hour is closed IN THE DATA the placement came from, so it
+// needs that time, and the sweep must ask the index to read the transcripts again even when no page is open.
+test('placedThrough is when the transcripts behind the last placement were read; the sweep asks for a fresh read', async () => {
+  let refreshes = 0
+  let builtAt = iso(NOW - 5 * MIN)
+  route = make({ index: { snapshot: () => ({ files, building: false, builtAt }), refresh: async () => { refreshes++ } } })
+  assert.equal(route.placedThrough(), null)
+  await route.sweep()
+  assert.equal(route.placedThrough(), NOW - 5 * MIN)
+  assert.equal(refreshes, 1)
+  builtAt = iso(NOW)
+  await route.sweep()
+  assert.equal(route.placedThrough(), NOW)
+})
+
 test('GET /api/predict/accuracy: per window, too few under 5; a bad window is the score s 400', async () => {
   const r = await get('/api/predict/accuracy?days=30')
   assert.equal(r.status, 200)
