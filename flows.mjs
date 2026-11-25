@@ -39,6 +39,11 @@
 //   only the plan commands (tools/plan-cli.mjs) write it, and mergeKeepingAnswers takes it from the stored file only.
 // - `senior` (optional) is Senior's review of work with no code to test (flow-senior.mjs): only the Senior commands
 //   (tools/senior-cli.mjs) write it, and mergeKeepingAnswers takes it from the stored file only (keepSenior).
+// - ⚠️ THE SENIOR GATE lives HERE, in writeFlow, the one door every writer goes through (the agent CLI's set and
+//   write, the dashboard's status route, anything added later): while Senior holds a flow (flow-senior.mjs
+//   seniorHolds), a write that moves it to done is refused with that one sentence. Only Senior's own pass, which
+//   records the pass in the same write, gets through. The pipeline is the live config's (config.mjs); the CLI runs
+//   each command inside withPipeline(its config), so a test config is honoured.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -49,7 +54,9 @@ import { hasBefore, validateChange } from './flow-change.mjs'
 import { mergeReady, validateSend } from './flow-merge.mjs'
 import { keepPlan, validatePlan } from './flow-plan.mjs'
 import { keepQa, validateQa } from './flow-qa.mjs'
-import { keepSenior, validateSenior } from './flow-senior.mjs'
+import { keepSenior, seniorHolds, validateSenior } from './flow-senior.mjs'
+import { CONFIG } from './config.mjs'
+import { pipelineGraph } from './pipeline.mjs'
 import { keepHand, validateHand } from './hand-steps.mjs'
 import { keepRoute, validateRoute } from './flow-route.mjs'
 import { sayShorter, STORY_ID, STORY_MAX, storyOf, YOU } from './flow-story.mjs'
@@ -368,11 +375,30 @@ export function listFlows({ open, waiting, agent, ticket, archived } = {}, tally
  * the user reopening an answer). With no stored copy there is nothing to
  * compare, and the trusted caller's archivedAt stands.
  */
+/** The graph the Senior gate reads: the live config's, or the one withPipeline set for the call in progress. */
+let gateGraph = () => pipelineGraph(CONFIG)
+
+/** Run `fn` with `config`'s pipeline as the one the Senior gate reads (the CLI passes its own config). */
+export function withPipeline(config, fn) {
+  const was = gateGraph
+  gateGraph = () => pipelineGraph(config || CONFIG)
+  try {
+    return fn()
+  } finally {
+    gateGraph = was
+  }
+}
+
 export function writeFlow(flow) {
   const problems = validateFlow(flow)
   if (problems.length) throw new Error(problems.join('\n'))
   const stored = storedFlow(flow.id)
   const before = stored?.status ?? null
+  // the Senior gate: only the move to done is checked, so a flow done before Senior existed may still be written
+  if (flow.status === 'done' && before !== 'done') {
+    const held = seniorHolds(flow, gateGraph())
+    if (held) throw new Error(held)
+  }
   if (flow.archivedAt && stored && hasNewOpenAsk(flow, stored)) delete flow.archivedAt
   flow.updatedAt = now()
   writeAtomic(flowFile(flow.id), JSON.stringify(flow, null, 1))
