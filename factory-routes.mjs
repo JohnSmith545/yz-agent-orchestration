@@ -141,6 +141,16 @@ async function body(req) {
  * the request's own Host header, which a rebinding site controls.
  */
 const sameOrigin = (req, port) => !req.headers.origin || originAllowed(req.headers.origin, port)
+/**
+ * THE USER'S OWN ROUTES (QA round two B-F1): the by-hand tick (`hand`) and Finish without Senior (`senior-release`) are
+ * what the user does on the page, and a browser always sends Origin on a POST. So these need the header PRESENT and
+ * the page's own: curl or a script with none is refused, where every other route still takes a missing Origin (agent
+ * tools call some of them). This stops an accident, not a determined process on the same machine: such a process can
+ * forge the header. That is why a release is always scored as slipped through (score.mjs): nobody reviewed the work,
+ * whoever pressed it.
+ */
+const USER_ONLY = new Set(['hand', 'senior-release'])
+const pageOrigin = (req, port) => !!req.headers.origin && originAllowed(req.headers.origin, port)
 
 export async function factoryRoute(req, res, url, { git, gh, push, pr, port = CONFIG.port, fetched, relay, explain = explainTurn, learn = learnTerms, getStatus, settings, pipelineConfig = null } = {}) {
   const p = url.pathname
@@ -183,6 +193,7 @@ export async function factoryRoute(req, res, url, { git, gh, push, pr, port = CO
     if (action === 'drop' && post) return changeFlow(res, id, f => ((f.status = 'dropped'), f)), true
     if (action === 'deliver' && post) return await deliver(res, id, await body(req), relay), true
     if (action === 'request-tests' && post) return requestTests(res, id, await body(req), relay), true
+    if (post && USER_ONLY.has(action) && !pageOrigin(req, port)) return json(res, 403, { error: 'The user does this, only from the dashboard page.' }), true
     if (action === 'hand' && post) return send(res, handTickRoute(id, await body(req))), true
     if (action === 'senior-release' && post) return send(res, seniorReleaseRoute(id)), true
     if (action === 'request-hand' && post) return send(res, handRequestRoute(id, await body(req), relay)), true
