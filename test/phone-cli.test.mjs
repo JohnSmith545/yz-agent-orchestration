@@ -116,7 +116,7 @@ test('phone-setup writes remote.enabled and remote.bind only after a typed yes, 
   assert.deepEqual([cfg.remote.iface, cfg.remote.mac, cfg.remote.cidr], ['Tailscale', '00:00:00:00:00:00', '100.101.102.103/32'], 'the network it was set up on')
   assert.match(r.out, /http:\/\/100\.101\.102\.103:4318\/phone/)
   assert.match(r.out, /phone-pin/, 'no PIN yet: it says to set one')
-  assert.match(r.out, /restart the dashboard/i)
+  assert.match(r.out, /no restart needed/i)
   assert.equal(cfg.repo, 'C:/work/repo')
 })
 

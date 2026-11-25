@@ -33,7 +33,7 @@
     'Install Tailscale on this PC and on the phone, and sign in to the same account. Or put both on your home Wi-Fi.',
     'In a terminal in this folder, run <code>node tools/factory.mjs phone-setup</code> and pick the address (the Tailscale one if you have it).',
     'Run <code>node tools/factory.mjs phone-pin</code> and type a PIN of 8 to 12 digits, different from your send PIN.',
-    'Restart the dashboard. On the phone, open the address it shows and sign in with the PIN.',
+    'Within a few seconds the dashboard listens: no restart needed. On the phone, open the address it shows and sign in with the PIN.',
     'Add it to the home screen: Share, then Add to Home Screen on an iPhone; the menu, then Add to Home screen on Android.',
   ]
 

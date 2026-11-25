@@ -212,7 +212,7 @@ export function startPhoneListener({ settings, handler, createServer = httpCreat
   // a slow client cannot hold a connection open: whole request in 20 s, headers in 10 s
   server.requestTimeout = 20_000
   server.headersTimeout = 10_000
-  server.on?.('error', err => log(`phone: could not listen on ${settings.bind}:${settings.port} (${err?.code || err?.message || err}). Phone access is off until the dashboard restarts.`))
+  server.on?.('error', err => log(`phone: could not listen on ${settings.bind}:${settings.port} (${err?.code || err?.message || err}). It tries again within a few seconds.`))
   server.listen(settings.port, settings.bind, () => log(`Phone access on ${settings.url} (your private network only; see Settings, Phone)`))
   return server
 }

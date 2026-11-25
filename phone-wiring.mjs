@@ -3,16 +3,16 @@
 // (phone-auth.mjs), Talk to Master (phone-talk.mjs, sending through the relay's own headless turn), the allowlist
 // (phone-actions.mjs), the listener (phone-server.mjs) and the door that opens and closes it (phone-door.mjs).
 //
-// With no `remote` block in config.json, or one that is off when the dashboard starts, no server is created and
-// nothing new listens (remoteSettings has already said why, once, for a block that is off); only the change watcher
-// (watchRemote) looks at config.json, so turning it on, by phone-setup or by anything else, is seen at once. The
-// listener itself starts at the next start of the dashboard.
+// With no `remote` block in config.json, or one that is off, nothing new listens. The door is built ALWAYS and ticked
+// every CHECK_MS, so a valid block written while the dashboard runs (phone-setup, then phone-pin) opens the listener
+// within CHECK_MS, as the desktop's Phone access now listens on <address> says. ⚠️ It used to be built only when the
+// block was on at start, so a server started with no block never opened it until a restart (QA, 2026-11-26).
 //
-// Once it started on, the WATCHER ticks the door every CHECK_MS: the listener closes on any change (turned off on
-// the desktop or in config.json, three lockouts in a day, a config.json that does not parse, this PC off the network
-// it was set up on) and opens again when the block is good again, such as when the PC is back on that network.
+// The listener closes on any change (turned off on the desktop or in config.json, three lockouts in a day, a
+// config.json that does not parse, this PC off the network it was set up on) and opens again when the block is good
+// again, such as when the PC is back on that network.
 //
-//   startPhone({ getStatus, relay, run, sessions, transcriptFile }, { reader?, configFile? })   { door, stop() } or null
+//   startPhone({ getStatus, relay, run, sessions, transcriptFile }, { reader?, configFile?, every? })   { door, stop() }
 
 import { CONFIG, CONFIG_FILE } from './config.mjs'
 import { makePhoneActions } from './phone-actions.mjs'
@@ -56,10 +56,9 @@ export function watchRemote({ reader = remoteNow, auth = makeAuthStore(), every 
 /** The coordinator's session, live or pinned, by its session name (config coordinator). */
 const coordinatorOf = async sessions => (await sessions()).find(s => s.name === CONFIG.coordinator) || null
 
-export function startPhone({ getStatus, relay, run, sessions, transcriptFile }, { reader = remoteNow, configFile = CONFIG_FILE } = {}) {
+export function startPhone({ getStatus, relay, run, sessions, transcriptFile }, { reader = remoteNow, configFile = CONFIG_FILE, every = CHECK_MS } = {}) {
   const auth = makeAuthStore()
-  const watcher = watchRemote({ reader, auth })
-  if (!reader().enabled) return null
+  const watcher = watchRemote({ reader, auth, every })
   const talk = makeTalk({
     agent: CONFIG.coordinator,
     label: CONFIG.coordinatorLabel,
@@ -91,7 +90,7 @@ export function startPhone({ getStatus, relay, run, sessions, transcriptFile }, 
     }),
   })
   door.tick()
-  const watch = setInterval(() => door.tick(), CHECK_MS)
+  const watch = setInterval(() => door.tick(), every)
   watch.unref()
   return { door, stop() { clearInterval(watch); watcher.stop(); door.close() } }
 }

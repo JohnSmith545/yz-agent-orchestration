@@ -1977,7 +1977,7 @@ dashboard keeps listening on `127.0.0.1` only.
    writes `remote.enabled`, `remote.bind` and the network it was set up on (`iface`, `mac`, `cidr`).
 3. `node tools/factory.mjs phone-pin`: type a phone PIN of 8 to 12 digits, twice, nothing shown. It must differ
    from your send PIN. Only its scrypt hash is kept (`remote.pinHash`), and every phone is signed out.
-4. Restart the dashboard. On the phone, open the address it prints (`http://<address>:4318/phone`), sign in,
+4. Within a few seconds a running dashboard listens (no restart needed). On the phone, open the address it prints (`http://<address>:4318/phone`), sign in,
    and add the page to the home screen.
 
 **What the phone can do**, and nothing else: see how many things need you and what each agent is doing; answer

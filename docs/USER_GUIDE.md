@@ -794,7 +794,7 @@ is off until you set it up, and only reachable on your own private network.
    tells you, and type `yes`.
 3. Run `node tools/factory.mjs phone-pin`. Type a PIN of 8 to 12 digits twice. Pick one you do not use for your
    send PIN.
-4. Restart the dashboard.
+4. Wait a few seconds: a running dashboard starts listening by itself, no restart needed.
 5. On the phone, open the address `phone-setup` printed, such as `http://100.101.102.103:4318/phone`. Sign in
    with the PIN. Then add it to the home screen: on an iPhone, Share, then Add to Home Screen; on Android, the
    browser menu, then Add to Home screen.

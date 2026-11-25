@@ -65,11 +65,32 @@ test('a listener that fails to open is tried again on the next tick, never twice
 const listening = () => process.getActiveResourcesInfo().filter(r => r === 'TCPServerWrap').length
 const deps = { getStatus: async () => ({ agents: [] }), relay: { queue() {} }, run: async () => ({ ok: false }), sessions: async () => [], transcriptFile: async () => null }
 
-test('REAL sockets: with no remote block startPhone opens nothing (only the change watcher looks at config.json)', () => {
+const NO_BLOCK = { configured: false, enabled: false, wanted: false, bind: '', pinHash: '' }
+const wait = ms => new Promise(r => setTimeout(r, ms))
+
+test('REAL sockets: with no remote block startPhone opens nothing (only the change watcher looks at config.json)', async () => {
   const before = listening()
-  const r = startPhone(deps, { reader: Object.assign(() => ({ configured: false, enabled: false, wanted: false, bind: '', pinHash: '' }), { invalidate() {} }) })
-  assert.equal(r, null)
+  const r = startPhone(deps, { reader: Object.assign(() => NO_BLOCK, { invalidate() {} }), every: 20 })
+  await wait(80)
   assert.equal(listening(), before)
+  r.stop()
+})
+
+// QA 2026-11-26: a server started with NO remote block never opened the door when a valid block appeared, while the
+// desktop already said Phone access now listens on its address. The door now ticks whatever the block said at start.
+test('REAL sockets: started with no block, a valid block written later opens a listener within the watch interval; removing it closes it', async () => {
+  const before = listening()
+  let s = NO_BLOCK
+  const phone = startPhone(deps, { reader: Object.assign(() => s, { invalidate() {} }), every: 20 })
+  await wait(60)
+  assert.equal(listening(), before, 'nothing yet')
+  s = { enabled: true, configured: true, wanted: true, bind: '127.0.0.1', port: 0, url: 'test', sessionHours: 4, pinHash: '' }
+  await wait(80)
+  assert.equal(listening(), before + 1, 'open within the interval')
+  s = NO_BLOCK
+  await wait(80)
+  assert.equal(listening(), before, 'closed again')
+  phone.stop()
 })
 
 test('REAL sockets: an enabled block opens exactly one listener, and stop closes it', async () => {

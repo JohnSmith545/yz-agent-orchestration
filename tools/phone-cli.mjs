@@ -115,7 +115,7 @@ export async function runPhoneSetup({ io = terminal(), configFile = CONFIG, inte
     out: [
       `Phone access is on at ${chosen.address}, port ${port}.`,
       hasPin ? '' : 'Next: set a phone PIN with node tools/factory.mjs phone-pin (it stays off until you do).',
-      'Then restart the dashboard so it starts listening.',
+      'A running dashboard starts listening within a few seconds; no restart needed.',
       `On the phone, open ${url} and add it to the home screen.`,
     ].filter(Boolean).join('\n'),
     code: 0,
