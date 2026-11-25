@@ -175,6 +175,7 @@
   function ticketHtml(info) {
     if (!info) return ''
     if (info.enabled === false) return 'Estimates are off (estimates.enabled in config.json).'
+    if (info.flow && info.flowDone) return `Already done in a flow: its Cost block has the estimate against what it took. ${flowLink(info.flow)}`
     if (info.flow) return `Started: its flow keeps its own estimate. ${flowLink(info.flow)}`
     const e = info.estimate
     if (!e || e.few || !isNum(e.minutes)) return 'No estimate yet: too few similar flows.'

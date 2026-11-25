@@ -146,7 +146,9 @@ test('GET /api/predict/ticket: on the fly from the flows finished so far; too fe
   assert.deepEqual(r.body.estimate.basedOn.sort(), ['a', 'b', 'c'])
   assert.deepEqual(r.body.similar.map(s => s.id).sort(), ['a', 'b', 'c'])
   put(flow('d', { tickets: ['FLA-1'] }))
-  assert.equal((await get('/api/predict/ticket?id=FLA-1')).body.flow, 'd')
+  const started = (await get('/api/predict/ticket?id=FLA-1')).body
+  assert.equal(started.flow, 'd')
+  assert.equal(started.flowDone, false)
   assert.equal((await get('/api/predict/ticket?id=nope')).status, 400)
   assert.equal((await get('/api/predict/ticket?id=FLA-404')).status, 404)
 })

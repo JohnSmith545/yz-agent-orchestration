@@ -113,6 +113,7 @@ test('a ticket not yet started: its estimate on one line; a started one points a
   assert.match(V.ticketHtml({ id: 'FLA-1', estimate: est, similar: [], flow: null }), /About 1 h 10 min, based on 3 similar flows/)
   assert.match(V.ticketHtml({ id: 'FLA-1', estimate: { ...est, minutes: null, few: true }, similar: [], flow: null }), /No estimate yet: too few similar flows/)
   assert.match(V.ticketHtml({ id: 'FLA-1', estimate: est, similar: [], flow: 'dark-mode' }), /href="#\/flows\?flow=dark-mode"/)
+  assert.match(V.ticketHtml({ id: 'FLA-1', estimate: est, similar: [], flow: 'dark-mode', flowDone: true }), /Already done in a flow/)
   assert.match(V.ticketHtml({ id: 'FLA-1', enabled: false, estimate: null, flow: null }), /off/)
 })
 

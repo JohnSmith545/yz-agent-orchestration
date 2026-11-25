@@ -12,8 +12,8 @@
 //                                       building }: what the flow cost (predict-flow-tokens.mjs), its estimate (the
 //                                       stored one, else worked out now from the flows finished before it started),
 //                                       and, once it finished, the actual
-//   GET  /api/predict/ticket?id=<id>    { id, estimate, similar, flow }: for a ticket not yet started, computed on
-//                                       the fly; `flow` names the live flow that already carries it
+//   GET  /api/predict/ticket?id=<id>    { id, estimate, similar, flow, flowDone }: for a ticket not yet started,
+//                                       computed on the fly; `flow` names a flow that already carries it (done or not)
 //   GET  /api/predict/accuracy?days=    predict-estimate.mjs accuracyOf over Pipeline time's window (7, 30, all)
 //   route.placed({ from, now })         { placed, unplaced }: the period's tokens placed on flows, and not, for the
 //                                       one line Pipeline tokens gains (token-routes.mjs)
@@ -25,6 +25,7 @@
 // - Answers are sent with cache-control no-store; errors are { error: one plain sentence } with 400, 403, 404 or 405.
 // - It never waits on the transcripts: it answers from the index snapshot. While the first build runs, the token
 //   alerts wait (`building` says so) and the sweep waits too, so no estimate is stored without its costs.
+// - The alerts are worked out at most every 15 seconds (every open page polls); a dismiss works them out afresh.
 // - The placement is cached for a minute and while nothing it depends on changed: every flow's updatedAt and the
 //   index's build time.
 // - riskOf is feat/smart-quality's provider (a flow's risk level); none by default, and the estimates still work.
@@ -51,6 +52,7 @@ const MIN = 60_000
 const CACHE_MS = 60_000
 const SWEEP_MS = 60_000
 const REFRESH_MS = 30_000
+const ALERTS_MS = 15_000
 const KINDS = ['stuck', 'spike', 'context', 'daily']
 
 function json(res, status, body) {
@@ -183,11 +185,23 @@ export function makePredictRoute({
     return { alerts: out, building: !!snap.building, builtAt: snap.builtAt ?? null }
   }
 
+  /**
+   * The alerts worked out at most every ALERTS_MS: every open page polls, and Home and the Agents page share one answer.
+   * A dismiss always works them out afresh, so the measure it remembers is the current one.
+   */
+  let recent = null
+  async function recentAlerts(at) {
+    if (recent && at - recent.at < ALERTS_MS && at >= recent.at) return recent.value
+    const value = await allAlerts(at)
+    recent = { at, value }
+    return value
+  }
+
   async function alertsGet() {
     kick()
     const at = now()
     if (!settings.enabled) return { status: 200, body: { enabled: false, alerts: [], hidden: 0, counts: countsOf([], 0), building: false, builtAt: new Date(at).toISOString() } }
-    const { alerts, building } = await allAlerts(at)
+    const { alerts, building } = await recentAlerts(at)
     try {
       noteRaised(stateFile, alerts, at)
     } catch (err) {
@@ -211,6 +225,7 @@ export function makePredictRoute({
     const alert = alerts.find(a => a.key === b.key)
     if (!alert) return no(404, 'That alert has gone: there is nothing to dismiss.')
     dismissAlert(stateFile, { key: alert.key, measure: alert.measure, now: at })
+    recent = { at, value: { alerts, building: !!snapshot().building } }
     return { status: 200, body: { ok: true, key: alert.key } }
   }
 
@@ -250,11 +265,11 @@ export function makePredictRoute({
     if (!t) return no(404, `No ticket ${id} in the ticket lists.`)
     const flows = flowsOf()
     const carrier = flows.find(f => (f.status === 'open' || f.status === 'blocked' || f.status === 'done') && Array.isArray(f.tickets) && f.tickets.includes(id))
-    if (!est.enabled) return { status: 200, body: { id, estimate: null, similar: [], flow: carrier?.id ?? null, enabled: false } }
+    if (!est.enabled) return { status: 200, body: { id, estimate: null, similar: [], flow: carrier?.id ?? null, flowDone: carrier?.status === 'done', enabled: false } }
     const at = now()
     await placed()
     const estimate = estimateFor(targetOf({ ticket: { id, title: t.title }, now: at }), flows, await estOpts(at))
-    return { status: 200, body: { id, estimate, similar: similarOf(estimate.basedOn, flows), flow: carrier?.id ?? null, enabled: true } }
+    return { status: 200, body: { id, estimate, similar: similarOf(estimate.basedOn, flows), flow: carrier?.id ?? null, flowDone: carrier?.status === 'done', enabled: true } }
   }
 
   async function accuracyGet(raw) {

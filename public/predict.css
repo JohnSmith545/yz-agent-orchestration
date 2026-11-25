@@ -10,9 +10,10 @@
 .pe-line b { color: var(--ink); font-weight: 550; }
 .pe-kinds { color: var(--ink-2); }
 .pe-line-end, .pe-line > .link { display: inline-flex; align-items: center; gap: 10px; margin-left: auto; }
-.pl-alerts { margin: 0 0 12px; padding: 10px 14px; border: 1px solid var(--line); border-left: 3px solid var(--warn); border-radius: var(--radius); background: var(--surface); }
-.pl-alerts[hidden] { display: none; }
-#homeAlerts:not([hidden]) { margin-top: 8px; }
+/* boxed like Human review's and the overdue outputs' notices, on the Agents page and on Home alike */
+.pl-alerts, #homeAlerts { margin: 0 0 12px; padding: 10px 14px; border: 1px solid var(--line); border-left: 3px solid var(--warn); border-radius: var(--radius); background: var(--surface); }
+.pl-alerts[hidden], #homeAlerts[hidden] { display: none; }
+#homeAlerts:not([hidden]) { margin-top: 8px; margin-bottom: 0; }
 #homeAlerts:not([hidden]) + .home-zone { margin-top: 32px; }
 
 /* the rows */
@@ -28,15 +29,16 @@
 .pe-acts button:not(.link) { padding: 2px 10px; font-size: 12.5px; }
 .pe-hidden { margin: 8px 0 0; color: var(--muted); font-size: 12.5px; }
 
-/* the quiet mark on a diagram box whose session re-reads a large history: a warn corner, words in its title */
-.pl-node.pe-ctx { border-color: var(--warn); }
-.pl-node.pe-ctx::after { content: ''; position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); pointer-events: none; }
+/* the quiet mark on a diagram box whose session re-reads a large history: a warn dot in its bottom corner, clear of
+   the head's counts and the running pill, words in its title */
+.pl-node.pe-ctx::after { content: ''; position: absolute; bottom: 7px; right: 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); pointer-events: none; }
 
 /* a flow's Cost, on its Output tab */
 .pe-cost-line { margin: 8px 0 0; font-size: 14px; color: var(--ink-2); }
 .pe-cost-line b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
 .pe-est { margin: 6px 0 0; font-size: 13.5px; color: var(--ink-2); }
 .pe-faint { color: var(--muted); font-size: 12.5px; }
+.pe-cost-line .pe-faint, .pe-est .pe-faint { display: block; margin-top: 2px; }
 .pe-scroll { overflow-x: auto; margin: 8px 0 0; }
 .pe-vs, .pe-acc-table { width: auto; border-collapse: collapse; }
 .pe-vs caption { caption-side: top; text-align: left; padding: 0 0 6px; color: var(--muted); font-size: 12.5px; }
@@ -65,6 +67,7 @@
   .pe-line-end, .pe-line > .link { margin-left: 0; }
 }
 
+/* nothing here animates; said outright so a later transition does not slip in */
 @media (prefers-reduced-motion: reduce) {
-  .pl-node.pe-ctx { transition: none; }
+  .pe-line, .pe-row, .pl-node.pe-ctx::after { transition: none; animation: none; }
 }
