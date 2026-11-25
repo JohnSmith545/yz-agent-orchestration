@@ -28,7 +28,7 @@ import { readState } from './factory-state.mjs'
 import { createFlow, listFlows, readFlow, validateFlow, writeFlow } from './flows.mjs'
 import { applyHandTick } from './hand-steps.mjs'
 import { HUMAN_MARKS, humanItems } from './human.mjs'
-import { pipelineGraph } from './pipeline.mjs'
+import { gateLabels, pipelineGraph } from './pipeline.mjs'
 import { handText } from './relay.mjs'
 import { isTrashed } from './trash.mjs'
 import { newRoute } from './tools/route-cli.mjs'
@@ -53,7 +53,7 @@ function ticketsOf() {
 }
 
 export function humanGet({ now = Date.now() } = {}) {
-  const { items, counts } = humanItems({ flows: listFlows().flows, marks: readState().marks, tickets: ticketsOf() })
+  const { items, counts } = humanItems({ flows: listFlows().flows, marks: readState().marks, tickets: ticketsOf(), senior: gateLabels(CONFIG).senior })
   return ok({ items, counts, builtAt: new Date(now).toISOString() })
 }
 

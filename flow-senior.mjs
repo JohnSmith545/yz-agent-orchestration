@@ -20,6 +20,8 @@
 // (tools/senior-cli.mjs) write this block, and a rewrite of the flow keeps the stored one (keepSenior). A flow on the
 // QA path (it has a `qa` record) is never Senior's. Pure: no file access, no git.
 
+import { handSteps } from './pipeline-hand.mjs'
+
 export const SENIOR_STATUS = Object.freeze(['asked', 'reviewing', 'passed', 'failed', 'senior-failed'])
 export const SENIOR_MAX = Object.freeze({ summary: 1000, ask: 500, history: 20 })
 
@@ -94,6 +96,21 @@ export const failuresSoFar = s => failedSoFar(s).length + (s?.status === 'senior
 export function pendingRedo(flow) {
   const s = flow?.senior
   return isObject(s) && s.status === 'failed' ? { summary: s.summary ?? '', redo: Array.isArray(s.redo) ? s.redo : [], by: s.by || '', at: s.at || '' } : null
+}
+
+/**
+ * Why the user may not mark a flow done yet because of Senior, in one line, or '': Senior is on `graph`, the flow has
+ * no QA record, it has by-hand steps or a Senior record, and Senior has not passed it (nor stopped it: then the user
+ * decides). The flow page's Mark the flow done (factory-routes.mjs, the status route) asks this, so finishing a flow
+ * by hand never goes round Senior.
+ */
+export function seniorHolds(flow, graph) {
+  const senior = (graph?.nodes || []).find(n => n.role === 'senior')
+  if (!senior || isObject(flow?.qa)) return ''
+  const s = isObject(flow?.senior) ? flow.senior : null
+  if (s?.status === 'passed' || s?.status === 'senior-failed') return ''
+  if (!s && !handSteps(flow).length) return ''
+  return `${senior.label} reviews the work done by hand before the flow is done: send ${senior.label} a message naming flow ${flow.id}.`
 }
 
 /** One or two lines on Senior for `flow show` (stderr), or nothing when it has no record. */

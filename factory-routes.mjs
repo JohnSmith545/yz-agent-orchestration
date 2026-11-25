@@ -82,6 +82,7 @@ import { originAllowed } from './local-origin.mjs'
 import { prGet, prRefresh, prSend } from './pr-routes.mjs'
 import { applyAnswer, applyVerify, derive, EVIDENCE_DIR, FLOW_STATUS, followsAnAsk, listFlows, readFlow, setNodeStatus, validateFlow, writeFlow } from './flows.mjs'
 import { withRoute } from './flow-route.mjs'
+import { seniorHolds } from './flow-senior.mjs'
 import { pipelineGraph } from './pipeline.mjs'
 import { pipelineGet, qaGet } from './pipeline-routes.mjs'
 import { reworkRetry } from './qa-rework.mjs'
@@ -296,7 +297,12 @@ function status(res, id, b, relay) {
     return
   }
   if (!FLOW_STATUS.includes(b.status)) throw new Error(`status must be one of ${FLOW_STATUS.join(', ')}`)
-  changeFlow(res, id, f => ((f.status = b.status), f))
+  // a flow Senior gates is done only by Senior's pass (flow-senior.mjs seniorHolds)
+  changeFlow(res, id, f => {
+    const held = b.status === 'done' ? seniorHolds(f, pipelineGraph(CONFIG)) : ''
+    if (held) throw new Error(held)
+    return (f.status = b.status), f
+  })
 }
 
 async function deliver(res, id, b, relay) {
