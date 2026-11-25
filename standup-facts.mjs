@@ -27,6 +27,8 @@ export const DEFAULT_TICKET_URL = 'https://app.switchboardpm.ai/stories/{id}'
 export const IN_PROGRESS = Object.freeze(['Started', 'Rejected', 'Finished', 'Delivered'])
 const NEXT_MAX = 25
 const WAITING_MAX = 20
+/** The Human review kinds (human.mjs) that go into the facts as Blocker candidates. */
+export const WAITING_KINDS = Object.freeze(['ask', 'hand', 'blocked'])
 const BRANCH = /^[A-Za-z0-9._/-]{1,200}$/
 
 const text = v => (typeof v === 'string' ? v.trim() : '')
@@ -129,7 +131,10 @@ export async function gatherFacts({
     .filter(f => f && !f.deletedAt && (within(f.updatedAt, window) || within(f.createdAt, window)))
     .map(f => ({ id: f.id, title: text(f.title) || f.id, status: f.status, agent: text(f.agent), tickets: oursOf(f.tickets), updatedAt: f.updatedAt }))
     .filter(f => f.tickets.length)
+  // Only what really waits on a person for this work: questions, by-hand steps and blocked flows. A `ticket` row is a
+  // tracker ticket merely marked no-code: backlog, not a blocker, so it stays out (silently, like the rest above).
   const waiting = (Array.isArray(humanAll) ? humanAll : [])
+    .filter(i => i && WAITING_KINDS.includes(i.kind))
     .map(i => ({ kind: i.kind, title: text(i.title), reason: text(i.reason), tickets: oursOf(Array.isArray(i.tickets) ? i.tickets : i.ticketId ? [i.ticketId] : []) }))
     .filter(i => i.tickets.length)
     .slice(0, WAITING_MAX)

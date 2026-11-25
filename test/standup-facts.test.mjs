@@ -287,3 +287,17 @@ test('the prompt says a line with no ticket must be work in the stand-up s repo,
   const { systemPrompt } = await import('../standup-prompt.mjs')
   for (const mode of ['daily', 'week']) assert.match(systemPrompt(mode), /no ticket[^.]*only when it is work in the repo[^.]*never work on the dashboard/i)
 })
+
+test('Human review items: only questions, by-hand steps and blocked flows go in; a ticket merely marked no-code is backlog, not a blocker', async () => {
+  const human = [
+    ...HUMAN,
+    { kind: 'ask', title: 'Which region?', reason: 'Needs your answer.', tickets: ['FLA-871'] },
+    { kind: 'blocked', title: 'Stuck flow', reason: 'Blocked at: deploy.', tickets: ['FLA-872'] },
+    { kind: 'ticket', ticketId: 'FLA-873', title: 'Marked no-code', reason: 'Marked not codebase work.' },
+    { kind: 'ticket', title: 'Also marked', reason: 'x', tickets: ['FLA-874'] },
+  ]
+  const f = await gather({ readHuman: () => human })
+  assert.deepEqual(f.waiting.map(w => w.kind), ['hand', 'ask', 'blocked'])
+  for (const id of ['FLA-873', 'FLA-874']) assert.ok(!f.tickets.some(t => t.id === id), id)
+  assert.deepEqual(f.skipped, [], 'left out silently')
+})
