@@ -72,3 +72,24 @@ export function touchedLabels(lay) {
   }
   return out
 }
+
+/** The distance from a point to the rectangle [x1, y1, x2, y2] (0 inside it). */
+const toBox = ([x, y], [x1, y1, x2, y2]) => Math.hypot(Math.max(x1 - x, 0, x - x2), Math.max(y1 - y, 0, y - y2))
+
+/**
+ * Each label of `lay` that sits nearer to another arrow than to its own (QA 2026-11-25 B-8: `reviewed` above another
+ * lane, `done by hand` far above its arrow): [{ text, own, other, by }], `own` and `other` the distances in px from the
+ * label's text box to its own arrows and to the nearest other one, `by` that other arrow.
+ */
+export function strayLabels(lay) {
+  const lines = lay.edges.map(e => ({ i: e.i, id: `${e.from}>${e.to}`, pts: [...pathPoints(e.d), ...pathPoints(e.head)] }))
+  const out = []
+  for (const l of lay.labels) {
+    const box = labelBox(l, 0)
+    const dist = e => Math.min(...e.pts.map(p => toBox(p, box)))
+    const own = Math.min(...lines.filter(e => l.edges.includes(e.i)).map(dist))
+    const others = lines.filter(e => !l.edges.includes(e.i)).map(e => ({ id: e.id, d: dist(e) })).sort((a, b) => a.d - b.d)
+    if (others.length && others[0].d < own) out.push({ text: l.text, own: Math.round(own), other: Math.round(others[0].d), by: others[0].id })
+  }
+  return out
+}
