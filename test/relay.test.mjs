@@ -11,7 +11,7 @@ import path from 'node:path'
 
 process.env.FACTORY_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'relay-test-'))
 const F = await import('../flows.mjs')
-const { makeRelay, buildPrompt, relayArgs, requestText, RESTARTED } = await import('../relay.mjs')
+const { makeRelay, buildPrompt, relayArgs, requestText, RESTARTED, claudeRun } = await import('../relay.mjs')
 const { readSpend } = await import('../spend.mjs')
 after(() => fs.rmSync(F.DATA_DIR, { recursive: true, force: true }))
 
@@ -89,17 +89,29 @@ test('the prompt names the session, the answer, what it means and the flow show 
 })
 
 test('the relay turn names its two tools, so it can call them', () => {
-  const args = relayArgs('claude-sonnet-5-5', 'the prompt')
+  const args = relayArgs('claude-sonnet-5-5')
   const at = flag => args.indexOf(flag)
   assert.deepEqual(args.slice(at('--model'), at('--model') + 2), ['--model', 'claude-sonnet-5-5'])
   assert.deepEqual(args.slice(at('--tools'), at('--tools') + 2), ['--tools', 'ListAgents,SendMessage'])
   assert.deepEqual(args.slice(at('--allowedTools'), at('--allowedTools') + 3), ['--allowedTools', 'ListAgents', 'SendMessage'])
   assert.ok(args.includes('-p') && args.includes('--no-session-persistence'))
-  assert.equal(args.at(-1), 'the prompt')
+  assert.equal(args.at(-1), 'json', 'the prompt is not in argv: it goes on stdin')
+})
+
+test('the relay prompt goes on stdin, never in argv, where the process list would show it (a phone message too)', async () => {
+  const seen = {}
+  const exec = (bin, args, opts, cb) => {
+    seen.args = args
+    return { stdin: { end: text => { seen.stdin = text; setImmediate(() => cb(null, 'SENT', '')) } } }
+  }
+  const r = await claudeRun('Send the session "Master" the secret plan', { exec, bin: async () => 'claude' })
+  assert.equal(r.ok, true)
+  assert.equal(seen.stdin, 'Send the session "Master" the secret plan')
+  assert.equal(seen.args.some(a => a.includes('secret plan')), false)
 })
 
 test('the relay turn answers in json, so its cost can be read', () => {
-  const args = relayArgs('claude-sonnet-5-5', 'the prompt')
+  const args = relayArgs('claude-sonnet-5-5')
   assert.equal(args[args.indexOf('--output-format') + 1], 'json')
 })
 

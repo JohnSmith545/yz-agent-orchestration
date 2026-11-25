@@ -72,9 +72,13 @@ const REQUEST_FRESH_MS = 30 * 60_000
 
 // ═══ The headless turn ═══
 
-/** The relay turn's argv: the only two tools it has are ListAgents and SendMessage (see the header); json out, for the cost. */
-export function relayArgs(model, prompt) {
-  return ['-p', '--model', model, '--tools', 'ListAgents,SendMessage', '--allowedTools', 'ListAgents', 'SendMessage', '--no-session-persistence', '--output-format', 'json', prompt]
+/**
+ * The relay turn's argv: the only two tools it has are ListAgents and SendMessage (see the header); json out, for the
+ * cost. The PROMPT IS NOT HERE: it goes on stdin (claudeRun), like the chat's and the generators' text, so the answers
+ * and a phone message to the coordinator never show in the process list.
+ */
+export function relayArgs(model) {
+  return ['-p', '--model', model, '--tools', 'ListAgents,SendMessage', '--allowedTools', 'ListAgents', 'SendMessage', '--no-session-persistence', '--output-format', 'json']
 }
 
 /**
@@ -82,18 +86,20 @@ export function relayArgs(model, prompt) {
  * timeout, a missing binary or a non-zero exit is `ok: false` with a short
  * reason in `err` (never execFile's "Command failed: <whole prompt>").
  */
-export async function claudeRun(prompt) {
+export async function claudeRun(prompt, { exec = execFile, bin: findBin = claudeBin } = {}) {
   let bin
   try {
-    bin = await claudeBin()
+    bin = await findBin()
   } catch (err) {
     return { ok: false, out: '', err: `no claude binary: ${err.message}` }
   }
   return new Promise(resolve => {
-    execFile(bin, relayArgs(CONFIG.factory.relayModel, prompt), { cwd: CONFIG.repo, timeout: RUN_TIMEOUT_MS, windowsHide: true, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
+    const child = exec(bin, relayArgs(CONFIG.factory.relayModel), { cwd: CONFIG.repo, timeout: RUN_TIMEOUT_MS, windowsHide: true, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
       const why = !err ? '' : err.killed ? `timed out after ${RUN_TIMEOUT_MS / 1000} s` : typeof err.code === 'number' ? `exited with code ${err.code}` : String(err.code || 'failed to start')
       resolve({ ok: !err, out: String(stdout).trim(), err: String(stderr).trim() || why })
     })
+    child.stdin?.on?.('error', () => {}) // a binary that failed to start closes stdin: the callback above says why
+    child.stdin?.end(prompt)
   })
 }
 
