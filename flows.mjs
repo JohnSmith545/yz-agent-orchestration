@@ -43,6 +43,9 @@
 //   only the plan commands (tools/plan-cli.mjs) write it, and mergeKeepingAnswers takes it from the stored file only.
 // - `senior` (optional) is Senior's review of work with no code to test (flow-senior.mjs): only the Senior commands
 //   (tools/senior-cli.mjs) write it, and mergeKeepingAnswers takes it from the stored file only (keepSenior).
+// - `selfcheck`, `critic` and `risk` (optional) are the producer's self-check before QA, the second opinion on the plan
+//   and the risk label (quality-flow.mjs): only the quality commands and the server write them, and
+//   mergeKeepingAnswers takes them from the stored file only (keepQuality).
 // - ⚠️ THE SENIOR GATE lives HERE, in writeFlow, the one door every writer goes through (the agent CLI's set and
 //   write, the dashboard's status route, anything added later): while Senior holds a flow (flow-senior.mjs
 //   seniorHolds), a write that moves it to done is refused with that one sentence. Only Senior's own pass, which
@@ -59,6 +62,7 @@ import { hasBefore, validateChange } from './flow-change.mjs'
 import { mergeReady, validateSend } from './flow-merge.mjs'
 import { keepPlan, validatePlan } from './flow-plan.mjs'
 import { keepQa, validateQa } from './flow-qa.mjs'
+import { keepQuality, validateQuality } from './quality-flow.mjs'
 import { keepSenior, recordHold, seniorHolds, validateSenior } from './flow-senior.mjs'
 import { CONFIG } from './config.mjs'
 import { pipelineGraph } from './pipeline.mjs'
@@ -170,6 +174,7 @@ export function validateFlow(flow) {
   if (flow.hand !== undefined) problems.push(...validateHand(flow.hand))
   if (flow.plan !== undefined) problems.push(...validatePlan(flow.plan, flow.id))
   if (flow.senior !== undefined) problems.push(...validateSenior(flow.senior))
+  problems.push(...validateQuality(flow)) // selfcheck, critic, risk (quality-flow.mjs)
   return problems
 }
 
@@ -622,6 +627,7 @@ export function mergeKeepingAnswers(incoming, existing) {
   keepHand(incoming, existing) // the user's ticks on the by-hand steps: only ever from the stored file
   keepPlan(incoming, existing) // the planner's hand-out: only the plan commands write it
   keepSenior(incoming, existing) // Senior's verdict: only the Senior commands write it
+  keepQuality(incoming, existing) // the self-check, the plan critic and the risk label: never from an agent's file
   if (existing?.createdAt) incoming.createdAt = existing.createdAt
   delete incoming.derived
   return incoming
