@@ -89,7 +89,7 @@ export async function runPhoneSetup({ io = terminal(), configFile = CONFIG, inte
   }
   const cfg = JSON.parse(text)
   const port = Number.isInteger(cfg.remote?.port) ? cfg.remote.port : REMOTE_DEFAULTS.port
-  const lines = list.map((a, i) => `  ${i + 1}. ${a.address} (${a.name})${a.tailscale ? ' - Tailscale, recommended: the link to the phone is encrypted' : ''}`)
+  const lines = list.map((a, i) => `  ${i + 1}. ${a.address} (${a.name})${a.tailscale ? ' - recommended: it encrypts the link and follows you between networks' : ''}`)
   const pick = await io.line(`Phone access listens on ONE address of this PC. Which one?\n${lines.join('\n')}\nType its number (Enter to cancel): `)
   if (pick == null || !pick.trim()) return { out: 'Cancelled: nothing changed.', code: 1 }
   const i = /^\d+$/.test(pick.trim()) ? Number(pick.trim()) - 1 : -1
@@ -105,7 +105,8 @@ export async function runPhoneSetup({ io = terminal(), configFile = CONFIG, inte
     'Type yes to write this to config.json: ',
   ].join('\n'))
   if (String(yes ?? '').trim().toLowerCase() !== 'yes') return { out: 'Not changed: phone access stays as it was.', code: 1 }
-  writeAtomic(configFile, withRemote(text, { enabled: true, bind: chosen.address, port }))
+  // the network too (phone-bind.mjs networkProblem): the listener opens only while this PC is on it
+  writeAtomic(configFile, withRemote(text, { enabled: true, bind: chosen.address, port, iface: chosen.name, mac: chosen.mac, cidr: chosen.cidr }))
   const hasPin = typeof cfg.remote?.pinHash === 'string' && cfg.remote.pinHash
   return {
     out: [

@@ -11,13 +11,13 @@ const B = await import('../phone-bind.mjs')
 /** A machine with a home Wi-Fi address, a work VPN, a Docker bridge, Tailscale, loopback and IPv6. */
 const IFACES = {
   'Wi-Fi': [
-    { address: '192.168.1.36', family: 'IPv4', internal: false },
+    { address: '192.168.1.36', family: 'IPv4', internal: false, mac: '34:6f:24:c7:c9:dd', cidr: '192.168.1.36/24' },
     { address: 'fe80::7aaa:283c:498c:e7f4', family: 'IPv6', internal: false },
     { address: '2001:4453:691:c00::1', family: 'IPv6', internal: false },
   ],
   Ethernet: [{ address: '10.20.30.40', family: 'IPv4', internal: false }],
   'vEthernet (WSL)': [{ address: '172.20.0.1', family: 4, internal: false }], // Node 18 says 4, not 'IPv4'
-  Tailscale: [{ address: '100.101.102.103', family: 'IPv4', internal: false }, { address: 'fd7a:115c:a1e0::1', family: 'IPv6', internal: false }],
+  Tailscale: [{ address: '100.101.102.103', family: 'IPv4', internal: false, mac: '00:00:00:00:00:00', cidr: '100.101.102.103/32' }, { address: 'fd7a:115c:a1e0::1', family: 'IPv6', internal: false }],
   'Loopback Pseudo-Interface 1': [{ address: '127.0.0.1', family: 'IPv4', internal: true }, { address: '::1', family: 'IPv6', internal: true }],
   Odd: [{ address: '8.8.4.4', family: 'IPv4', internal: false }, { address: '169.254.1.1', family: 'IPv4', internal: false }],
 }
@@ -77,12 +77,12 @@ test('an address on an internal (loopback) interface never counts as on this PC'
   assert.match(B.bindProblem('10.1.1.1', ifaces), /not an address of this PC/)
 })
 
-test('eligibleAddresses lists each private and Tailscale address, Tailscale marked, and nothing else', () => {
+test('eligibleAddresses lists each private and Tailscale address with its network, Tailscale FIRST and marked, nothing else', () => {
   assert.deepEqual(B.eligibleAddresses(IFACES), [
-    { address: '192.168.1.36', name: 'Wi-Fi', tailscale: false },
-    { address: '10.20.30.40', name: 'Ethernet', tailscale: false },
-    { address: '172.20.0.1', name: 'vEthernet (WSL)', tailscale: false },
-    { address: '100.101.102.103', name: 'Tailscale', tailscale: true },
+    { address: '100.101.102.103', name: 'Tailscale', tailscale: true, mac: '00:00:00:00:00:00', cidr: '100.101.102.103/32' },
+    { address: '192.168.1.36', name: 'Wi-Fi', tailscale: false, mac: '34:6f:24:c7:c9:dd', cidr: '192.168.1.36/24' },
+    { address: '10.20.30.40', name: 'Ethernet', tailscale: false, mac: '', cidr: '' },
+    { address: '172.20.0.1', name: 'vEthernet (WSL)', tailscale: false, mac: '', cidr: '' },
   ])
   assert.deepEqual(B.eligibleAddresses({}), [])
   assert.deepEqual(B.eligibleAddresses(null), [])
@@ -91,7 +91,8 @@ test('eligibleAddresses lists each private and Tailscale address, Tailscale mark
 // ═══ the remote block ═══
 
 const HASH = 'scrypt$16384$8$1$c2FsdHNhbHQ=$' + Buffer.alloc(32, 7).toString('base64')
-const GOOD = { enabled: true, bind: '192.168.1.36', port: 4318, pinHash: HASH, pinDigits: 10, sessionHours: 12 }
+const NET = { iface: 'Wi-Fi', mac: '34:6f:24:c7:c9:dd', cidr: '192.168.1.36/24' }
+const GOOD = { enabled: true, bind: '192.168.1.36', port: 4318, pinHash: HASH, pinDigits: 10, sessionHours: 12, ...NET }
 const settings = (raw, extra = {}) => {
   const warned = []
   const s = B.remoteSettings(raw, { interfaces: IFACES, mainPort: 4317, warn: w => warned.push(w), ...extra })
@@ -154,7 +155,7 @@ test('a bad block is OFF with one plain warning, whatever is wrong with it', () 
 })
 
 test('the port and hours fall back to 4318 and 4 when left out', () => {
-  const { s } = settings({ enabled: true, bind: '192.168.1.36', pinHash: HASH, pinDigits: 8 })
+  const { s } = settings({ enabled: true, bind: '192.168.1.36', pinHash: HASH, pinDigits: 8, ...NET })
   assert.equal(s.port, 4318)
   assert.equal(s.sessionHours, 4)
   assert.equal(s.enabled, true)
@@ -189,4 +190,54 @@ test('a PIN from before the 8-digit rule (no pinDigits, or fewer than 8) keeps p
     assert.equal(B.remoteSummary(s).newPinNeeded, true)
   }
   assert.equal(B.remoteSummary(settings(GOOD).s).newPinNeeded, false)
+})
+
+// ═══ the network, not only the address (review round) ═══
+
+test('the block must name the network it was set up on: the interface, its MAC and the subnet, all matching now', () => {
+  assert.equal(settings(GOOD).s.enabled, true)
+  for (const [why, over, re] of [
+    ['set up before this rule', { iface: undefined, mac: undefined, cidr: undefined }, /Run node tools\/factory\.mjs phone-setup again/],
+    ['another adapter', { mac: 'aa:bb:cc:dd:ee:ff' }, /not on the network phone access was set up on/],
+    ['another subnet', { cidr: '192.168.1.36/16' }, /not on the network phone access was set up on/],
+    ['another interface name', { iface: 'Ethernet' }, /not on the network phone access was set up on/],
+  ]) {
+    const { s, warned } = settings({ ...GOOD, ...over })
+    assert.equal(s.enabled, false, why)
+    assert.match(s.off, re, why)
+    assert.equal(warned.length, 1, why)
+  }
+  assert.equal(settings({ ...GOOD, mac: '34:6F:24:C7:C9:DD' }).s.enabled, true, 'a MAC in capitals is the same MAC')
+})
+
+test('the reader re-checks the network on every read, so a running listener sees a change of Wi-Fi', async () => {
+  const fs = await import('node:fs')
+  const os = await import('node:os')
+  const path = await import('node:path')
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'phone-reader-')), 'config.json')
+  fs.writeFileSync(file, JSON.stringify({ remote: GOOD }))
+  let ifaces = IFACES
+  const read = B.makeRemoteReader(file, { interfaces: () => ifaces, mainPort: 4317, warn: () => {} })
+  assert.equal(read().enabled, true)
+  ifaces = { ...IFACES, 'Wi-Fi': [{ ...IFACES['Wi-Fi'][0], cidr: '192.168.1.36/16' }] }
+  assert.equal(read().enabled, false, 'another network: off with no change to the file')
+  ifaces = IFACES
+  assert.equal(read().enabled, true, 'back on the network: on again')
+})
+
+test('a config.json that does not parse fails CLOSED: phone access is off until it parses again', async () => {
+  const fs = await import('node:fs')
+  const os = await import('node:os')
+  const path = await import('node:path')
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'phone-reader-')), 'config.json')
+  fs.writeFileSync(file, JSON.stringify({ remote: GOOD }))
+  const warned = []
+  const read = B.makeRemoteReader(file, { interfaces: () => IFACES, mainPort: 4317, warn: w => warned.push(w) })
+  assert.equal(read().enabled, true)
+  fs.writeFileSync(file, '{ "remote": { "enabled": true,')
+  const off = read()
+  assert.equal(off.enabled, false)
+  assert.match(off.off, /config\.json does not parse/)
+  fs.writeFileSync(file, JSON.stringify({ remote: GOOD }) + ' ')
+  assert.equal(read().enabled, true, 'parses again: on again')
 })

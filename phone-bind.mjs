@@ -25,7 +25,9 @@
 //   eligibleAddresses(interfaces)      [{ address, name, tailscale }]: what phone-setup offers
 //   remoteSettings(raw, { interfaces, mainPort, warn })   the block, checked: { configured, enabled, off, ... }
 //   remoteSummary(settings)            the same for a page: never the PIN hash, only `hasPin`
-//   makeRemoteReader(file, opts)       the block as config.json says NOW (re-read when the file changes)
+//   networkProblem(settings, ifaces)   null when this PC is on the network the block was set up on, else why not
+//   makeRemoteReader(file, opts)       the block as config.json says NOW (re-read when the file or the network changes;
+//                                      a file that does not parse is OFF, never the last good settings)
 
 import { readFileSync, statSync } from 'node:fs'
 import os from 'node:os'
@@ -59,13 +61,33 @@ export function rangeOf(o) {
 
 const ipv4Of = entry => entry && (entry.family === 'IPv4' || entry.family === 4)
 
-/** Every non-internal IPv4 address on this PC now, with its interface name. */
+/** Every non-internal IPv4 address on this PC now, with its interface name, the adapter's MAC and the subnet. */
 function localAddresses(interfaces) {
   const out = []
   for (const [name, list] of Object.entries(interfaces && typeof interfaces === 'object' ? interfaces : {})) {
-    for (const e of Array.isArray(list) ? list : []) if (ipv4Of(e) && !e.internal && typeof e.address === 'string') out.push({ address: e.address, name })
+    for (const e of Array.isArray(list) ? list : []) {
+      if (ipv4Of(e) && !e.internal && typeof e.address === 'string') out.push({ address: e.address, name, mac: typeof e.mac === 'string' ? e.mac.toLowerCase() : '', cidr: typeof e.cidr === 'string' ? e.cidr : '' })
+    }
   }
   return out
+}
+
+/**
+ * Whether this PC is on the network phone access was set up on: the block's interface name (remote.iface) has the
+ * bind address now, on the same adapter (remote.mac) and the same subnet (remote.cidr). phone-setup stores all three.
+ * null when it is, else one plain sentence. ⚠️ This tells apart another adapter, another subnet and an address that
+ * moved to another interface; it does NOT tell apart two Wi-Fi networks that hand out the same subnet to the same
+ * adapter (many home routers use 192.168.1.0/24). Tailscale has no such gap: its address follows the PC.
+ */
+export function networkProblem(s, interfaces = os.networkInterfaces()) {
+  if (![s?.iface, s?.mac, s?.cidr].every(v => typeof v === 'string' && v)) {
+    return 'Run node tools/factory.mjs phone-setup again: phone access now also remembers the network it was set up on.'
+  }
+  const here = localAddresses(interfaces).find(l => l.name === s.iface && l.address === s.bind)
+  if (!here || here.mac !== s.mac.toLowerCase() || here.cidr !== s.cidr) {
+    return `This PC is not on the network phone access was set up on (${s.iface}, ${s.cidr}): it stays closed until it is.`
+  }
+  return null
 }
 
 const EVERY = new Set(['0.0.0.0', '0', '*', '::', '[::]', '::0', '0:0:0:0:0:0:0:0'])
@@ -86,7 +108,8 @@ export function eligibleAddresses(interfaces = os.networkInterfaces()) {
   return localAddresses(interfaces)
     .map(l => ({ ...l, range: rangeOf(parseIPv4(l.address)) }))
     .filter(l => l.range)
-    .map(({ address, name, range }) => ({ address, name, tailscale: range === 'tailscale' || /tailscale/i.test(name) }))
+    .map(({ address, name, range, mac, cidr }) => ({ address, name, tailscale: range === 'tailscale' || /tailscale/i.test(name), mac, cidr }))
+    .sort((a, b) => Number(b.tailscale) - Number(a.tailscale)) // Tailscale first: the recommended choice (phone-setup)
 }
 
 const isObject = v => !!v && typeof v === 'object' && !Array.isArray(v)
@@ -114,6 +137,7 @@ export function remoteSettings(raw, { interfaces = os.networkInterfaces(), mainP
   }
   const why = s.enabled !== true ? 'Phone access is off (remote.enabled is not true).'
     : bindProblem(s.bind, interfaces)
+    ?? networkProblem(s, interfaces)
     ?? (!isPort(s.port) ? 'remote.port needs a whole number from 1024 to 65535.'
       : s.port === mainPort ? `remote.port must differ from the desktop port ${mainPort}.`
       : !pinHash ? 'Phone access needs a PIN: run node tools/factory.mjs phone-pin in a terminal.'
@@ -143,14 +167,22 @@ export function makeRemoteReader(file, { interfaces = () => os.networkInterfaces
   const read = () => {
     let st
     try { st = statSync(file) } catch { return value ?? remoteSettings(undefined) }
-    const k = `${st.mtimeMs}:${st.size}`
+    const nets = interfaces()
+    // the network is part of the key: a change of Wi-Fi re-checks the block with no change to the file
+    const k = `${st.mtimeMs}:${st.size}:${JSON.stringify(localAddresses(nets))}`
     if (k !== key || !value) {
+      key = k
+      let raw
       try {
-        value = remoteSettings(JSON.parse(readFileSync(file, 'utf8')).remote, { interfaces: interfaces(), mainPort, warn })
-        key = k
+        raw = JSON.parse(readFileSync(file, 'utf8')).remote
       } catch {
-        value ??= remoteSettings(undefined)
+        // FAIL CLOSED: a config.json that does not parse (half written, or broken) turns phone access off until it parses
+        const why = 'config.json does not parse: phone access is closed until it does.'
+        warn(`config.json: ${why}`)
+        value = { ...remoteSettings(undefined), configured: true, off: why }
+        return value
       }
+      value = remoteSettings(raw, { interfaces: nets, mainPort, warn })
     }
     return value
   }

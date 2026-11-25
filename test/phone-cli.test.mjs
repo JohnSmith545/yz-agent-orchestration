@@ -30,8 +30,8 @@ function keyboard(answers, { isTTY = true } = {}) {
   return { isTTY, hidden: next, line: next, prompts }
 }
 const IFACES = {
-  'Wi-Fi': [{ address: '192.168.1.36', family: 'IPv4', internal: false }],
-  Tailscale: [{ address: '100.101.102.103', family: 'IPv4', internal: false }],
+  'Wi-Fi': [{ address: '192.168.1.36', family: 'IPv4', internal: false, mac: '34:6f:24:c7:c9:dd', cidr: '192.168.1.36/24' }],
+  Tailscale: [{ address: '100.101.102.103', family: 'IPv4', internal: false, mac: '00:00:00:00:00:00', cidr: '100.101.102.103/32' }],
   Public: [{ address: '8.8.4.4', family: 'IPv4', internal: false }],
 }
 
@@ -101,18 +101,19 @@ test('phone-setup lists each private and Tailscale address of this PC, marks Tai
   const io = keyboard([''])
   const r = await C.runPhoneSetup({ io, configFile: config(), interfaces: IFACES })
   const shown = io.prompts.join('\n') + r.out
-  assert.match(shown, /1\. 192\.168\.1\.36 \(Wi-Fi\)/)
-  assert.match(shown, /2\. 100\.101\.102\.103 \(Tailscale\) - Tailscale, recommended/)
+  assert.match(shown, /1\. 100\.101\.102\.103 \(Tailscale\) - recommended: it encrypts the link and follows you between networks/)
+  assert.match(shown, /2\. 192\.168\.1\.36 \(Wi-Fi\)/)
   assert.equal(shown.includes('8.8.4.4'), false)
   assert.match(r.out, /Cancelled/)
 })
 
 test('phone-setup writes remote.enabled and remote.bind only after a typed yes, and prints the address to open', async () => {
   const file = config()
-  const r = await C.runPhoneSetup({ io: keyboard(['2', 'yes']), configFile: file, interfaces: IFACES })
+  const r = await C.runPhoneSetup({ io: keyboard(['1', 'yes']), configFile: file, interfaces: IFACES })
   assert.equal(r.code, 0)
   const cfg = JSON.parse(fs.readFileSync(file, 'utf8'))
   assert.deepEqual([cfg.remote.enabled, cfg.remote.bind, cfg.remote.port], [true, '100.101.102.103', 4318])
+  assert.deepEqual([cfg.remote.iface, cfg.remote.mac, cfg.remote.cidr], ['Tailscale', '00:00:00:00:00:00', '100.101.102.103/32'], 'the network it was set up on')
   assert.match(r.out, /http:\/\/100\.101\.102\.103:4318\/phone/)
   assert.match(r.out, /phone-pin/, 'no PIN yet: it says to set one')
   assert.match(r.out, /restart the dashboard/i)
@@ -145,7 +146,7 @@ test('phone-setup refuses without a terminal, a bad pick, and a PC with no eligi
 test('what phone-setup and phone-pin write is a block the server accepts', async () => {
   const file = config()
   await C.runPhonePin({ io: keyboard(['4829105736', '4829105736']), configFile: file, auth: makeAuthStore({ file: path.join(dir, `auth-${n++}.json`) }) })
-  await C.runPhoneSetup({ io: keyboard(['1', 'yes']), configFile: file, interfaces: IFACES })
+  await C.runPhoneSetup({ io: keyboard(['2', 'yes']), configFile: file, interfaces: IFACES })
   const s = remoteSettings(JSON.parse(fs.readFileSync(file, 'utf8')).remote, { interfaces: IFACES, mainPort: 4317, warn: () => {} })
   assert.equal(s.enabled, true)
   assert.equal(s.url, 'http://192.168.1.36:4318/phone')
