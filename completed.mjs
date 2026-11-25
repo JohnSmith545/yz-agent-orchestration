@@ -26,7 +26,10 @@
 //   clears it (completed-routes.mjs, the page's Origin required and present). No agent command sets it, and a
 //   `flow write` keeps or drops the stored mark exactly as it does archivedAt (flows.mjs mergeKeepingAnswers).
 // - Completing ARCHIVES the flow in the same write (archivedAt = completedAt), so every board that leaves an archived
-//   flow out leaves a completed one out too; uncompleting clears both and notes `uncompletedAt` for the Log.
+//   flow out leaves a completed one out too; uncompleting clears both.
+// - THE HISTORY: every press that changes the mark appends { at, did: 'completed' | 'uncompleted' } to `flow.signoff`
+//   (the newest SIGNOFF_MAX kept), so toggling twice loses nothing and the Log shows every one. completedAt stays the
+//   CURRENT mark. The list is the user's like the mark: a flow write keeps the stored one (flows.mjs).
 // - Completing moves NOTHING else: no status, no story line, and the flow's updatedAt is kept as it was (flows.mjs
 //   writeFlow { stamp: false }), so the scorecard, Pipeline time and the Log count it exactly as before. Its only
 //   trace is the Log's `completed` (and `uncompleted`) event, by You (score-log.mjs).
@@ -45,6 +48,9 @@ export const OUTPUT_DEFAULTS = Object.freeze({ max: 7, warnAfterDays: 2 })
 const LIMITS = Object.freeze({ max: [1, 1000], warnAfterDays: [1, 365] })
 /** Who completes a flow: always the person on the page, never an agent. */
 export const COMPLETED_BY = 'you'
+/** How many sign-offs a flow keeps in its history, the newest. */
+export const SIGNOFF_MAX = 100
+export const SIGNOFF_DID = Object.freeze(['completed', 'uncompleted'])
 
 const isObject = v => !!v && typeof v === 'object' && !Array.isArray(v)
 const timeOf = v => {
@@ -132,22 +138,36 @@ export function completeRefusal(flow, graph) {
 }
 
 /**
- * The mark, in memory. On: completedAt, completedBy and archivedAt, all at `now`. Off: both go, and uncompletedAt
- * notes when (the Log's `uncompleted` event). Returns true when anything changed, so a second press writes nothing.
+ * The mark, in memory. On: completedAt, completedBy and archivedAt, all at `now`. Off: all three go. Either way the
+ * press is appended to the history (`signoff`). Returns true when anything changed, so a second press writes nothing.
  */
 export function applyComplete(flow, on, now = Date.now()) {
   const at = new Date(msOf(now)).toISOString()
+  if (on === !!flow.completedAt) return false
   if (on) {
-    if (flow.completedAt) return false
     flow.completedAt = at
     flow.completedBy = COMPLETED_BY
     flow.archivedAt = at
-    return true
+  } else {
+    delete flow.completedAt
+    delete flow.completedBy
+    delete flow.archivedAt
   }
-  if (!flow.completedAt) return false
-  delete flow.completedAt
-  delete flow.completedBy
-  delete flow.archivedAt
-  flow.uncompletedAt = at
+  const history = Array.isArray(flow.signoff) ? flow.signoff : []
+  flow.signoff = [...history, { at, did: on ? 'completed' : 'uncompleted' }].slice(-SIGNOFF_MAX)
   return true
+}
+
+/** The problems with a flow's `signoff` history, one line each; [] when it is fine. MUST MATCH applyComplete's shape. */
+export function validateSignoff(list, isTime) {
+  if (!Array.isArray(list)) return ['signoff must be a list']
+  if (list.length > SIGNOFF_MAX) return [`signoff has ${list.length} entries, at most ${SIGNOFF_MAX}`]
+  const problems = []
+  list.forEach((e, i) => {
+    const at = `signoff #${i + 1}`
+    if (!isObject(e)) return problems.push(`${at} must be a JSON object`)
+    if (!isTime(e.at)) problems.push(`${at} at must be a time`)
+    if (!SIGNOFF_DID.includes(e.did)) problems.push(`${at} did must be completed or uncompleted`)
+  })
+  return problems
 }

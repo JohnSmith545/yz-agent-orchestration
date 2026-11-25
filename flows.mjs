@@ -28,8 +28,8 @@
 //   hides a later question. Deleting is the Trash (trash.mjs), not a field.
 // - `completedAt` and `completedBy` (optional; 'you') are the USER'S sign-off on a finished flow (completed.mjs):
 //   only the page's Completed sets them (completed-routes.mjs), always together with archivedAt, and the agent's
-//   rewrite keeps or drops them EXACTLY as it does archivedAt (never sets them). `uncompletedAt` notes the last time
-//   the user took the mark off, for the Log. A new open ask clears the mark with the archive.
+//   rewrite keeps or drops them EXACTLY as it does archivedAt (never sets them). `signoff` is the history of every
+//   time the user set or took off the mark ([{ at, did }], completed.mjs), for the Log, kept from the stored file too. A new open ask clears the mark with the archive.
 // - `qa` (optional) is QA's record of testing the flow (flow-qa.mjs validateQa): only the QA commands
 //   (tools/qa-cli.mjs) write it, and mergeKeepingAnswers takes it from the stored file only (keepQa),
 //   so a producer's rewrite can neither drop a failure nor forge a pass.
@@ -53,6 +53,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 
 import { writeAtomic } from './atomic-write.mjs'
+import { validateSignoff } from './completed.mjs'
 import { DIAGRAM_KINDS, DIAGRAM_MAX } from './diagram-text.mjs'
 import { hasBefore, validateChange } from './flow-change.mjs'
 import { mergeReady, validateSend } from './flow-merge.mjs'
@@ -125,7 +126,8 @@ export function validateFlow(flow) {
   if (!FLOW_STATUS.includes(flow.status)) problems.push(`status ${oneOf(FLOW_STATUS)}`)
   if (flow.why !== undefined && typeof flow.why !== 'string') problems.push('why must be text')
   if (flow.archivedAt !== undefined && !isIsoTime(flow.archivedAt)) problems.push('archivedAt must be a time')
-  for (const key of ['completedAt', 'uncompletedAt']) if (flow[key] !== undefined && !isIsoTime(flow[key])) problems.push(`${key} must be a time`)
+  if (flow.completedAt !== undefined && !isIsoTime(flow.completedAt)) problems.push('completedAt must be a time')
+  if (flow.signoff !== undefined) problems.push(...validateSignoff(flow.signoff, isIsoTime))
   if (flow.completedBy !== undefined && flow.completedBy !== 'you') problems.push('completedBy must be you')
   if (!Array.isArray(flow.nodes)) return [...problems, 'nodes must be a list']
 
@@ -607,7 +609,7 @@ export function mergeKeepingAnswers(incoming, existing) {
     }
   }
   // Archive and Completed are the user's, like a tick: only ever from the stored file, never set or cleared by an agent.
-  for (const key of ['archivedAt', 'completedAt', 'completedBy', 'uncompletedAt']) {
+  for (const key of ['archivedAt', 'completedAt', 'completedBy', 'signoff']) {
     if (existing?.[key]) incoming[key] = existing[key]
     else delete incoming[key]
   }

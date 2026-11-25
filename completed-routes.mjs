@@ -4,7 +4,7 @@
 //
 //   POST /api/flows/<id>/complete   { completed?: true | false }: true (the default) marks a finished flow completed
 //                                   and archives it in the same write; false takes the mark off and unarchives it
-//                                   (the flow archive's Uncomplete). { ok, completedAt, archivedAt } (null when off).
+//                                   (the flow archive's Uncomplete). Each press that changes it goes in flow.signoff. { ok, completedAt, archivedAt } (null when off).
 //                                   A second press is a 200 that writes nothing. 404 an unknown flow; 400 a flow that
 //                                   is not finished (completed.mjs completeRefusal, one plain sentence) or a bad body
 //   GET  /api/outputs               completed.mjs outputsSummary over every flow file, with builtAt: what waits for the

@@ -39,10 +39,15 @@ beforeEach(() => fs.rmSync(F.FLOWS_DIR, { recursive: true, force: true }))
 
 // ═══ validation ═══
 
-test('validation: completedAt and uncompletedAt are real ISO times, completedBy is you', () => {
-  assert.deepEqual(F.validateFlow(fx('dark', f => Object.assign(f, MARK, { uncompletedAt: AT }))), [])
+const HISTORY = [{ at: AT, did: 'completed' }, { at: '2026-11-21T09:00:00.000Z', did: 'uncompleted' }]
+
+test('validation: completedAt is a real ISO time, completedBy is you, signoff a list of { at, did }', () => {
+  assert.deepEqual(F.validateFlow(fx('dark', f => Object.assign(f, MARK, { signoff: HISTORY }))), [])
   assert.deepEqual(F.validateFlow(fx('dark', f => { f.completedAt = '2026' })), ['completedAt must be a time'])
-  assert.deepEqual(F.validateFlow(fx('dark', f => { f.uncompletedAt = 7 })), ['uncompletedAt must be a time'])
+  assert.deepEqual(F.validateFlow(fx('dark', f => { f.signoff = 'x' })), ['signoff must be a list'])
+  assert.deepEqual(F.validateFlow(fx('dark', f => { f.signoff = [{ at: '7', did: 'completed' }, { at: AT, did: 'maybe' }, 3] })), [
+    'signoff #1 at must be a time', 'signoff #2 did must be completed or uncompleted', 'signoff #3 must be a JSON object',
+  ])
   assert.deepEqual(F.validateFlow(fx('dark', f => { f.completedBy = 'Agent 3' })), ['completedBy must be you'])
 })
 
@@ -57,12 +62,12 @@ test('flow write: the stored mark is kept, one the agent sends is ignored, and a
   assert.equal(kept.archivedAt, AT)
   const sneaky = F.mergeKeepingAnswers(fx('dark', f => Object.assign(f, { completedAt: '2026-11-25T00:00:00.000Z', completedBy: 'you' })), stored)
   assert.equal(sneaky.completedAt, AT, 'nor change it')
-  const forged = F.mergeKeepingAnswers(fx('dark', f => Object.assign(f, MARK, { uncompletedAt: AT })), fx('dark'))
-  for (const k of ['completedAt', 'completedBy', 'archivedAt', 'uncompletedAt']) assert.equal(k in forged, false, `an agent cannot set ${k}`)
+  const forged = F.mergeKeepingAnswers(fx('dark', f => Object.assign(f, MARK, { signoff: HISTORY })), fx('dark'))
+  for (const k of ['completedAt', 'completedBy', 'archivedAt', 'signoff']) assert.equal(k in forged, false, `an agent cannot set ${k}`)
   const fresh = F.mergeKeepingAnswers(fx('new-one', f => Object.assign(f, MARK)), null)
   assert.equal('completedAt' in fresh, false, 'nor on a new flow')
-  const back = F.mergeKeepingAnswers(fx('dark'), fx('dark', f => { f.uncompletedAt = AT }))
-  assert.equal(back.uncompletedAt, AT, 'the uncompleted note is the stored one too')
+  const back = F.mergeKeepingAnswers(fx('dark', f => { f.signoff = [] }), fx('dark', f => { f.signoff = HISTORY }))
+  assert.deepEqual(back.signoff, HISTORY, 'the history is the stored one: an agent can neither drop nor rewrite it')
 })
 
 test('no CLI path sets completedAt: write, set and new all leave it unset', () => {

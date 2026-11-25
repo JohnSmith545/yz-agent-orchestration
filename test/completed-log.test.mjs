@@ -42,8 +42,15 @@ test('completing adds one completed event by You at completedAt, with no cell, a
   assert.deepEqual(SIGN_OFF_KINDS, ['completed', 'uncompleted'])
 })
 
-test('uncompleting adds one uncompleted event by You at uncompletedAt', () => {
-  const log = orchestrationLog([flow('a', { uncompletedAt: at(1000) })], G, opts)
+test('every sign-off in the history is an event: toggling twice loses none', () => {
+  const signoff = [{ at: at(5000), did: 'completed' }, { at: at(4000), did: 'uncompleted' }, { at: at(3000), did: 'completed' }]
+  const log = orchestrationLog([flow('a', { completedAt: at(3000), completedBy: 'you', archivedAt: at(3000), signoff })], G, opts)
+  assert.deepEqual(log.filter(e => e.kind === 'completed' || e.kind === 'uncompleted').map(e => [e.kind, e.at]),
+    [['completed', at(3000)], ['uncompleted', at(4000)], ['completed', at(5000)]])
+})
+
+test('uncompleting adds one uncompleted event by You, from the history', () => {
+  const log = orchestrationLog([flow('a', { signoff: [{ at: at(2000), did: 'completed' }, { at: at(1000), did: 'uncompleted' }] })], G, opts)
   const e = log.find(x => x.kind === 'uncompleted')
   assert.deepEqual(e, { at: at(1000), kind: 'uncompleted', flow: { id: 'a', title: 'Flow a' }, agent: 'You', text: 'You took the completed mark off.', cell: null })
   assert.equal(log[0].kind, 'uncompleted', 'newest first')
@@ -52,14 +59,14 @@ test('uncompleting adds one uncompleted event by You at uncompletedAt', () => {
 test('GET /api/log: the default view leaves a completed flow out; completed=1 shows only those (and uncompleted events)', () => {
   put(flow('live'))
   put(flow('signed', SIGNED))
-  put(flow('back', { uncompletedAt: at(1000) }))
+  put(flow('back', { signoff: [{ at: at(2000), did: 'completed' }, { at: at(1000), did: 'uncompleted' }] }))
   const all = logGet({}, { now: NOW, extra: [] }).body
   assert.ok(all.events.length)
   assert.ok(all.events.every(e => e.flow?.id !== 'signed'), 'no event of a completed flow')
   assert.ok(all.events.some(e => e.kind === 'uncompleted'), 'a flow put back is live again: its event shows')
   const done = logGet({ completed: '1' }, { now: NOW, extra: [] }).body
   assert.deepEqual([...new Set(done.events.map(e => e.flow.id))].sort(), ['back', 'signed'])
-  assert.ok(done.events.filter(e => e.flow.id === 'back').every(e => e.kind === 'uncompleted'), 'of a live flow, only the uncompleted event')
+  assert.deepEqual(done.events.filter(e => e.flow.id === 'back').map(e => e.kind), ['uncompleted'], 'of a live flow, only the uncompleted event')
   assert.ok(done.events.some(e => e.kind === 'completed'))
   assert.equal(done.total, done.events.length)
 })

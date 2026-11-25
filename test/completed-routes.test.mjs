@@ -126,11 +126,24 @@ test('uncomplete clears completed and archived and notes when; again changes not
   assert.deepEqual([j.ok, j.completedAt, j.archivedAt], [true, null, null])
   const f = F.readFlow('ship')
   for (const k of ['completedAt', 'completedBy', 'archivedAt']) assert.equal(k in f, false)
-  assert.ok(f.uncompletedAt)
+  assert.deepEqual(f.signoff.map(e => e.did), ['completed', 'uncompleted'])
   assert.equal(f.updatedAt, UPDATED)
   const before = raw('ship')
   assert.equal((await post('/api/flows/ship/complete', { completed: false })).status, 200)
   assert.equal(raw('ship'), before)
+})
+
+test('toggling twice keeps every sign-off in the history; a flow write keeps it', async () => {
+  put('ship')
+  for (const completed of [true, false, true, false, true]) await post('/api/flows/ship/complete', { completed })
+  const f = F.readFlow('ship')
+  assert.deepEqual(f.signoff.map(e => e.did), ['completed', 'uncompleted', 'completed', 'uncompleted', 'completed'])
+  assert.equal(f.completedAt, f.signoff.at(-1).at)
+  const incoming = structuredClone(f)
+  delete incoming.signoff
+  incoming.title = 'Retitled'
+  F.writeFlow(F.mergeKeepingAnswers(incoming, F.readFlow('ship')))
+  assert.equal(F.readFlow('ship').signoff.length, 5)
 })
 
 test('Unarchive refuses a completed flow (Uncomplete is the way); an archived one still unarchives', async () => {

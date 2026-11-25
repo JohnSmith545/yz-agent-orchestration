@@ -5,7 +5,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
-  applyComplete, atOutput, completeRefusal, finishedAt, isCompleted, isFinished, isOverdue, OUTPUT_DEFAULTS, outputSettings,
+  applyComplete, atOutput, completeRefusal, SIGNOFF_MAX, finishedAt, isCompleted, isFinished, isOverdue, OUTPUT_DEFAULTS, outputSettings,
   outputsSummary, reminderLine, waitingLine, waitsForSignOff,
 } from '../completed.mjs'
 import { pipelineGraph } from '../pipeline.mjs'
@@ -190,10 +190,31 @@ test('uncompleting clears completed and archived and notes when; on a flow not c
   assert.equal(f.completedAt, undefined)
   assert.equal(f.completedBy, undefined)
   assert.equal(f.archivedAt, undefined)
-  assert.equal(f.uncompletedAt, iso(T0 + DAY))
+  assert.deepEqual(f.signoff, [{ at: iso(T0), did: 'completed' }, { at: iso(T0 + DAY), did: 'uncompleted' }])
+  assert.equal('uncompletedAt' in f, false)
   const g = flow('done', { archivedAt: iso(T0) })
   assert.equal(applyComplete(g, false, T0), false)
   assert.equal(g.archivedAt, iso(T0), 'an archived flow that was never completed stays archived')
+})
+
+test('the sign-off history keeps every press: toggling twice loses nothing, a repeat press adds nothing', () => {
+  const f = flow('done')
+  applyComplete(f, true, T0)
+  applyComplete(f, true, T0 + 1) // already completed: no entry
+  applyComplete(f, false, T0 + 2)
+  applyComplete(f, false, T0 + 3) // already off: no entry
+  applyComplete(f, true, T0 + 4)
+  applyComplete(f, false, T0 + 5)
+  applyComplete(f, true, T0 + 6)
+  assert.deepEqual(f.signoff.map(e => [e.did, Date.parse(e.at) - T0]), [['completed', 0], ['uncompleted', 2], ['completed', 4], ['uncompleted', 5], ['completed', 6]])
+  assert.equal(f.completedAt, iso(T0 + 6), 'completedAt is the current mark')
+})
+
+test('the sign-off history keeps the newest SIGNOFF_MAX entries', () => {
+  const f = flow('done')
+  for (let i = 0; i < SIGNOFF_MAX + 10; i++) applyComplete(f, i % 2 === 0, T0 + i)
+  assert.equal(f.signoff.length, SIGNOFF_MAX)
+  assert.equal(f.signoff.at(-1).at, iso(T0 + SIGNOFF_MAX + 9))
 })
 
 test('at the Output is where the page draws the flow (its route progress), not the raw stage: an old route is there once QA pushed', () => {
