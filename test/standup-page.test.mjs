@@ -283,3 +283,13 @@ test('a run that failed after some text keeps that text and its own time, marked
   assert.equal(S.view(s).output, 'Stand up, Tue')
   assert.match(S.view(s).made, /Made Wed 25 Nov 10:28/)
 })
+
+test('regression (QA A-3): each archive entry says its kind, the time it was made and the dates it covers', () => {
+  const at = new Date(2026, 10, 25, 10, 28).toISOString()
+  const m = plain(A.months([{ day: '2026-11-25', runs: [
+    { id: 's-2', mode: 'week', ok: true, first: 'x', at, window: { from: new Date(2026, 10, 19).toISOString(), to: at } },
+    { id: 's-1', mode: 'daily', ok: true, first: 'y', at, window: { from: new Date(2026, 10, 24).toISOString(), to: at } },
+    { id: 's-0', mode: 'daily', ok: true, first: 'z' },
+  ] }]))
+  assert.deepEqual(m[0].days[0].entries.map(e => e.meta), ['Week · 10:28 · covers Thu 19 Nov to Wed 25 Nov', 'Daily · 10:28 · covers Tue 24 Nov', 'Daily'])
+})

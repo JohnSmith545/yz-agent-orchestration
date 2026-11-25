@@ -60,8 +60,8 @@
     function entryEl(day, e) {
       const b = make('button', `su-ar-entry${e.failed ? ' su-ar-failed' : ''}`)
       b.type = 'button'
-      b.append(make('span', 'su-ar-kind', e.failed ? `${e.kind} · did not finish` : e.kind), make('span', 'su-ar-first', e.first || '(empty)'))
-      b.setAttribute('aria-label', `${e.kind} stand-up of ${A().dayName(day)}: ${e.first}`)
+      b.append(make('span', 'su-ar-kind', e.failed ? `${e.meta || e.kind} · did not finish` : e.meta || e.kind), make('span', 'su-ar-first', e.first || '(empty)'))
+      b.setAttribute('aria-label', `${e.meta || e.kind}, ${A().dayName(day)}: ${e.first}`)
       b.addEventListener('click', () => show(day, e.id))
       return b
     }
@@ -118,7 +118,7 @@
       dayBox.value = day
       const j = await get(`/api/standup/day/${encodeURIComponent(day)}`)
       const runs = Array.isArray(j?.runs) ? j.runs : []
-      const entries = A().months([{ day, runs: runs.map(r => ({ id: r.id, mode: r.mode, ok: r.ok, first: firstOf(r) })) }])[0]?.days[0]?.entries || []
+      const entries = A().months([{ day, runs: runs.map(r => ({ id: r.id, mode: r.mode, ok: r.ok, at: r.at, window: r.window, first: firstOf(r) })) }])[0]?.days[0]?.entries || []
       const body = entries.length ? [entriesBox(day, entries)] : [make('p', 'small faint su-ar-empty', A().nothing(day))]
       openPanel(A().dayName(day), body)
       if (alsoShow && runs.length) {

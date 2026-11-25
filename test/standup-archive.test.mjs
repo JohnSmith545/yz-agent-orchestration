@@ -159,3 +159,16 @@ test('todayRuns picks the newest GOOD run of each mode of one day', () => {
   const runs = [entry({ id: 's-3', ok: false }), entry({ id: 's-2' }), entry({ id: 's-1' }), entry({ id: 's-0', mode: 'week', ok: false })]
   assert.deepEqual(A.todayRuns(runs), { daily: 's-2', week: null })
 })
+
+// ═══ QA A-3, 2026-11-25: the list must say when each was made and what it covers, not only after opening ═══
+
+test('listDays: each run in brief carries the window it covers, and an older index without it is rebuilt', () => {
+  const e = A.appendRun(entry({ window: { from: '2026-11-23T16:00:00.000Z', to: '2026-11-25T02:28:00.000Z', label: 'x', heading: 'y' } }))
+  assert.deepEqual(A.listDays()[0].runs[0].window, { from: '2026-11-23T16:00:00.000Z', to: '2026-11-25T02:28:00.000Z' })
+  assert.equal(A.listDays()[0].runs[0].at, e.at)
+  const file = path.join(DIR, 'index.json')
+  const old = JSON.parse(fs.readFileSync(file, 'utf8'))
+  for (const r of old.days['2026-11-25'].runs) delete r.window
+  fs.writeFileSync(file, JSON.stringify(old))
+  assert.ok(A.listDays()[0].runs[0].window, 'rebuilt from the day file')
+})
