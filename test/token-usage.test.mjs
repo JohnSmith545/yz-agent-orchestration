@@ -225,7 +225,7 @@ test('subagents count under the session that started them, with their own part, 
   assert.equal(master.share, 2 / 14)
 })
 
-test('a renamed session keeps one row under its latest name, two names mapped to one label share a row, and the live name wins', () => {
+test('a renamed session keeps one row under its latest name, two names mapped to one label share a row, and a mapped live name wins', () => {
   const files = [
     file('x/s1.jsonl', 's1', { '2026-11-25': { [OPUS]: vec(5, 0) } }, { title: 'Mentor', mtimeMs: 9 }),
     file('y/s1.jsonl', 's1', { '2026-11-24': { [OPUS]: vec(7, 0) } }, { title: 'Advisor', mtimeMs: 2 }), // the same session in another account folder, named earlier
@@ -234,6 +234,15 @@ test('a renamed session keeps one row under its latest name, two names mapped to
   ]
   const s = stats(files, { names: new Map([['s3', 'flinki-v2-a9']]) })
   assert.deepEqual(s.agents.map(a => [a.label, a.all, a.sessions]).sort(), [['Agent 3', 3, 2], ['Mentor', 12, 1]])
+})
+
+test('a live name the config does not map gives way to the name the user gave the session; with no title it stands', () => {
+  const files = [
+    file('x/s4.jsonl', 's4', { '2026-11-25': { [OPUS]: vec(4, 0) } }, { title: 'QA' }), // registry: a derived name
+    file('x/s5.jsonl', 's5', { '2026-11-25': { [OPUS]: vec(5, 0) } }),
+  ]
+  const s = stats(files, { names: new Map([['s4', 'flinki-v2-9b'], ['s5', 'flinki-v2-c1']]) })
+  assert.deepEqual(s.agents.map(a => [a.label, a.all]).sort(), [['QA', 4], ['flinki-v2-c1', 5]])
 })
 
 test('a session with no name anywhere is counted under Unnamed sessions; a subagent whose session file is gone still counts', () => {

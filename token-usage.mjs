@@ -29,8 +29,9 @@
 // - Fast mode and US only inference cost more than the standard rates this estimate uses: such responses are
 //   counted in `special` so the help can say so (none in the real transcripts on 2026-11-25).
 // - The day is the record's own timestamp's LOCAL day, as Pipeline time's period is (time-stats.mjs periodOf).
-// - Sessions are named, in this order: the name the dashboard has for it now (a live session or a pin), else the
-//   last `custom-title` record of its newest transcript, then config's maps (labelOf). With none: Unnamed sessions.
+// - Sessions are named, in this order: the name the dashboard has for it now (a live session or a pin) when config
+//   maps that name to a label, else the last `custom-title` record of its newest transcript, else the dashboard's
+//   name as it is; then config's maps (labelOf) make the label. With no name at all: Unnamed sessions.
 //   A subagent's transcript (<session>/subagents/agent-*.jsonl) counts under the session that started it.
 //
 // ⚠️ PURE: no file, no clock, no config; token-routes.mjs passes them in.
@@ -215,15 +216,23 @@ function addSum(sum, model, vec, priced) {
 }
 const usdOf = sum => (sum.priced ? sum.usd : null)
 
-/** Each session's name: the dashboard's now, else the custom-title of its newest main transcript that has one. */
-function sessionNames(files, names) {
+/**
+ * Each session's name: the dashboard's now when config maps it to a label (flinki-v2-b6 is Security), else the
+ * custom-title of its newest main transcript that has one (the name the user gave it: a derived registry name such
+ * as flinki-v2-9b says nothing), else the dashboard's name as it is.
+ */
+function sessionNames(files, names, labelOf) {
   const best = new Map()
   for (const f of files) {
     if (f.sub || !isText(f.title)) continue
     const was = best.get(f.sessionId)
     if (!was || f.mtimeMs > was.mtimeMs) best.set(f.sessionId, f)
   }
-  return id => (names?.get(id)) ?? best.get(id)?.title ?? null
+  return id => {
+    const live = names?.get(id)
+    const mapped = isText(live) && labelOf(live) !== live
+    return (mapped ? live : null) ?? best.get(id)?.title ?? live ?? null
+  }
 }
 
 /** The whole block's numbers over the period `days` names (7, 30, or null for All) up to `now`. */
@@ -234,7 +243,7 @@ export function tokenStats({ files = [], now = Date.now(), days = 30, prices = {
   const period = periodOf(now, days, first)
   const today = localDay(now)
   const inPeriod = key => period.from !== null && dayMs(key) >= period.from && key <= today
-  const nameOf = sessionNames(list, names)
+  const nameOf = sessionNames(list, names, labelOf)
   const priceCache = new Map()
   const priced = model => {
     if (!priceCache.has(model)) priceCache.set(model, priceFor(model, prices))
