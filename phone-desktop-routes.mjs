@@ -7,8 +7,8 @@
 //                                lockouts and sign-outs
 //   POST /api/phone/signout-all  { ok, count }: Sign out everywhere (phone-auth.mjs signOutEverywhere)
 //   POST /api/phone/off          { ok, changed }: remote.enabled false in config.json, every other byte as it was
-//                                (config-write.mjs); the phone listener answers "off" from the next request
-//                                (phone-server.mjs re-reads the block). A config with no remote block is left alone.
+//                                (config-write.mjs); the phone listener answers "off" from the next request and closes
+//                                within 5 s (phone-wiring.mjs). A config with no remote block is left alone.
 //
 // Both POSTs need the dashboard page's Origin PRESENT and its own (local-origin.mjs), like Completed and the by-hand
 // tick: curl or a page on another site is refused. There is deliberately NO route that turns phone access ON or sets

@@ -187,6 +187,17 @@ test('when phone access is turned off in config.json the listener answers nothin
   assert.deepEqual(calls, [])
 })
 
+test('turned off, the listener asks once to be closed (the wiring closes the server)', async () => {
+  let offs = 0
+  current = handler({ onOff: () => offs++ })
+  assert.equal((await request('GET', '/phone')).status, 200)
+  assert.equal(offs, 0)
+  settings = { ...settings, enabled: false }
+  await request('GET', '/phone')
+  await request('GET', '/phone/api/summary')
+  assert.equal(offs, 1)
+})
+
 // ═══ sign-in ═══
 
 test('the right PIN signs in: an HttpOnly SameSite=Strict cookie on /phone, the CSRF token, and never the PIN', async () => {

@@ -16,8 +16,8 @@
 //   POST /phone/api/talk          /
 //
 // THE CHECKS, in this order, each answered with one plain sentence:
-//   1. Phone access is still on, for THIS address and port (the block is re-read when config.json changes:
-//      turning it off shuts the door at once, without a restart), else 503 for everything.
+//   1. Phone access is still on, for THIS address and port (the block is re-read when config.json changes), else
+//      a 503 to that request and the listener closes (onOff): turning it off shuts the door without a restart.
 //   2. The Host is exactly <bind>:<port> (a website that rebinds its name to this address is refused), else 403.
 //   3. The address has not passed its rate limit (phone-limits.mjs), else 429.
 //   4. The path and method are on the list above, else 404.
@@ -111,7 +111,8 @@ async function jsonBody(req) {
   return value
 }
 
-export function makePhoneHandler({ settings, own, auth, actions, limits = PHONE_LIMITS, now = Date.now, publicDir = PUBLIC }) {
+export function makePhoneHandler({ settings, own, auth, actions, limits = PHONE_LIMITS, now = Date.now, publicDir = PUBLIC, onOff = () => {} }) {
+  let closing = false
   const byAddress = makeLimiter({ ...limits.address, now })
   const bySession = makeLimiter({ ...limits.session, now })
   const byLogin = makeLimiter({ ...limits.login, now })
@@ -140,7 +141,11 @@ export function makePhoneHandler({ settings, own, auth, actions, limits = PHONE_
     try {
       const s = settings()
       const me = own()
-      if (!s?.enabled || s.bind !== me.bind || s.port !== me.port) return send(res, 503, OFF)
+      if (!s?.enabled || s.bind !== me.bind || s.port !== me.port) {
+        // off, or the block now names another address: say so to this request, then stop listening altogether
+        if (!closing) { closing = true; onOff() }
+        return send(res, 503, OFF, { connection: 'close' })
+      }
       const ownHost = `${me.bind}:${me.port}`
       if (req.headers.host !== ownHost) return send(res, 403, 'Unknown host.')
       const address = String(req.socket?.remoteAddress || '')
