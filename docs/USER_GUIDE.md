@@ -244,6 +244,31 @@ an agent's card on Home, or a subagent row in its details card, for its **live v
 edit as a diff, the uncommitted changes in its worktree, and **Draft report**, a Markdown summary of a time
 window built from the transcript and git (no model writes it).
 
+#### Pipeline time
+
+Under the **Pipeline score**, **Pipeline time** says how much work the agents finish and how long it takes. It counts
+over the same period as the score: the score's **7 days | 30 days | All** switch sets both.
+
+- **Finished**: tickets finished in the period, and other jobs (finished flows with no ticket). Finished means what
+  the score calls delivered. A ticket finished twice counts once.
+- **Per day**: finished work divided by the days in the period, today included.
+- **Per hour**: finished work divided by the hours in which the agents did something, so nights and weekends with
+  no work do not lower it. The line under it gives the rate round the clock as well.
+- **Time per ticket**: from when a flow was started to when it finished. The big number is the median (half took
+  less), so one very slow ticket does not hide many quick ones; the mean, the fastest and the slowest are under it.
+- **Waiting on you**: how long flows waited on your answers and by-hand steps.
+- **Where the time goes**: one bar of how long work spends with the coordinator and planner, the producer, QA,
+  Security, Human task, Senior and in reworks, with a table of the same numbers.
+- **Finished per day**: a bar for each day (each week for All). Hover or focus a bar for its day and count; the left
+  and right arrow keys move along the bars. **As a list** shows the same as text.
+- **By agent**: what each agent finished, its time per ticket, per day, and how often its work was sent back.
+
+**Minutes | Hours | Days | Auto** shows every time and rate in that unit (Auto picks the one that fits); in
+Minutes a rate reads **1 every 95 min**. The choice, and the block folded to one line, are remembered in this
+browser. With fewer than 3 finished flows the numbers say **Too few to trust**; with none, the block says nothing
+finished yet instead of showing zeros. Every number comes from times the flow files store; **How it is counted**
+says how, and names what cannot be timed.
+
 #### Human review
 
 Under the diagram, the **Human review** box lists everything that cannot go on without you, newest first. Its head
