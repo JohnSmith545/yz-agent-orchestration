@@ -67,6 +67,7 @@ const WORDS = {
 const STORY = Object.freeze({ bug: 'code', feature: 'code' })
 const NAME = Object.freeze({ code: 'code', 'no-code': 'no code', 'needs-a-person': 'needs a person' })
 
+const capital = s => s.charAt(0).toUpperCase() + s.slice(1)
 const lower = v => (typeof v === 'string' ? v : '').toLowerCase()
 const list = items => (items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`)
 const oneLine = (s, max = REASON_MAX) => {
@@ -100,11 +101,14 @@ export function intakeRules(ticket) {
   const ranked = Object.entries(score).sort((a, b) => b[1].n - a[1].n || KINDS.indexOf(a[0]) - KINDS.indexOf(b[0]))
   const [top, next] = ranked
   if (!top || top[1].n < 1) return { kind: 'code', confidence: 'unsure', reason: 'Too little to go on: no words or labels say what kind of work this is.' }
-  const why = s => [s.words.length ? `the words ${list(s.words.slice(0, 3))}` : '', s.story ? `the story type ${lower(ticket.type)}` : ''].filter(Boolean).join(' and ')
+  // one word is the word, two or more the words (QA, 2026-11-26)
+  const why = s => [s.words.length ? `the word${s.words.length > 1 ? 's' : ''} ${list(s.words.slice(0, 3))}` : '', s.story ? `the story type ${lower(ticket.type)}` : ''].filter(Boolean).join(' and ')
   const second = next?.[1].n || 0
-  if (top[1].n === second) return { kind: top[0], confidence: 'unsure', reason: oneLine(`Unsure between ${NAME[top[0]]} and ${NAME[next[0]]}: ${why(top[1])}; ${why(next[1])}.`) }
+  // an unsure sort says WHY it is unsure: the signals disagree (a tie), or too little to go on (a weak lead)
+  if (top[1].n === second) return { kind: top[0], confidence: 'unsure', reason: oneLine(`Unsure: the signals disagree. ${capital(why(top[1]))} point to ${NAME[top[0]]}; ${why(next[1])} to ${NAME[next[0]]}.`) }
   const confidence = top[1].n >= CERTAIN_MIN && top[1].n >= 2 * second ? 'certain' : top[1].n >= LIKELY_MIN ? 'likely' : 'unsure'
   const lead = `${NAME[top[0]].charAt(0).toUpperCase()}${NAME[top[0]].slice(1)}`
+  if (confidence === 'unsure') return { kind: top[0], confidence, reason: oneLine(`Unsure: too little to go on. Only ${why(top[1])} points to ${NAME[top[0]]}.`) }
   return { kind: top[0], confidence, reason: oneLine(`${lead}: ${why(top[1])}.`) }
 }
 

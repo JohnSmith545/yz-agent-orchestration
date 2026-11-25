@@ -161,3 +161,9 @@ test('building a UI or code object is never by-hand work, even with the word man
   assert.notEqual(r.type, 'by-hand', r.reason)
   assert.equal(taskTypeOf({ title: 'Update the record manually in the admin tool' }).type, 'by-hand')
 })
+
+test('one word in a reason is the word, not the words (QA, 2026-11-26)', () => {
+  assert.match(taskTypeOf({ title: 'Investigate the slow export' }).reason, /the word |the words /)
+  assert.doesNotMatch(taskTypeOf({ title: 'Refactor the relay' }).reason, /the words refactor\./)
+  assert.match(taskTypeOf({ title: 'Refactor the relay' }).reason, /the word refactor/)
+})

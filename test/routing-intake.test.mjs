@@ -147,3 +147,15 @@ test('duplicates on real titles: a shared name plus one more word is a pair; gen
   // Not a duplicate still wins
   assert.equal(I.duplicates(REAL.map(([id, title]) => t(id, title)), { [I.pairKey('FLA-884', 'FLA-836')]: '2026-11-26T10:00:00Z' })['FLA-884'], undefined)
 })
+
+// QA 2026-11-26: an Unsure ticket said Code: the words error. as if it were sure; and one word read the words console.
+test('rules: an unsure sort says why it is unsure, and one word is the word', () => {
+  const r = I.intakeRules({ id: 'X-1', title: 'Leaderboard error', labels: [] })
+  assert.equal(r.confidence, 'unsure')
+  assert.match(r.reason, /^Unsure: too little to go on\. Only the word error points to code\.$/)
+  const one = I.intakeRules({ id: 'X-2', title: 'Set up the admin console', labels: [] })
+  assert.doesNotMatch(one.reason, /the words console/)
+  assert.match(one.reason, /the word console/)
+  const tie = I.intakeRules({ id: 'X-3', title: 'Fix the DNS records', labels: [] })
+  if (tie.confidence === 'unsure' && /between/.test(tie.reason)) assert.match(tie.reason, /^Unsure: the signals disagree/)
+})

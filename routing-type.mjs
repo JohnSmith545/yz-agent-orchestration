@@ -146,7 +146,7 @@ function scores({ title, body, labels, storyType }) {
 /** Why, in one plain line: the words, the label and the story type that counted. */
 function because(type, s, storyType) {
   const parts = []
-  if (s.words.length) parts.push(`the words ${list(s.words.slice(0, SHOWN_WORDS))}`)
+  if (s.words.length) parts.push(`the word${s.words.length > 1 ? 's' : ''} ${list(s.words.slice(0, SHOWN_WORDS))}`)
   if (s.label) parts.push(`the label ${s.label}`)
   if (s.story) parts.push(`the story type ${lower(storyType).trim()}`)
   return `${typeName(type)}: ${list(parts)}`

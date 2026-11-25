@@ -72,7 +72,8 @@
       `<p class="rr-note">Under ${FEW} flows a row says Too few to trust.</p>`
   }
 
-  const followedText = f => (f === true ? 'Followed' : f === false ? 'Not followed' : 'Not known')
+  // what the last column says: never a bare Not known (QA, 2026-11-26)
+  const followedText = f => (f === true ? 'Suggestion followed' : f === false ? 'Suggestion not followed' : 'Suggestion followed: not known yet')
 
   function flowsHtml(flows, v) {
     const list = Array.isArray(flows) ? flows : []

@@ -28,10 +28,26 @@
     return { label: 'Sort', get, names: { ...KIND_NAMES }, order: [...ORDER] }
   }
 
-  /** The chip row, drawn with factory.js's own chip(facet, value, n, label, cls); countOf(kind) counts the tickets shown. */
-  function chipsHtml(countOf, chip) {
-    return `<div class="fx-stat-row rt-chips" aria-label="Sort">${ORDER.map(k => chip('kind', k, Number(countOf(k)) || 0, KIND_NAMES[k], `rt-k-${k}`)).join('')}</div>`
+  /** Haiku 5.5 for claude-haiku-5-5: the words the Routing page uses. */
+  const modelWords = id => String(id || '').replace(/^claude-/, '').replace(/^([a-z]+)-(\d+)-(\d+)$/, (m, n, a, b) => `${n.charAt(0).toUpperCase()}${n.slice(1)} ${a}.${b}`)
+  let sortStatus = ''
+  /**
+   * The Sort the unsure tickets button (the Routing page's, same action, same cost note), beside the chips when the
+   * model sort is on (routing.intakeModel) and a ticket is unsure; '' otherwise (QA, 2026-11-26).
+   */
+  function sortHtml(m, busy = false) {
+    if (!m?.on || !(m.unsure > 0)) return sortStatus ? `<p class="rt-sort small" role="status">${esc(sortStatus)}</p>` : ''
+    const going = !!(m.running || busy)
+    return `<p class="rt-sort small">${m.unsure} open ${m.unsure === 1 ? 'ticket is' : 'tickets are'} unsure. One run sorts up to 30 at once with ${esc(modelWords(m.model))}, for about one cent. ` +
+      `<button type="button" data-rt-intake${going ? ' disabled' : ''}>${going ? 'Sorting…' : 'Sort the unsure tickets'}</button>` +
+      `${sortStatus ? ` <span role="status">${esc(sortStatus)}</span>` : ''}</p>`
   }
+
+  /** The chip row, drawn with factory.js's own chip(facet, value, n, label, cls); countOf(kind) counts the tickets shown. */
+  function chipsHtml(countOf, chip, model = api.data?.model) {
+    return `<div class="fx-stat-row rt-chips" aria-label="Sort">${ORDER.map(k => chip('kind', k, Number(countOf(k)) || 0, KIND_NAMES[k], `rt-k-${k}`)).join('')}</div>${sortHtml(model, sorting)}`
+  }
+  let sorting = false
 
   function rowTag(e) {
     if (!e) return ''
@@ -107,7 +123,26 @@
     if (nd) return change(nd.dataset.rtNotdup, { notDuplicateOf: nd.dataset.rtOf })
     const go = e.target.closest?.('[data-rt-goto]')
     if (go) window.FactoryView?.gotoTicket(go.dataset.rtGoto)
+    if (e.target.closest?.('[data-rt-intake]')) return sortUnsure()
   })
+
+  /** The Routing page's own run (POST /api/routing/intake/run), from the Tickets page. */
+  async function sortUnsure() {
+    if (sorting) return
+    sorting = true
+    sortStatus = ''
+    window.FactoryView?.reload()
+    try {
+      const r = await fetch('/api/routing/intake/run', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })
+      const j = await r.json().catch(() => ({}))
+      sortStatus = r.ok ? `Sorted ${j.sorted} of ${j.asked} tickets${j.cost ? ` for ${j.cost.toFixed(3)}` : ''}. Correct any in its row.` : `Not sorted. ${j.error || r.status}`
+    } catch (err) {
+      sortStatus = `Not sorted. ${err.message}`
+    }
+    sorting = false
+    await load()
+    window.FactoryView?.reload()
+  }
 
   Object.assign(api, {
     load,

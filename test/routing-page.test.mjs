@@ -68,7 +68,7 @@ test('the latest flows: type select, followed in words, used model not set said 
   assert.match(h, /Fix &lt;it&gt;/)
   assert.match(h, /Suggested: Sonnet 5\.5, medium effort/)
   assert.match(h, /Used: Agent 2, model not set, effort not set/)
-  assert.match(h, />Not known</)
+  assert.match(h, />Suggestion followed: not known yet</, "never a bare Not known (QA, 2026-11-26)")
   assert.match(P.flowsHtml([], view()), /No flow has a routing record yet/)
 })
 
@@ -97,4 +97,18 @@ test('tickets: the kind tag, Looks like for a duplicate, the facet, the chips an
 test('the shell knows #/routing and its query', () => {
   assert.equal(S.resolve('#/routing').view, 'routing')
   assert.equal(S.resolve('#/routing?flow=abc').params.query.flow, 'abc')
+})
+
+// QA 2026-11-26: the Sort the unsure tickets button was only on the Routing page; it shows on the Tickets page too,
+// beside the chips, with the same cost note, when routing.intakeModel is set and a ticket is unsure.
+test('tickets: the Sort the unsure tickets button sits with the chips when the model sort is on and a ticket is unsure', () => {
+  const chip = (f, k, n, label) => `<button>${label} ${n}</button>`
+  const on = T.chipsHtml(() => 1, chip, { on: true, model: 'claude-haiku-5-5', running: false, unsure: 4 })
+  assert.match(on, /data-rt-intake/)
+  assert.match(on, /Sort the unsure tickets/)
+  assert.match(on, /4 open tickets are unsure\. One run sorts up to 30 at once with Haiku 5\.5, for about one cent\./)
+  assert.doesNotMatch(T.chipsHtml(() => 1, chip, { on: false, unsure: 4 }), /data-rt-intake/, 'off: no button')
+  assert.doesNotMatch(T.chipsHtml(() => 1, chip, { on: true, model: 'claude-haiku-5-5', unsure: 0 }), /data-rt-intake/, 'nothing unsure: no button')
+  assert.match(T.chipsHtml(() => 1, chip, { on: true, model: 'claude-haiku-5-5', running: true, unsure: 2 }), /disabled[^>]*>Sorting…/)
+  assert.doesNotMatch(T.chipsHtml(() => 1, chip), /data-rt-intake/, 'no model state: as before')
 })
