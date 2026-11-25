@@ -322,3 +322,15 @@ test('a reload on a new day empties a stand-up shown from a live run as well', (
 test('a refresh while another page or tool shows never writes over that page s status chip', () => {
   assert.match(read('standup-page.js'), /if \(home && !home\.closest\('\[hidden\]'\)\) status\(\)/)
 })
+
+// ═══ QA A-4 and A-5, 2026-11-25 (nits; DOM glue, so pinned on the source) ═══
+
+test('Back to today puts the focus on the stand-up box, not on the page body', () => {
+  assert.match(read('standup-page.js'), /els\.back\.addEventListener\('click', async \(\) => \{\s*dispatch\(\{ type: 'back' \}\)\s*await refresh\(\)\s*els\.out\.focus\(\{ preventScroll: true \}\)/)
+})
+
+test('a bad or empty ticket id clears the last results before it says what an id looks like', () => {
+  const src = read('standup-archive-view.js')
+  assert.match(src, /if \(!id\) return closePanel\(\), \(note\.textContent = 'A ticket id looks like FLA-886\.'\)/)
+  assert.match(src, /function closePanel\(\) \{\s*panel\.hidden = true\s*panel\.replaceChildren\(\)\s*list\.hidden = false/)
+})

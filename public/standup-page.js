@@ -86,9 +86,11 @@
     els.go.addEventListener('click', onGenerate)
     els.retry.addEventListener('click', onGenerate)
     els.copy.addEventListener('click', onCopy)
-    els.back.addEventListener('click', () => {
+    // Back to today hides itself, so the focus goes to the stand-up box rather than the page body (QA A-4)
+    els.back.addEventListener('click', async () => {
       dispatch({ type: 'back' })
-      refresh()
+      await refresh()
+      els.out.focus({ preventScroll: true })
     })
     archive = window.StandupArchiveView.create($('suArchive'), { onShow })
     // "Resets every day" holds for a page left open too (QA A-8): today is asked for again when the tab comes back,

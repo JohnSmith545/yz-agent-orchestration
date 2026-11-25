@@ -93,6 +93,13 @@
       }))
     }
 
+    /** Back to the month list: the day or ticket results go, so a later bad query never shows them under it. */
+    function closePanel() {
+      panel.hidden = true
+      panel.replaceChildren()
+      list.hidden = false
+    }
+
     function openPanel(title, body) {
       const head = make('div', 'su-ar-ph')
       head.append(make('h3', 'su-ar-pt', ''))
@@ -100,9 +107,7 @@
       const close = make('button', 'link su-ar-close', 'Show every day')
       close.type = 'button'
       close.addEventListener('click', () => {
-        panel.hidden = true
-        list.hidden = false
-        close.blur()
+        closePanel()
         dayBox.focus({ preventScroll: true })
       })
       head.append(close)
@@ -142,7 +147,7 @@
 
     async function findTicket(raw) {
       const id = A().ticketQuery(raw)
-      if (!id) return (note.textContent = 'A ticket id looks like FLA-886.')
+      if (!id) return closePanel(), (note.textContent = 'A ticket id looks like FLA-886.')
       note.textContent = ''
       ticketBox.value = id
       const j = await get(`/api/standup/ticket/${encodeURIComponent(id)}`)
