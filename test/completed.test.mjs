@@ -194,3 +194,11 @@ test('uncompleting clears completed and archived and notes when; on a flow not c
   assert.equal(applyComplete(g, false, T0), false)
   assert.equal(g.archivedAt, iso(T0), 'an archived flow that was never completed stays archived')
 })
+
+test('at the Output is where the page draws the flow (its route progress), not the raw stage: an old route is there once QA pushed', () => {
+  const S = pipelineGraph({ coordinator: 'Master', codingAgents: { Master: 'Master', 'Agent 1': 'Agent 1' }, pipeline: { qa: 'QA', producers: ['Agent 1'], security: 'Security' } })
+  // planned before Security joined: QA pushed it, so its route is done although the raw stage would wait at Security
+  const old = pushed({ status: 'done', route: { type: 'build', steps: ['request', 'master', 'qa', 'push', 'outcome'], at: iso(T0 - 2 * DAY), by: 'Master' } })
+  assert.equal(atOutput(old, S), true)
+  assert.equal(waitsForSignOff(old, S), true)
+})

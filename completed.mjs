@@ -4,10 +4,12 @@
 //   outputSettings(raw, warn)          config.json `outputs`, checked: { max, warnAfterDays }; a bad value keeps its
 //                                      default with ONE warning per key, never a failed startup
 //   isCompleted(flow)                  the user marked it completed (`completedAt`)
-//   isFinished(flow, graph)            it stands at the end: status done, or its stage is the Output (pipeline.mjs
-//                                      stageOf: QA pushed it while the flow is still open). Dropped never is
-//   atOutput(flow, graph)              its stage is the Output (pipeline.mjs stageOf): a done flow still on its way (code
-//                                      QA has not tested, a pass Push still waits for) is finished but not there yet
+//   isFinished(flow, graph)            what the user may complete: status done, or at the Output (atOutput: QA pushed
+//                                      it while the flow is still open). Dropped never is
+//   atOutput(flow, graph)              its route has reached the Output, as every page reads it (flow-route.mjs
+//                                      routeProgress, public/flow-route.js at): a done flow still on its way (code QA
+//                                      has not tested, a pass Push still waits for) is finished but not there yet, and
+//                                      a flow whose route was planned before Security joined is there once QA pushed
 //   waitsForSignOff(flow, graph)       at the Output, and neither completed nor archived nor deleted: what the reminders
 //                                      count and the amber mark shows
 //   finishedAt(flow, graph)            when it finished, in ms: the time the scorecard counts it at (score.mjs cellOf),
@@ -32,8 +34,8 @@
 //   One rule that a clock change or a late-night finish cannot bend.
 // - PILED is waiting >= max: at 7 (the default) the reminder shows, at 6 nothing does. A reminder, never a block.
 
+import { routeProgress } from './flow-route.mjs'
 import { DAY, cellOf } from './score.mjs'
-import { stageOf } from './pipeline.mjs'
 
 export const OUTPUT_DEFAULTS = Object.freeze({ max: 7, warnAfterDays: 2 })
 /** The bounds a setting must sit in: a whole number in each range. */
@@ -69,12 +71,16 @@ export const isCompleted = flow => !!flow?.completedAt
 
 export const isFinished = (flow, graph) => isObject(flow) && flow.status !== 'dropped' && (flow.status === 'done' || atOutput(flow, graph))
 
+/** MUST CHANGE IN LOCKSTEP with public/flow-route.js at(): the Output box draws a flow where that says it stands. */
 export function atOutput(flow, graph) {
   if (!isObject(flow) || flow.status === 'dropped') return false
   try {
-    return stageOf(flow, graph)?.node === 'outcome'
+    const steps = routeProgress(flow, graph)
+    const now = steps.find(s => s.state === 'current')
+    if (now) return now.node === 'outcome'
+    return steps.at(-1)?.node === 'outcome' && steps.at(-1).state === 'done'
   } catch {
-    return false
+    return false // a graph that cannot place the flow: not at the end
   }
 }
 
