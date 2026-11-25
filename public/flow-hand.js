@@ -4,6 +4,7 @@
 // (POST /api/flows/<id>/hand), so they survive a reload and an agent's rewrite.
 //
 //   Do this by hand · 2 of 5 done                                   [Mark the flow done]   (once every step is ticked)
+//   Senior sent this back. The token went to prod, not dev.          (a failed Senior review, flow-senior.mjs)
 //   [x] 1  Add the deploy secret
 //          Why: the deploy job reads it
 //          Where: GitHub › Settings › Secrets and variables › Actions
@@ -14,6 +15,10 @@
 // request already made) but has no steps gets an honest empty state with ONE button, Ask the agent for steps, on the
 // same relay path as Request test steps (POST request-hand). The page never invents a step. An archived or deleted
 // flow shows its steps with the ticks fixed and no buttons (archive.css, flows.js).
+// With Senior on the pipeline (pipeline.senior) a flow whose steps are all ticked waits at Senior (its progress says
+// so): instead of Mark the flow done the head says Senior reviews it next (the server refuses done until Senior
+// passed it: flow-senior.mjs seniorHolds). A flow Senior sent back shows its verdict at the top, and each step it
+// named to redo says Do again.
 //
 //   html(f, { needs, readonly, now })   PURE: the block, or '' when there is nothing to show
 //   fill(el, f, opts)                   draw into the slot, only when the markup changed, keeping the focus
@@ -33,16 +38,22 @@
     return { text: `Asked ${window.Shell?.ago(hand.requestedAt, now) || ''}`.trim(), why: '' }
   }
 
+  /** Senior's failed verdict, when the work was sent back to the user (flow-senior.mjs). */
+  const redoOf = f => (f?.senior?.status === 'failed' ? f.senior : null)
+  /** Senior's step when it is the flow's current one (flow-route.mjs progress): the flow waits at Senior. */
+  const atSenior = f => (Array.isArray(f?.progress) ? f.progress : []).find(s => s.state === 'current' && s.role === 'senior') || null
+
   function step(f, s, i, readonly) {
     const id = esc(s.id)
     const done = !!s.done
+    const again = !done && (redoOf(f)?.redo || []).includes(s.id) ? '<span class="fh-again">Do again</span>' : ''
     const field = (label, v) => (v ? `<p class="fh-field"><span class="fh-k">${label}</span> ${esc(v)}</p>` : '')
     const copy = s.copy
       ? `<div class="fh-copy"><pre class="fh-copy-v" id="fh-copy-${id}">${esc(s.copy)}</pre><button type="button" class="fh-copy-b" data-hand-copy="${id}" aria-describedby="fh-copy-${id}">Copy</button></div>`
       : ''
     return `<li class="fh-step${done ? ' is-done' : ''}" data-hand-step="${id}">` +
       `<input type="checkbox" class="fh-tick" id="fh-tick-${id}" data-hand-tick="${id}"${done ? ' checked' : ''}${readonly ? ' disabled' : ''}>` +
-      `<div class="fh-body"><label class="fh-do" for="fh-tick-${id}"><span class="fh-n">${i + 1}</span>${esc(s.do)}</label>` +
+      `<div class="fh-body"><label class="fh-do" for="fh-tick-${id}"><span class="fh-n">${i + 1}</span>${esc(s.do)}${again}</label>` +
       field('Why:', s.why) + field('Where:', s.where) + copy +
       `<p class="fh-field fh-expect"><span class="fh-k">You should see:</span> ${esc(s.expect)}</p></div></li>`
   }
@@ -60,10 +71,13 @@
     }
     const done = steps.filter(s => s.done).length
     const all = done === steps.length
+    const senior = atSenior(f)
     const finish = all && f.status !== 'done' && f.status !== 'dropped' && !readonly
-      ? '<button type="button" class="primary" data-hand-done>Mark the flow done</button>' : ''
+      ? senior ? `<span class="fh-next">${esc(senior.label || 'Senior')} reviews it next: send ${esc(senior.label || 'Senior')} a message naming flow ${esc(f.id)}.</span>` : '<button type="button" class="primary" data-hand-done>Mark the flow done</button>' : ''
+    const back = redoOf(f)
+    const redo = back ? `<p class="fh-redo" role="note"><b>${esc(back.by || 'Senior')} sent this back.</b> ${esc(back.summary || 'Do the unticked steps again.')}</p>` : ''
     return `<section class="fh${all ? ' is-all' : ''}" aria-labelledby="fh-h-${esc(f.id)}">${head(` <span class="faint">· ${done} of ${steps.length} done</span>`)}${finish}</div>` +
-      `<ol class="fh-steps">${steps.map((s, i) => step(f, s, i, readonly)).join('')}</ol></section>`
+      `${redo}<ol class="fh-steps">${steps.map((s, i) => step(f, s, i, readonly)).join('')}</ol></section>`
   }
 
   // ═══ the slot ═══

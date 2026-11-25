@@ -4,7 +4,7 @@
 //   routeWords(graph)          the route with EVERY agent in it, the Planner and Security included
 //   styleView(snapshot)        { graph, agents: [{ label, role, roleWords, spec, rules, model, effort, fixed, modelWords }],
 //                              summary, route }
-//   modelWords(entry, role)    "Haiku 5.5, low effort"; the planner and Security: "Opus 5.5, high effort (fixed)"
+//   modelWords(entry, role)    "Haiku 5.5, low effort"; the planner, Security and Senior: "Opus 5.5, high effort (fixed)"
 //   styleChanges(now, next)    exactly what using `next` changes from `now`, one plain sentence each: agents added or
 //                              removed, rules added or removed by count per agent, a specification that changes, a
 //                              model or effort that changes, the rework limit and the protected branches. [] when none.
@@ -30,6 +30,7 @@ export function roleWords(role, graph) {
     planner: 'plans the work and hands it out',
     producer: 'writes code',
     security: 'checks for security problems before the push',
+    senior: 'reviews work done by hand, such as CI and cloud settings',
     chat: 'answers questions in Ask',
   }[role] || 'works in the pipeline'
 }
@@ -60,6 +61,7 @@ export function routeWords(graph) {
   const to = workers.length ? andList(workers) : 'no other agent'
   const parts = [planner ? `${coord} hands each request to ${planner}, who plans it and hands it to ${to}` : `${coord} hands each request to ${to}`]
   if (qa) parts.push(security ? `${qa} tests every code change, then ${security} checks it for security problems before it is pushed` : `${qa} tests every code change and pushes it`)
+  if (one('senior')) parts.push(`${one('senior')} reviews work done by hand before it reaches the Output`)
   if (chat) parts.push(`${chat} answers questions in Ask`)
   return `${parts.join('; ')}.`
 }
@@ -76,6 +78,7 @@ export function summaryOf(snapshot) {
     `${coord} hands to ${plural(producers, 'agent')}${planner ? ` through ${planner}` : ''}`,
     ...(one('qa') ? [`${one('qa')} tests`] : []),
     ...(one('security') ? [`${one('security')} checks`] : []),
+    ...(one('senior') ? [`${one('senior')} reviews by-hand work`] : []),
     rules ? plural(rules, 'rule') : 'no rules',
   ].join(', ')
 }

@@ -15,7 +15,7 @@ import { labelBox, touchedLabels } from './diagram-geometry.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const window = {}
-vm.runInNewContext(fs.readFileSync(path.join(HERE, '..', 'public', 'pipeline-layout.js'), 'utf8'), { window })
+for (const f of ['pipeline-labels.js', 'pipeline-layout.js']) vm.runInNewContext(fs.readFileSync(path.join(HERE, '..', 'public', f), 'utf8'), { window })
 const L = window.PipelineLayout
 
 const G_CONFIG = {

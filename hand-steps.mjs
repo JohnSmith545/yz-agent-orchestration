@@ -16,7 +16,8 @@
 //
 // Rules this file keeps:
 // - `done` is the user's, like a step's `verified` (flows.mjs): only applyHandTick sets it, and keepHand takes it from
-//   the stored file only, so an agent's rewrite can never tick a step. A tick stays only while what the step asks
+//   the stored file only, so an agent's rewrite can never tick a step. The one other writer is Senior's failure
+//   (tools/senior-cli.mjs `flow senior <flow> fail`), and it only UNticks: the steps to do again. A tick stays only while what the step asks
 //   (do, where, copy, expect) is unchanged: a step the agent rewrote is a new thing to do, and waits again.
 // - The request fields are the server's, like output.requestedAt: only the stored file's survive a rewrite.
 // - Every limit is refused with a plain sentence an agent can act on (validateHand, the CLI).

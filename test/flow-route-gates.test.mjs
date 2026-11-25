@@ -34,9 +34,9 @@ test('planRoute: a producer build goes through the planner and Security; the coo
   assert.deepEqual(R.planRoute('build', 'Agent 1', ONLY_SECURITY), { steps: ['request', 'master', 'agent-1', 'qa', 'security', 'push', 'outcome'] })
 })
 
-test('planRoute: review and ask routes do not change', () => {
-  assert.deepEqual(R.planRoute('ask', 'Agent 1', G), { steps: ['request', 'master', 'agent-1', 'outcome'] })
-  assert.deepEqual(R.planRoute('ask', 'Master', G), { steps: ['request', 'master', 'outcome'] })
+test('planRoute: review and ask routes do not go through the planner or Security (an ask ends past Human task)', () => {
+  assert.deepEqual(R.planRoute('ask', 'Agent 1', G), { steps: ['request', 'master', 'agent-1', 'human', 'outcome'] })
+  assert.deepEqual(R.planRoute('ask', 'Master', G), { steps: ['request', 'master', 'human', 'outcome'] })
   assert.deepEqual(R.planRoute('review', 'Independent', G), { steps: ['request', 'independent', 'outcome'] })
 })
 

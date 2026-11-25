@@ -49,10 +49,11 @@ test('producersOf: the coding agents labels other than the coordinator and QA, o
 // ═══ the graph ═══
 
 test('pipelineGraph: the nodes in execution order, with stable slug ids, kinds and roles', () => {
-  assert.deepEqual(ids(G.nodes), ['request', 'master', 'agent-1', 'agent-2', 'agent-3', 'qa', 'push', 'outcome'])
-  assert.deepEqual(G.nodes.map(n => n.role), ['request', 'coordinator', 'producer', 'producer', 'producer', 'qa', 'push', 'outcome'])
-  assert.deepEqual(G.nodes.map(n => n.kind), ['start', 'agent', 'agent', 'agent', 'agent', 'agent', 'step', 'end'])
-  assert.deepEqual(G.nodes.map(n => n.label), ['Request', 'Master', 'Agent 1', 'Agent 2', 'Agent 3', 'QA', 'Push', 'Output'])
+  // Human task (the user) is always drawn, a fixed step like Push, after QA
+  assert.deepEqual(ids(G.nodes), ['request', 'master', 'agent-1', 'agent-2', 'agent-3', 'qa', 'human', 'push', 'outcome'])
+  assert.deepEqual(G.nodes.map(n => n.role), ['request', 'coordinator', 'producer', 'producer', 'producer', 'qa', 'human', 'push', 'outcome'])
+  assert.deepEqual(G.nodes.map(n => n.kind), ['start', 'agent', 'agent', 'agent', 'agent', 'agent', 'step', 'step', 'end'])
+  assert.deepEqual(G.nodes.map(n => n.label), ['Request', 'Master', 'Agent 1', 'Agent 2', 'Agent 3', 'QA', 'Human task', 'Push', 'Output'])
   assert.deepEqual(pipelineGraph(CONFIG), G, 'the same config draws the same graph')
 })
 
@@ -62,7 +63,7 @@ const CHAT = { ...CONFIG, factory: { chat: { name: 'Independent' } } }
 const GC = pipelineGraph(CHAT)
 
 test('pipelineGraph: the chat agent is an agent node with role chat, after the producers; the end keeps its id outcome and reads Output', () => {
-  assert.deepEqual(ids(GC.nodes), ['request', 'master', 'agent-1', 'agent-2', 'agent-3', 'independent', 'qa', 'push', 'outcome'])
+  assert.deepEqual(ids(GC.nodes), ['request', 'master', 'agent-1', 'agent-2', 'agent-3', 'independent', 'qa', 'human', 'push', 'outcome'])
   assert.deepEqual(GC.nodes.find(n => n.id === 'independent'), { id: 'independent', kind: 'agent', label: 'Independent', role: 'chat' })
   assert.deepEqual(GC.nodes.at(-1), { id: 'outcome', kind: 'end', label: 'Output', role: 'outcome' })
 })
@@ -93,23 +94,24 @@ test('pipelineGraph: the edges, request to coordinator to each producer to QA, p
     assert.equal(edge('master', p).kind, 'branch')
     assert.equal(edge(p, 'qa').kind, 'main')
     assert.deepEqual(edge('qa', p), { from: 'qa', to: p, label: 'failed', kind: 'rework' })
-    assert.deepEqual(edge(p, 'outcome'), { from: p, to: 'outcome', label: 'no code changes', kind: 'skip' })
+    assert.deepEqual(edge(p, 'human'), { from: p, to: 'human', label: 'no code changes', kind: 'skip' })
   }
   assert.deepEqual(edge('qa', 'push'), { from: 'qa', to: 'push', label: 'passed', kind: 'main' })
   assert.deepEqual(edge('push', 'outcome'), { from: 'push', to: 'outcome', kind: 'main' })
-  // the coordinator's own work goes through QA too, and its asks and plans skip it
+  // the coordinator's own work goes through QA too, and its asks and plans skip it, past Human task to the Output
   assert.equal(edge('master', 'qa').kind, 'branch')
-  assert.equal(edge('master', 'outcome').kind, 'skip')
+  assert.equal(edge('master', 'human').kind, 'skip')
+  assert.deepEqual(edge('human', 'outcome'), { from: 'human', to: 'outcome', label: 'done by hand', kind: 'skip' })
   assert.equal(G.edges.filter(e => e.kind === 'rework').length, 3)
   for (const e of G.edges) assert.ok(ids(G.nodes).includes(e.from) && ids(G.nodes).includes(e.to), JSON.stringify(e))
 })
 
 test('pipelineGraph: no producers draws the coordinator straight into QA; a label that slugs to a reserved id gets a suffix', () => {
   const lone = pipelineGraph({ coordinator: 'C', coordinatorLabel: 'Coordinator', codingAgents: { C: 'Coordinator' } })
-  assert.deepEqual(ids(lone.nodes), ['request', 'coordinator', 'qa', 'push', 'outcome'])
+  assert.deepEqual(ids(lone.nodes), ['request', 'coordinator', 'qa', 'human', 'push', 'outcome'])
   assert.equal(lone.edges.find(e => e.from === 'coordinator' && e.to === 'qa').kind, 'main')
   const clash = pipelineGraph({ coordinator: 'C', coordinatorLabel: 'Push', codingAgents: { C: 'Push', a: 'Request', b: 'request' } })
-  assert.deepEqual(ids(clash.nodes), ['request', 'push-2', 'request-2', 'request-3', 'qa', 'push', 'outcome'])
+  assert.deepEqual(ids(clash.nodes), ['request', 'push-2', 'request-2', 'request-3', 'qa', 'human', 'push', 'outcome'])
 })
 
 // ═══ code producing ═══
@@ -186,8 +188,8 @@ test('stageOf: the last entry of the path is always the node', () => {
 
 test('config.mjs carries the pipeline settings, checked, with every key', async () => {
   const { CONFIG } = await import('../config.mjs')
-  // planner and security are there only when the live config.json names them (pipeline.mjs gateSetting)
-  assert.deepEqual(Object.keys(CONFIG.pipeline).filter(k => k !== 'planner' && k !== 'security').sort(), ['maxReworks', 'producers', 'protectedBranches', 'qa'])
+  // planner, security and senior are there only when the live config.json names them (pipeline.mjs gateSetting)
+  assert.deepEqual(Object.keys(CONFIG.pipeline).filter(k => !['planner', 'security', 'senior'].includes(k)).sort(), ['maxReworks', 'producers', 'protectedBranches', 'qa'])
   assert.equal(typeof CONFIG.pipeline.qa, 'string')
   assert.ok(pipelineGraph(CONFIG).nodes.some(n => n.role === 'qa' && n.label === CONFIG.pipeline.qa))
 })

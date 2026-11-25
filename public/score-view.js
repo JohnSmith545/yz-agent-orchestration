@@ -104,6 +104,7 @@
       `<tr><th scope="row">Held back</th>${cell(n.missed, 'Wrong, missed', `Dropped, stopped at QA or Security, or no update for ${stall} days.`, 'missed')}${cell(n.caught, 'Right, caught', 'Each time QA or Security failed the work and held it back.', 'caught')}</tr>` +
       '</tbody></table></div>' +
       `<p class="psc-way">${way}</p>` +
+      '<p class="psc-way">With Senior on the pipeline, work done by hand counts as delivered only once Senior passed it; work finished before Senior joined is judged as before.</p>' +
       `<div class="psc-lists"><div><h4 class="psc-h">Slipped through</h4>${flowList(score.lists?.slipped, stall)}</div>` +
       `<div><h4 class="psc-h">Missed</h4>${flowList(score.lists?.missed, stall)}</div></div>` +
       '<h4 class="psc-h">The sums</h4><ul class="psc-sums">' +

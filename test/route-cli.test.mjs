@@ -65,7 +65,7 @@ test('flow new: the coordinator building its own change skips a producer; the ch
   assert.equal(as('Independent')('new', 'rev', 'Review ABC-2', '--type', 'review').code, 0)
   assert.deepEqual(F.readFlow('rev').route.steps, ['request', 'independent', 'outcome'])
   assert.equal(as('Agent 1')('new', 'why', 'Why is it slow?', '--type', 'ask').code, 0)
-  assert.deepEqual(F.readFlow('why').route.steps, ['request', 'master', 'agent-1', 'outcome'])
+  assert.deepEqual(F.readFlow('why').route.steps, ['request', 'master', 'agent-1', 'human', 'outcome'])
 })
 
 test('flow new refuses a type the agent has no route for, or a type that does not exist', () => {

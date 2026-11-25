@@ -18,7 +18,10 @@
 //   blocked one too; a ticket a live flow carries is that flow's row, never a ticket row as well.
 // - Pure: no file and no clock, so the tests build any state.
 //
-//   humanItems({ flows, marks, tickets })   { items, counts: { total, ask, hand, blocked, ticket } }
+//   humanItems({ flows, marks, tickets, senior })   { items, counts: { total, ask, hand, blocked, ticket } }; `senior`
+//                                          is Senior's label when the pipeline has Senior (pipeline.mjs gateLabels):
+//                                          by-hand work then says Senior reviews it once every step is done, and a
+//                                          flow Senior sent back says why
 
 import { handProgress } from './hand-steps.mjs'
 
@@ -43,10 +46,11 @@ const latest = times => times.filter(isText).sort().pop() || ''
 const live = f => f.status === 'open' || f.status === 'blocked'
 
 /** Why a flow's by-hand work waits on the user, in one line. */
-function handReason(f, marked) {
+function handReason(f, marked, senior) {
   const steps = Array.isArray(f.hand?.steps) ? f.hand.steps : []
   const { done, total } = handProgress(f)
-  if (total && done === total) return `All ${total} steps are done by you: mark the flow done.`
+  if (senior && f.senior?.status === 'failed' && done < total) return line(`${senior} sent it back: ${f.senior.summary || 'do the unticked steps again'}`)
+  if (total && done === total) return senior ? `All ${total} steps are done by you: ${senior} reviews them next.` : `All ${total} steps are done by you: mark the flow done.`
   if (total) return line(`${done} of ${total} done. Next: ${steps.find(s => !s.done)?.do || ''}`)
   if (f.hand?.requestedAt) return f.hand.requestError ? 'Steps asked for, but the request was not sent: ask again.' : 'Steps asked for: waiting on the agent to write them.'
   return line(`Work only you can do (${marked.join(', ')}), with no steps yet: ask the agent for them.`)
@@ -59,7 +63,7 @@ function blockedReason(f) {
   return isText(f.why) ? line(`Blocked. ${f.why}`) : 'The agent marked this flow blocked.'
 }
 
-export function humanItems({ flows = [], marks = {}, tickets = new Map() } = {}) {
+export function humanItems({ flows = [], marks = {}, tickets = new Map(), senior = null } = {}) {
   const items = []
   const covered = new Set() // tickets a live (not dropped) flow carries: that flow speaks for them
   const humanMark = id => HUMAN_MARKS.includes(marks?.[id]?.review)
@@ -85,7 +89,7 @@ export function humanItems({ flows = [], marks = {}, tickets = new Map() } = {})
     if (isHand) {
       items.push({
         key: `hand:${f.id}`, kind: 'hand', ...base, since: latest([...steps.map(s => s.at), f.hand?.requestedAt]) || f.updatedAt || '',
-        reason: handReason(f, marked), progress: handProgress(f),
+        reason: handReason(f, marked, senior), progress: handProgress(f),
       })
     } else if (f.status === 'blocked' && !waiting.length) {
       items.push({ key: `blocked:${f.id}`, kind: 'blocked', ...base, since: f.updatedAt || '', reason: blockedReason(f) })

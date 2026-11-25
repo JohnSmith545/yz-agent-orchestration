@@ -95,6 +95,20 @@ test('the pipeline block is copied WHOLE, with keys this dashboard does not know
   assert.deepEqual(a.pipeline, { qa: 'Tester', planner: 'Planner', security: { label: 'Security' }, maxReworks: 1 })
 })
 
+test('Senior rides along with the planner and Security: saved in the style, drawn by its graph, written back to a project', () => {
+  const w = world()
+  fs.writeFileSync(w.configFile, CONFIG_TEXT.replace('"port": 4317,', '"port": 4317,\n  "pipeline": { "qa": "QA", "planner": "Planner", "security": "Security", "senior": "Senior" },'))
+  const style = O.takeSnapshot(w.primary)
+  assert.deepEqual(style.parts.agents.pipeline, { qa: 'QA', planner: 'Planner', security: 'Security', senior: 'Senior' })
+  const g = O.graphOf(style.parts.agents)
+  assert.equal(g.nodes.find(n => n.role === 'senior')?.label, 'Senior')
+  assert.ok(g.nodes.some(n => n.role === 'human'), 'the Human task box is in every graph')
+  O.applySnapshot(style, w.other)
+  const other = JSON.parse(fs.readFileSync(w.projectsFile, 'utf8')).projects[1]
+  assert.equal(other.config.pipeline.senior, 'Senior')
+  assert.equal(O.graphOf({ ...style.parts.agents, pipeline: { qa: 'QA', senior: null } }).nodes.some(n => n.role === 'senior'), false, 'null: no Senior box')
+})
+
 test('the rules part holds each agent of the graph with its specification and rule texts, nothing else', () => {
   const w = world()
   seedRules(w.primary.file('agent-rules.json'), 'Agent 1', 'Builds the web pages.', ['Never touch mobile.', 'Write the test first.'])

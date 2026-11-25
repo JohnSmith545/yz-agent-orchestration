@@ -144,8 +144,8 @@ test('GET /api/log with a bad window, cell or kind is a 400 with a plain sentenc
   const cases = {
     'days=14': 'The window must be 7, 30 or all days.',
     'cell=wrong': 'The cell must be delivered, caught, missed or slipped.',
-    // the kinds of the planner and Security are named only when the live config.json has them (score-routes.mjs)
-    'kind=nope': `The kind must be one of started, route, handed, passed, failed, pushed, done, dropped, stopped, stalled, rule${SECURITY ? ', security' : ''}${pipelineGraph(CONFIG).nodes.some(n => n.role === 'planner') ? ', planned' : ''}`.replace(/, ([a-z]+)$/, ' or $1') + '.',
+    // the kinds of the planner, Security and Senior are named only when the live config.json has them (score-routes.mjs)
+    'kind=nope': `The kind must be one of started, route, handed, passed, failed, pushed, done, dropped, stopped, stalled, rule${SECURITY ? ', security' : ''}${pipelineGraph(CONFIG).nodes.some(n => n.role === 'planner') ? ', planned' : ''}${pipelineGraph(CONFIG).nodes.some(n => n.role === 'senior') ? ', senior' : ''}`.replace(/, ([a-z]+)$/, ' or $1') + '.',
   }
   for (const [q, error] of Object.entries(cases)) {
     const r = await get(`/api/log?${q}`)

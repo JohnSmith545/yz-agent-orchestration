@@ -45,7 +45,7 @@
     return q === 'passed' ? ' qa-ok' : q === 'failed' || q === 'qa-failed' ? ' qa-bad' : ''
   }
 
-  const DETAIL = { coordinator: 'agents', producer: 'agents', chat: 'agents', qa: 'qa', push: 'qa', outcome: 'output' }
+  const DETAIL = { coordinator: 'agents', producer: 'agents', chat: 'agents', human: 'agents', senior: 'agents', qa: 'qa', push: 'qa', outcome: 'output' }
   const detailOf = role => DETAIL[role] || null
 
   const unset = f => (f?.route?.inferred && LIVE.has(f.status)
@@ -69,7 +69,7 @@
     const list = steps(f)
     if (!list.length) return ''
     const items = list.map(s => {
-      const back = s.visits > 1 ? `<span class="rt-visits" title="Here ${s.visits} times: sent back by QA">×${s.visits}</span>` : ''
+      const back = s.visits > 1 ? `<span class="rt-visits" title="Here ${s.visits} times: sent back by ${s.role === 'human' ? 'Senior' : 'QA'}">×${s.visits}</span>` : ''
       const name = `${esc(s.label)}${back}`
       const word = `<span class="rt-sr">${esc(s.state)}${s.state === 'current' && s.status ? `: ${esc(s.status)}` : ''}</span>`
       const to = detailOf(s.role)
@@ -97,15 +97,32 @@
 
   // ═══ the Agents diagram ═══
 
+  /** The by-hand boxes (pipeline.mjs): a flow may go past them without stopping, so their steps read skipped. */
+  const BY_HAND = new Set(['human', 'senior'])
+
   function highlight(graph, progress) {
     if (!Array.isArray(progress) || !progress.length || !Array.isArray(graph?.edges)) return null
     const index = (a, b, rework = false) => graph.edges.findIndex(e => e.from === a && e.to === b && (e.kind === 'rework') === rework)
+    const role = new Map((graph.nodes || []).map(n => [n.id, n.role]))
+    /** The edges from a to b: the one arrow, else the arrows through the by-hand boxes it went past (an answer's lane). */
+    const link = (a, b) => {
+      const k = index(a, b)
+      if (k >= 0) return [k]
+      const walk = (at, seen) => {
+        for (const [i, e] of graph.edges.entries()) {
+          if (e.from !== at || e.kind === 'rework' || seen.includes(e.to)) continue
+          if (e.to === b) return [i]
+          if (!BY_HAND.has(role.get(e.to))) continue
+          const rest = walk(e.to, [...seen, e.to])
+          if (rest) return [i, ...rest]
+        }
+        return null
+      }
+      return walk(a, [a]) || []
+    }
     const pairs = list => {
       const out = []
-      for (let i = 1; i < list.length; i++) {
-        const k = index(list[i - 1].node, list[i].node)
-        if (k >= 0) out.push(k)
-      }
+      for (let i = 1; i < list.length; i++) out.push(...link(list[i - 1].node, list[i].node))
       return out
     }
     const lit = progress.filter(s => s.state === 'done' || s.state === 'current')
@@ -117,6 +134,13 @@
       const k = index(qa.node, s.node, true)
       if (k >= 0) edges.push(k)
       if (!nodes.includes(qa.node)) nodes.push(qa.node)
+    }
+    // Senior sent the by-hand work back: its `redo` arrow to Human task is lit too
+    const senior = progress.find(s => s.role === 'senior')
+    const human = progress.find(s => s.role === 'human')
+    if (senior && human && human.visits > 1) {
+      const k = index(senior.node, human.node, true)
+      if (k >= 0) edges.push(k)
     }
     const now = progress.findIndex(s => s.state === 'current')
     const ahead = now < 0 ? [] : progress.slice(now).filter(s => s.state === 'current' || s.state === 'upcoming')

@@ -1,7 +1,8 @@
 // What the user sets for each agent in its window on the Agents page (public/agent-window.js), beside its
 // specification and rules (agent-rules.mjs): the model and effort the user wants it on, and the text files and notes
 // it is given. Saved through agent-settings-routes.mjs and PRINTED to the agent wherever its rules are printed
-// (tools/rules-cli.mjs: `flow new`, `flow qa-start`, `flow security-start`, `flow plan-start`, `flow rules`).
+// (tools/rules-cli.mjs: `flow new`, `flow qa-start`, `flow security-start`, `flow plan-start`, `flow senior-start`,
+// `flow rules`).
 //
 //   data/agent-settings.json      { agents: { "<label>": { model, effort, files: [{ id, title, kind: file|note, name,
 //                                 text, on, addedAt }], updatedAt } } }
@@ -46,9 +47,9 @@ export const MODELS = Object.freeze([
   Object.freeze({ id: 'claude-haiku-5-5', name: 'Haiku 5.5' }),
 ])
 export const EFFORTS = Object.freeze(['low', 'medium', 'high'])
-/** What the planner and Security always run on. */
+/** What the planner, Security and Senior always run on. */
 export const FIXED = Object.freeze({ model: 'claude-opus-5-5', effort: 'high' })
-export const FIXED_ROLES = Object.freeze(['planner', 'security'])
+export const FIXED_ROLES = Object.freeze(['planner', 'security', 'senior'])
 /** Per agent: each file or note at most `chars`, at most `files` of them, `total` characters in all; a title of 1 to `title`. */
 export const FILE_LIMITS = Object.freeze({ chars: 20_000, files: 20, total: 60_000, title: 100 })
 /** The longest print an agent is given (settingsBlock). */
