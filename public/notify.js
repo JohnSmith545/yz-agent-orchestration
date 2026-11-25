@@ -32,7 +32,9 @@
    *   prevFlows  the `flows` this returned last time (Map id -> line), or null on the
    *              first poll: that poll is the baseline and raises no flow alerts.
    *   p          the pulse: { waiting: [{ flowId, flowTitle, agent, nodeId, question, why }],
-   *              flows: [{ id, title, agent, status, evidence, undelivered }] }
+   *              flows: [{ id, title, agent, status, evidence, undelivered }], away: [the same lines] }
+   *              `away` are the flows put away (archived or completed): they go into the baseline and never raise an
+   *              alert, so one the user brings back (Unarchive, Uncomplete) is not a fresh flow that is done with proof
    *   seen       ask keys (`flowId:nodeId`) already alerted, kept across reloads.
    *   first      the first poll since the page loaded: several new asks become one summary.
    *   onFlows    the user is on the Flows page, where new proof is already in view.
@@ -62,8 +64,9 @@
     // (Undo, Restore, Unarchive) it is compared with what it was, never as a fresh flow (a false is done or added
     // proof). One small line per flow id; past FLOWS_KEPT the oldest of the vanished ones go.
     const flows = new Map(prevFlows || [])
+    for (const f of p.away || []) flows.set(f.id, f) // known, never alerted
     for (const f of lines) flows.set(f.id, f)
-    const live = new Set(lines.map(f => f.id))
+    const live = new Set([...lines, ...(p.away || [])].map(f => f.id))
     for (const id of [...flows.keys()]) {
       if (flows.size <= FLOWS_KEPT) break
       if (!live.has(id)) flows.delete(id)

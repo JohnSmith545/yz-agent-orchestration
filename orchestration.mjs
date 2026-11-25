@@ -308,6 +308,9 @@ export async function pulse({ getStatus, chatStatus }) {
     at: new Date().toISOString(),
     waiting: waitingAsks(live),
     flows: live.map(flowLine),
+    // the flows put away (archived or completed): never alerted, only known, so one that comes back (Unarchive,
+    // Uncomplete) is compared with what it was and raises no false is done or added proof (public/notify.js)
+    away: listFlows({ archived: true }).flows.map(flowLine),
     agents,
     chat: { ...chat, state: chatState({ ...chat, flows: live }) },
     reminders: CONFIG.reminders,
