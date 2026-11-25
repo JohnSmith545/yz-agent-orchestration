@@ -92,7 +92,7 @@ test('a file as a note: named after the file, refused calmly when it is not text
 
 test('the copy is plain: the agreed lines, no em dash', () => {
   for (const line of [
-    'What Brainstorming is told before it writes. It goes only to your own Claude run.',
+    'What the Prompt generator is told before it writes. It goes only to your own Claude run.',
     'Your agents, routes and rules, written by the dashboard.',
     'Its latest conversation is read when you press Generate.',
     'Add a note', 'Add files', 'Preview', 'Live session', 'Orchestration', 'Notes',

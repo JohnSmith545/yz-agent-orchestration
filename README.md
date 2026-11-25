@@ -680,7 +680,7 @@ listed under the block, as quiet notes you can overrule. **Copy** copies only wh
 
 The run is clean, so on its own the Prompt generator knows nothing about your agents or your work, and an idea such as "a prompt
 for my full agent orchestration" gets questions back. The **Context** tab on the right edge of the page opens a panel
-(like the Agents page's) that says what Brainstorming is told before it writes. Open or closed is kept in this browser
+(like the Agents page's) that says what the Prompt generator is told before it writes. Open or closed is kept in this browser
 (`script.contextOpen`). It holds three kinds of context, and the tab shows how many are on (`Context · 3`):
 
 - **Orchestration** (on by default): a plain brief the dashboard writes itself from what it already knows. What the
