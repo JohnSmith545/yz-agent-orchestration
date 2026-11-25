@@ -116,7 +116,8 @@ const isObject = v => !!v && typeof v === 'object' && !Array.isArray(v)
 const isPort = p => Number.isInteger(p) && p >= 1024 && p <= 65535
 
 export function remoteSettings(raw, { interfaces = os.networkInterfaces(), mainPort = 4317, warn = console.warn } = {}) {
-  const base = { ...REMOTE_DEFAULTS, configured: raw !== undefined, enabled: false, url: '', off: 'Phone access is not set up.' }
+  // `wanted`: what remote.enabled itself says (the change watcher compares it), whatever else keeps it off
+  const base = { ...REMOTE_DEFAULTS, configured: raw !== undefined, enabled: false, wanted: false, url: '', off: 'Phone access is not set up.' }
   if (raw === undefined) return base
   const off = why => {
     warn(`config.json: ${why} Phone access stays off.`)
@@ -127,6 +128,7 @@ export function remoteSettings(raw, { interfaces = os.networkInterfaces(), mainP
   const pinHash = validPinHash(s.pinHash) ? s.pinHash : ''
   const shown = {
     ...base,
+    wanted: s.enabled === true,
     bind: typeof s.bind === 'string' ? s.bind : '',
     port: isPort(s.port) ? s.port : REMOTE_DEFAULTS.port,
     pinHash,
@@ -179,7 +181,7 @@ export function makeRemoteReader(file, { interfaces = () => os.networkInterfaces
         // FAIL CLOSED: a config.json that does not parse (half written, or broken) turns phone access off until it parses
         const why = 'config.json does not parse: phone access is closed until it does.'
         warn(`config.json: ${why}`)
-        value = { ...remoteSettings(undefined), configured: true, off: why }
+        value = { ...remoteSettings(undefined), configured: true, unreadable: true, off: why }
         return value
       }
       value = remoteSettings(raw, { interfaces: nets, mainPort, warn })

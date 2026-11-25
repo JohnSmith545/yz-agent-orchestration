@@ -192,14 +192,14 @@ test('a broken auth file signs everyone out and locks sign-in; a lock this proce
   assert.equal(login(store).ok, true, 'then a sign-in works and the file is good again')
 })
 
-test('the list of events is capped and newest first; the Log gets the lockouts only', () => {
+test('the list of events is capped and newest first; the Log gets the lockout as one line', () => {
   const { store, clock } = fresh()
   for (let i = 0; i < 70; i++) { login(store); clock.t += 1000 }
   const ev = store.events()
   assert.equal(ev.length, A.EVENTS_MAX)
   assert.ok(ev[0].at > ev.at(-1).at)
   for (let i = 0; i < 5; i++) login(store, '000000')
-  const log = store.logEvents()
+  const log = store.logEvents().filter(e => /locked/.test(e.text))
   assert.equal(log.length, 1)
   assert.equal(log[0].kind, 'phone')
   assert.equal(log[0].flow, null)

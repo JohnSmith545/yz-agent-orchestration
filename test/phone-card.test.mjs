@@ -85,3 +85,16 @@ test('the Settings page draws the card in its own page and opens it; index.html 
   const index = read('index.html')
   assert.match(index, /<script src="phone-card\.js"><\/script>/)
 })
+
+test('a PIN or config change shows its own sentence; an escalation and a damaged file are named', () => {
+  const t = text(C.html({ data: { ...ON, events: [
+    { at: '2026-11-25T09:00:00.000Z', kind: 'pin', address: '', text: 'The phone PIN was changed outside the setup command: phone-pin did not write it. If you did not change it, turn phone access off.', outside: true },
+    { at: '2026-11-25T08:59:00.000Z', kind: 'config', address: '', text: 'Phone access was turned on in config.json.' },
+    { at: '2026-11-25T08:58:00.000Z', kind: 'escalate', address: '192.168.1.9' },
+    { at: '2026-11-25T08:57:00.000Z', kind: 'damaged', address: '' },
+  ] } }))
+  assert.match(t, /The phone PIN was changed outside the setup command/)
+  assert.match(t, /Phone access was turned on in config\.json\./)
+  assert.match(t, /3 lockouts in 24 hours: phone access turned off/)
+  assert.match(t, /Sign-in file damaged/)
+})

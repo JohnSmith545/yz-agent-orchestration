@@ -165,3 +165,13 @@ test('factory.mjs phone-pin and phone-setup refuse a piped keyboard and leave co
   }
   assert.equal(fs.existsSync(cfg) ? fs.readFileSync(cfg, 'utf8') : null, before)
 })
+
+test('phone-pin marks the new hash for the change watcher, so the PIN change reads as made with phone-pin', async () => {
+  const file = config()
+  const auth = makeAuthStore({ file: path.join(dir, `auth-${n++}.json`) })
+  auth.noteRemote({ wanted: false, bind: '', pinHash: '' })
+  await C.runPhonePin({ io: keyboard(['4829105736', '4829105736']), configFile: file, auth })
+  const hash = JSON.parse(fs.readFileSync(file, 'utf8')).remote.pinHash
+  const said = auth.noteRemote({ wanted: false, bind: '', pinHash: hash })
+  assert.deepEqual(said.map(e => e.text), ['The phone PIN was changed with phone-pin.'])
+})

@@ -65,13 +65,11 @@ test('a listener that fails to open is tried again on the next tick, never twice
 const listening = () => process.getActiveResourcesInfo().filter(r => r === 'TCPServerWrap').length
 const deps = { getStatus: async () => ({ agents: [] }), relay: { queue() {} }, run: async () => ({ ok: false }), sessions: async () => [], transcriptFile: async () => null }
 
-test('REAL sockets: with no remote block startPhone opens nothing and starts no watcher', () => {
+test('REAL sockets: with no remote block startPhone opens nothing (only the change watcher looks at config.json)', () => {
   const before = listening()
-  const timers = process.getActiveResourcesInfo().filter(r => r === 'Timeout').length
-  const r = startPhone(deps, { reader: Object.assign(() => ({ configured: false, enabled: false }), { invalidate() {} }) })
+  const r = startPhone(deps, { reader: Object.assign(() => ({ configured: false, enabled: false, wanted: false, bind: '', pinHash: '' }), { invalidate() {} }) })
   assert.equal(r, null)
   assert.equal(listening(), before)
-  assert.equal(process.getActiveResourcesInfo().filter(r => r === 'Timeout').length, timers)
 })
 
 test('REAL sockets: an enabled block opens exactly one listener, and stop closes it', async () => {

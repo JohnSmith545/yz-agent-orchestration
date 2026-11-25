@@ -3,9 +3,10 @@
 // (phone-auth.mjs), Talk to Master (phone-talk.mjs, sending through the relay's own headless turn), the allowlist
 // (phone-actions.mjs), the listener (phone-server.mjs) and the door that opens and closes it (phone-door.mjs).
 //
-// With no `remote` block in config.json, or one that is off when the dashboard starts, this does NOTHING: no store
-// is opened, no server is created, no watcher runs, nothing new listens, and nothing is printed (remoteSettings has
-// already said why, once, for a block that is off). Turning it on is phone-setup, then a restart.
+// With no `remote` block in config.json, or one that is off when the dashboard starts, no server is created and
+// nothing new listens (remoteSettings has already said why, once, for a block that is off); only the change watcher
+// (watchRemote) looks at config.json, so turning it on, by phone-setup or by anything else, is seen at once. The
+// listener itself starts at the next start of the dashboard.
 //
 // Once it started on, the WATCHER ticks the door every CHECK_MS: the listener closes on any change (turned off on
 // the desktop or in config.json, three lockouts in a day, a config.json that does not parse, this PC off the network
@@ -28,10 +29,36 @@ export const remoteNow = makeRemoteReader(CONFIG_FILE, { mainPort: CONFIG.port }
 /** How often the door is checked against the block and the network, when no phone is asking. */
 const CHECK_MS = 5000
 
+/**
+ * The CHANGE WATCHER (review point 3): every `every` ms, what config.json's remote block says now goes to the auth
+ * store (phone-auth.mjs noteRemote), which turns each change of remote.enabled, remote.bind or the PIN hash into an
+ * event: a toast and a Phone on badge on the desktop (public/phone-notice.js), a line in the Log and on the Phone card.
+ * It runs whatever the block says, phone access off or not set up included, because the change worth seeing is
+ * exactly the one that turns it on. It opens nothing and, with no block, writes nothing. A config.json that does not
+ * parse is skipped (the listener is closed by the reader meanwhile).
+ */
+export function watchRemote({ reader = remoteNow, auth = makeAuthStore(), every = CHECK_MS } = {}) {
+  const look = () => {
+    try {
+      const s = reader()
+      if (s.unreadable) return
+      auth.noteRemote({ wanted: s.wanted, bind: s.bind, pinHash: s.pinHash })
+    } catch (err) {
+      console.error(`phone: the change watcher could not look at config.json: ${err?.message || err}`)
+    }
+  }
+  look()
+  const timer = setInterval(look, every)
+  timer.unref()
+  return { look, stop: () => clearInterval(timer) }
+}
+
 /** The coordinator's session, live or pinned, by its session name (config coordinator). */
 const coordinatorOf = async sessions => (await sessions()).find(s => s.name === CONFIG.coordinator) || null
 
 export function startPhone({ getStatus, relay, run, sessions, transcriptFile }, { reader = remoteNow, configFile = CONFIG_FILE } = {}) {
+  const auth = makeAuthStore()
+  const watcher = watchRemote({ reader, auth })
   if (!reader().enabled) return null
   const talk = makeTalk({
     agent: CONFIG.coordinator,
@@ -48,7 +75,6 @@ export function startPhone({ getStatus, relay, run, sessions, transcriptFile }, 
   })
   const lost = talk.sweep()
   if (lost) console.log(`phone: ${lost} message(s) to ${CONFIG.coordinatorLabel} were on their way when the dashboard stopped; the phone shows them as not sent`)
-  const auth = makeAuthStore()
   const actions = makePhoneActions({ relay, talk, getStatus })
   let door = null
   // 3 lockouts in 24 hours (phone-auth.mjs ESCALATE): phone access OFF in config.json, the same write as Turn phone access off
@@ -67,5 +93,5 @@ export function startPhone({ getStatus, relay, run, sessions, transcriptFile }, 
   door.tick()
   const watch = setInterval(() => door.tick(), CHECK_MS)
   watch.unref()
-  return { door, stop() { clearInterval(watch); door.close() } }
+  return { door, stop() { clearInterval(watch); watcher.stop(); door.close() } }
 }

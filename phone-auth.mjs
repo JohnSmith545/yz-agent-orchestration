@@ -98,7 +98,7 @@ export function tokensFromCookie(header) {
 export const tokenFromCookie = header => tokensFromCookie(header)[0] || ''
 
 const isTime = v => typeof v === 'string' && !Number.isNaN(Date.parse(v))
-const EMPTY = () => ({ fails: 0, lockedUntil: null, lockouts: [], sessions: [], events: [] })
+const EMPTY = () => ({ fails: 0, lockedUntil: null, lockouts: [], seen: null, pinMark: null, sessions: [], events: [] })
 
 /** The file, cleaned: anything malformed is dropped, so a hand edit can add nothing that signs anyone in. */
 function clean(raw) {
@@ -107,12 +107,15 @@ function clean(raw) {
   s.fails = Number.isInteger(raw.fails) && raw.fails >= 0 && raw.fails < LOCK.tries ? raw.fails : 0
   s.lockedUntil = isTime(raw.lockedUntil) ? raw.lockedUntil : null
   s.lockouts = (Array.isArray(raw.lockouts) ? raw.lockouts : []).filter(isTime).slice(-20)
+  const fp = v => (typeof v === 'string' && /^[0-9a-f]{0,64}$/.test(v) ? v : '')
+  s.seen = raw.seen && typeof raw.seen === 'object' ? { wanted: raw.seen.wanted === true, bind: String(raw.seen.bind || '').slice(0, 64), pin: fp(raw.seen.pin) } : null
+  s.pinMark = raw.pinMark && typeof raw.pinMark === 'object' && isTime(raw.pinMark.at) ? { pin: fp(raw.pinMark.pin), at: raw.pinMark.at } : null
   s.sessions = (Array.isArray(raw.sessions) ? raw.sessions : [])
     .filter(x => x && /^[0-9a-f]{64}$/.test(x.id) && isTime(x.createdAt) && isTime(x.expiresAt))
     .map(x => ({ id: x.id, createdAt: x.createdAt, expiresAt: x.expiresAt, address: String(x.address || '').slice(0, 64) }))
   s.events = (Array.isArray(raw.events) ? raw.events : [])
     .filter(e => e && isTime(e.at) && EVENT_KINDS.includes(e.kind))
-    .map(e => ({ at: e.at, kind: e.kind, address: String(e.address || '').slice(0, 64), ...(Number.isInteger(e.count) ? { count: e.count } : {}), ...(typeof e.text === 'string' ? { text: e.text.slice(0, 300) } : {}) }))
+    .map(e => ({ at: e.at, kind: e.kind, address: String(e.address || '').slice(0, 64), ...(Number.isInteger(e.count) ? { count: e.count } : {}), ...(typeof e.text === 'string' ? { text: e.text.slice(0, 300) } : {}), ...(e.outside === true ? { outside: true } : {}) }))
     .slice(-EVENTS_MAX)
   return s
 }
@@ -253,12 +256,47 @@ export function makeAuthStore({ file = AUTH_FILE, now = Date.now, log = line => 
   const events = () => read().events.slice().reverse()
 
   /** The lockouts as orchestration Log events (score-routes.mjs `extra`): no flow, no agent, one plain line. */
-  const logEvents = () => read().events.filter(e => e.kind === 'lockout').map(e => ({
-    at: e.at, kind: 'phone', flow: null, agent: null, cell: null,
-    text: `Phone sign-in was locked for ${LOCK.ms / 60_000} minutes after ${LOCK.tries} wrong PINs${e.address ? ` (the last from ${e.address})` : ''}.`,
-  }))
+  /**
+   * What the watcher sees in config.json's remote block now ({ wanted, bind, pinHash }), compared with what it saw
+   * last (`seen`, kept in this file): each change is an event with a plain sentence, and the new values are kept.
+   * Nothing seen yet counts as nothing set up, so a block that appeared while nobody looked is said at once; with no
+   * block and nothing seen, nothing is said and no file is written. The PIN is compared by a FINGERPRINT (SHA-256 of the hash), never the hash itself;
+   * a new one that phone-pin did not mark (markPin) is called out as changed outside the setup command, which is
+   * what an agent editing config.json by hand would look like. Returns the new events.
+   */
+  function noteRemote({ wanted, bind, pinHash }) {
+    const s = read()
+    const now$ = { wanted: wanted === true, bind: String(bind || ''), pin: pinHash ? sha(pinHash) : '' }
+    const was = s.seen || { wanted: false, bind: '', pin: '' }
+    s.seen = now$
+    const added = []
+    const say = (kind, text, extra = {}) => { event(s, kind, '', { text, ...extra }); added.push(s.events.at(-1)) }
+    if (was.wanted !== now$.wanted) say('config', `Phone access was turned ${now$.wanted ? 'on' : 'off'} in config.json.`)
+    if (now$.bind && was.bind !== now$.bind) say('config', `Phone access now listens on ${now$.bind}${was.bind ? ` (it was ${was.bind})` : ''}.`)
+    if (was.pin !== now$.pin && now$.pin) {
+      if (s.pinMark?.pin === now$.pin) say('pin', 'The phone PIN was changed with phone-pin.')
+      else say('pin', 'The phone PIN was changed outside the setup command: phone-pin did not write it. If you did not change it, turn phone access off.', { outside: true })
+    }
+    if (was.wanted !== now$.wanted || was.bind !== now$.bind || was.pin !== now$.pin) tryWrite(s)
+    return added
+  }
 
-  return { read, login, session, logout, signOutEverywhere, lockedFor: () => lockedFor(), events, logEvents }
+  /** phone-pin, as it writes a new hash: the fingerprint and the time, so the watcher knows the setup command made it. */
+  function markPin(pinHash) {
+    const s = read()
+    s.pinMark = { pin: sha(pinHash), at: iso(now()) }
+    tryWrite(s)
+  }
+
+  /** Each event as a Log line (score-routes.mjs `extra`): kind phone, no flow, no agent, one plain sentence. */
+  const LOGGED = { login: e => `A phone signed in${e.address ? ` from ${e.address}` : ''}.`,
+    lockout: e => `Phone sign-in was locked for ${LOCK.ms / 60_000} minutes after ${LOCK.tries} wrong PINs${e.address ? ` (the last from ${e.address})` : ''}.`,
+    escalate: () => `${ESCALATE.lockouts} lockouts within 24 hours: phone access was turned off.`,
+    damaged: () => 'The phone sign-in file was damaged: a copy was kept and sign-in was locked for 15 minutes.',
+    pin: e => e.text, config: e => e.text }
+  const logEvents = () => read().events.filter(e => LOGGED[e.kind]).map(e => ({ at: e.at, kind: 'phone', flow: null, agent: null, cell: null, text: LOGGED[e.kind](e) || '' }))
+
+  return { read, login, session, logout, signOutEverywhere, lockedFor: () => lockedFor(), events, logEvents, noteRemote, markPin }
 }
 
 /** The lockouts in the machine's auth file as Log events: what score-routes.mjs adds to the orchestration Log. */

@@ -64,7 +64,9 @@ export async function runPhonePin({ io = terminal(), configFile = CONFIG, auth =
   if (sendHash && verifyPin(pin, sendHash)) return { out: 'Pick a phone PIN that differs from your send PIN: the phone PIN is typed on a phone, the send PIN pushes code.', code: 1 }
   const again = await io.hidden('The same PIN again: ')
   if (again !== pin) return { out: 'The two PINs differ: the phone PIN is unchanged.', code: 1 }
-  writeAtomic(configFile, withRemote(text, { pinHash: hashPin(pin), pinSetAt: now().toISOString(), pinDigits: pin.length }))
+  const pinHash = hashPin(pin)
+  auth.markPin(pinHash) // first: the watcher then knows this new hash came from the setup command (phone-auth.mjs noteRemote)
+  writeAtomic(configFile, withRemote(text, { pinHash, pinSetAt: now().toISOString(), pinDigits: pin.length }))
   const ended = auth.signOutEverywhere()
   return {
     out: `Phone PIN set in config.json (only its hash is kept).${ended ? ` ${ended} signed-in phone${ended === 1 ? ' was' : 's were'} signed out.` : ''} The dashboard uses it from now on.`,

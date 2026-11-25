@@ -19,10 +19,12 @@
   const exact = at => (Number.isNaN(Date.parse(at)) ? '' : new Date(at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))
   const WORDS = {
     login: 'Signed in', wrong: 'Wrong PIN', lockout: 'Locked for 15 minutes after 5 wrong PINs', signout: 'Signed out', 'signout-all': 'Signed out everywhere',
+    escalate: '3 lockouts in 24 hours: phone access turned off', damaged: 'Sign-in file damaged: locked for 15 minutes',
   }
 
   function eventLine(e) {
-    const what = `${WORDS[e.kind] || e.kind}${e.kind === 'signout-all' && Number.isInteger(e.count) ? ` (${e.count})` : ''}`
+    // a PIN or config change carries its own sentence (phone-auth.mjs noteRemote)
+    const what = e.text && (e.kind === 'pin' || e.kind === 'config') ? e.text : `${WORDS[e.kind] || e.kind}${e.kind === 'signout-all' && Number.isInteger(e.count) ? ` (${e.count})` : ''}`
     const when = window.Shell?.ago?.(e.at) || ''
     return `<li><time datetime="${esc(e.at)}" title="${esc(exact(e.at))}">${esc(when)}</time> <span>${esc(what)}${e.address ? ` · ${esc(e.address)}` : ''}</span></li>`
   }

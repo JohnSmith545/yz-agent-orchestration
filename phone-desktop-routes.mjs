@@ -40,7 +40,7 @@ export function makePhoneDesktopRoute({ port, settings = remoteNow, auth = makeA
       remote: remoteSummary(s),
       signedIn: sessions.length,
       lockedFor: auth.lockedFor(),
-      events: auth.events().slice(0, EVENTS_SHOWN).map(e => ({ at: e.at, kind: e.kind, address: e.address, ...(e.count !== undefined ? { count: e.count } : {}) })),
+      events: auth.events().slice(0, EVENTS_SHOWN).map(e => ({ at: e.at, kind: e.kind, address: e.address, ...(e.count !== undefined ? { count: e.count } : {}), ...(e.text ? { text: e.text } : {}), ...(e.outside ? { outside: true } : {}) })),
     }
   }
 
