@@ -14,14 +14,15 @@
 // worktree of the repo counts too. Every claudeDir is read (the second account's sessions as well).
 //
 // THE INDEX, per file by path: its size, modified time and identity (inode and birth time), the byte offset read
-// to, and token-usage.mjs's tally (per day per model totals, the ids it counted, the newest ids with what was
-// counted for them, its title, its skipped and overlapping counts).
+// to, and token-usage.mjs's tally (per day per model totals, every reply it counted with what was counted for it,
+// its title, its skipped and overlapping counts).
 // - Only whole lines are read: a torn last line (the session is writing it) is left for the next refresh.
 // - A file that grew is read from its offset; one that shrank, or whose identity changed, from the start.
 // - A file that is gone is dropped and gives back the ids it owned; a file that met those ids as overlaps (dupOf)
 //   is read again from the start, so a copy of a session in the other account's folder then counts them.
-// - New files are read oldest first (by modified time), so the original of a moved or forked session owns its
-//   history and the copy counts the overlap.
+// - New files are read oldest first (by modified time), so the original of a moved session owns its history and
+//   the copy counts the overlap. A later file with a LARGER copy of a reply (a fork can hold one with zero usage)
+//   takes it over (token-usage.mjs tallyRecord), and the file that gave it up then lists that file in its dupOf.
 // - The index is saved with writeAtomic after a pass that changed something, and every SAVE_EVERY_MS during a long
 //   first build, so a restart picks up where it was. A saved index of another format or time zone (days are
 //   local days) is thrown away and rebuilt.
@@ -34,7 +35,7 @@ import path from 'node:path'
 import { writeAtomic } from './atomic-write.mjs'
 import { newTally, tallyRecord } from './token-usage.mjs'
 
-export const INDEX_VERSION = 1
+export const INDEX_VERSION = 2 // 2: a reply keeps what was counted for it (tally.counted), so a larger copy can take it over
 const SAVE_EVERY_MS = 20_000
 const MARKS = [Buffer.from('"type":"assistant"'), Buffer.from('"type":"custom-title"')]
 const NL = 0x0a
@@ -89,7 +90,7 @@ export async function listTranscripts({ claudeDirs = [], match = '' } = {}) {
 }
 
 /** Reads `file` from `entry.offset` up to `size`, whole lines only, into `entry.tally`. Returns the bytes taken. */
-async function readInto(entry, file, size, owners, onBytes) {
+async function readInto(entry, file, size, owners, tallyOf, onBytes) {
   if (size <= entry.offset) return 0
   let rest = Buffer.alloc(0)
   let taken = 0
@@ -107,7 +108,7 @@ async function readInto(entry, file, size, owners, onBytes) {
       } catch {
         continue // a hand-made or broken line: not a record
       }
-      tallyRecord(entry.tally, rec, { self: file, owners })
+      tallyRecord(entry.tally, rec, { self: file, owners, tallyOf })
     }
     taken += start
     rest = buf.subarray(start)
@@ -145,7 +146,7 @@ export function makeTokenIndex({ claudeDirs = [], match = '', file, now = () => 
   function load() {
     files = loadIndex(resolved)
     owners = new Map()
-    for (const [p, e] of Object.entries(files)) for (const id of e.tally?.ids || []) owners.set(id, p)
+    for (const [p, e] of Object.entries(files)) for (const id of Object.keys(e.tally?.counted || {})) owners.set(id, p)
     complete = Object.keys(files).length > 0
   }
 
@@ -154,7 +155,7 @@ export function makeTokenIndex({ claudeDirs = [], match = '', file, now = () => 
     const e = files[p]
     if (!e || done.has(p)) return
     done.add(p)
-    for (const id of e.tally.ids) if (owners.get(id) === p) owners.delete(id)
+    for (const id of Object.keys(e.tally.counted)) if (owners.get(id) === p) owners.delete(id)
     if (drop) delete files[p]
     else {
       e.offset = 0
@@ -194,7 +195,7 @@ export function makeTokenIndex({ claudeDirs = [], match = '', file, now = () => 
     for (const f of todo) {
       const e = (files[f.path] ||= { sessionId: f.sessionId, sub: f.sub, size: 0, mtimeMs: 0, ident: f.ident, offset: 0, tally: newTally() })
       try {
-        bytes += await readInto(e, f.path, f.size, owners, n => (progress.done += n))
+        bytes += await readInto(e, f.path, f.size, owners, q => files[q]?.tally ?? null, n => (progress.done += n))
       } catch {
         continue // gone or locked between the listing and the read: the next pass tries again
       }

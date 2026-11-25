@@ -17,6 +17,8 @@ import {
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const REAL = fs.readFileSync(path.join(HERE, 'fixtures', 'tokens-real-trimmed.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l))
+// the same reply in a forked session (0 / 0 / 0 / 0) and in its own session (2 / 1,989 / 1,125 / 246,176), trimmed
+const [FORK_COPY, OWN_COPY] = fs.readFileSync(path.join(HERE, 'fixtures', 'tokens-real-fork-copy.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l))
 
 const at = (y, m, d, h = 12, min = 0) => new Date(y, m - 1, d, h, min).getTime()
 const asst = (id, { t = at(2026, 11, 25), model = 'claude-opus-5-5', input = 1, output = 10, w5 = 0, w1 = 0, read = 0, side = false, extra = {} } = {}) => ({
@@ -74,7 +76,7 @@ test('REAL: two records of one streamed response with the same usage count once'
   for (const rec of REAL.slice(0, 3)) tallyRecord(t, rec, { self: 'main.jsonl', owners })
   const day = localDay(Date.parse('2026-10-19T04:53:19.923Z'))
   assert.deepEqual(t.days[day]['claude-opus-5-5'], [2, 342, 0, 35374, 29974, 1])
-  assert.deepEqual(t.ids, ['msg_011CgAzov9sFnFpbv26CjZoZ'])
+  assert.deepEqual(Object.keys(t.counted), ['msg_011CgAzov9sFnFpbv26CjZoZ'])
   assert.equal(t.title, 'indepenent') // the custom-title record names the session
 })
 
@@ -99,13 +101,53 @@ test('the same response in another file counts once, for the file that read it f
   assert.deepEqual(b.dupOf, ['a'])
 })
 
-test('a final record far from its partial one (out of the recent list) is not counted twice', () => {
+test('a final record far from its partial one is counted once, with its final usage', () => {
   const owners = new Map()
   const t = newTally()
   tallyRecord(t, asst('first', { output: 3 }), { self: 'f', owners })
   for (let i = 0; i < 200; i++) tallyRecord(t, asst(`m${i}`), { self: 'f', owners })
   tallyRecord(t, asst('first', { output: 300 }), { self: 'f', owners })
   assert.equal(t.days['2026-11-25']['claude-opus-5-5'][N], 201)
+  assert.equal(t.days['2026-11-25']['claude-opus-5-5'][O], 200 * 10 + 300)
+})
+
+test('REAL: a forked copy with zero usage read first gives the reply up to the larger copy, under that file', () => {
+  const owners = new Map()
+  const tallies = { fork: newTally(), own: newTally() }
+  const ctx = self => ({ self, owners, tallyOf: p => tallies[p] })
+  tallyRecord(tallies.fork, FORK_COPY, ctx('fork'))
+  tallyRecord(tallies.own, OWN_COPY, ctx('own'))
+  const day = localDay(Date.parse(OWN_COPY.timestamp))
+  assert.deepEqual(tallies.own.days[day]['claude-opus-5-5'], [2, 1989, 0, 1125, 246176, 1])
+  assert.deepEqual(tallies.fork.days[day]['claude-opus-5-5'], [0, 0, 0, 0, 0, 0])
+  assert.equal(owners.get('msg_011CgxMfyPUdHNTn64mizgP9'), 'own')
+  assert.deepEqual(Object.keys(tallies.fork.counted), [])
+  assert.equal(tallies.fork.dupes, 1)
+  assert.deepEqual(tallies.fork.dupOf, ['own'])
+  assert.equal(tallies.own.dupes, 0)
+})
+
+test('REAL: the larger copy read first keeps the reply; the zero copy after it is a dupe', () => {
+  const owners = new Map()
+  const tallies = { fork: newTally(), own: newTally() }
+  const ctx = self => ({ self, owners, tallyOf: p => tallies[p] })
+  tallyRecord(tallies.own, OWN_COPY, ctx('own'))
+  tallyRecord(tallies.fork, FORK_COPY, ctx('fork'))
+  const day = localDay(Date.parse(OWN_COPY.timestamp))
+  assert.deepEqual(tallies.own.days[day]['claude-opus-5-5'], [2, 1989, 0, 1125, 246176, 1])
+  assert.equal(tallies.fork.days[day], undefined)
+  assert.equal(tallies.fork.dupes, 1)
+  assert.deepEqual(tallies.fork.dupOf, ['own'])
+})
+
+test('a copy of the same size in another file never moves the reply', () => {
+  const owners = new Map()
+  const tallies = { a: newTally(), b: newTally() }
+  const ctx = self => ({ self, owners, tallyOf: p => tallies[p] })
+  tallyRecord(tallies.a, asst('m', { output: 5 }), ctx('a'))
+  tallyRecord(tallies.b, asst('m', { output: 5 }), ctx('b'))
+  assert.equal(owners.get('m'), 'a')
+  assert.equal(tallies.b.dupes, 1)
 })
 
 test('skipped records are counted; responses on fast mode or US only inference are counted as special', () => {
@@ -132,7 +174,7 @@ test('the default prices: the models seen in the transcripts, from the public pa
   assert.equal(DEFAULT_PRICES['claude-haiku-5-5'], undefined)
 })
 
-test('the user prices add to the defaults, replace one, null removes one, and a bad entry is named and left out', () => {
+test('the user prices add to the defaults, replace one, null takes one away, and a bad entry is named and priced as none', () => {
   const t = priceTable({ prices: {
     'claude-haiku-5-5': { input: 0.1, output: 0.5, cacheWrite: 0.125, cacheRead: 0.01 },
     'claude-opus-5-5': { input: 1, output: 2, cacheWrite: 3, cacheRead: 4 },
@@ -142,13 +184,25 @@ test('the user prices add to the defaults, replace one, null removes one, and a 
   } })
   assert.deepEqual(t.prices['claude-haiku-5-5'], { input: 0.1, output: 0.5, cacheWrite: 0.125, cacheRead: 0.01 })
   assert.deepEqual(t.prices['claude-opus-5-5'], { input: 1, output: 2, cacheWrite: 3, cacheRead: 4 })
-  assert.equal(t.prices['claude-fable-5-1'], undefined)
-  assert.equal(t.prices['claude-bad'], undefined)
+  assert.equal(t.prices['claude-fable-5-1'], null) // kept as no price, so no shorter id prices it instead
+  assert.equal(t.prices['claude-bad'], null)
   assert.deepEqual(t.errors, ['claude-bad', 'claude-negative'])
   assert.ok(t.prices['claude-sonnet-5-5'])
   // no tokens block at all, or a broken one: the defaults
   assert.deepEqual(Object.keys(priceTable(undefined).prices).sort(), Object.keys(DEFAULT_PRICES).sort())
   assert.deepEqual(Object.keys(priceTable({ prices: 'none' }).prices).sort(), Object.keys(DEFAULT_PRICES).sort())
+})
+
+test('null means no price for that id and every id under it with no price of its own, never a shorter prefix', () => {
+  const { prices } = priceTable({ prices: { 'claude-opus-5-5': null, 'claude-opus-5-5-fast': { input: 8, output: 40, cacheWrite: 10, cacheRead: 0.4 } } })
+  assert.equal(priceFor('claude-opus-5-5', prices), null) // not Opus 5 rates
+  assert.equal(priceFor('claude-opus-5-5-20261201', prices), null)
+  assert.equal(priceFor('claude-opus-5-5-fast', prices).match, 'claude-opus-5-5-fast') // its own price stands
+  assert.equal(priceFor('claude-opus-5', prices).match, 'claude-opus-5')
+  // and so in the block: tokens, no dollars, named as unpriced
+  const s = tokenStats({ files: [{ path: 'm', sessionId: 's', sub: false, mtimeMs: 1, title: 'Master', days: { '2026-11-25': { 'claude-opus-5-5': [1, 1, 0, 0, 0, 1] } } }], now: new Date(2026, 10, 25, 12).getTime(), days: 7, prices })
+  assert.equal(s.models[0].price, null)
+  assert.deepEqual(s.cost.unpriced, ['claude-opus-5-5'])
 })
 
 test('a model takes its exact price, else the longest prefix, else none', () => {
@@ -268,6 +322,16 @@ test('by model: tokens, the estimate and the price used, the unpriced ones named
   assert.equal(s.cost.unpricedTokens, 10)
 })
 
+test('by model: the two cache write lifetimes apart, so tokens times the listed rates gives the cost shown', () => {
+  const s = stats([file('m', 's1', { '2026-11-25': { [OPUS]: vec(10, 20, 300, 4000, 50000) } }, { title: 'Master' })])
+  const m = s.models[0]
+  assert.equal(m.cacheWrite5m, 300)
+  assert.equal(m.cacheWrite1h, 4000)
+  assert.equal(m.cacheWrite, 4300)
+  const p = m.price
+  assert.equal(m.usd, (m.input * p.input + m.output * p.output + m.cacheWrite5m * p.cacheWrite + m.cacheWrite1h * p.cacheWrite1h + m.cacheRead * p.cacheRead) / 1e6)
+})
+
 test('no model with a price: no dollar figure anywhere', () => {
   const s = stats([file('m', 's1', { '2026-11-25': { [HAIKU]: vec(5, 5) } }, { title: 'Master' })])
   assert.equal(s.cost.usd, null)
@@ -314,4 +378,10 @@ test('config.example.json carries the default prices as the block a user keeps c
   assert.deepEqual(t.errors, [])
   assert.deepEqual(Object.keys(example.tokens.prices).sort(), Object.keys(DEFAULT_PRICES).sort())
   for (const [id, p] of Object.entries(example.tokens.prices)) assert.deepEqual(p, { ...DEFAULT_PRICES[id] }, id)
+})
+
+test('config.example.json says what null means, beside the prices', () => {
+  const example = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'config.example.json'), 'utf8'))
+  assert.match(example.tokens.note, /null means no price for that id and every id under it with no price of its own/)
+  assert.match(example.tokens.note, /keeping them current is yours/)
 })

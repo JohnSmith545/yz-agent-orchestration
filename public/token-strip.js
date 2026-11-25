@@ -84,19 +84,8 @@
       }
     })
 
-    // the bars: one tab stop, the arrow keys move along them (a roving tabindex)
-    el.addEventListener('keydown', e => {
-      const col = e.target.closest?.('.ptm-col')
-      if (!col) return
-      const cols = [...el.querySelectorAll('.ptm-col')]
-      const i = cols.indexOf(col)
-      const to = { ArrowLeft: i - 1, ArrowRight: i + 1, Home: 0, End: cols.length - 1 }[e.key]
-      if (to === undefined || !cols[to]) return
-      e.preventDefault()
-      col.tabIndex = -1
-      cols[to].tabIndex = 0
-      cols[to].focus()
-    })
+    // the bars: one tab stop; the arrow keys, Home and End move along them, and a click moves it too (strip-panels.js)
+    window.StripPanels.rove(el)
 
     async function load() {
       const seq = ++st.seq
@@ -119,19 +108,14 @@
       if (st.stats?.building) st.poll = setTimeout(load, BUILDING_POLL_MS)
     }
 
-    /** Swaps a panel's inside only when it changed; a focused bar keeps its focus (by its place in the row). */
+    /**
+     * Swaps a panel's inside only when it changed (strip-panels.js): an open As a list stays open, a focused bar keeps
+     * its focus (by its place in the row) and the bars keep one tab stop.
+     */
     function swap(sel, html) {
       if (st.html[sel] === html) return
-      const node = $(sel)
-      const bar = node.contains(document.activeElement) ? document.activeElement?.dataset?.bar : undefined
-      node.innerHTML = html
+      window.StripPanels.swap($(sel), html)
       st.html[sel] = html
-      if (bar === undefined) return
-      const cols = [...node.querySelectorAll('.ptm-col')]
-      const back = cols.find(c => c.dataset.bar === bar) || cols.at(-1)
-      if (!back) return
-      for (const c of cols) c.tabIndex = c === back ? 0 : -1
-      back.focus()
     }
 
     function paint() {

@@ -5,6 +5,7 @@
 //
 //   responseOf(record)                     { kind: 'usage', id, model, at, vec, special } | { kind: 'skip' } | null
 //   newTally() / tallyRecord(t, rec, ctx)  one file's running totals, a record at a time, de-duplicated (below)
+//   sizeOf(vec)                            the tokens a vector holds: which of two copies of a reply is the larger
 //   priceTable(tokensBlock)                { prices, errors }: DEFAULT_PRICES with config.json's tokens.prices over them
 //   priceFor(model, prices) / costOf(vec, price)   the price a model takes, and dollars for a vector
 //   tokenStats({ files, now, days, prices, names, labelOf, finished, spend, building, progress })   the whole block
@@ -15,13 +16,16 @@
 // - One API response is one assistant record with `message.usage`. A response is written as SEVERAL records, one per
 //   content block, sharing `message.id` (and `requestId`). Mostly they carry the same usage; 734 times the first was
 //   a partial written while streaming (stop_reason null, a few output tokens) and a later one, at most 10 lines on,
-//   the final usage with more output; nothing else ever differed. So: each message id counts ONCE, and a later record
-//   of the same id with a bigger usage REPLACES the one counted, while it is still among the file's last TAIL_MAX ids.
-//   No id: the request id; neither: skipped.
+//   the final usage with more output. So: each message id counts ONCE, and a record of the same id that holds MORE
+//   tokens (sizeOf) replaces the one counted. No id: the request id; neither: skipped.
 // - The SAME response can be in two files: 13,755 times. A session moved to the second account's folder carries its
 //   history there (the same session id under both ~/.claude and ~/.claude-account2), and a forked session copies its
-//   parent's. So de-duplication is across every file: the first file read owns an id (token-index.mjs reads the
-//   oldest first), and another file that meets it counts a `dupe` and remembers whose it was (`dupOf`).
+//   parent's. ⚠️ A copy is not always the same: a forked session can carry a reply with all four counts at 0 (QA,
+//   2026-11-25: msg_011CgxMfyPUdHNTn64mizgP9 is 2 / 1,989 / 1,125 / 246,176 in its own session and 0 / 0 / 0 / 0 in
+//   three forks). So de-duplication is across every file and the LARGEST copy wins, as within a file: the first file
+//   read owns an id (token-index.mjs reads the oldest first); a file that meets it with a copy no larger counts a
+//   `dupe` and remembers whose it was (`dupOf`); a file with a larger copy takes it over, and the reply then counts
+//   under that file's session, while the file that gave it up counts the dupe instead.
 // - A record with no usage, an unreadable usage or no time is never guessed: it is counted in `skipped`. A
 //   `<synthetic>` reply (an API error or 'No response requested', all zeros) is no API response and is left out.
 // - Cache writes come split by lifetime (usage.cache_creation): 5 minute and 1 hour writes have different prices.
@@ -45,8 +49,6 @@ export const W1 = 3
 export const R = 4
 export const N = 5
 const SLOTS = 6
-/** How many of a file's newest ids keep what was counted for them, so a final record can replace a partial one. */
-export const TAIL_MAX = 64
 const MILLION = 1_000_000
 const UNNAMED = 'Unnamed sessions'
 
@@ -106,13 +108,16 @@ export function responseOf(rec) {
 // ═══ one file's running totals ═══
 
 /**
- * A file's totals: `days` { 'YYYY-MM-DD': { model: vector } }, `ids` every id it counted (it owns them), `tail` its
- * newest ids with what was counted ([id, day, model, vector]), `title` its last custom-title, and the counts the help
- * shows. Plain JSON, so token-index.mjs stores it as it is.
+ * A file's totals: `days` { 'YYYY-MM-DD': { model: vector } }, `counted` { id: [day, model, vector] } for every reply
+ * it owns (what was counted for it, so a larger copy can replace it exactly, here or from another file), `title` its
+ * last custom-title, and the counts the help shows. Plain JSON, so token-index.mjs stores it as it is.
  */
 export function newTally() {
-  return { days: {}, ids: [], tail: [], title: null, skipped: 0, dupes: 0, special: 0, dupOf: [] }
+  return { days: {}, counted: {}, title: null, skipped: 0, dupes: 0, special: 0, dupOf: [] }
 }
+
+/** The tokens a vector holds (the four kinds, cache writes of both lifetimes). */
+export const sizeOf = vec => vec[I] + vec[O] + vec[W5] + vec[W1] + vec[R]
 
 const addInto = (t, day, model, vec, sign = 1) => {
   const models = (t.days[day] ||= {})
@@ -122,9 +127,10 @@ const addInto = (t, day, model, vec, sign = 1) => {
 
 /**
  * One parsed record into tally `t` of the file `self`. `owners` (id -> the file that counted it) is shared by every
- * file, so a response counts once across them all (the rules above).
+ * file, so a response counts once across them all, and `tallyOf(file)` gives another file's tally, so a larger copy
+ * can take a reply over from it (the rules above). Without `tallyOf` a copy in another file is always a dupe.
  */
-export function tallyRecord(t, rec, { self, owners }) {
+export function tallyRecord(t, rec, { self, owners, tallyOf = () => null }) {
   if (isObject(rec) && rec.type === 'custom-title' && isText(rec.customTitle)) {
     t.title = rec.customTitle.trim()
     return
@@ -136,47 +142,60 @@ export function tallyRecord(t, rec, { self, owners }) {
     return
   }
   const owner = owners.get(r.id)
-  if (owner === undefined) {
+  const take = () => {
     const day = localDay(r.at)
     owners.set(r.id, self)
     addInto(t, day, r.model, r.vec)
-    t.ids.push(r.id)
-    t.tail.push([r.id, day, r.model, r.vec])
-    if (t.tail.length > TAIL_MAX) t.tail.shift()
+    t.counted[r.id] = [day, r.model, r.vec]
     if (r.special) t.special++
+  }
+  if (owner === undefined) return take()
+  if (owner === self) {
+    // the same response again in this file: a final record replaces a partial one when it holds more
+    const seen = t.counted[r.id]
+    if (!seen || sizeOf(r.vec) <= sizeOf(seen[2])) return
+    addInto(t, seen[0], seen[1], seen[2], -1)
+    addInto(t, seen[0], seen[1], r.vec)
+    seen[2] = r.vec
     return
   }
-  if (owner !== self) {
+  const other = tallyOf(owner)
+  const theirs = other?.counted?.[r.id]
+  if (!theirs || sizeOf(r.vec) <= sizeOf(theirs[2])) {
     t.dupes++
     if (!t.dupOf.includes(owner)) t.dupOf.push(owner)
     return
   }
-  // the same response again in this file: a final record replaces a partial one when it says more
-  const seen = t.tail.find(x => x[0] === r.id)
-  if (!seen || r.vec.every((v, i) => v <= seen[3][i])) return
-  const [, day, model, old] = seen
-  addInto(t, day, model, old, -1)
-  addInto(t, day, model, r.vec)
-  seen[3] = r.vec
+  // a larger copy than the one another file counted: this file takes the reply over, that file now holds the dupe
+  addInto(other, theirs[0], theirs[1], theirs[2], -1)
+  delete other.counted[r.id]
+  other.dupes++
+  if (!other.dupOf.includes(self)) other.dupOf.push(self)
+  take()
 }
 
 // ═══ prices ═══
 
 const RATES = ['input', 'output', 'cacheWrite', 'cacheRead']
 
-/** DEFAULT_PRICES with config.json's `tokens.prices` over them: an entry adds or replaces one, null removes one. */
+/**
+ * DEFAULT_PRICES with config.json's `tokens.prices` over them: an entry adds or replaces one. null keeps the id with
+ * NO price, so neither it nor any id under it with no price of its own falls back to a shorter one (claude-opus-5-5:
+ * null must not price Opus 5.5 at Opus 5 rates, QA 2026-11-25). A bad entry is named in `errors` and has no price too:
+ * the user meant to set that id, so a shorter one must not price it either.
+ */
 export function priceTable(block) {
   const prices = { ...DEFAULT_PRICES }
   const errors = []
   const given = isObject(block) && isObject(block.prices) ? block.prices : {}
   for (const [id, p] of Object.entries(given)) {
     if (p === null) {
-      delete prices[id]
+      prices[id] = null
       continue
     }
     const ok = isObject(p) && RATES.every(k => isCount(p[k])) && (p.cacheWrite1h === undefined || isCount(p.cacheWrite1h))
     if (!ok) {
-      delete prices[id]
+      prices[id] = null
       errors.push(id)
       continue
     }
@@ -185,13 +204,12 @@ export function priceTable(block) {
   return { prices, errors }
 }
 
-/** The price `model` takes: its exact id, else the longest id it starts with; null when none. */
+/** The price `model` takes: its exact id, else the longest id it starts with; null when none, or when that id is null. */
 export function priceFor(model, prices) {
   if (!isText(model) || !isObject(prices)) return null
-  if (Object.hasOwn(prices, model)) return { match: model, price: prices[model] }
-  let best = null
-  for (const id of Object.keys(prices)) if (id && model.startsWith(id) && (!best || id.length > best.length)) best = id
-  return best ? { match: best, price: prices[best] } : null
+  let best = Object.hasOwn(prices, model) ? model : null
+  if (best === null) for (const id of Object.keys(prices)) if (id && model.startsWith(id) && (!best || id.length > best.length)) best = id
+  return best !== null && isObject(prices[best]) ? { match: best, price: prices[best] } : null
 }
 
 /** Dollars for a vector at `price`; 1 hour writes at cacheWrite1h, or at cacheWrite when it is not given. */
@@ -308,7 +326,8 @@ export function tokenStats({ files = [], now = Date.now(), days = 30, prices = {
   const modelRows = [...models]
     .map(([model, s]) => {
       const p = priced(model)
-      return { model, ...kinds(s.vec), responses: s.vec[N], usd: usdOf(s), price: p ? { match: p.match, ...p.price } : null }
+      // the two write lifetimes apart too: they have their own rates, so the page can show tokens times rate = cost
+      return { model, ...kinds(s.vec), cacheWrite5m: s.vec[W5], cacheWrite1h: s.vec[W1], responses: s.vec[N], usd: usdOf(s), price: p ? { match: p.match, ...p.price } : null }
     })
     .sort((a, b) => (b.usd ?? -1) - (a.usd ?? -1) || b.all - a.all || a.model.localeCompare(b.model))
 

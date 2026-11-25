@@ -84,7 +84,8 @@
     const spend = stats?.spend || { usd: 0, turns: 0 }
     const out = []
     if (!all) {
-      out.push(tile('tokens', 'No tokens yet', stats?.building ? 'Still reading the transcripts.' : `No Claude Code session of this project replied ${spanOf(stats)}.`, { empty: true }))
+      // 7 or 30 days with none says so for that window only: an older window can have tokens, so never 'yet'
+      out.push(tile('tokens', stats?.window?.days ? `None in the last ${stats.window.days} days` : 'No tokens yet', stats?.building ? 'Still reading the transcripts.' : `No Claude Code session of this project replied ${spanOf(stats)}.`, { empty: true }))
       const wait = stats?.building ? 'Still reading the transcripts.' : ''
       out.push(tile('cost', 'Nothing to price', wait || 'No tokens in this period.', { empty: true }))
       out.push(tile('perJob', null, wait || 'It needs tokens and a finished job.'))
@@ -140,7 +141,7 @@
     return bars.map(b => {
       const v = value(b)
       const label = dayLabel(b.day, week)
-      return { day: b.day, label, value: v, height: max ? Math.round((v / max) * 10000) / 100 : 0, says: `${label}: ${m === 'usd' ? `about ${usd(v)}` : `${count(v)} tokens`}`, title: m === 'usd' ? `$${v.toFixed(2)}` : `${exact(v)} tokens` }
+      return { day: b.day, label, value: v, height: max ? Math.round((v / max) * 10000) / 100 : 0, says: `${label}: ${m === 'usd' ? (v ? `about ${usd(v)}` : '$0') : `${count(v)} tokens`}`, title: m === 'usd' ? `$${v.toFixed(2)}` : `${exact(v)} tokens` }
     })
   }
 
@@ -190,17 +191,21 @@
 
   function priceWords(p) {
     if (!p) return '<span class="ptk-noprice">no price set</span>'
-    const words = [`${rate(p.input)} in`, `${rate(p.output)} out`, `${rate(p.cacheWrite)} write`, ...(isNum(p.cacheWrite1h) ? [`${rate(p.cacheWrite1h)} 1 hour write`] : []), `${rate(p.cacheRead)} read`]
+    const writes = isNum(p.cacheWrite1h) ? [`${rate(p.cacheWrite)} 5 min write`, `${rate(p.cacheWrite1h)} 1 hour write`] : [`${rate(p.cacheWrite)} write (5 min and 1 hour)`]
+    const words = [`${rate(p.input)} in`, `${rate(p.output)} out`, ...writes, `${rate(p.cacheRead)} read`]
     return esc(words.join(' · '))
   }
 
   function modelsHtml(stats) {
     const models = Array.isArray(stats?.models) ? stats.models : []
     if (!models.length) return emptyOf(stats)
-    // the price used goes on a line of its own under each model, so the table fits half the page
-    const rows = models.map(m => `<tr><th scope="row">${esc(m.model)}</th>${kindCells(m)}${money(m.usd, false)}</tr>` +
-      `<tr class="ptk-sub ptk-price"><td colspan="7">${m.price ? 'Price used: ' : ''}${priceWords(m.price)}${m.price && m.price.match !== m.model ? ` <span class="ptk-as">(as ${esc(m.price.match)})</span>` : ''}</td></tr>`).join('')
-    return `<div class="psc-scroll ptm-scroll"><table class="ptm-table ptk-table"><thead><tr><th scope="col">Model</th>${KIND_HEAD}<th scope="col">Estimated cost</th></tr></thead>` +
+    // the price used goes on a line of its own under each model, so the table fits half the page; the cache writes
+    // are two columns, 5 minute and 1 hour, as they have two rates: each count times its rate adds up to the cost
+    const cells = m => num(m.input) + num(m.output) + num(m.cacheWrite5m) + num(m.cacheWrite1h) + num(m.cacheRead) + num(m.all)
+    const rows = models.map(m => `<tr><th scope="row">${esc(m.model)}</th>${cells(m)}${money(m.usd, false)}</tr>` +
+      `<tr class="ptk-sub ptk-price"><td colspan="8">${m.price ? 'Price used: ' : ''}${priceWords(m.price)}${m.price && m.price.match !== m.model ? ` <span class="ptk-as">(as ${esc(m.price.match)})</span>` : ''}</td></tr>`).join('')
+    const head = '<th scope="col">New input</th><th scope="col">Output</th><th scope="col">Writes, 5 min</th><th scope="col">Writes, 1 hour</th><th scope="col">Cache reads</th><th scope="col">Total</th>'
+    return `<div class="psc-scroll ptm-scroll"><table class="ptm-table ptk-table"><thead><tr><th scope="col">Model</th>${head}<th scope="col">Estimated cost</th></tr></thead>` +
       `<tbody>${rows}</tbody></table></div>` +
       '<p class="psc-foot ptm-foot">Prices are dollars per million tokens.</p>'
   }
