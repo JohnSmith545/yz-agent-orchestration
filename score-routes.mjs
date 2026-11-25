@@ -11,6 +11,10 @@
 //                                    kind=rule). `total` is how many matched before the cut. The kinds of the
 //                                    optional agents (score-log.mjs GATE_KINDS: security, planned, senior) are accepted
 //                                    only on a pipeline that has that agent, and only then named in the refusal.
+//                                    The DEFAULT view (no cell, kind or completed) leaves out every event of a flow the
+//                                    user marked completed (completed.mjs): it is put away. `completed=1` lists only
+//                                    those, with every `uncompleted` event; a cell or kind filter keeps them, so the
+//                                    scorecard's See these in the log still finds every event it counted.
 // Any other value is a 400 with one plain sentence. The log also carries every saved change to an agent's rules
 // (agent-rules.mjs readLog and ruleEvents) as `rule` events; orchestrationLog keeps the ones inside the window.
 //
@@ -20,7 +24,7 @@ import { readLog, ruleEvents } from './agent-rules.mjs'
 import { CONFIG } from './config.mjs'
 import { listFlows } from './flows.mjs'
 import { pipelineGraph } from './pipeline.mjs'
-import { GATE_KINDS, GATE_ROLE, LOG_CELLS, LOG_KINDS, orchestrationLog } from './score-log.mjs'
+import { GATE_KINDS, GATE_ROLE, LOG_CELLS, LOG_KINDS, orchestrationLog, SIGN_OFF_KINDS } from './score-log.mjs'
 import { scoreOf, windowOf } from './score.mjs'
 
 /** The windows the page offers, by their query value: a number of days, or null for all time. */
@@ -44,17 +48,22 @@ export function scoreGet(raw, { config = CONFIG, now = Date.now() } = {}) {
 /** Every saved rule change as a log event; the window is applied by orchestrationLog, so none is cut here. */
 const ruleChanges = now => ruleEvents(readLog(), { now, days: Infinity })
 
-export function logGet({ days: rawDays, cell, kind } = {}, { config = CONFIG, now = Date.now(), extra = ruleChanges(now) } = {}) {
+export function logGet({ days: rawDays, cell, kind, completed } = {}, { config = CONFIG, now = Date.now(), extra = ruleChanges(now) } = {}) {
   const days = daysOf(rawDays)
   if (days === undefined) return BAD_WINDOW
   if (cell && !LOG_CELLS.includes(cell)) return { status: 400, body: { error: 'The cell must be delivered, caught, missed or slipped.' } }
   const graph = pipelineGraph(config)
   const roles = new Set(graph.nodes.map(n => n.role))
-  const kinds = [...LOG_KINDS, ...GATE_KINDS.filter(k => roles.has(GATE_ROLE[k]))]
+  const kinds = [...LOG_KINDS, ...GATE_KINDS.filter(k => roles.has(GATE_ROLE[k])), ...SIGN_OFF_KINDS]
   if (kind && !kinds.includes(kind)) {
     return { status: 400, body: { error: `The kind must be one of ${kinds.slice(0, -1).join(', ')} or ${kinds.at(-1)}.` } }
   }
-  const all = orchestrationLog(listFlows({ archived: 'any' }).flows, graph, { now, days, extra })
-  const events = all.filter(e => (!cell || e.cell === cell) && (!kind || e.kind === kind))
+  if (completed != null && completed !== '' && completed !== '1') return { status: 400, body: { error: 'completed must be 1 when given.' } }
+  const flows = listFlows({ archived: 'any' }).flows
+  const all = orchestrationLog(flows, graph, { now, days, extra })
+  const signed = new Set(flows.filter(f => f.completedAt).map(f => f.id))
+  const isSigned = e => !!e.flow && signed.has(e.flow.id)
+  const view = completed === '1' ? e => isSigned(e) || e.kind === 'uncompleted' : !cell && !kind ? e => !isSigned(e) : () => true
+  const events = all.filter(e => (!cell || e.cell === cell) && (!kind || e.kind === kind) && view(e))
   return { status: 200, body: { events: events.slice(0, LOG_MAX), total: events.length, window: windowOf(now, days).view, builtAt: new Date(now).toISOString() } }
 }

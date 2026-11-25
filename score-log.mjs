@@ -18,6 +18,9 @@
 //             a stopped flow puts TWO counts in, its last failure (caught) and the flow itself (missed)
 //   stalled   on its way with no update for stallDays (updatedAt + stallDays, as the scorecard counts it)
 //   rule      from `extra` only (another store's rule changes), merged by time
+// SIGN_OFF_KINDS, the user's own, never a count:
+//   completed    the user marked the finished flow completed (completedAt, completed.mjs), by You
+//   uncompleted  the user took that mark off in the flow archive (uncompletedAt: the last time only), by You
 // GATE_KINDS, only on a pipeline with the planner or Security (pipeline.mjs gateLabels), their own kinds:
 //   security  each Security verdict (flow-security.mjs, the verdict's at): a failure says who it went back to and is
 //             a catch, like a QA failure; the final pass carries the delivered cell (with Security on the graph a QA
@@ -44,6 +47,8 @@ export const LOG_KINDS = Object.freeze(['started', 'route', 'handed', 'passed', 
 export const GATE_KINDS = Object.freeze(['security', 'planned', 'senior'])
 /** The graph role each gate kind needs: its kind is offered only on a pipeline with that agent (score-routes.mjs). */
 export const GATE_ROLE = Object.freeze({ security: 'security', planned: 'planner', senior: 'senior' })
+/** The user's sign-off (completed.mjs): kept apart from LOG_KINDS, so the log of a flow never completed reads exactly as before. */
+export const SIGN_OFF_KINDS = Object.freeze(['completed', 'uncompleted'])
 export const LOG_CELLS = Object.freeze(['delivered', 'caught', 'missed', 'slipped'])
 
 const ROUTE_WORD = { build: 'a code change', review: 'a code review', ask: 'a question' }
@@ -131,6 +136,12 @@ function flowEvents(flow, graph, now, stallMs, labels, qaLabel, securityLabel, s
     const who = isText(review.by) ? review.by : seniorLabel
     add(timeOf(review.startedAt), 'senior', who, `${who} started reviewing the work done by hand.`)
   }
+
+  // the user's sign-off: never a cell, and completing moves no other event (completed-routes.mjs keeps updatedAt)
+  const signed = timeOf(flow.completedAt)
+  if (signed !== null) add(signed, 'completed', 'You', 'You marked this completed.')
+  const unsigned = timeOf(flow.uncompletedAt)
+  if (unsigned !== null) add(unsigned, 'uncompleted', 'You', 'You took the completed mark off.')
 
   // the flow's own cell event (a pass already carries its cell above)
   if (time === null || kind === null || kind === 'passed' || kind === 'security' || kind === 'senior') return

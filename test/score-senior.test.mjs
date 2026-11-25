@@ -149,7 +149,7 @@ test('GET /api/log takes kind=senior only on a pipeline with Senior; the Log off
   const opts = config => ({ config, now: NOW, extra: [] })
   assert.equal(logGet({ kind: 'senior' }, opts(BASE)).status, 200)
   assert.equal(logGet({ kind: 'senior' }, opts({ ...BASE, pipeline: { ...DEFAULT_PIPELINE } })).status, 400)
-  assert.match(logGet({ kind: 'nope' }, opts(BASE)).body.error, /rule or senior\.$/)
+  assert.match(logGet({ kind: 'nope' }, opts(BASE)).body.error, /rule, senior, completed or uncompleted\.$/)
   fs.rmSync(process.env.FACTORY_DATA_DIR, { recursive: true, force: true })
   const ctx = vm.createContext({ window: {} })
   const pub = f => fs.readFileSync(new URL(`../public/${f}`, import.meta.url), 'utf8')

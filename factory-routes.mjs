@@ -217,7 +217,7 @@ export async function factoryRoute(req, res, url, { git, gh, push, pr, port = CO
     if (rules && rules[1] !== undefined && req.method === 'PUT') return send(res, rulesPut(labelOf(rules[1]), await body(req), req.headers, { port })), true
     if (p === '/api/qa' && !post) return send(res, await qaGet(q.get('status') || '', { git })), true
     if (p === '/api/score' && !post) return send(res, scoreGet(q.get('days'))), true
-    if (p === '/api/log' && !post) return send(res, logGet({ days: q.get('days'), cell: q.get('cell'), kind: q.get('kind') })), true
+    if (p === '/api/log' && !post) return send(res, logGet({ days: q.get('days'), cell: q.get('cell'), kind: q.get('kind'), completed: q.get('completed') })), true
     if (p === '/api/time' && !post) return send(res, timeGet(q.get('days'))), true
     if (p === '/api/commit' && !post) return await commit(res, q.get('sha'), git), true
     if (p.startsWith('/evidence/') && !post) return await evidence(res, p), true

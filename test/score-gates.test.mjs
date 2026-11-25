@@ -127,7 +127,7 @@ test('GET /api/log takes kind=security and kind=planned only on a pipeline with 
   assert.equal(logGet({ kind: 'planned' }, opts(BASE)).status, 200)
   const plain = { ...BASE, pipeline: { ...DEFAULT_PIPELINE } }
   assert.equal(logGet({ kind: 'security' }, opts(plain)).status, 400)
-  assert.match(logGet({ kind: 'nope' }, opts(BASE)).body.error, /stalled, rule, security or planned\.$/)
+  assert.match(logGet({ kind: 'nope' }, opts(BASE)).body.error, /stalled, rule, security, planned, completed or uncompleted\.$/)
   fs.rmSync(process.env.FACTORY_DATA_DIR, { recursive: true, force: true })
 })
 
