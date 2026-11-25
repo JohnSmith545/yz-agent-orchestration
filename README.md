@@ -635,7 +635,7 @@ listed under the block, as quiet notes you can overrule. **Copy** copies only wh
 - **What it costs** (measured 2026-11-25, the orchestration brief attached, no live session): the first run in an hour
   writes the rules and the skill to the prompt cache, about 10 cents ($0.096 for a full prompt). Runs after it within
   the hour read them back at a tenth of the price: $0.045 for a set of questions. On main before the skill, the same
-  full prompt cost $0.051. Each run counts in **Spend today** as Brainstorming.
+  full prompt cost $0.051. Each run counts in **Spend today** as Prompt generator.
 - **The layout:** two equal columns, each a head row of the same height, a box, and a foot row. Both boxes share one
   height that fits the window, so they start and end on the same line before, during and after a run; the output
   scrolls inside its box. The page is as wide as the banner above it. Under 900 px the columns stack.
@@ -676,9 +676,9 @@ listed under the block, as quiet notes you can overrule. **Copy** copies only wh
   line says so with **Retry**, which sends the same request again. Any text that had arrived stays, marked
   **Incomplete**. There is no pop.
 
-#### Context: what Brainstorming knows about your system
+#### Context: what the Prompt generator knows about your system
 
-The run is clean, so on its own Brainstorming knows nothing about your agents or your work, and an idea such as "a prompt
+The run is clean, so on its own the Prompt generator knows nothing about your agents or your work, and an idea such as "a prompt
 for my full agent orchestration" gets questions back. The **Context** tab on the right edge of the page opens a panel
 (like the Agents page's) that says what Brainstorming is told before it writes. Open or closed is kept in this browser
 (`script.contextOpen`). It holds three kinds of context, and the tab shows how many are on (`Context · 3`):

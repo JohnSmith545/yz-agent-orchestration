@@ -140,7 +140,7 @@
     const old = !ok ? 'There is no saved ticket list, so titles come from your commits and flows.'
       : `The saved ticket list is from <b>${S().dayLabel(at)}</b>${days > 1 ? `, ${days} days old` : days === 1 ? ', a day old' : ', today'}: its states can be out of date. Refresh it on the Tickets page.`
     window.Shell.setStatus(`Opus 5.5 · medium effort${ok ? ` · tickets from ${S().dayLabel(at)}` : ''}`,
-      '<p>Each <b>Generate</b> is one Claude Code run on Opus 5.5 at medium effort, with no tools and none of your settings, about 10 to 20 cents. It is billed to your Claude account and counted in <b>Spend today</b> as Standup creator.</p>' +
+      '<p>Each <b>Generate</b> is one Claude Code run on Opus 5.5 at medium effort, with no tools and none of your settings, about 11 cents a run (measured). It is billed to your Claude account and counted in <b>Spend today</b> as Standup creator.</p>' +
       '<p>It reads your git work (your commits on every branch, the pull requests merged into dev with your work, and your branches not merged yet), the saved ticket list and the dashboard’s flows and what waits on you. Nothing is sent to Switchboard. ' + old + '</p>' +
       '<p><b>Daily</b> covers the last working day until now; <b>This week</b> the last seven days. Both start empty each day. Every stand-up is kept in the <b>Date archive</b> under the box, one file a day in <code>data/standup/</code>; find a day with the date box, or every day a ticket came up with the Ticket box.</p>')
   }
