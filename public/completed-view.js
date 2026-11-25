@@ -69,7 +69,7 @@
 
   /** The quiet amber mark on an output that waits, in words too; `overdue` says how long. */
   const markHtml = (overdue = false, after = 2) =>
-    `<span class="cv-mark${overdue ? ' is-over' : ''}"><i class="cv-dot" aria-hidden="true"></i>Mark it completed${overdue ? `, waiting over ${days(after)}` : ''}</span>`
+    `<span class="cv-mark${overdue ? ' is-over' : ''}"><i class="cv-dot" aria-hidden="true"></i>Mark it completed${overdue ? `, waiting more than ${days(after)}` : ''}</span>`
 
   /** The Agents page and Home: one line while anything waits; a notice once one is overdue. */
   function lineHtml(s) {
@@ -284,7 +284,18 @@
     if (r.view === 'agents' && r.params?.query && 'outputs' in r.params.query) window.Shell.whenReady('#agentsView .pl-panel-list', () => setTimeout(show, 50), 4000)
   })
 
+  // The toasts (notify.js .nt-stack, bottom right) sit over the end of the Output list: the list gets a bottom padding
+  // the height of the stack (--cv-toasts, completed.css), so its last ticks scroll clear of it. The toasts are untouched.
+  function roomForToasts() {
+    const stack = doc.querySelector('.nt-stack')
+    if (!stack || typeof ResizeObserver !== 'function') return
+    const set = () => doc.documentElement.style.setProperty('--cv-toasts', stack.children.length ? `${Math.ceil(stack.offsetHeight) + 16}px` : '0px')
+    new ResizeObserver(set).observe(stack)
+    set()
+  }
+
   Object.assign(api, { refresh, paint, complete, show })
+  doc.addEventListener('DOMContentLoaded', roomForToasts)
   doc.addEventListener('DOMContentLoaded', refresh)
   setInterval(refresh, POLL_MS)
 })()

@@ -25,6 +25,7 @@
 .cv-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; max-width: 520px; }
 .cv-ask-q { flex: 1 1 100%; color: var(--ink-2); font-size: 13px; }
 .cv-confirm.is-open { flex: 1 1 100%; margin-left: 0; }
+.cv-confirm.is-open .cv-ask { flex: 1 1 100%; }
 .cv-btn { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .cv-tick-i { width: 14px; height: 14px; fill: none; stroke: var(--ok); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .cv-btn:focus-visible, .cv-ask button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -79,3 +80,6 @@
 .pl-out .pl-word { white-space: nowrap; }
 /* an archived output that still waits for sign-off: archiving is not a sign-off */
 .cv-arch { color: var(--muted); font-size: 12px; white-space: nowrap; }
+
+/* the Output list scrolls clear of the toast stack (completed-view.js sets --cv-toasts to its height) */
+.pl-panel-list { padding-bottom: calc(20px + var(--cv-toasts, 0px)); }

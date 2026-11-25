@@ -91,8 +91,8 @@ test('a tick on one output: Completed, asked once inline, the title escaped', ()
 test('the amber mark says Mark it completed in words; overdue says so too', () => {
   assert.equal(V.markHtml(), '<span class="cv-mark"><i class="cv-dot" aria-hidden="true"></i>Mark it completed</span>')
   assert.match(V.markHtml(true), /class="cv-mark is-over"/)
-  assert.match(V.markHtml(true), /Mark it completed, waiting over 2 days/)
-  assert.match(V.markHtml(true, 3), /waiting over 3 days/)
+  assert.match(V.markHtml(true), /Mark it completed, waiting more than 2 days/)
+  assert.match(V.markHtml(true, 3), /waiting more than 3 days/)
 })
 
 test('the Output box head: the count, the overdue count, in the notice colour once piled up; nothing at 0', () => {

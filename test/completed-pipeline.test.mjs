@@ -71,7 +71,7 @@ test('a chip that waits for sign-off has the amber dot and says Mark it complete
 test('an Output row that waits: the mark in words and a Completed tick that asks once; none on one that does not wait', () => {
   C.setData(sum(1, { overdue: 1 }))
   const html = T.outputsHtml([tk('outcome', { id: 'w0', title: 'Ship it' })], {})
-  assert.match(html, /<span class="cv-mark is-over">.*Mark it completed, waiting over 2 days<\/span>/)
+  assert.match(html, /<span class="cv-mark is-over">.*Mark it completed, waiting more than 2 days<\/span>/)
   assert.match(html, /<div class="pl-out-acts">.*data-explain="w0".*<span class="cv-confirm">.*aria-label="Mark Ship it completed".*data-cv-yes data-cv-ids="w0">Completed<\/button>/)
   const archived = T.outputsHtml([tk('outcome', { id: 'a', archived: true, waiting: false })], {})
   assert.doesNotMatch(archived, /cv-mark|cv-confirm/)

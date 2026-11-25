@@ -26,7 +26,7 @@ const flow = (id, more = {}) => ({ id, title: `Flow ${id}`, agent: 'Agent 1', st
 test('a card and a tile that wait for sign-off say Mark it completed; others do not', () => {
   C.setData(sum([['wait', false], ['late', true]]))
   assert.match(B.small(flow('wait')), /<span class="cv-mark"><i class="cv-dot" aria-hidden="true"><\/i>Mark it completed<\/span>/)
-  assert.match(B.small(flow('late')), /cv-mark is-over.*Mark it completed, waiting over 2 days/)
+  assert.match(B.small(flow('late')), /cv-mark is-over.*Mark it completed, waiting more than 2 days/)
   assert.match(B.card(flow('wait', { status: 'open' })), /cv-mark/, 'open at the Output: a full card, marked too')
   assert.doesNotMatch(B.small(flow('other')), /cv-mark/)
   C.setData(null)
