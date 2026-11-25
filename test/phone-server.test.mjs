@@ -416,3 +416,47 @@ test('a request the phone gives up on mid-body is not logged as a server error',
   }
   assert.deepEqual(errors.filter(e => /phone:/.test(e)), [])
 })
+
+/** One raw request on a raw socket: the request line and headers exactly as given, nothing normalised by a client. */
+async function raw(line, extra = '') {
+  const net = await import('node:net')
+  return new Promise(resolve => {
+    let data = ''
+    const sock = net.connect(own.port, '127.0.0.1', () => sock.write(`${line}\r\nHost: 127.0.0.1:${own.port}\r\n${extra}Connection: close\r\n\r\n`))
+    sock.on('data', c => (data += c))
+    sock.on('end', () => resolve({ status: Number((/^HTTP\/1\.1 (\d{3})/.exec(data) || [])[1] || 0), data }))
+    sock.on('error', () => resolve({ status: 0, data }))
+  })
+}
+
+test('raw requests: encoded dot-dot, backslashes, double slashes, ::$DATA, 8.3 names, absolute request lines and method tricks all get nothing', async () => {
+  const user = await signIn()
+  const auth$ = `Cookie: ${user.cookie}\r\n`
+  const P = own.port
+  const notFound = [
+    'GET /phone/%2e%2e/config.json HTTP/1.1', 'GET /phone/%2E%2E/%2E%2E/config.json HTTP/1.1', 'GET /phone/..%2fconfig.json HTTP/1.1', 'GET /phone/..%5cconfig.json HTTP/1.1',
+    'GET /phone/%5c..%5c..%5cconfig.json HTTP/1.1', 'GET //phone HTTP/1.1', 'GET /phone//phone.css HTTP/1.1', 'GET //api/status HTTP/1.1', 'GET ///phone/../../config.json HTTP/1.1',
+    'GET /phone/phone.css::$DATA HTTP/1.1', 'GET /phone/phone.html::$DATA HTTP/1.1', 'GET /phone/PHONE~1.CSS HTTP/1.1', 'GET /PHONE~1.HTM HTTP/1.1', 'GET /CONFIG~1.JSO HTTP/1.1',
+    'GET /phone/phone.css%00 HTTP/1.1', 'GET /phone/phone.css. HTTP/1.1', 'GET /phone/phone.css%20 HTTP/1.1', 'GET /Phone HTTP/1.1', 'GET /phone/Phone.css HTTP/1.1',
+    `GET http://127.0.0.1:${P}/api/status HTTP/1.1`, `GET http://127.0.0.1:${P}/phone/../config.json HTTP/1.1`, `GET http://evil.example/api/status HTTP/1.1`,
+    'POST /phone/phone.css HTTP/1.1', 'POST /phone HTTP/1.1', 'TRACE /phone HTTP/1.1', 'OPTIONS * HTTP/1.1', 'OPTIONS /phone/api/answer HTTP/1.1', 'HEAD /phone HTTP/1.1',
+    'PROPFIND /phone HTTP/1.1', 'DELETE /phone/api/answer HTTP/1.1', 'PUT /phone/phone.css HTTP/1.1',
+  ]
+  for (const line of notFound) {
+    const r = await raw(line, auth$)
+    assert.equal(r.status, 404, line)
+    assert.doesNotMatch(r.data, /"repo"|<!doctype|pinHash/i, line)
+  }
+  // the HTTP parser itself refuses these before any handler runs: never a 2xx, never a file
+  for (const line of ['GET /phone\..\config.json HTTP/1.1', 'get /phone HTTP/1.1', 'CONNECT 127.0.0.1:80 HTTP/1.1', 'GET /phone HTTP/9.9']) {
+    const r = await raw(line, auth$)
+    assert.ok(r.status === 400 || r.status === 404 || r.status === 0 || r.status === 505, `${line}: ${r.status}`)
+    assert.doesNotMatch(r.data, /"repo"|<!doctype|pinHash/i, line)
+  }
+  // two spaces: the parser reads it as GET /phone, so it is the phone page itself, nothing more
+  assert.equal((await raw('GET  /phone HTTP/1.1')).status, 200)
+  assert.equal((await raw('GET  /api/status HTTP/1.1', auth$)).status, 404)
+  // a method override header changes nothing: a GET to a write route is still a 404
+  assert.equal((await raw('GET /phone/api/answer HTTP/1.1', `${auth$}X-HTTP-Method-Override: POST\r\nX-Method-Override: POST\r\n`)).status, 404)
+  assert.deepEqual(calls, [])
+})
