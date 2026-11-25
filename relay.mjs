@@ -191,13 +191,22 @@ function deletedLine(flow) {
   return `The user deleted the flow ${quoted(flow.title)} (${flow.id}). Stop work on it and do not write to it again. It is in the flow archive, and only the user can restore it.`
 }
 
-/** The relay turn's prompt for `agent`; `entries` is [{ flow, node?, status?, request?, note?, question?, term?, sentence?, deleted? }], one line each in the message. */
-export function buildPrompt(agent, entries) {
+/**
+ * The relay turn's prompt around ready-made `lines`: send them to the session named `agent` as ONE message.
+ * buildPrompt uses it for the flow lines; the phone's message to the coordinator (phone-talk.mjs) uses it for its
+ * one line, so both reach a session the same way.
+ */
+export function messagePrompt(agent, lines) {
   return [
     `Send the session named ${JSON.stringify(String(agent))} ONE message with SendMessage (use ListAgents first to resolve the exact name; if two match, pick the one whose cwd is in ${CONFIG.repo}). The message, verbatim:`,
-    ...entries.map(e => (e.deleted ? deletedLine(e.flow) : e.rework ? reworkLine(e.flow, CONFIG.pipeline.qa) : e.question ? questionLine(e.flow, e.term, e.sentence) : e.hand ? handText(e.flow, e.note) : e.request ? requestText(e.flow, e.note) : e.status ? statusLine(e.flow, e.node) : askLine(e.flow, e.node))),
+    ...lines,
     'Reply with only SENT or FAILED: <reason>.',
   ].join('\n')
+}
+
+/** The relay turn's prompt for `agent`; `entries` is [{ flow, node?, status?, request?, note?, question?, term?, sentence?, deleted? }], one line each in the message. */
+export function buildPrompt(agent, entries) {
+  return messagePrompt(agent, entries.map(e => (e.deleted ? deletedLine(e.flow) : e.rework ? reworkLine(e.flow, CONFIG.pipeline.qa) : e.question ? questionLine(e.flow, e.term, e.sentence) : e.hand ? handText(e.flow, e.note) : e.request ? requestText(e.flow, e.note) : e.status ? statusLine(e.flow, e.node) : askLine(e.flow, e.node))))
 }
 
 // ═══ Result handling ═══
@@ -210,9 +219,9 @@ const firstLine = s => String(s || '').split(/\r?\n/).map(l => l.trim()).find(Bo
  * failure whose reason is that text, so a SENT inside an error never counts.
  * Plain-text output passes through unchanged and records nothing.
  */
-function unwrap(r) {
+function unwrap(r, kind = 'relay') {
   const turn = parseTurn(r?.out)
-  recordCost('relay', turn.cost)
+  recordCost(kind, turn.cost)
   if (!turn.isError) return { ...r, out: turn.text }
   return { ok: false, out: '', err: turn.text || r?.err || 'the turn reported an error' }
 }
@@ -224,6 +233,12 @@ function judge(r) {
   const error = (/^FAILED:.*$/m.exec(out) || [])[0]?.trim() || firstLine(r?.err) || 'no reply'
   return { ok: false, error: error.slice(0, ERROR_CAP) }
 }
+
+/**
+ * A finished relay turn judged the relay's way: { ok } on SENT, else { ok: false, error }. Its cost is recorded
+ * as `kind` spend (spend.mjs): the phone's messages to the coordinator are their own kind, `phone`.
+ */
+export const relayOutcome = (r, kind = 'relay') => judge(unwrap(r, kind))
 
 /** The flow and its answered ask, read fresh; throws a one-line reason when either is gone or unanswered. */
 function lookup(flowId, nodeId) {
