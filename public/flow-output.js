@@ -9,6 +9,7 @@
 //   Cost          the tokens it used, its estimate, estimate against actual (predict-flow.js)
 //   Send          the pull request the work becomes: review it, send it, its state (flow-send.js)
 //   Sign-off      Completed, on a finished flow the user has not put away (completed-view.js flowBlock)
+//   Retrospective three lines under the Story once the flow is finished, or Write the retrospective (learn-retro.js)
 //
 // Marked words ([word]) in any of them are term chips (terms.js) that explain
 // themselves on hover (term-card.js). A head is one or two words; what a block
@@ -181,8 +182,8 @@
     // view; a before and after pair needs the whole width, How to test under it
     const C = window.FlowCompare
     const split = window.FlowVisual.shows(m) === 'screens' && !C.pairs(m).pairs.length ? ' ob-split' : ''
-    const html = `<div class="ob-col${split}">${window.FlowStory.html(c)}${changeBlock(c)}${window.FlowVisual.html(c)}${window.FlowSteps.html(c)}${detailsBlock(c)}${window.PredictFlow?.block(c) || ''}${window.FlowSend.html(c)}${window.CompletedView?.flowBlock(c) || ''}</div>`
-    const send = [flow.output?.merge, flow.output?.pr, flow.derived?.output?.merge, window.FlowSend.sig(flow.id), window.CompletedView?.waits(flow.id), window.CompletedView?.overdue(flow.id), flow.completedAt, flow.archivedAt, window.PredictFlow?.sig(flow.id)]
+    const html = `<div class="ob-col${split}">${window.FlowStory.html(c)}${window.LearnRetro?.block(c) || ''}${changeBlock(c)}${window.FlowVisual.html(c)}${window.FlowSteps.html(c)}${detailsBlock(c)}${window.PredictFlow?.block(c) || ''}${window.FlowSend.html(c)}${window.CompletedView?.flowBlock(c) || ''}</div>`
+    const send = [flow.output?.merge, flow.output?.pr, flow.derived?.output?.merge, window.FlowSend.sig(flow.id), window.CompletedView?.waits(flow.id), window.CompletedView?.overdue(flow.id), flow.completedAt, flow.archivedAt, window.PredictFlow?.sig(flow.id), flow.retro, window.LearnRetro?.sig(flow.id)]
     return { html, keys, charts, sig: JSON.stringify([m, [...done], c.asked, flow.agent, window.FlowVisual.pref.get(), C.step.raw(flow.id), send]) }
   }
 

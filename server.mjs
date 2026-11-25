@@ -34,6 +34,7 @@ import { makeScriptLogRoute } from './script-log-routes.mjs'
 import { appendRun } from './script-log.mjs'
 import { makeStandupServerRoute } from './standup-wiring.mjs'
 import { makeQualityServer } from './quality-wiring.mjs'
+import { makeLearnServerRoute } from './learn-wiring.mjs'
 import { orchestrationBrief } from './script-brief.mjs'
 import { briefExtras } from './script-brief-extras.mjs'
 import { pipelineGraph } from './pipeline.mjs'
@@ -881,6 +882,8 @@ const tokenRoute = makeTokenRoute({ claudeDirs: CLAUDE_DIRS, match: CONFIG.sessi
 /** Predict and warn (predict-routes.mjs): alerts, estimates and per flow tokens, on Pipeline tokens' own index. No model runs. */
 const predictRoute = makePredictRoute({ index: tokenRoute.index, names: async () => new Map((await liveSessions()).map(s => [s.sessionId, s.name])), live: async () => new Map((await liveSessions()).filter(s => !s.pinned).map(s => [s.sessionId, s.name])), labelOf })
 const routingRoute = makeRoutingRoute({ port: PORT }) // the Routing page, ticket intake, a flow task type (routing-routes.mjs)
+/** The Learn page (learn-wiring.mjs): retrospectives, the weekly Learn run and a verdict on every rule change. */
+const learnRoute = makeLearnServerRoute({ port: PORT, tokens: () => tokenRoute.snapshot() })
 /** The paths factory-routes.mjs answers. */
 const FACTORY_PREFIXES = ['/api/factory', '/api/chat', '/api/flows', '/api/trash', '/api/archive', '/api/human', '/api/tickets/', '/api/commit', '/api/explain', '/api/glossary', '/api/since', '/api/spend', '/api/settings', '/api/pipeline', '/api/qa', '/api/agents/rules', '/api/score', '/api/log', '/api/time', '/evidence/', '/api/outputs']
 
@@ -894,7 +897,7 @@ const server = createServer(async (req, res) => {
     if (FACTORY_PREFIXES.some(prefix => url.pathname.startsWith(prefix))) {
       // `fetched`: Send reuses the server's own fetch of origin when it is under a minute old (pr-routes.mjs)
       const fetched = remote => (remote === 'origin' && fetchState.ok ? fetchState.at : null)
-      if (await factoryRoute(req, res, url, { git, gh, push, port: PORT, fetched, relay, getStatus, pipelineConfig: CONFIG })) return
+      if (await factoryRoute(req, res, url, { git, gh, push, port: PORT, fetched, relay, getStatus, pipelineConfig: CONFIG, onCompleted: learnRoute.completed })) return
     }
     if (await scriptRoute(req, res, url)) return
     if (await scriptContextRoute(req, res, url)) return
@@ -906,6 +909,7 @@ const server = createServer(async (req, res) => {
     if (await tokenRoute(req, res, url)) return
     if (await predictRoute(req, res, url)) return
     if (await routingRoute(req, res, url)) return
+    if (await learnRoute(req, res, url)) return
     if (url.pathname === '/api/orchestration') {
       const data = await orchestration(url.searchParams.get('c'), url.searchParams.has('refresh'))
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' })

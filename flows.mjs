@@ -70,6 +70,7 @@ import { keepHand, validateHand } from './hand-steps.mjs'
 import { keepEstimate, validateEstimate } from './predict-keep.mjs'
 import { keepRoute, validateRoute } from './flow-route.mjs'
 import { keepRouting, validateRouting } from './routing-flow.mjs'
+import { keepRetro, validateRetro } from './learn-retro-text.mjs'
 import { sayShorter, STORY_ID, STORY_MAX, storyOf, YOU } from './flow-story.mjs'
 import { lookup } from './glossary.mjs'
 import { DATA_DIR } from './project-store.mjs'
@@ -135,6 +136,7 @@ export function validateFlow(flow) {
   if (flow.completedAt !== undefined && !isIsoTime(flow.completedAt)) problems.push('completedAt must be a time')
   if (flow.signoff !== undefined) problems.push(...validateSignoff(flow.signoff, isIsoTime))
   if (flow.completedBy !== undefined && flow.completedBy !== 'you') problems.push('completedBy must be you')
+  if (flow.retro !== undefined) problems.push(...validateRetro(flow.retro)) // the server's retrospective (learn-retro-text.mjs)
   if (!Array.isArray(flow.nodes)) return [...problems, 'nodes must be a list']
 
   const allIds = new Set(flow.nodes.map(n => n?.id))
@@ -634,6 +636,7 @@ export function mergeKeepingAnswers(incoming, existing) {
   keepQuality(incoming, existing) // the self-check, the plan critic and the risk label: never from an agent's file
   keepEstimate(incoming, existing) // the estimate (predict-keep.mjs): only the server writes it
   keepRouting(incoming, existing) // the routing record: only the dashboard writes it (routing-flow.mjs)
+  keepRetro(incoming, existing) // the retrospective: only the server writes it (learn-retro.mjs)
   if (existing?.createdAt) incoming.createdAt = existing.createdAt
   delete incoming.derived
   return incoming

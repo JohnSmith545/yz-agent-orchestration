@@ -5,7 +5,7 @@
 //
 // Routes: #/ Flows (the landing page: every request is a flow), #/flows (the same page, so old links
 // keep working), #/home Home, #/qa[/<flow id>], #/generators[?tool=standup], #/tickets, #/timeline, #/agents, #/subagents,
-// #/glossary, #/settings, #/archive (the flow archive), #/agent/<id>[/<sub>]. Old links redirect (#/factory → #/tickets,
+// #/glossary, #/settings, #/archive (the flow archive), #/learn, #/agent/<id>[/<sub>]. Old links redirect (#/factory → #/tickets,
 // #/flow → #/timeline, #/script and #/brainstorming → #/generators, a query kept) and anything unknown goes to the landing page.
 // A page route may carry a query, `#/flows?flow=dark-mode&at=hand`, handed to the page as params.query (an
 // object of strings): a link that opens a page in a given state (archive-page.js, flows-page.js, human-review.js).
@@ -18,6 +18,7 @@
   VIEWS.push('bank') // the Orchestration bank (bank-page.js): #/bank, #/bank/<id>, #/bank/<id>/use
   VIEWS.push('lessons') // the Lessons page (quality-lessons-page.js): #/lessons[?area=tests|edit=<candidate>]
   VIEWS.push('routing') // the Routing page (routing-page.js): #/routing, #/routing?flow=<id>
+  VIEWS.push('learn') // Learn (learn-page.js): #/learn[?run=<id>], retrospectives and a verdict on every rule change
   const OLD = { factory: 'tickets', flow: 'timeline' }
   const route = (view, params = {}, redirect = null) => ({ view, params, redirect })
   const decode = s => {
@@ -155,6 +156,7 @@
   Object.assign(TITLE, { bank: 'Orchestration bank' }), Object.assign(SECTION, { bank: 'bankView' }), Object.assign(PAGE, { bank: 'BankPage' })
   Object.assign(TITLE, { lessons: 'Lessons' }), Object.assign(SECTION, { lessons: 'lessonsView' }), Object.assign(PAGE, { lessons: 'QualityLessons' })
   Object.assign(TITLE, { routing: 'Routing' }), Object.assign(SECTION, { routing: 'routingView' }), Object.assign(PAGE, { routing: 'RoutingPage' })
+  Object.assign(TITLE, { learn: 'Learn' }), Object.assign(SECTION, { learn: 'learnView' }), Object.assign(PAGE, { learn: 'LearnPage' })
 
   // ─── icons: 24-unit boxes drawn at 20 px, 1.75 stroke (shell.css) ───
   const svg = d => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`
@@ -210,6 +212,9 @@
   // (Added after the template, not in it, so the rail's one long line stays as it was; ?. for the tests' bare DOM.)
   rail.querySelector('.rail-top')?.insertAdjacentHTML?.('afterend', '<div class="rail-project" id="railProject"></div>')
   rail.querySelector('a.rail-item[data-view="agents"]')?.insertAdjacentHTML?.('afterend', link('bank', '#/bank', 'Orchestration bank'))
+  // Learn: a light bulb (an idea, from what the work taught), at the END of the page list
+  ICON.learn = svg('<path d="M9.5 18h5M10.5 21h3"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.4 1.1 2.2v.5h5V16c0-.8.4-1.6 1.1-2.2A6 6 0 0 0 12 3Z"/>')
+  rail.querySelector('.rail-nav')?.insertAdjacentHTML?.('beforeend', link('learn', '#/learn', 'Learn'))
   // Lessons, at the END of the page links: an open book with a tick on its right page (what earlier work taught)
   ICON.lessons = svg('<path d="M3 5.5c3-1.2 6-1 9 1 3-2 6-2.2 9-1V19c-3-1.2-6-1-9 1-3-2-6-2.2-9-1Z"/><path d="M12 6.5V20"/><path d="m14.8 12.2 1.7 1.7 3-3.4"/>')
   rail.querySelector('.rail-nav')?.insertAdjacentHTML?.('beforeend', link('lessons', '#/lessons', 'Lessons'))

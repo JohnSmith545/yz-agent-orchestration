@@ -88,5 +88,7 @@ export function makeTokenRoute({ claudeDirs = [], match = '', index = makeTokenI
   /** The first build, in the background: called once the server listens. */
   route.start = kick
   route.index = index // shared with Predict and warn (predict-routes.mjs)
+  /** What the index holds now, never waiting on a read: the Learn verdicts' cost per job reads it (learn-wiring.mjs). */
+  route.snapshot = () => index.snapshot()
   return route
 }

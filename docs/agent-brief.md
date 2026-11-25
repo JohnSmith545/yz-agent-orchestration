@@ -139,6 +139,11 @@ What the user sees: the flow as a card on the Flows page (`#/flows`), and each `
 
 The full command list is in the README, under "Agents writing flows".
 
+**Retrospectives.** When the user marks your flow Completed, the dashboard writes a three-line retrospective on it
+(`retro`: what went right, what went wrong, what to do next time). You may read it, and the ones on earlier flows,
+with `flow show <flow>`; it is useful before similar work. You never write one: `flow write` keeps the stored one.
+Rules the user accepts on the Learn page reach you like any other rule, through `flow rules`.
+
 A flow may carry an `estimate` the dashboard stored when it started (how long and what similar flows took). It is the server's: leave it out of a `flow write`; whatever you send there is ignored.
 
 ## Lessons, the self-check and the risk label

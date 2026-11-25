@@ -22,6 +22,8 @@
   const KIND_ORDER = ['chat', 'relay', 'explain', 'refresh', 'script', 'standup', 'lesson', 'critic']
   KIND_LABEL.intake = 'Ticket sorting' // ticket intake's model run (routing-intake-run.mjs)
   KIND_ORDER.push('intake')
+  // the Learn page's two runs (learn-retro.mjs, learn-routes.mjs): each flow's retrospective and the weekly Learn run
+  Object.assign(KIND_LABEL, { retro: 'Retrospective', learn: 'Learn' }), KIND_ORDER.push('retro', 'learn')
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
   const num = v => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0)
 

@@ -51,7 +51,8 @@
 // - spawn, bin, record and the temp folder are injected, so tests never spawn Claude.
 // - Another tool's run (the Standup creator, standup-routes.mjs) is the SAME clean run with its own `turn`:
 //   { system, effort?, name?, kind, messages?, model? }. Only the system prompt, the effort, the session name, the spend
-//   kind, any message it overrides and the model (the quality runs take a cheaper one, quality-extract.mjs) change; the flags, the temp folder, the idle timeout and cancel stay, so
+//   kind, any message it overrides and the model (the quality runs, ticket intake and the Learn retrospective take a
+//   cheaper one: quality-extract.mjs, routing-intake-run.mjs, learn-retro.mjs) change; the flags, the temp folder, the idle timeout and cancel stay, so
 //   what is measured above holds for it too. Without a turn it is the prompt generator, exactly as before.
 
 import { spawn as nodeSpawn } from 'node:child_process'

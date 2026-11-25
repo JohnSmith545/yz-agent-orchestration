@@ -83,6 +83,7 @@
     "dailyTokens": null
   },
   "estimates": { "enabled": true, "nearest": 8 },
+  "learn": { "enabled": true, "autoRetro": true, "weekly": false, "verdictAfterDays": 14, "model": "claude-opus-5-5", "retroModel": "claude-sonnet-5-5" },
   "pipeline": {
     "qa": "QA",
     "producers": null,
