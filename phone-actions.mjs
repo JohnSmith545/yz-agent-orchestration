@@ -151,8 +151,9 @@ export function makePhoneActions({ relay, talk, getStatus, config = CONFIG, now 
     return completeRoute(flow.id, { completed: true }, { config, now: now() })
   }
 
-  const talkGet = async () => ok(await talk.threadWithReplies())
-  const talkSend = async b => talk.send(isObject(b) ? b.text : undefined)
+  // each phone session sees and continues only ITS OWN conversation (phone-talk.mjs): ctx.session is its id
+  const talkGet = async (_b, ctx = {}) => ok(await talk.threadWithReplies(ctx.session || ''))
+  const talkSend = async (b, ctx = {}) => talk.send(isObject(b) ? b.text : undefined, ctx.session || '')
 
   return { summary, answer, tick, complete, talk: talkGet, talkSend }
 }

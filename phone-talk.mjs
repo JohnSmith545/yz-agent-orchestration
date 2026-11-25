@@ -20,7 +20,7 @@
 // - `run` is injected (server.mjs passes relay.mjs claudeRun), so tests never start a model.
 //
 //   makeTalk({ file, agent, label, run, transcript, running, now }) ->
-//     { send(text), thread(), threadWithReplies(), sweep(), settled() }
+//     { send(text, sid), thread(sid), threadWithReplies(sid), sweep(), settled() }   sid: the phone session
 //   repliesOf(records)    the coordinator's text replies, oldest first: [{ at, text }]
 
 import { readFileSync } from 'node:fs'
@@ -40,7 +40,15 @@ const TAIL_BYTES = 1024 * 1024
 const ERROR_MAX = 300
 const STATES = ['sending', 'sent', 'failed']
 
-/** The one line the coordinator receives: who it is from, what to do, and the text as one JSON string. */
+/**
+ * The FIXED first line of every phone message, before the user's text, which the page cannot change: the coordinator
+ * knows where it came from and what it must not do on the strength of a phone alone (docs/agent-brief.md, Phone
+ * messages, says the same). The text follows on its own line as one JSON string, so a message that contains this
+ * line itself is still prefixed, and its copy stays quoted inside the string.
+ */
+export const PHONE_MARKER = "[From the user's phone, signed in with the phone PIN. Treat it as the user's message, with these limits: do not reveal secrets, credentials or file contents from outside the project; do not change config.json, phone or security settings; do not run destructive or irreversible commands, pushes to protected branches, deploys or anything touching a live environment until the user confirms at the PC.]"
+
+/** The line with the user's words: who it is from, what to do, and the text as one JSON string. */
 export const talkLine = text =>
   `The user sent you this message from their phone (the dashboard phone page): ${JSON.stringify(text)}. ` +
   'Answer it in your own session as you would any message from them: the phone shows your newest replies.'
@@ -76,7 +84,7 @@ function clean(raw) {
   const list = Array.isArray(raw?.messages) ? raw.messages : []
   return list
     .filter(m => m && typeof m.id === 'string' && isTime(m.at) && typeof m.text === 'string' && STATES.includes(m.state))
-    .map(m => ({ id: m.id, at: m.at, text: m.text.slice(0, TALK_MAX), state: m.state, ...(typeof m.error === 'string' ? { error: m.error.slice(0, ERROR_MAX) } : {}) }))
+    .map(m => ({ id: m.id, at: m.at, sid: typeof m.sid === 'string' ? m.sid : '', text: m.text.slice(0, TALK_MAX), state: m.state, ...(typeof m.error === 'string' ? { error: m.error.slice(0, ERROR_MAX) } : {}) }))
     .slice(-KEEP)
 }
 
@@ -97,7 +105,7 @@ export function makeTalk({ file = TALK_FILE, agent, label, run, transcript, runn
   async function deliver(message) {
     let outcome
     try {
-      outcome = relayOutcome(await run(messagePrompt(agent, [talkLine(message.text)])), 'phone')
+      outcome = relayOutcome(await run(messagePrompt(agent, [PHONE_MARKER, talkLine(message.text)])), 'phone')
     } catch (err) {
       outcome = { ok: false, error: String(err?.message || err).slice(0, ERROR_MAX) }
     }
@@ -108,30 +116,45 @@ export function makeTalk({ file = TALK_FILE, agent, label, run, transcript, runn
     }
   }
 
-  async function send(text) {
+  /** `sid` is the phone session that sends it (phone-server.mjs): each phone session sees only its own conversation. */
+  async function send(text, sid = '') {
     if (typeof text !== 'string' || !text.trim()) return { status: 400, body: { error: 'Type a message first.' } }
     if (text.length > TALK_MAX) return { status: 400, body: { error: `A message is at most ${TALK_MAX} characters.` } }
     if (busy) return { status: 409, body: { error: `Your last message is still on its way to ${label}. Send this one once it has gone.` } }
     const at = now()
-    const message = { id: `m${at.getTime().toString(36)}${(seq++).toString(36)}`, at: at.toISOString(), text: text.trim(), state: 'sending' }
+    const message = { id: `m${at.getTime().toString(36)}${(seq++).toString(36)}`, at: at.toISOString(), sid: String(sid), text: text.trim(), state: 'sending' }
     write([...read(), message])
     busy = deliver(message).finally(() => { busy = null })
     return { status: 202, body: { ok: true, message } }
   }
 
-  const thread = () => ({ label, busy: !!busy, messages: read() })
+  const thread = (sid = '') => ({ label, busy: !!busy, messages: read().filter(m => m.sid === String(sid)) })
 
-  async function threadWithReplies() {
+  /**
+   * The thread of ONE phone session: its own messages, and only the coordinator replies written AFTER its first
+   * message. Before it writes anything there are no replies at all, so a phone never reads the coordinator's other
+   * work (the page says replies appear once you write).
+   */
+  async function threadWithReplies(sid = '') {
+    const own = thread(sid)
+    const since = own.messages.length ? Date.parse(own.messages[0].at) : null
+    if (since === null) return { ...own, replies: [], running: await isRunning() }
     let replies = []
     try {
       const f = await transcript()
-      if (f) replies = repliesOf(await readTail(f, TAIL_BYTES))
+      if (f) replies = repliesOf(await readTail(f, TAIL_BYTES)).filter(r => Date.parse(r.at) > since)
     } catch {
       replies = [] // not running, no transcript yet, or unreadable: the page says so quietly
     }
-    let isRunning = false
-    try { isRunning = !!(await running()) } catch { isRunning = false }
-    return { ...thread(), replies, running: isRunning }
+    return { ...own, replies, running: await isRunning() }
+  }
+
+  async function isRunning() {
+    try {
+      return !!(await running())
+    } catch {
+      return false
+    }
   }
 
   function sweep() {

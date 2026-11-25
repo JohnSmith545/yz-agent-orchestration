@@ -190,7 +190,7 @@ export function makePhoneHandler({ settings, own, auth, actions, limits = PHONE_
         return send(res, 200, { ok: true }, { 'set-cookie': clearCookie() })
       }
       const body = req.method === 'POST' ? await jsonBody(req) : {}
-      const r = await actions[action](body)
+      const r = await actions[action](body, { session: session.id.slice(0, 32) })
       return send(res, r.status, r.body)
     } catch (err) {
       if (err?.status) return send(res, err.status, { error: err.message })

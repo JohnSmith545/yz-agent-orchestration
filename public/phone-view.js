@@ -144,7 +144,7 @@
         `<li class="ph-msg ${x.who === 'you' ? 'is-you' : 'is-them'}${x.state === 'failed' ? ' is-failed' : ''}">` +
         `<p class="ph-msg-text">${x.who === 'you' ? esc(x.text) : marks(x.text)}</p>` +
         `<span class="ph-meta">${esc(x.who === 'you' ? 'You' : label)}${S.clock(x.at) ? ` · ${esc(S.clock(x.at))}` : ''}${x.who === 'you' ? ` · ${esc(S.messageWord(x, label))}` : ''}</span></li>`).join('')}</ol>`
-      : '<p class="ph-faint">No messages yet.</p>'
+      : `<p class="ph-faint">Replies from ${esc(label)} show here once you write: only what it says after your first message from this phone.</p>`
     const sending = !!th.busy || !!ui.busy?.talk
     return '<section class="ph-sec ph-talk" aria-label="' + esc(`Talk to ${label}`) + '">' +
       `<p class="ph-note">Your message is handed to ${esc(label)} on your PC by a short paid turn (a few cents). ${esc(label)} answers when it gets to it. Your PC must be on.</p>` +

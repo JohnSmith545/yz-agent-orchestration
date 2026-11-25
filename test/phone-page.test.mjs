@@ -222,3 +222,7 @@ test('the manifest makes it a home-screen app on /phone with the drawn icons', (
 test('a by-hand flow with no steps says where to ask for them: the PC, since the phone cannot', () => {
   assert.match(text(V.needs({ ...SUMMARY, asks: [], hands: [{ ...SUMMARY.hands[0], steps: [] }] }, {})), /No steps yet\. Asking the agent for them is done at the PC\./)
 })
+
+test('an empty thread says replies show once you write, and only from then on', () => {
+  assert.match(text(V.talk({ label: 'Master', messages: [], replies: [] }, {})), /Replies from Master show here once you write: only what it says after your first message from this phone\./)
+})

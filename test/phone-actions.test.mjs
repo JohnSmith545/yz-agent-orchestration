@@ -28,7 +28,7 @@ const STEP = { id: 'h1', do: 'Add the deploy secret', where: 'GitHub › Setting
 
 let calls
 let relay
-const talk = { send: async t => ({ status: 202, body: { ok: true, text: t } }), threadWithReplies: async () => ({ label: 'Master', messages: [], replies: [], busy: false, running: true }) }
+const talk = { send: async (t, sid) => ({ status: 202, body: { ok: true, text: t, sid } }), threadWithReplies: async sid => ({ label: 'Master', messages: [], replies: [], busy: false, running: true, sid }) }
 const agents = [{ label: 'Agent 1', state: 'active', status: 'busy' }, { label: 'QA', state: 'idle', status: 'idle' }]
 const actions = () => makePhoneActions({ relay, talk, getStatus: async () => ({ agents }) })
 
@@ -192,8 +192,9 @@ test('complete refuses an unfinished flow with the desktop sentence, and writes 
 
 test('talk reads the thread and sends through phone-talk.mjs, the text as given', async () => {
   const a = actions()
-  assert.equal((await a.talk()).body.label, 'Master')
-  const r = await a.talkSend({ text: 'hello' })
+  assert.equal((await a.talk({}, { session: 'abc' })).body.sid, 'abc', 'the thread of THIS phone session')
+  const r = await a.talkSend({ text: 'hello' }, { session: 'abc' })
   assert.equal(r.status, 202)
   assert.equal(r.body.text, 'hello')
+  assert.equal(r.body.sid, 'abc')
 })
