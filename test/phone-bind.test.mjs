@@ -177,7 +177,7 @@ test('config.example.json has the remote block, off, and it reads as off with no
   const readme = fs.readFileSync(new URL('../README.md', import.meta.url), 'utf8')
   assert.match(readme, /`"remote": \{ "enabled": false, "bind": "", "port": 4318, "pinHash": "", "sessionHours": 4 \}`/)
   for (const doc of [readme, fs.readFileSync(new URL('../docs/USER_GUIDE.md', import.meta.url), 'utf8')]) {
-    for (const s of [/plain HTTP/, /Never forward the port/i, /PIN is the only lock/, /phone-setup/, /phone-pin/, /Tailscale/]) assert.match(doc, s)
+    for (const s of [/plain HTTP/, /Never forward the port/i, /PIN is the only lock/, /phone-setup/, /phone-pin/, /Tailscale/, /treat it like a password/, /3 lockouts within 24 hours/, /Phone on/, /network it was set up on/, /after your first message/]) assert.match(doc, s)
   }
 })
 

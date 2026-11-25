@@ -120,13 +120,13 @@ test('phone-setup writes remote.enabled and remote.bind only after a typed yes, 
   assert.equal(cfg.repo, 'C:/work/repo')
 })
 
-test('phone-setup says what it opens before the yes: plain HTTP, the PIN is the only lock, never forward the port', async () => {
+test('phone-setup says what it opens before the yes: plain HTTP, the PIN guards a coding agent, never forward the port', async () => {
   const io = keyboard(['1', 'no'])
   const file = config()
   const r = await C.runPhoneSetup({ io, configFile: file, interfaces: IFACES })
   const said = io.prompts.join('\n')
   assert.match(said, /plain HTTP/)
-  assert.match(said, /PIN is the only lock/)
+  assert.match(said, /PIN guards the ability to instruct a coding agent/)
   assert.match(said, /Never forward/)
   assert.equal(r.code, 1)
   assert.equal(fs.readFileSync(file, 'utf8'), BASE, 'anything but yes writes nothing')
@@ -174,4 +174,13 @@ test('phone-pin marks the new hash for the change watcher, so the PIN change rea
   const hash = JSON.parse(fs.readFileSync(file, 'utf8')).remote.pinHash
   const said = auth.noteRemote({ wanted: false, bind: '', pinHash: hash })
   assert.deepEqual(said.map(e => e.text), ['The phone PIN was changed with phone-pin.'])
+})
+
+test('phone-setup states the honest limits in plain words before the yes', async () => {
+  const io = keyboard(['2', 'no'])
+  await C.runPhoneSetup({ io, configFile: config(), interfaces: IFACES })
+  const said = io.prompts.join('\n')
+  assert.match(said, /over home Wi-Fi the PIN and the session can be read by someone who can see the traffic/i)
+  assert.match(said, /Tailscale removes that/)
+  assert.match(said, /the PIN guards the ability to instruct a coding agent: treat it like a password/i)
 })

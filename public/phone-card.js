@@ -57,9 +57,10 @@
       (view.status ? `<p class="set-status" role="status">${esc(view.status)}</p>` : '') +
       `<div class="set-field"><span class="set-k">Recent sign-ins and lockouts</span>${events}</div>` +
       `<div class="set-field"><span class="set-k">Set it up</span><ol class="pc-steps">${STEPS.map(s => `<li>${s}</li>`).join('')}</ol></div>` +
-      '<p class="set-muted">The honest limits: this is plain HTTP on your private network. Tailscale encrypts the link between your devices; ' +
-      'on Wi-Fi, anyone on that network can reach the sign-in page. The PIN is the only lock, and 5 wrong tries lock sign-in for 15 minutes. ' +
-      'Never forward the port on your router.</p></section>'
+      '<p class="set-muted">The honest limits: this is plain HTTP on your private network. Over home Wi-Fi the PIN and the session can be read by ' +
+      'someone who can see the traffic, and anyone on that network can reach the sign-in page; Tailscale removes that, because it encrypts the ' +
+      'link. The PIN guards the ability to instruct a coding agent: treat it like a password. 5 wrong tries lock sign-in for 15 minutes, and ' +
+      '3 lockouts within 24 hours turn phone access off. It opens only on the network it was set up on. Never forward the port on your router.</p></section>'
   }
 
   const bound = new WeakSet()

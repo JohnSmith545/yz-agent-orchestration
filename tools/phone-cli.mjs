@@ -101,8 +101,9 @@ export async function runPhoneSetup({ io = terminal(), configFile = CONFIG, inte
   const yes = await io.line([
     '',
     `This turns phone access ON at ${url}.`,
-    `- It is plain HTTP on that network: ${chosen.tailscale ? 'Tailscale encrypts the link between your devices.' : 'anyone on the same network can reach the sign-in page. Use it on your home Wi-Fi, not a shared one.'}`,
-    '- The phone PIN is the only lock. Five wrong tries lock sign-in for 15 minutes.',
+    `- It is plain HTTP on that network. Over home Wi-Fi the PIN and the session can be read by someone who can see the traffic; Tailscale removes that, because it encrypts the link${chosen.tailscale ? ' (this is the Tailscale address)' : ''}.`,
+    '- The PIN guards the ability to instruct a coding agent: treat it like a password. Five wrong tries lock sign-in for 15 minutes; three lockouts in a day turn phone access off.',
+    `- It opens only while this PC is on this network (${chosen.name}, ${chosen.cidr || 'its subnet'}).`,
     '- Never forward this port on your router: it is not made to face the internet.',
     'Type yes to write this to config.json: ',
   ].join('\n'))

@@ -64,7 +64,7 @@ test('a lock in force says how long is left', () => {
 test('the setup steps and the honest limits are on the card', () => {
   const t = text(C.html({ data: ON }))
   for (const s of [/Install Tailscale on this PC and on the phone, and sign in to the same account/, /node tools\/factory\.mjs phone-setup/, /node tools\/factory\.mjs phone-pin/,
-    /Restart the dashboard/, /Add to Home Screen/, /plain HTTP/, /The PIN is the only lock/, /Never forward the port on your router/]) assert.match(t, s)
+    /Restart the dashboard/, /Add to Home Screen/, /plain HTTP/, /The PIN guards the ability to instruct a coding agent/, /Never forward the port on your router/]) assert.match(t, s)
 })
 
 test('nothing secret and nothing unescaped: an address from the file is text', () => {
@@ -97,4 +97,12 @@ test('a PIN or config change shows its own sentence; an escalation and a damaged
   assert.match(t, /Phone access was turned on in config\.json\./)
   assert.match(t, /3 lockouts in 24 hours: phone access turned off/)
   assert.match(t, /Sign-in file damaged/)
+})
+
+test('the card states the honest limits in plain words: Wi-Fi traffic, Tailscale, the PIN as a password', () => {
+  const t = text(C.html({ data: ON }))
+  assert.match(t, /Over home Wi-Fi the PIN and the session can be read by someone who can see the traffic/)
+  assert.match(t, /Tailscale removes that/)
+  assert.match(t, /The PIN guards the ability to instruct a coding agent: treat it like a password/)
+  assert.match(t, /3 lockouts within 24 hours turn phone access off/)
 })
