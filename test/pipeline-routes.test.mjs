@@ -101,7 +101,7 @@ test('GET /api/pipeline: the graph from the config, and each flow with its stage
   assert.ok(Date.parse(j.builtAt))
   assert.deepEqual(j.tickets.map(t => t.id), ['open-one', 'shipped'])
   const [open, shipped] = j.tickets
-  assert.deepEqual(Object.keys(open).sort(), ['agent', 'archived', 'codeProducing', 'hasOutput', 'id', 'progress', 'qa', 'route', 'stage', 'status', 'tickets', 'title', 'updatedAt'])
+  assert.deepEqual(Object.keys(open).sort(), ['agent', 'archived', 'codeProducing', 'completed', 'hasOutput', 'id', 'progress', 'qa', 'route', 'stage', 'status', 'tickets', 'title', 'updatedAt', 'waiting'])
   assert.deepEqual([open.title, open.agent, open.tickets, open.status, open.qa, open.archived, open.codeProducing], ['Flow open-one', 'Agent 3', ['ABC-102'], 'open', null, false, true])
   assert.equal(open.stage.path[0], 'request')
   assert.deepEqual([shipped.stage.node, shipped.stage.status], ['outcome', 'passed'])
@@ -109,8 +109,9 @@ test('GET /api/pipeline: the graph from the config, and each flow with its stage
   assert.deepEqual(shipped.qa.attempts, [])
 })
 
-test('GET /api/pipeline: done and dropped flows only from the last 14 days; the Trash never; archived flagged', async () => {
-  put('old-done', { status: 'done', updatedAt: ago(15 * DAY) })
+test('GET /api/pipeline: done and dropped flows only from the last 14 days, unless one waits for sign-off; the Trash never; archived flagged', async () => {
+  put('old-done', { status: 'done', updatedAt: ago(15 * DAY) }) // waits for the user to mark it completed: listed however old
+  put('old-signed', { status: 'done', updatedAt: ago(15 * DAY), completedAt: ago(DAY), completedBy: 'you', archivedAt: ago(DAY) })
   put('new-done', { status: 'done', updatedAt: ago(DAY) })
   put('old-open', { status: 'blocked', updatedAt: ago(40 * DAY) })
   put('old-dropped', { status: 'dropped', updatedAt: ago(15 * DAY) })
@@ -119,7 +120,7 @@ test('GET /api/pipeline: done and dropped flows only from the last 14 days; the 
   moveToTrash('gone')
   // writeFlow stamps updatedAt, so these are written raw above; listFlows keeps what the file says
   const ids = (await (await get('/api/pipeline')).json()).tickets.map(t => t.id).sort()
-  assert.deepEqual(ids, ['archived', 'new-done', 'old-open'])
+  assert.deepEqual(ids, ['archived', 'new-done', 'old-done', 'old-open'])
   const archived = (await (await get('/api/pipeline')).json()).tickets.find(t => t.id === 'archived')
   assert.equal(archived.archived, true)
 })

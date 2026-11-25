@@ -26,6 +26,7 @@
 //   GET  /api/human; POST /api/flows/<id>/hand { step, done }; POST /api/flows/<id>/request-hand { note? };
 //   POST /api/tickets/<id>/request-hand { note? }: Human review and the by-hand steps (human-routes.mjs)
 //   POST /api/flows/<id>/senior-release: the user finishes a flow Senior holds without its review (human-routes.mjs)
+//   POST /api/flows/<id>/complete { completed? }; GET /api/outputs: the user's sign-off and its reminders (completed-routes.mjs)
 //   POST /api/flows/<id>/request-tests { note? ≤ 500 }: stamps output.requestedAt, then relay.queueRequest,
 //                                      { ok, via: 'relay', requestedAt }; the chat agent's own flow: { ok, via: 'chat', text }
 //   GET  /api/flows/<id>/pr            { merge, pr, ready, facts }: what Send would do (pr-routes.mjs)
@@ -71,6 +72,7 @@ import path from 'node:path'
 import { rulesGet, rulesPut } from './agent-rules-routes.mjs'
 import { chatEvents, chatLog, chatNew, chatSend, chatStop } from './chat.mjs'
 import { commitDiff } from './commit-diff.mjs'
+import { completeRoute, outputsGet } from './completed-routes.mjs'
 import { CONFIG, CONFIG_FILE, prNow } from './config.mjs'
 import { confirmNative } from './native-confirm.mjs'
 import { settingsGet, settingsPin, settingsSend } from './settings-routes.mjs'
@@ -151,7 +153,7 @@ const sameOrigin = (req, port) => !req.headers.origin || originAllowed(req.heade
  * forge the header. That is why a release is always scored as slipped through (score.mjs): nobody reviewed the work,
  * whoever pressed it.
  */
-const USER_ONLY = new Set(['hand', 'senior-release'])
+const USER_ONLY = new Set(['hand', 'senior-release', 'complete'])
 const pageOrigin = (req, port) => !!req.headers.origin && originAllowed(req.headers.origin, port)
 
 export async function factoryRoute(req, res, url, { git, gh, push, pr, port = CONFIG.port, fetched, relay, explain = explainTurn, learn = learnTerms, getStatus, settings, pipelineConfig = null } = {}) {
@@ -198,6 +200,8 @@ export async function factoryRoute(req, res, url, { git, gh, push, pr, port = CO
     if (post && USER_ONLY.has(action) && !pageOrigin(req, port)) return json(res, 403, { error: 'The user does this, only from the dashboard page.' }), true
     if (action === 'hand' && post) return send(res, handTickRoute(id, await body(req))), true
     if (action === 'senior-release' && post) return send(res, seniorReleaseRoute(id)), true
+    if (action === 'complete' && post) return send(res, completeRoute(id, await body(req))), true
+    if (p === '/api/outputs' && !post) return send(res, outputsGet()), true
     if (action === 'request-hand' && post) return send(res, handRequestRoute(id, await body(req), relay)), true
     if (p === '/api/human' && !post) return send(res, humanGet()), true
     const ticketHand = /^\/api\/tickets\/([^/]+)\/request-hand$/.exec(p)

@@ -875,7 +875,7 @@ const agentSettingsRoute = makeAgentSettingsRoute({ port: PORT })
 /** Pipeline tokens (token-routes.mjs): what the transcripts spent, from a running index built in the background. */
 const tokenRoute = makeTokenRoute({ claudeDirs: CLAUDE_DIRS, match: CONFIG.sessionCwdMatch, names: async () => new Map((await liveSessions()).map(s => [s.sessionId, s.name])), labelOf })
 /** The paths factory-routes.mjs answers. */
-const FACTORY_PREFIXES = ['/api/factory', '/api/chat', '/api/flows', '/api/trash', '/api/archive', '/api/human', '/api/tickets/', '/api/commit', '/api/explain', '/api/glossary', '/api/since', '/api/spend', '/api/settings', '/api/pipeline', '/api/qa', '/api/agents/rules', '/api/score', '/api/log', '/api/time', '/evidence/']
+const FACTORY_PREFIXES = ['/api/factory', '/api/chat', '/api/flows', '/api/trash', '/api/archive', '/api/human', '/api/tickets/', '/api/commit', '/api/explain', '/api/glossary', '/api/since', '/api/spend', '/api/settings', '/api/pipeline', '/api/qa', '/api/agents/rules', '/api/score', '/api/log', '/api/time', '/evidence/', '/api/outputs']
 
 const server = createServer(async (req, res) => {
   // a website that rebinds its name to 127.0.0.1 sends its own Host: only requests addressed to us are answered (local-origin.mjs)
