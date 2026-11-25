@@ -49,6 +49,7 @@ import { claudeRun, makeRelay } from './relay.mjs'
 import { startReworkWatch } from './qa-rework.mjs'
 import { makeProjectRoutes } from './projects-routes.mjs'
 import { makeTokenRoute } from './token-routes.mjs'
+import { startPhone } from './phone-wiring.mjs'
 import { listenWhenFree, makeRestarter, underKeepAlive, waitForPredecessor } from './restart.mjs'
 import {
   CLAUDE_DIRS,
@@ -951,6 +952,8 @@ const restartServer = makeRestarter({ server, loop: () => supervised })
 await waitForPredecessor()
 if (!(await listenWhenFree(server, PORT, '127.0.0.1'))) process.exit(1)
 console.log(`Yz Agent Orchestration on http://127.0.0.1:${PORT}${CONFIG.project ? ` (project ${CONFIG.project.name})` : ''}`)
+// Phone access (phone-wiring.mjs): a second listener on one private address, ONLY when config.json's remote block turns it on
+startPhone({ getStatus, relay, run: claudeRun, sessions: liveSessions, transcriptFile })
 
 await fetchOrigin()
 setInterval(fetchOrigin, FETCH_EVERY_MS).unref()

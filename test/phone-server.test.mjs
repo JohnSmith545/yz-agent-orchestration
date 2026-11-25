@@ -1,0 +1,356 @@
+// Tests for phone-server.mjs, the phone listener: it serves ONLY the phone page and its assets, sign-in and
+// sign-out, and the /phone/api allowlist; everything else is a 404 there, the desktop routes, files and config
+// above all. Sign-in, the cookie, the CSRF token, the Origin, the rate limits, expiry, Sign out everywhere and the
+// security headers are checked on a real http server on 127.0.0.1 port 0 (the handler takes its own address as
+// given: which addresses may be listened on is phone-bind.mjs, tested on its own). The actions are recorded stubs.
+
+import { after, before, beforeEach, test } from 'node:test'
+import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import http from 'node:http'
+import os from 'node:os'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+process.env.FACTORY_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'phone-server-test-'))
+const HERE = path.dirname(fileURLToPath(import.meta.url))
+const P = await import('../phone-server.mjs')
+const { makeAuthStore } = await import('../phone-auth.mjs')
+const { hashPin } = await import('../send-pin.mjs')
+
+const PIN = '5038172946'
+const HASH = hashPin(PIN, { N: 1024 })
+const dir = process.env.FACTORY_DATA_DIR
+const clock = { t: Date.parse('2026-11-25T09:00:00Z') }
+const logged = []
+let authFile
+let auth
+let calls
+let settings
+let server
+let own
+let base
+
+const recorder = name => async b => (calls.push([name, b]), { status: 200, body: { ok: true, action: name } })
+const actions = { summary: recorder('summary'), answer: recorder('answer'), tick: recorder('tick'), complete: recorder('complete'), talk: recorder('talk'), talkSend: recorder('talkSend') }
+const LIMITS = { session: { max: 40, ms: 60_000 }, address: { max: 400, ms: 60_000 }, login: { max: 30, ms: 60_000 } }
+
+function handler(extra = {}) {
+  return P.makePhoneHandler({ settings: () => settings, own: () => own, auth, actions, limits: LIMITS, now: () => clock.t, ...extra })
+}
+
+before(async () => {
+  server = http.createServer((req, res) => current(req, res))
+  await new Promise(r => server.listen(0, '127.0.0.1', r))
+  own = { bind: '127.0.0.1', port: server.address().port }
+  base = `http://127.0.0.1:${own.port}`
+})
+after(() => {
+  server.close()
+  fs.rmSync(dir, { recursive: true, force: true })
+})
+let current
+beforeEach(() => {
+  calls = []
+  logged.length = 0
+  clock.t = Date.parse('2026-11-25T09:00:00Z')
+  authFile = path.join(dir, `auth-${Math.random().toString(36).slice(2)}.json`)
+  auth = makeAuthStore({ file: authFile, now: () => clock.t, log: l => logged.push(l) })
+  settings = { enabled: true, bind: '127.0.0.1', port: own.port, pinHash: HASH, sessionHours: 12 }
+  current = handler()
+})
+
+const ORIGIN = () => `http://127.0.0.1:${own.port}`
+/** A raw request, so the test controls every header (fetch would set Origin and Host itself). */
+function request(method, p, { headers = {}, body } = {}) {
+  return new Promise((resolve, reject) => {
+    const data = body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body)
+    const noHost = headers.host === null // no Host header at all
+    const all = { host: `127.0.0.1:${own.port}`, ...(data ? { 'content-length': Buffer.byteLength(data) } : {}), ...headers }
+    if (noHost) delete all.host
+    const req = http.request({ host: '127.0.0.1', port: own.port, method, path: p, setHost: !noHost, headers: all }, res => {
+      let text = ''
+      res.setEncoding('utf8')
+      res.on('data', c => (text += c))
+      res.on('end', () => {
+        let json = null
+        try { json = JSON.parse(text) } catch { json = null }
+        resolve({ status: res.statusCode, headers: res.headers, text, json })
+      })
+    })
+    req.on('error', reject)
+    if (data) req.write(data)
+    req.end()
+  })
+}
+const write = (p, body = {}, headers = {}) => request('POST', p, { body, headers: { 'content-type': 'application/json', origin: ORIGIN(), ...headers } })
+async function signIn(pin = PIN) {
+  const r = await write('/phone/login', { pin })
+  const cookie = (r.headers['set-cookie'] || [])[0]?.split(';')[0] || ''
+  return { r, cookie, csrf: r.json?.csrf }
+}
+const asUser = ({ cookie, csrf }) => ({ cookie, 'x-phone-csrf': csrf })
+
+// ═══ the allowlist ═══
+
+const DESKTOP = [
+  '/', '/index.html', '/app.js', '/styles.css', '/shell.js', '/settings-page.js', '/fonts/inter-latin-wght-normal.woff2', '/glossary.json',
+  '/api/status', '/api/flows', '/api/flows/x', '/api/settings', '/api/human', '/api/outputs', '/api/spend', '/api/chat', '/api/pulse',
+  '/api/orchestration', '/api/agent?session=x', '/api/diff?worktree=main', '/api/phone', '/evidence/x/a.png', '/config.json', '/data/phone-auth.json',
+  '/phone.html', '/phone/phone.html', '/phone/../config.json', '/phone/%2e%2e/config.json', '/phone/..%2fconfig.json', '/phone/app.js',
+  '/phone/api/../../api/status', '/phone/api/delete', '/phone/api/archive', '/phone/api/settings', '/phone/api/config', '/phone/api/flows',
+  '/phone/api/summary/../answer', '//api/status', '/PHONE', '/phone/API/summary', '/phonex', '/phone/manifest.webmanifest/x',
+]
+
+test('a dozen-plus desktop routes and files are 404 on the phone listener, signed in or not', async () => {
+  const user = await signIn()
+  for (const p of DESKTOP) {
+    for (const headers of [{}, asUser(user)]) {
+      const r = await request('GET', p, { headers })
+      assert.equal(r.status, 404, `GET ${p}`)
+    }
+  }
+  for (const p of ['/api/flows/x/answer', '/api/flows/x/delete', '/api/settings/pin', '/api/settings/send', '/api/chat/send', '/api/flows/x/pr', '/phone/api/delete', '/phone/api/archive', '/phone/api/status', '/phone/api/summary', '/phone']) {
+    const r = await write(p, {}, asUser(user))
+    assert.equal(r.status, 404, `POST ${p}`)
+  }
+  assert.deepEqual(calls, [])
+})
+
+test('only GET and POST, each on its own paths: any other method is 404', async () => {
+  const user = await signIn()
+  for (const m of ['PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD']) {
+    for (const p of ['/phone', '/phone/login', '/phone/api/answer', '/phone/api/summary']) assert.equal((await request(m, p, { headers: asUser(user) })).status, 404, `${m} ${p}`)
+  }
+  assert.equal((await request('GET', '/phone/api/answer', { headers: asUser(user) })).status, 404)
+  assert.equal((await request('GET', '/phone/login')).status, 404)
+})
+
+test('the phone page and its own assets are served, each with its type', async () => {
+  for (const [p, type] of Object.entries({
+    '/phone': 'text/html', '/phone/': 'text/html', '/phone/phone.css': 'text/css', '/phone/phone-state.js': 'text/javascript', '/phone/phone-view.js': 'text/javascript',
+    '/phone/phone-app.js': 'text/javascript', '/phone/manifest.webmanifest': 'application/manifest+json', '/phone/icon.svg': 'image/svg+xml', '/phone/icon-180.png': 'image/png', '/phone/inter.woff2': 'font/woff2',
+  })) {
+    const r = await request('GET', p)
+    assert.equal(r.status, 200, p)
+    assert.ok(r.headers['content-type'].startsWith(type), `${p}: ${r.headers['content-type']}`)
+  }
+})
+
+test('every answer carries the security headers: no-store, a self-only CSP with no inline script, nosniff, no referrer, no frames', async () => {
+  const user = await signIn()
+  const answers = [
+    await request('GET', '/phone'), await request('GET', '/phone/phone-app.js'), await request('GET', '/nope'), await request('GET', '/phone/api/summary'),
+    await request('GET', '/phone/api/summary', { headers: asUser(user) }), await write('/phone/api/answer', {}, { cookie: user.cookie }),
+    await write('/phone/login', { pin: '000000' }), await request('GET', '/phone', { headers: { host: 'evil.example' } }),
+  ]
+  for (const r of answers) {
+    assert.equal(r.headers['cache-control'], 'no-store')
+    const csp = r.headers['content-security-policy']
+    assert.match(csp, /default-src 'none'/)
+    assert.match(csp, /script-src 'self'(;|$)/)
+    assert.doesNotMatch(csp, /unsafe-inline|unsafe-eval|\*/)
+    assert.match(csp, /frame-ancestors 'none'/)
+    assert.equal(r.headers['x-content-type-options'], 'nosniff')
+    assert.equal(r.headers['referrer-policy'], 'no-referrer')
+    assert.equal(r.headers['x-frame-options'], 'DENY')
+  }
+})
+
+test('the phone page holds no inline script or style, so the CSP needs none', () => {
+  const page = fs.readFileSync(path.join(HERE, '..', 'public', 'phone.html'), 'utf8')
+  assert.doesNotMatch(page, /<script(?![^>]*\ssrc=)[^>]*>/, 'every script has a src')
+  assert.doesNotMatch(page, /\son[a-z]+=/i, 'no inline event handler')
+  assert.doesNotMatch(page, /<style|\sstyle=/i)
+})
+
+test('a request addressed to any other host is refused (DNS rebinding)', async () => {
+  for (const host of ['evil.example', `evil.example:${own.port}`, `localhost:${own.port}`, `127.0.0.1:${own.port + 1}`, `127.0.0.1:${own.port}.evil.example`, `192.168.1.36:${own.port}`]) {
+    assert.equal((await request('GET', '/phone', { headers: { host } })).status, 403, host)
+  }
+})
+
+test('a request with no Host header at all is refused', async () => {
+  assert.ok((await request('GET', '/phone', { headers: { host: null } })).status >= 400)
+})
+
+test('when phone access is turned off in config.json the listener answers nothing but that it is off', async () => {
+  const user = await signIn()
+  settings = { ...settings, enabled: false }
+  for (const p of ['/phone', '/phone/api/summary']) {
+    const r = await request('GET', p, { headers: asUser(user) })
+    assert.equal(r.status, 503)
+    assert.match(r.text, /Phone access is off/)
+  }
+  settings = { ...settings, enabled: true, bind: '10.9.9.9' } // the block now names another address: this listener is stale
+  assert.equal((await request('GET', '/phone')).status, 503)
+  assert.deepEqual(calls, [])
+})
+
+// ═══ sign-in ═══
+
+test('the right PIN signs in: an HttpOnly SameSite=Strict cookie on /phone, the CSRF token, and never the PIN', async () => {
+  const { r, cookie, csrf } = await signIn()
+  assert.equal(r.status, 200)
+  const set = r.headers['set-cookie'][0]
+  assert.match(set, /HttpOnly/)
+  assert.match(set, /SameSite=Strict/)
+  assert.match(set, /Path=\/phone/)
+  assert.match(cookie, /^phone_session=[A-Za-z0-9_-]{43}$/)
+  assert.match(csrf, /^[A-Za-z0-9_-]{43}$/)
+  assert.equal(r.text.includes(PIN), false)
+  assert.equal(JSON.stringify(r.headers).includes(PIN), false)
+  const me = await request('GET', '/phone/api/me', { headers: { cookie } })
+  assert.equal(me.status, 200)
+  assert.equal(me.json.csrf, csrf, 'a reload of the page gets the same CSRF token back')
+})
+
+test('a wrong PIN is 401; five lock sign-in, and the lock holds across a restart of the listener', async () => {
+  for (let i = 0; i < 4; i++) assert.equal((await signIn('111111')).r.status, 401)
+  assert.equal((await signIn('111111')).r.status, 429)
+  assert.equal((await signIn()).r.status, 429, 'even the right PIN')
+  auth = makeAuthStore({ file: authFile, now: () => clock.t, log: () => {} }) // a restart: a new store on the same file
+  current = handler()
+  const after = await signIn()
+  assert.equal(after.r.status, 429)
+  assert.match(after.r.json.error, /locked/)
+  assert.equal(after.cookie, '')
+  clock.t += 15 * 60_000 + 1
+  assert.equal((await signIn()).r.status, 200)
+})
+
+test('sign-in needs the listener own Origin, JSON, and a small body', async () => {
+  for (const origin of [undefined, 'http://evil.example', `http://localhost:${own.port}`, `https://127.0.0.1:${own.port}`, 'null']) {
+    const r = await request('POST', '/phone/login', { body: { pin: PIN }, headers: { 'content-type': 'application/json', ...(origin ? { origin } : {}) } })
+    assert.equal(r.status, 403, String(origin))
+  }
+  assert.equal((await write('/phone/login', { pin: PIN }, { 'content-type': 'text/plain' })).status, 415)
+  assert.equal((await write('/phone/login', { pin: PIN }, { 'sec-fetch-site': 'cross-site' })).status, 403)
+  assert.equal((await write('/phone/login', '{not json')).status, 400)
+  assert.equal((await write('/phone/login', { pin: 'x'.repeat(20_000) })).status, 413)
+  assert.equal(auth.read().sessions.length, 0)
+})
+
+test('sign-in is rate limited per address before the PIN is checked', async () => {
+  current = handler({ limits: { ...LIMITS, login: { max: 3, ms: 60_000 } } })
+  for (let i = 0; i < 3; i++) await signIn('222222')
+  const r = await signIn()
+  assert.equal(r.r.status, 429)
+  assert.match(r.r.json.error, /Too many tries/)
+})
+
+// ═══ the API: cookie, CSRF, Origin ═══
+
+const WRITES = [['/phone/api/answer', { flowId: 'f', nodeId: 'a1', answer: 'yes' }], ['/phone/api/tick', { flowId: 'f', step: 'h1', done: true }], ['/phone/api/complete', { flowId: 'f' }], ['/phone/api/talk', { text: 'hi' }], ['/phone/logout', {}]]
+
+test('every write without a cookie, with a cookie and no CSRF token, with a wrong one, or from another Origin is refused', async () => {
+  const user = await signIn()
+  const other = await signIn()
+  for (const [p, body] of WRITES) {
+    assert.equal((await write(p, body)).status, 401, `${p} no cookie`)
+    assert.equal((await write(p, body, { cookie: user.cookie })).status, 403, `${p} no CSRF`)
+    assert.equal((await write(p, body, { cookie: user.cookie, 'x-phone-csrf': other.csrf })).status, 403, `${p} another session CSRF`)
+    assert.equal((await write(p, body, { cookie: user.cookie, 'x-phone-csrf': 'x'.repeat(43) })).status, 403, `${p} made-up CSRF`)
+    for (const origin of ['http://evil.example', `http://localhost:${own.port}`]) assert.equal((await write(p, body, { ...asUser(user), origin })).status, 403, `${p} from ${origin}`)
+    const noOrigin = await request('POST', p, { body, headers: { 'content-type': 'application/json', ...asUser(user) } })
+    assert.equal(noOrigin.status, 403, `${p} no Origin`)
+    assert.equal((await write(p, body, { ...asUser(user), 'content-type': 'text/plain' })).status, 415, `${p} not JSON`)
+  }
+  assert.deepEqual(calls, [])
+  assert.ok(auth.session(user.cookie.split('=')[1], 12), 'the refused logout did not sign out')
+})
+
+test('with the cookie, the CSRF token and the own Origin, each write reaches exactly its one action', async () => {
+  const user = await signIn()
+  for (const [p, body] of WRITES.slice(0, 4)) assert.equal((await write(p, body, asUser(user))).status, 200, p)
+  assert.deepEqual(calls.map(c => c[0]), ['answer', 'tick', 'complete', 'talkSend'])
+  assert.deepEqual(calls[0][1], WRITES[0][1])
+  for (const p of ['/phone/api/summary', '/phone/api/talk']) assert.equal((await request('GET', p, { headers: { cookie: user.cookie } })).status, 200)
+  assert.deepEqual(calls.slice(4).map(c => c[0]), ['summary', 'talk'])
+})
+
+test('a read without a session is 401 and clears the cookie; a made-up cookie is no session', async () => {
+  for (const cookie of [undefined, 'phone_session=' + 'A'.repeat(43), 'phone_session=garbage']) {
+    const r = await request('GET', '/phone/api/summary', { headers: cookie ? { cookie } : {} })
+    assert.equal(r.status, 401)
+    assert.equal(r.json.signedOut, true)
+    assert.match(r.headers['set-cookie'][0], /Max-Age=0/)
+  }
+  assert.deepEqual(calls, [])
+})
+
+test('a session expires after sessionHours', async () => {
+  const user = await signIn()
+  clock.t += 12 * 3600_000 - 1000
+  assert.equal((await request('GET', '/phone/api/summary', { headers: { cookie: user.cookie } })).status, 200)
+  clock.t += 2000
+  assert.equal((await request('GET', '/phone/api/summary', { headers: { cookie: user.cookie } })).status, 401)
+})
+
+test('sign out ends that session; Sign out everywhere (the desktop) ends every one', async () => {
+  const a = await signIn()
+  const b = await signIn()
+  const out = await write('/phone/logout', {}, asUser(a))
+  assert.equal(out.status, 200)
+  assert.match(out.headers['set-cookie'][0], /Max-Age=0/)
+  assert.equal((await request('GET', '/phone/api/summary', { headers: { cookie: a.cookie } })).status, 401)
+  assert.equal((await request('GET', '/phone/api/summary', { headers: { cookie: b.cookie } })).status, 200)
+  auth.signOutEverywhere()
+  assert.equal((await request('GET', '/phone/api/summary', { headers: { cookie: b.cookie } })).status, 401)
+})
+
+test('the API is rate limited per session, and the listener per address', async () => {
+  current = handler({ limits: { ...LIMITS, session: { max: 5, ms: 60_000 } } })
+  const user = await signIn()
+  for (let i = 0; i < 5; i++) assert.equal((await request('GET', '/phone/api/summary', { headers: { cookie: user.cookie } })).status, 200)
+  const r = await request('GET', '/phone/api/summary', { headers: { cookie: user.cookie } })
+  assert.equal(r.status, 429)
+  assert.ok(Number(r.headers['retry-after']) > 0)
+  current = handler({ limits: { ...LIMITS, address: { max: 4, ms: 60_000 } } })
+  for (let i = 0; i < 4; i++) await request('GET', '/phone')
+  assert.equal((await request('GET', '/phone')).status, 429)
+})
+
+test('the PIN never appears in config, the auth file, the console or any answer', async () => {
+  const seen = []
+  const user = await signIn()
+  seen.push(JSON.stringify(user.r))
+  for (let i = 0; i < 5; i++) seen.push(JSON.stringify((await signIn(`${PIN.slice(0, 9)}${i}`)).r))
+  seen.push(JSON.stringify(await request('GET', '/phone/api/me', { headers: { cookie: user.cookie } })))
+  seen.push(fs.readFileSync(authFile, 'utf8'), logged.join('\n'))
+  for (const s of seen) assert.equal(s.includes(PIN), false)
+})
+
+test('a broken request body never reaches an action', async () => {
+  const user = await signIn()
+  for (const body of ['{', '[]', '"text"', 'null']) assert.equal((await write('/phone/api/answer', body, asUser(user))).status, 400, body)
+  assert.deepEqual(calls, [])
+})
+
+// ═══ the listener itself ═══
+
+test('with no remote block, or one that is off, NOTHING new listens: the server is never even created', () => {
+  for (const s of [{ enabled: false, configured: false }, { enabled: false, configured: true, off: 'Phone access is off.' }]) {
+    let made = 0
+    const r = P.startPhoneListener({ settings: s, createServer: () => { made++; return { listen() {} } }, handler: () => {}, log: () => {} })
+    assert.equal(r, null)
+    assert.equal(made, 0)
+  }
+})
+
+test('an enabled block opens exactly one listener, on its one address and port', async () => {
+  const listened = []
+  const fake = { listen: (port, host, cb) => (listened.push([port, host]), cb?.()), on() {}, setTimeout() {}, headersTimeout: 0, requestTimeout: 0 }
+  const r = P.startPhoneListener({ settings: { enabled: true, bind: '192.168.1.36', port: 4318, url: 'http://192.168.1.36:4318/phone' }, createServer: () => fake, handler: () => {}, log: () => {} })
+  assert.equal(r, fake)
+  assert.deepEqual(listened, [[4318, '192.168.1.36']])
+  assert.ok(fake.requestTimeout > 0 && fake.headersTimeout > 0, 'a slow client cannot hold a connection open forever')
+})
+
+test('server.mjs keeps its one 127.0.0.1 listener and starts the phone through startPhone only', () => {
+  const src = fs.readFileSync(path.join(HERE, '..', 'server.mjs'), 'utf8')
+  assert.equal((src.match(/\.listen\(|listenWhenFree\(/g) || []).length, 1)
+  assert.match(src, /listenWhenFree\(server, PORT, '127\.0\.0\.1'\)/)
+  assert.equal((src.match(/startPhone\(/g) || []).length, 1)
+  assert.doesNotMatch(src, /0\.0\.0\.0/)
+})

@@ -44,7 +44,7 @@ function flowFor(b) {
   if (!isObject(b)) return { refused: no(400, 'Send a JSON object.') }
   if (typeof b.flowId !== 'string' || !SLUG.test(b.flowId)) return { refused: no(400, 'That is not a flow id.') }
   const flow = readFlow(b.flowId)
-  return flow ? { flow } : { refused: no(404, 'That flow is gone. Pull down to refresh.') }
+  return flow ? { flow } : { refused: no(404, 'That flow is gone: the list will catch up in a moment.') }
 }
 
 const startOfToday = now => {
@@ -89,6 +89,7 @@ export function makePhoneActions({ relay, talk, getStatus, config = CONFIG, now 
     }).length
     return ok({
       builtAt: new Date(now()).toISOString(),
+      coordinator: config.coordinatorLabel, // what the page calls the coordinator's tab and thread
       needs: { total: asks.length + hands.length + outputs.length, asks: asks.length, hands: hands.length, outputs: outputs.length },
       agents: await agentLines(all),
       finishedToday,
@@ -104,7 +105,7 @@ export function makePhoneActions({ relay, talk, getStatus, config = CONFIG, now 
     if (refused) return refused
     if (typeof b.nodeId !== 'string' || !NODE.test(b.nodeId)) return no(400, 'That is not a question id.')
     const node = (flow.nodes || []).find(n => n.id === b.nodeId)
-    if (!node) return no(404, 'That question is gone. Pull down to refresh.')
+    if (!node) return no(404, 'That question is gone: the list will catch up in a moment.')
     if (node.type !== 'ask') return no(400, 'That is not a question.')
     if (!live(flow)) return no(409, 'That flow is no longer waiting on you.')
     if (node.answer !== null && node.answer !== undefined) return no(409, 'This question already has an answer. Change it at the PC if you need to.')
