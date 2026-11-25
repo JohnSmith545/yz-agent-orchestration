@@ -9,7 +9,9 @@
 //   review  a code review of a tracker ticket, which the chat agent (Independent) does and records as a review
 //           mark: Request -> Independent -> Output.
 //   ask     a question, an explanation or an investigation one agent answers with no code change:
-//           Request -> that agent -> Output (a producer is reached through the coordinator, as the graph says).
+//           Request -> that agent -> Human task -> Output (a producer is reached through the coordinator, as the
+//           graph says; through Senior too when there is one). An answer with no by-hand steps passes Human task
+//           and Senior without stopping, so on its progress they read skipped (pipeline-hand.mjs).
 //           The Ask drawer, "Explain this ticket", and the old `decide` command.
 // Answers, Request test steps, the QA rework loop and term questions are NOT request types: they happen inside a
 // flow that already exists.
@@ -17,7 +19,12 @@
 // coordinator -> the planner -> the producer -> QA -> Security -> Push -> Output (each only when configured); the
 // coordinator's own build skips the planner. Review and ask routes do not change: the planner hands out build work
 // only, so an ask may still go from the coordinator to a producer. The planner and Security, like QA, have no route
-// of their own: they record their work on the flow they plan or review.
+// of their own: they record their work on the flow they plan or review. Neither has Senior: it reviews by-hand
+// work on the flow it was sent (tools/senior-cli.mjs).
+// ⚠️ ROUTES FROM BEFORE HUMAN TASK: a stored ask route goes straight from its agent to the Output. checkRoute still
+// takes such a hop when the graph makes it through the by-hand boxes alone (byHand), and routeProgress puts Human
+// task and Senior in where the flow really stopped at them, so an old route reads as it did and a flow waiting on
+// the user still says where.
 //
 // ═══ THE ROUTE BLOCK ═══  flow.route = { type, steps, at, by, history? }
 //   steps    graph node ids in planned order, starting `request` and ending `outcome`, each once
@@ -90,6 +97,27 @@ export function validateRoute(route) {
 
 const nodesOf = graph => new Map((graph?.nodes || []).map(n => [n.id, n]))
 const roleNode = (graph, role) => (graph?.nodes || []).find(n => n.role === role) || null
+/** The by-hand boxes: the user's Human task and Senior. A route may go past them without naming them. */
+const BY_HAND = new Set(['human', 'senior'])
+
+/** Whether the graph goes from `a` to `b` through the by-hand boxes alone (an old route's `agent -> outcome` hop). */
+function byHand(a, b, graph) {
+  const role = new Map((graph?.nodes || []).map(n => [n.id, n.role]))
+  const fwd = (graph?.edges || []).filter(e => e.kind !== 'rework')
+  const seen = new Set()
+  const todo = fwd.filter(e => e.from === a && BY_HAND.has(role.get(e.to))).map(e => e.to)
+  while (todo.length) {
+    const id = todo.shift()
+    if (seen.has(id)) continue
+    seen.add(id)
+    for (const e of fwd) {
+      if (e.from !== id) continue
+      if (e.to === b) return true
+      if (BY_HAND.has(role.get(e.to))) todo.push(e.to)
+    }
+  }
+  return false
+}
 
 /** The problems with a route on THIS graph: unknown steps, a hand-over the graph does not have, a build skipping QA. */
 export function checkRoute(route, graph) {
@@ -104,7 +132,7 @@ export function checkRoute(route, graph) {
   const direct = route?.type !== 'build' && roleNode(graph, 'planner') ? new Set(graph.nodes.filter(n => n.role === 'producer').map(n => `${coordinator?.id}>${n.id}`)) : new Set()
   for (let i = 1; i < steps.length; i++) {
     const hop = `${steps[i - 1]}>${steps[i]}`
-    if (!hands.has(hop) && !direct.has(hop)) problems.push(`the route goes from ${steps[i - 1]} to ${steps[i]}, but the pipeline hands no work that way`)
+    if (!hands.has(hop) && !direct.has(hop) && !byHand(steps[i - 1], steps[i], graph)) problems.push(`the route goes from ${steps[i - 1]} to ${steps[i]}, but the pipeline hands no work that way`)
   }
   const qa = roleNode(graph, 'qa')
   if (route?.type === 'build' && !(steps.includes(qa?.id) && steps.includes('push'))) problems.push('a build route must go through QA and Push: every code change is tested and pushed by QA')
@@ -150,8 +178,8 @@ export function planRoute(type, agent, graph) {
     if (type === 'build') return { error: `${own.label} plans and hands out work with flow plan-start and flow plan; it has no build route of its own` }
     return { error: `${own.label} asks on the flow it plans (flow ask), never in a flow of its own` }
   }
-  if (own.role === 'security') {
-    if (type === 'build') return { error: `${own.label} reviews other flows with the security commands; it has no build route of its own` }
+  if (own.role === 'security' || own.role === 'senior') {
+    if (type === 'build') return { error: `${own.label} reviews other flows with the ${own.role} commands; it has no build route of its own` }
     return { error: `${own.label} asks on the flow it reviews (flow ask), never in a flow of its own` }
   }
   if (type === 'build') {
@@ -159,7 +187,9 @@ export function planRoute(type, agent, graph) {
     const through = own.role === 'producer' && planner ? [coordinator.id, planner.id, own.id] : via
     return { steps: ['request', ...through, qa.id, ...(security ? [security.id] : []), 'push', 'outcome'] }
   }
-  return { steps: ['request', ...via, 'outcome'] }
+  // an ask ends past the by-hand boxes: the Human task, and Senior when there is one
+  const hand = ['human', 'senior'].map(r => roleNode(graph, r)?.id).filter(Boolean)
+  return { steps: ['request', ...via, ...hand, 'outcome'] }
 }
 
 /**
@@ -201,10 +231,13 @@ export function changeRoute(flow, next) {
 
 export function routeProgress(flow, graph, route = routeOf(flow, graph)) {
   const byId = nodesOf(graph)
-  const steps = Array.isArray(route?.steps) ? route.steps : []
   const dropped = flow?.status === 'dropped'
   // a dropped flow has no stage; where it was when dropped is where it would stand open
   const stage = stageOf(dropped ? { ...flow, status: 'open' } : flow, graph)
+  // a by-hand box the flow really reached but its route does not name (a route from before it): put in before the end
+  const planned = Array.isArray(route?.steps) ? route.steps : []
+  const extra = [...new Set(stage.path.filter(id => BY_HAND.has(byId.get(id)?.role) && !planned.includes(id)))]
+  const steps = extra.length && planned.at(-1) === 'outcome' ? [...planned.slice(0, -1), ...extra, 'outcome'] : planned
   const visits = new Map()
   for (const id of stage.path) visits.set(id, (visits.get(id) || 0) + 1)
   // a stage outside the plan: a done flow is at its end; else the furthest planned step it reached

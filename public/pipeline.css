@@ -55,6 +55,15 @@
   font-size: 12px; line-height: 18px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .pl-node.n-start .pl-chip, .pl-node.n-step .pl-chip, .pl-node.n-end .pl-chip { background: var(--surface); }
+/* The Human task box (pipeline-human.js): the user, not an agent. Its left edge is Human review's warn colour, and
+   one line (a chip row high: pipeline-layout.js CHIP_H) says what waits on you, over the flows standing there. */
+.pl-node.r-human { border-left: 3px solid var(--warn); }
+.pl-human-count {
+  flex: none; height: 20px; margin: 0 0 4px; padding: 0 10px; color: var(--ink-2);
+  font-size: 12px; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pl-human-count.is-calm { color: var(--muted); }
+.pl-human-count .hr-dot { margin-right: 6px; }
 .pl-chip:hover { border-color: var(--muted); color: var(--ink); }
 .pl-chip.t-ok, .pl-node .pl-chip.t-ok { background: var(--add-bg); border-color: color-mix(in srgb, var(--add-edge) 45%, transparent); color: var(--add-ink); }
 .pl-chip.t-bad, .pl-node .pl-chip.t-bad { background: var(--del-bg); border-color: color-mix(in srgb, var(--del-edge) 45%, transparent); color: var(--del-ink); }

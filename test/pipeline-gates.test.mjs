@@ -41,15 +41,15 @@ test('pipelineSettings: a bad planner or security label keeps the default (none)
 // ═══ who draws a box ═══
 
 test('gateLabels: the configured labels, or null for one that is not set or is already in the graph', () => {
-  assert.deepEqual(gateLabels(BOTH), { planner: 'Planner', security: 'Security' })
-  assert.deepEqual(gateLabels(BASE), { planner: null, security: null })
+  assert.deepEqual(gateLabels(BOTH), { planner: 'Planner', security: 'Security', senior: null })
+  assert.deepEqual(gateLabels(BASE), { planner: null, security: null, senior: null })
   // a coding agent named as the planner is taken out of the derived producers (producersOf), so it is the planner
   assert.deepEqual(gateLabels({ ...BOTH, pipeline: { ...BOTH.pipeline, planner: 'Agent 2' } }).planner, 'Agent 2')
   for (const taken of ['Master', 'QA', 'Independent']) {
     const c = { ...BOTH, factory: { chat: { name: 'Independent' } }, pipeline: { ...BOTH.pipeline, planner: taken, security: taken } }
-    assert.deepEqual(gateLabels(c), { planner: null, security: null }, taken)
+    assert.deepEqual(gateLabels(c), { planner: null, security: null, senior: null }, taken)
   }
-  assert.deepEqual(gateLabels({ ...BOTH, pipeline: { ...BOTH.pipeline, security: 'Planner' } }), { planner: 'Planner', security: null }, 'one label, one box')
+  assert.deepEqual(gateLabels({ ...BOTH, pipeline: { ...BOTH.pipeline, security: 'Planner' } }), { planner: 'Planner', security: null, senior: null }, 'one label, one box')
   const listed = { ...BOTH, pipeline: { ...BOTH.pipeline, producers: ['Agent 1', 'Planner'] } }
   assert.equal(gateLabels(listed).planner, null, 'a label the producers list names stays a producer')
 })
@@ -64,7 +64,7 @@ test('producersOf: the planner and Security are never producers when the produce
 test('pipelineGraph: with both, the planner sits after the coordinator and Security after QA, ids taken after the chat agent', () => {
   const c = { ...BOTH, factory: { chat: { name: 'Independent' } } }
   const g = pipelineGraph(c)
-  assert.deepEqual(ids(g.nodes), ['request', 'master', 'planner', 'agent-1', 'agent-2', 'agent-3', 'independent', 'qa', 'security', 'push', 'outcome'])
+  assert.deepEqual(ids(g.nodes), ['request', 'master', 'planner', 'agent-1', 'agent-2', 'agent-3', 'independent', 'qa', 'security', 'human', 'push', 'outcome'])
   assert.deepEqual(g.nodes.find(n => n.role === 'planner'), { id: 'planner', kind: 'agent', label: 'Planner', role: 'planner' })
   assert.deepEqual(g.nodes.find(n => n.role === 'security'), { id: 'security', kind: 'agent', label: 'Security', role: 'security' })
   const plain = pipelineGraph({ ...c, pipeline: { ...DEFAULT_PIPELINE } })
@@ -79,7 +79,7 @@ test('pipelineGraph: the coordinator hands to the planner, the planner to each p
     assert.equal(edge(G, p, 'qa').kind, 'main')
   }
   assert.deepEqual(edge(G, 'master', 'qa'), { from: 'master', to: 'qa', label: 'own changes', kind: 'branch' })
-  assert.equal(edge(G, 'master', 'outcome').kind, 'skip')
+  assert.equal(edge(G, 'master', 'human').kind, 'skip')
 })
 
 test('pipelineGraph: QA passes to Security, Security passes to Push, and a Security failure goes back to each producer', () => {
@@ -103,7 +103,7 @@ test('pipelineGraph: each one alone, and neither, which is exactly the graph of 
 
 test('pipelineGraph: a planner with no producers still draws, handing nothing out; the coordinator goes straight to QA', () => {
   const g = pipelineGraph({ coordinatorLabel: 'Master', codingAgents: { Master: 'Master', Planner: 'Planner' }, pipeline: { ...DEFAULT_PIPELINE, planner: 'Planner' } })
-  assert.deepEqual(ids(g.nodes), ['request', 'master', 'planner', 'qa', 'push', 'outcome'])
+  assert.deepEqual(ids(g.nodes), ['request', 'master', 'planner', 'qa', 'human', 'push', 'outcome'])
   assert.equal(edge(g, 'master', 'qa').kind, 'main')
 })
 

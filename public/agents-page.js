@@ -126,6 +126,7 @@
   function pickNode(id) {
     const node = window.AgentWindow && pipeline?.graph?.nodes.find(n => n.id === id)
     if (node?.kind === 'agent') return openAgent(id)
+    if (pipeline?.graph?.nodes.find(n => n.id === id)?.role === 'human') return window.HumanReview?.show() // the user's box: the list under the diagram
     selNode = selNode === id ? null : id
     render()
     if (selNode && details.getBoundingClientRect().top > window.innerHeight - 80) details.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' })
