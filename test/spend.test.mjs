@@ -10,7 +10,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 process.env.FACTORY_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'spend-test-'))
-const { KINDS, SPEND_FILE, parseTurn, readSpend, recordCost } = await import('../spend.mjs')
+const { KINDS, SPEND_FILE, parseTurn, readSpend, recordCost, spendBetween } = await import('../spend.mjs')
 after(() => fs.rmSync(process.env.FACTORY_DATA_DIR, { recursive: true, force: true }))
 beforeEach(() => fs.rmSync(SPEND_FILE, { force: true }))
 
@@ -154,4 +154,18 @@ test('parseTurn takes the last result element of an array (verbose output)', () 
   assert.deepEqual({ ...parseTurn(out) }, { text: 'FAILED: gone', cost: 0.03, isError: true })
   // an array with no result element is text, as before
   assert.equal(parseTurn('[1,2]').cost, null)
+})
+
+test('spendBetween sums the turns from a start (local midnight, as Pipeline tokens asks) to now, by kind', () => {
+  write([line(at(12, 23, 59), 'chat', 9), line(at(13, 0, 0), 'chat', 0.5), line(at(14, 9), 'standup', 0.25), 'not json', line(at(15, 9), 'relay', 1)])
+  const s = spendBetween(at(13, 0).getTime(), at(14, 23).getTime())
+  near(s.usd, 0.75)
+  assert.equal(s.turns, 2)
+  near(s.byKind.chat, 0.5)
+  near(s.byKind.standup, 0.25)
+  assert.equal(s.byKind.relay, 0)
+  // no start: every turn up to now
+  near(spendBetween(null, at(20, 0).getTime()).usd, 10.75)
+  fs.rmSync(SPEND_FILE)
+  assert.deepEqual(spendBetween(null, Date.now()), { usd: 0, turns: 0, byKind: Object.fromEntries(KINDS.map(k => [k, 0])) })
 })

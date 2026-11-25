@@ -30,6 +30,7 @@
   let details = null
   let score = null
   let time = null
+  let tokens = null
   let pipeline = null
   let failure = null
   let status = null // the last /api/status data
@@ -62,6 +63,7 @@
       <div class="pl-main">
         <div class="psc" id="plScore"></div>
         <div class="psc ptm" id="plTime"></div>
+        <div class="psc ptk" id="plTokens"></div>
         <div class="pl-wrap" id="plDiagram"></div>
         <div class="pl-details" id="plDetails"></div>
       </div>
@@ -77,6 +79,8 @@
     score = window.ScoreStrip?.create(section.querySelector('#plScore')) || null
     // Pipeline time under it (time-strip.js): the score's window switch drives both, read at the same cadence
     time = window.TimeStrip?.create(section.querySelector('#plTime')) || null
+    // Pipeline tokens under that (token-strip.js), on the same switch and cadence
+    tokens = window.TokenStrip?.create(section.querySelector('#plTokens')) || null
     // Delegated: the agent card's Progress report (agent-cards.js leaves [data-report] to its page), a
     // subagent row (watch it live), the pane's Close, and the ticket rows of Here now.
     details.addEventListener('click', e => {
@@ -146,6 +150,7 @@
     window.AgentRules?.load() // the saved specifications and rules, at the same cadence
     score?.refresh()
     time?.refresh()
+    tokens?.refresh()
     try {
       const r = await fetch('/api/pipeline')
       if (!r.ok) throw new Error(await r.text())

@@ -271,6 +271,39 @@ browser. With fewer than 3 finished flows the numbers say **Too few to trust**; 
 finished yet instead of showing zeros. Every number comes from times the flow files store; **How it is counted**
 says how, and names what cannot be timed.
 
+#### Pipeline tokens
+
+Under **Pipeline time**, **Pipeline tokens** says how many tokens this project's Claude Code sessions used, and what
+those tokens would cost at API prices. The score's **7 days | 30 days | All** switch sets it too. It reads the
+sessions' own records (the transcripts) and never changes them.
+
+- **Tokens used**: every token in the period, with the four kinds under it: new input, output (what the agents
+  wrote, their thinking included), cache writes and cache reads (input stored in, and read back from, the prompt
+  cache).
+- **Estimated cost**: what the API would charge for those tokens, from a price per model. On a subscription plan
+  you are not charged per token, so read it as a yardstick, not a bill. A model with no price is named here and left
+  out; with no price for any model there is no dollar figure.
+- **Per finished job**: every token in the period divided by the tickets and other jobs Pipeline time counts as
+  finished. It is an average: work not finished yet is in it too.
+- **Cache share**: how much of the input was read back from the cache. Cached input costs a tenth of new input or
+  less, so a high share keeps the cost down.
+- **The dashboard's own runs**: what the dashboard's own chat, relay, refreshes and Generators cost, in real dollars.
+  These are exact; the tiles before it are estimates, and the two are never added together.
+- **Per day**: a bar for each day (each week for All), in **Tokens** or **Dollars**. Hover or focus a bar for its
+  day and value; the arrow keys move along the bars, and **As a list** shows the same as text.
+- **By model**: the tokens and estimated cost of each model, and the price used.
+- **By agent**: one row for each agent the dashboard shows (Master, Agent 1, QA, Security and the rest), counting
+  its own replies and those of the subagents it started; the line under it says how much of that was subagents.
+  Hover any number for the exact count.
+
+Numbers read like **12.4K**, **3.1M** and **1.2B** (thousand, million, billion). The first time the dashboard
+starts it reads every transcript once, which takes a few seconds; until it is done the block says how far it got,
+and after that it reads only what was added. **How it is counted** says what counts, what does not, and where the
+prices come from.
+
+**Prices change.** The built-in prices were read from Anthropic's public pricing page on 2026-11-25. To keep them
+current, or to add a model, set `tokens.prices` in `config.json` (see the README) and restart the dashboard.
+
 #### Human review
 
 Under the diagram, the **Human review** box lists everything that cannot go on without you, newest first. Its head

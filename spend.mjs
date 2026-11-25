@@ -87,6 +87,30 @@ export function readSpend(now = new Date()) {
   return { today, byKind, recent }
 }
 
+/**
+ * The spend from `fromMs` (null: the first line) to `toMs`, both inclusive: { usd, turns, byKind }. Pipeline tokens
+ * (token-routes.mjs) shows it beside its estimate for the same period, as the exact part, never added to it.
+ */
+export function spendBetween(fromMs, toMs) {
+  const byKind = Object.fromEntries(KINDS.map(k => [k, 0]))
+  let text = ''
+  try {
+    text = readFileSync(SPEND_FILE, 'utf8')
+  } catch {
+    /* no file yet: nothing spent */
+  }
+  let usd = 0
+  let turns = 0
+  for (const l of text.split(/\r?\n/).map(parseLine).filter(Boolean)) {
+    const t = l.t.getTime()
+    if ((fromMs !== null && t < fromMs) || t > toMs) continue
+    usd += l.usd
+    turns++
+    byKind[l.kind] += l.usd
+  }
+  return { usd, turns, byKind }
+}
+
 /** `s` parsed as JSON, or null when it is not JSON. */
 function tryJson(s) {
   try {

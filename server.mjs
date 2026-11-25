@@ -48,6 +48,7 @@ import { compareTickets } from './ticket-ids.mjs'
 import { claudeRun, makeRelay } from './relay.mjs'
 import { startReworkWatch } from './qa-rework.mjs'
 import { makeProjectRoutes } from './projects-routes.mjs'
+import { makeTokenRoute } from './token-routes.mjs'
 import { listenWhenFree, makeRestarter, underKeepAlive, waitForPredecessor } from './restart.mjs'
 import {
   CLAUDE_DIRS,
@@ -871,6 +872,8 @@ const projectRoute = makeProjectRoutes({
 })
 /** Each agent's model, effort, files and notes, from its window on the Agents page (agent-settings-routes.mjs). */
 const agentSettingsRoute = makeAgentSettingsRoute({ port: PORT })
+/** Pipeline tokens (token-routes.mjs): what the transcripts spent, from a running index built in the background. */
+const tokenRoute = makeTokenRoute({ claudeDirs: CLAUDE_DIRS, match: CONFIG.sessionCwdMatch, names: async () => new Map((await liveSessions()).map(s => [s.sessionId, s.name])), labelOf })
 /** The paths factory-routes.mjs answers. */
 const FACTORY_PREFIXES = ['/api/factory', '/api/chat', '/api/flows', '/api/trash', '/api/archive', '/api/human', '/api/tickets/', '/api/commit', '/api/explain', '/api/glossary', '/api/since', '/api/spend', '/api/settings', '/api/pipeline', '/api/qa', '/api/agents/rules', '/api/score', '/api/log', '/api/time', '/evidence/']
 
@@ -892,6 +895,7 @@ const server = createServer(async (req, res) => {
     if (await standupRoute(req, res, url)) return
     if (await agentSettingsRoute(req, res, url)) return
     if (await subagentRoute(req, res, url)) return
+    if (await tokenRoute(req, res, url)) return
     if (url.pathname === '/api/orchestration') {
       const data = await orchestration(url.searchParams.get('c'), url.searchParams.has('refresh'))
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' })
@@ -951,6 +955,7 @@ console.log(`Yz Agent Orchestration on http://127.0.0.1:${PORT}${CONFIG.project 
 await fetchOrigin()
 setInterval(fetchOrigin, FETCH_EVERY_MS).unref()
 startAutoRefresh()
+tokenRoute.start() // Pipeline tokens: the first read of the transcripts, in the background
 
 // ─── end-of-day stop ───────────────────────────────────────────────────────────────
 
