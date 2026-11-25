@@ -20,7 +20,7 @@ test('the models and efforts offered, and the fixed pair for the planner and Sec
   assert.deepEqual(S.MODELS.map(m => [m.id, m.name]), [['claude-fable-5-2', 'Fable 5.2'], ['claude-opus-5-5', 'Opus 5.5'], ['claude-sonnet-5-5', 'Sonnet 5.5'], ['claude-haiku-5-5', 'Haiku 5.5']])
   assert.deepEqual(S.EFFORTS, ['low', 'medium', 'high'])
   assert.deepEqual(S.FIXED, { model: 'claude-opus-5-5', effort: 'high' })
-  assert.deepEqual(S.FIXED_ROLES, ['planner', 'security'])
+  assert.deepEqual(S.FIXED_ROLES, ['planner', 'security', 'senior'])
   assert.deepEqual(S.FILE_LIMITS, { chars: 20000, files: 20, total: 60000, title: 100 })
 })
 
@@ -31,6 +31,7 @@ test('checkModel: a listed model and effort, or null to clear; anything else one
   assert.equal(S.checkModel({ effort: 'max' }, 'producer').error, 'Pick low, medium or high effort.')
   assert.equal(S.checkModel({}, 'producer').error, 'Nothing to save. Send a model or an effort.')
   assert.match(S.checkModel({ model: 'claude-haiku-5-5' }, 'security').error, /always runs on Opus at high effort/)
+  assert.match(S.checkModel({ model: 'claude-haiku-5-5', effort: 'low' }, 'senior').error, /always runs on Opus at high effort/)
   assert.match(S.checkModel({ model: 'claude-haiku-5-5' }, 'chat').error, /factory\.chat\.model/)
 })
 

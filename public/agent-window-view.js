@@ -27,8 +27,10 @@
     { id: 'claude-sonnet-5-5', name: 'Sonnet 5.5' }, { id: 'claude-haiku-5-5', name: 'Haiku 5.5' },
   ])
   const EFFORTS = Object.freeze(['low', 'medium', 'high'])
-  const FIXED_ROLES = ['planner', 'security']
-  const ROLE_NAME = { coordinator: 'Coordinator', planner: 'Planner', producer: 'Producer', chat: 'Chat agent', qa: 'QA', security: 'Security' }
+  /** MUST CHANGE IN LOCKSTEP with agent-settings.mjs FIXED_ROLES. */
+  const FIXED_ROLES = ['planner', 'security', 'senior']
+  const ROLE_NAME = { coordinator: 'Coordinator', planner: 'Planner', producer: 'Producer', chat: 'Chat agent', qa: 'QA', security: 'Security', senior: 'Senior' }
+  const FIXED_NAME = { planner: 'planner', security: 'Security agent', senior: 'Senior agent' }
   const modelName = (id, models = MODELS) => models.find(m => m.id === id)?.name || id || ''
   const isOpus = id => /opus/i.test(String(id || ''))
 
@@ -82,7 +84,7 @@
     if (FIXED_ROLES.includes(role) || entry.fixed) {
       const off = session && !isOpus(session) ? warn(`This session is running on ${modelName(session, models)}, not Opus. Switch it to Opus in the editor.`) : ''
       return `<p class="aw-fixed"><b>Opus 5.5, high effort</b></p>` +
-        `<p class="aw-hint">The ${role === 'security' ? 'Security agent' : 'planner'} always runs on Opus at high effort, so its work is as careful as it can be. It is told so with its rules every time it starts.</p>${off}`
+        `<p class="aw-hint">The ${FIXED_NAME[role] || 'agent'} always runs on Opus at high effort, so its work is as careful as it can be. It is told so with its rules every time it starts.</p>${off}`
     }
     if (role === 'chat') {
       return `<p class="aw-fixed"><b>${esc(modelName(chatModel, models) || 'Not set')}</b></p>` +
