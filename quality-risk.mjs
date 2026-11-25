@@ -150,30 +150,34 @@ export function riskRules(raw, warn = console.warn) {
 const roleId = (graph, role) => (graph?.nodes || []).find(n => n.role === role)?.id || null
 
 /**
- * The planned `route` with what the label asks for: { steps, missing, changed }. Security before Push on a build
+ * The planned `route` with what the label asks for: { steps, missing, unmet, changed }. Security before Push on a build
  * route; Senior (after Human task) before the Output on an ask route; each only when on the pipeline (`graph`).
- * `missing` lists the needs (security, senior) the pipeline has no agent for.
+ * `missing` lists the needs (security, senior) the pipeline has no agent for; `unmet` the ones it has but this KIND of
+ * route never passes: Security reviews code changes (build), Senior reviews work done by hand (no code, ask).
  */
 export function riskRoute(route, risk, graph) {
   let steps = Array.isArray(route?.steps) ? [...route.steps] : []
   const needs = Array.isArray(risk?.needs) ? risk.needs : []
   const missing = []
+  const unmet = []
   const security = roleId(graph, 'security')
   const senior = roleId(graph, 'senior')
   if (needs.includes('security')) {
     if (!security) missing.push('security')
-    else if (route?.type === 'build' && !steps.includes(security) && steps.includes('push')) steps.splice(steps.indexOf('push'), 0, security)
+    else if (route?.type !== 'build') unmet.push('security')
+    else if (!steps.includes(security) && steps.includes('push')) steps.splice(steps.indexOf('push'), 0, security)
   }
   if (needs.includes('senior')) {
     if (!senior) missing.push('senior')
-    else if (route?.type === 'ask' && !steps.includes(senior) && steps.at(-1) === 'outcome') {
+    else if (route?.type !== 'ask') unmet.push('senior')
+    else if (!steps.includes(senior) && steps.at(-1) === 'outcome') {
       const end = steps.pop()
       if (!steps.includes('human')) steps.push('human')
       steps = [...steps, senior, end]
     }
   }
   const changed = JSON.stringify(steps) !== JSON.stringify(route?.steps || [])
-  return { steps: changed ? steps : route?.steps || [], missing, changed }
+  return { steps: changed ? steps : route?.steps || [], missing, unmet, changed }
 }
 
 // ═══ words ═══

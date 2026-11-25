@@ -125,10 +125,18 @@ test('riskRoute: Senior goes before the Output on an ask route, after Human task
 test('riskRoute: a route that has them already is unchanged; a gate not configured is named as missing', () => {
   const graph = pipelineGraph(withGates)
   const steps = ['request', 'master', 'agent-1', 'qa', 'security', 'push', 'outcome']
-  assert.deepEqual(riskRoute({ type: 'build', steps }, { level: 'high', reasons: [], needs: ['security', 'deep-qa'] }, graph), { steps, missing: [], changed: false })
+  assert.deepEqual(riskRoute({ type: 'build', steps }, { level: 'high', reasons: [], needs: ['security', 'deep-qa'] }, graph), { steps, missing: [], unmet: [], changed: false })
   const bare = riskRoute({ type: 'build', steps: ['request', 'master', 'qa', 'push', 'outcome'] }, { level: 'high', reasons: [], needs: ['security', 'senior'] }, pipelineGraph(CONFIG))
   assert.deepEqual(bare.missing, ['security', 'senior'])
   assert.equal(bare.changed, false)
+})
+
+test('riskRoute: a gate on the pipeline that this kind of route never passes is unmet, not missing', () => {
+  const graph = pipelineGraph(withGates)
+  const build = riskRoute({ type: 'build', steps: ['request', 'master', 'qa', 'security', 'push', 'outcome'] }, { level: 'high', reasons: [], needs: ['security', 'senior'] }, graph)
+  assert.deepEqual([build.missing, build.unmet, build.changed], [[], ['senior'], false], 'Senior reviews work done by hand, never a code change')
+  const ask = riskRoute({ type: 'ask', steps: ['request', 'master', 'human', 'senior', 'outcome'] }, { level: 'high', reasons: [], needs: ['security', 'senior'] }, graph)
+  assert.deepEqual([ask.missing, ask.unmet], [[], ['security']], 'Security reviews code changes only')
 })
 
 test('riskText: one plain line for an agent or QA', () => {
