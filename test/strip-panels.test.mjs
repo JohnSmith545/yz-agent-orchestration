@@ -61,6 +61,6 @@ test('both strips redraw their panels and rove their bars with these, and the pa
   const html = read('index.html')
   assert.ok(html.indexOf('src="strip-panels.js"') > 0)
   assert.ok(html.indexOf('src="strip-panels.js"') < html.indexOf('src="time-strip.js"'))
-  const check = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).scripts.check
+  const check = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).checkList
   assert.ok(check.includes('node --check public/strip-panels.js'))
 })

@@ -168,5 +168,5 @@ test('the usage text and the agent brief tell agents to record the steps and sto
   assert.match(brief, /flow hand-step/)
   assert.match(brief, /You never run[\s>]*that work yourself/)
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
-  for (const f of ['hand-steps.mjs', 'tools/hand-cli.mjs']) assert.ok(pkg.scripts.check.includes(`node --check ${f}`), f)
+  for (const f of ['hand-steps.mjs', 'tools/hand-cli.mjs']) assert.ok(pkg.checkList.includes(`node --check ${f}`), f)
 })

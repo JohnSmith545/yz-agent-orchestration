@@ -36,7 +36,9 @@ Open http://127.0.0.1:4317. The server listens on 127.0.0.1 only. If
 `stopHour` is set, it stops itself at that hour.
 
 The tests (`npm run check && npm test`) read `config.json` too, so copy the
-example first.
+example first. `npm run check` runs `node --check` on every file listed in `checkList` in
+`package.json` (`tools/check.mjs`); a new source file goes on that list. It is not the `check`
+script itself because the list grew past what a Windows command line can hold.
 
 ## A quick tour
 

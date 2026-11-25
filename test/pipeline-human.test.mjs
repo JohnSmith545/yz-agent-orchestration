@@ -73,7 +73,7 @@ test('wired: a click on the box shows the list; the box is redrawn when the list
   const html = read('index.html')
   assert.ok(html.indexOf('<script src="pipeline-human.js"></script>') < html.indexOf('<script src="pipeline-view.js"></script>'))
   assert.ok(html.indexOf('<script src="pipeline-labels.js"></script>') < html.indexOf('<script src="pipeline-layout.js"></script>'))
-  const check = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'package.json'), 'utf8')).scripts.check
+  const check = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'package.json'), 'utf8')).checkList
   for (const f of ['public/pipeline-human.js', 'public/pipeline-labels.js', 'pipeline-hand.mjs']) assert.ok(check.includes(`node --check ${f}`), f)
   assert.match(read('pipeline.css'), /\.pl-node\.r-human \{ border-left: 3px solid var\(--warn\); \}/)
 })

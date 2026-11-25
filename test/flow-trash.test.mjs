@@ -160,7 +160,7 @@ test('wired: flow-trash.js loads before flows.js, the toasts can Undo, the help 
   assert.match(read('flows-page.js'), /Nothing leaves by a timer/)
   assert.doesNotMatch(read('flows-page.js'), /Trash|24 hours/)
   const pkg = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'package.json'), 'utf8'))
-  for (const f of ['trash.mjs', 'trash-routes.mjs', 'public/flow-trash.js', 'public/archive-page.js']) assert.ok(pkg.scripts.check.includes(`node --check ${f}`), f)
+  for (const f of ['trash.mjs', 'trash-routes.mjs', 'public/flow-trash.js', 'public/archive-page.js']) assert.ok(pkg.checkList.includes(`node --check ${f}`), f)
 })
 
 // ═══ the delete flash, Restored to Archived ═══

@@ -253,7 +253,7 @@ test('the page title explains itself: the glossary has the word', () => {
 
 test('npm run check covers the new files', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
-  for (const f of ['subagents.mjs', 'subagent-prs.mjs', 'subagent-routes.mjs', 'public/subagents-page.js']) assert.ok(pkg.scripts.check.includes(`node --check ${f}`), f)
+  for (const f of ['subagents.mjs', 'subagent-prs.mjs', 'subagent-routes.mjs', 'public/subagents-page.js']) assert.ok(pkg.checkList.includes(`node --check ${f}`), f)
 })
 
 test('the copy rules hold: no em dash in the page, its styles or the server files behind it', () => {

@@ -239,7 +239,7 @@ test('index.html loads the stylesheet and the scripts after the prompt generator
   for (const s of order) assert.ok(at(s) > 0, s)
   for (let i = 1; i < order.length; i++) assert.ok(at(order[i - 1]) < at(order[i]), `${order[i - 1]} before ${order[i]}`)
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
-  for (const f of ['public/generators.js', 'public/standup-state.js', 'public/standup-archive.js', 'public/standup-stream.js', 'public/standup-archive-view.js', 'public/standup-page.js']) assert.ok(pkg.scripts.check.includes(`node --check ${f}`), f)
+  for (const f of ['public/generators.js', 'public/standup-state.js', 'public/standup-archive.js', 'public/standup-stream.js', 'public/standup-archive-view.js', 'public/standup-page.js']) assert.ok(pkg.checkList.includes(`node --check ${f}`), f)
 })
 
 test('standup.css: the pills show which is checked, the archive never widens a phone, and reduced motion calms it', () => {

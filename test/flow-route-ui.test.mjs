@@ -210,7 +210,7 @@ test('the route script loads before every page that draws a route, and npm run c
   for (const f of ['pipeline-tickets.js', 'agents-page.js', 'flow-board.js', 'flow-head.js', 'flow-explain.js', 'qa-view.js']) assert.ok(at('flow-route.js') < at(f), f)
   assert.match(html, /<link rel="stylesheet" href="flow-route\.css">/)
   const pkg = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'package.json'), 'utf8'))
-  for (const f of ['flow-route.mjs', 'tools/route-cli.mjs', 'public/flow-route.js']) assert.ok(pkg.scripts.check.includes(`node --check ${f}`), f)
+  for (const f of ['flow-route.mjs', 'tools/route-cli.mjs', 'public/flow-route.js']) assert.ok(pkg.checkList.includes(`node --check ${f}`), f)
 })
 
 test('flow-route.css: the current step in the accent, done neutral filled, upcoming outlined, green and red only for QA', () => {

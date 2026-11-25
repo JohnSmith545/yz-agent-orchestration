@@ -146,6 +146,6 @@ test('wired in: the script is loaded after the pages it serves, checked by npm r
   assert.ok(html.includes('<link rel="stylesheet" href="completed.css">'))
   assert.ok(html.includes('<div id="homeOutputs" data-cv-line hidden></div>'))
   const pkg = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'package.json'), 'utf8'))
-  assert.match(pkg.scripts.check, /node --check public\/completed-view\.js/)
+  assert.match(pkg.checkList, /node --check public\/completed-view\.js/)
   assert.doesNotMatch(read('completed-view.js') + read('completed.css'), /—/)
 })

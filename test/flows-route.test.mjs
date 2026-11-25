@@ -35,7 +35,7 @@ test('the Flows page is wired: its own script, after flows.js, opened by the she
   assert.ok(at('flows-page.js') > at('flows.js') && at('flows.js') > 0, 'flows-page.js loads after flows.js')
   assert.match(read('shell.js'), /flows: 'FlowsPage'/)
   const pkg = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'package.json'), 'utf8'))
-  assert.match(pkg.scripts.check, /node --check public\/flows-page\.js/)
+  assert.match(pkg.checkList, /node --check public\/flows-page\.js/)
 })
 
 test('the Output charts are wired: diagram.js and flow-picture.js load after flow-chart.js and before flow-output.js, and are checked', () => {
@@ -44,7 +44,7 @@ test('the Output charts are wired: diagram.js and flow-picture.js load after flo
   assert.ok(at('flow-chart.js') > 0 && at('flow-chart.js') < at('diagram.js'), 'diagram.js measures text with FlowChart')
   assert.ok(at('diagram.js') < at('flow-output.js') && at('flow-picture.js') < at('flow-output.js'))
   const pkg = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'package.json'), 'utf8'))
-  for (const f of ['public/diagram.js', 'public/flow-picture.js', 'diagram-text.mjs']) assert.ok(pkg.scripts.check.includes(`node --check ${f}`), f)
+  for (const f of ['public/diagram.js', 'public/flow-picture.js', 'diagram-text.mjs']) assert.ok(pkg.checkList.includes(`node --check ${f}`), f)
 })
 
 test('a box of the Output chart opens that step on Status, by click or by Enter, revealing its row once, without making Status the remembered tab', () => {
