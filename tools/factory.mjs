@@ -10,6 +10,7 @@
 //   node tools/factory.mjs show ABC-123
 //   node tools/factory.mjs term "<word>" "<plain explanation>" [--more "..."] [--flow <id>]   (see tools/term-cli.mjs)
 //   node tools/factory.mjs pr-pin                         the person sets the send PIN, typed in a terminal (tools/pr-pin.mjs)
+//   node tools/factory.mjs phone-pin | phone-setup        the person sets the phone PIN, or picks the address phone access listens on (tools/phone-cli.mjs)
 //   node tools/factory.mjs context add "<title>" (--text "..." | --file <path>) | list | remove <id>
 //                                                         what the Prompt generator is told (tools/context-cli.mjs)
 //
@@ -23,6 +24,7 @@ import { AGENT_LABEL, AGENT_RULE, listFlows } from '../flows.mjs'
 import { ANY_BOOLEAN, flags, NO_NAME, runFlow } from './flow-cli.mjs'
 import { runContext } from './context-cli.mjs'
 import { runPinCli } from './pr-pin.mjs'
+import { runPhonePin, runPhoneSetup } from './phone-cli.mjs'
 import { runTerm } from './term-cli.mjs'
 import { wireRouting } from '../smart-wiring.mjs'
 import { riskOf } from '../quality-risk.mjs'
@@ -74,6 +76,10 @@ try {
     console.log(`${String(id).toUpperCase()}: ${mark.review}${mark.verdict ? ' (' + mark.verdict + ')' : ''}`)
   } else if (cmd === 'pr-pin') {
     runPinCli().then(finish, e => finish({ out: e.message, code: 1 }))
+  } else if (cmd === 'phone-pin') {
+    runPhonePin().then(finish, e => finish({ out: e.message, code: 1 }))
+  } else if (cmd === 'phone-setup') {
+    runPhoneSetup().then(finish, e => finish({ out: e.message, code: 1 }))
   } else if (cmd === 'flow') {
     // qa-push runs git, so it answers with a Promise; every other flow command answers at once
     Promise.resolve(runFlow(rest, ctx)).then(finish, e => finish({ out: e.message, code: 1 }))
@@ -96,7 +102,9 @@ try {
   show <ID>
   context add "<title>" (--text "..." | --file <path>) | context list | context remove <id>
                         what the Prompt generator is told before it writes
-  pr-pin               set the send PIN (typed by you in a terminal, never piped)`)
+  pr-pin               set the send PIN (typed by you in a terminal, never piped)
+  phone-pin            set the phone PIN (typed by you in a terminal, never piped)
+  phone-setup          pick the address phone access listens on, after a typed yes`)
     process.exitCode = cmd ? 1 : 0
   }
 } catch (e) {

@@ -16,11 +16,13 @@
 //                                    those, with every `uncompleted` and `reopened` event; a cell or kind filter keeps them, so the
 //                                    scorecard's See these in the log still finds every event it counted.
 // Any other value is a 400 with one plain sentence. The log also carries every saved change to an agent's rules
-// (agent-rules.mjs readLog and ruleEvents) as `rule` events; orchestrationLog keeps the ones inside the window.
+// (agent-rules.mjs readLog and ruleEvents) as `rule` events, and every phone sign-in lockout (phone-auth.mjs
+// phoneLockouts) as a `phone` event with no flow; orchestrationLog keeps the ones inside the window.
 //
 // Each handler returns { status, body }. `config` is config.mjs CONFIG by default; tests may pass `now`.
 
 import { readLog, ruleEvents } from './agent-rules.mjs'
+import { phoneLockouts } from './phone-auth.mjs'
 import { CONFIG } from './config.mjs'
 import { listFlows } from './flows.mjs'
 import { pipelineGraph } from './pipeline.mjs'
@@ -51,7 +53,7 @@ export function scoreGet(raw, { config = CONFIG, now = Date.now() } = {}) {
 /** Every saved rule change as a log event; the window is applied by orchestrationLog, so none is cut here. */
 const ruleChanges = now => ruleEvents(readLog(), { now, days: Infinity })
 
-export function logGet({ days: rawDays, cell, kind, completed } = {}, { config = CONFIG, now = Date.now(), extra = ruleChanges(now) } = {}) {
+export function logGet({ days: rawDays, cell, kind, completed } = {}, { config = CONFIG, now = Date.now(), extra = [...ruleChanges(now), ...phoneLockouts()] } = {}) {
   const days = daysOf(rawDays)
   if (days === undefined) return BAD_WINDOW
   if (cell && !LOG_CELLS.includes(cell)) return { status: 400, body: { error: 'The cell must be delivered, caught, missed or slipped.' } }

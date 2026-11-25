@@ -16,8 +16,8 @@ import { hashPin, pinProblem, withPinHash } from '../send-pin.mjs'
 const CONFIG = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'config.json')
 export const NOT_A_TERMINAL = 'pr-pin reads the PIN from your keyboard: type it yourself in a terminal (a PIN piped in is refused).'
 
-/** One line from the keyboard with nothing shown; Ctrl+C or Ctrl+D gives null. */
-function readHidden(prompt) {
+/** One line from the keyboard with nothing shown; Ctrl+C or Ctrl+D gives null. The phone PIN reads it too (tools/phone-cli.mjs). */
+export function readHidden(prompt) {
   return new Promise(resolve => {
     const { stdin, stdout } = process
     stdout.write(prompt)

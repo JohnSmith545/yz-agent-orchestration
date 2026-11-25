@@ -66,7 +66,9 @@
       status(v.status.send) +
       `<div class="set-field"><span class="set-k">Send PIN</span><div class="set-inline set-pin">${pinBlock(v)}</div></div>` +
       status(v.status.pin) + '</section>' +
-      `<section class="set-card" aria-label="Your setup"><h3 class="set-h">Your setup</h3>${setupBlock(setup)}</section></div>`
+      `<section class="set-card" aria-label="Your setup"><h3 class="set-h">Your setup</h3>${setupBlock(setup)}</section>` +
+      // the Phone card (phone-card.js), drawn from its own state so a redraw here keeps it
+      `${window.PhoneCard ? window.PhoneCard.html() : ''}</div>`
   }
 
   // ═══ live ═══
@@ -153,6 +155,7 @@
         const j = await r.json()
         if (!r.ok) throw new Error(j.error || `Failed (${r.status})`)
         mounted = mount(root, { setup: j.setup, pr: j.pr })
+        window.PhoneCard?.open(root)
       } catch (e) {
         root.innerHTML = `<div class="banner">Settings: ${esc(e.message)}</div>`
       }

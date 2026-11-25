@@ -781,3 +781,61 @@ Routing page. One run costs about a cent.
 - To switch it all off, set `"learn": { "enabled": false }` in `config.json`. `"autoRetro": false` stops only the
   retrospective on Completed; `"weekly": true` runs Learn by itself when you open the page, once a week at most.
 
+## 15. Phone access
+
+Use the dashboard from your phone: see what needs you, answer, tick, sign off, and talk to the coordinator. It
+is off until you set it up, and only reachable on your own private network.
+
+**Set it up once**, at the PC, in a terminal in the dashboard folder:
+
+1. Install Tailscale on the PC and on the phone, and sign in to the same account on both. (Or keep both on your
+   home Wi-Fi. Tailscale is better: it encrypts the link and works away from home.)
+2. Run `node tools/factory.mjs phone-setup`. Pick the address it lists (the Tailscale one says so), read what it
+   tells you, and type `yes`.
+3. Run `node tools/factory.mjs phone-pin`. Type a PIN of 8 to 12 digits twice. Pick one you do not use for your
+   send PIN.
+4. Restart the dashboard.
+5. On the phone, open the address `phone-setup` printed, such as `http://100.101.102.103:4318/phone`. Sign in
+   with the PIN. Then add it to the home screen: on an iPhone, Share, then Add to Home Screen; on Android, the
+   browser menu, then Add to Home screen.
+
+**On the phone** there are four tabs at the bottom:
+
+- **Now**: how many things need you (questions, by-hand steps, outputs to sign off), what each agent is doing in
+  one line, and how many flows finished today.
+- **Needs you**: each open question with Yes and No (or a box for a written answer), and each by-hand flow with
+  its steps to tick. An answer reaches the agent through a short paid turn on your PC, a few cents each. A
+  question you have answered cannot be changed from the phone; do that at the PC.
+- **Outputs**: finished work waiting for your sign-off, with its story. **Completed** asks once to confirm.
+- **Master** (your coordinator's name): your messages and its replies. A message is handed to the coordinator on
+  your PC, by a short paid turn (a few cents), and it answers when it gets to it. The PC must be on. One message
+  at a time: if one is not sent, the phone says why and puts your text back in the box. The phone shows only the
+  replies written after your first message from that phone, never the coordinator's other work. Each message
+  arrives with a fixed first line saying it came from your phone, and the coordinator then does nothing
+  destructive, nothing that pushes, deploys or touches a live system, and no settings change until you confirm
+  at the PC.
+
+A quiet line at the top says when the phone cannot reach the PC. When the session ends (after 4 hours by
+default), the phone asks for the PIN again.
+
+**On the PC**, Settings has a **Phone** card: on or off, the address to open, when the PIN was set, recent
+sign-ins and lockouts, **Sign out everywhere** (do this if you lose the phone) and **Turn phone access off**.
+While phone access is on, the rail ends with a small **Phone on** badge that opens the card. Every phone sign-in,
+lockout, PIN change and change to phone access in config.json raises a notice on the desktop, and a line in the
+Log. A PIN changed without phone-pin is called out: if that was not you, turn phone access off.
+
+**What to know about safety:**
+
+- It is plain HTTP on your private network. Over home Wi-Fi the PIN and the session can be read by someone who
+  can see the traffic, and anyone on the same network can reach the sign-in page; Tailscale removes that, because
+  it encrypts the link. Do not turn it on for a shared or public network.
+- It opens only while the PC is on the network it was set up on (the same adapter and subnet), and closes within
+  seconds when the PC moves. Two home routers that use the same subnet cannot be told apart: Tailscale has no
+  such gap.
+- The PIN is the only lock, and it guards the ability to instruct a coding agent: treat it like a password. Five
+  wrong tries lock phone sign-in for 15 minutes, for every device, even after a restart;
+  3 lockouts within 24 hours turn phone access off until you turn it on again at the PC. Someone on your network could cause this;
+  that is the price of a lock they cannot get around.
+- Never forward the port on your router. It is not built to face the internet.
+- The phone can do only the five things above. It cannot delete, archive, change settings or rules, send a pull
+  request or run a generator.

@@ -1,0 +1,14 @@
+{
+  "name": "Yz Agents",
+  "short_name": "Agents",
+  "description": "What your agents are doing, and what needs you, from your phone.",
+  "start_url": "/phone",
+  "scope": "/phone",
+  "display": "standalone",
+  "background_color": "#f6f6f7",
+  "theme_color": "#4a4ed4",
+  "icons": [
+    { "src": "/phone/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/phone/icon-180.png", "sizes": "180x180", "type": "image/png", "purpose": "any" }
+  ]
+}

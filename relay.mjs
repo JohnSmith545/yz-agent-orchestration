@@ -72,9 +72,13 @@ const REQUEST_FRESH_MS = 30 * 60_000
 
 // ═══ The headless turn ═══
 
-/** The relay turn's argv: the only two tools it has are ListAgents and SendMessage (see the header); json out, for the cost. */
-export function relayArgs(model, prompt) {
-  return ['-p', '--model', model, '--tools', 'ListAgents,SendMessage', '--allowedTools', 'ListAgents', 'SendMessage', '--no-session-persistence', '--output-format', 'json', prompt]
+/**
+ * The relay turn's argv: the only two tools it has are ListAgents and SendMessage (see the header); json out, for the
+ * cost. The PROMPT IS NOT HERE: it goes on stdin (claudeRun), like the chat's and the generators' text, so the answers
+ * and a phone message to the coordinator never show in the process list.
+ */
+export function relayArgs(model) {
+  return ['-p', '--model', model, '--tools', 'ListAgents,SendMessage', '--allowedTools', 'ListAgents', 'SendMessage', '--no-session-persistence', '--output-format', 'json']
 }
 
 /**
@@ -82,18 +86,20 @@ export function relayArgs(model, prompt) {
  * timeout, a missing binary or a non-zero exit is `ok: false` with a short
  * reason in `err` (never execFile's "Command failed: <whole prompt>").
  */
-export async function claudeRun(prompt) {
+export async function claudeRun(prompt, { exec = execFile, bin: findBin = claudeBin } = {}) {
   let bin
   try {
-    bin = await claudeBin()
+    bin = await findBin()
   } catch (err) {
     return { ok: false, out: '', err: `no claude binary: ${err.message}` }
   }
   return new Promise(resolve => {
-    execFile(bin, relayArgs(CONFIG.factory.relayModel, prompt), { cwd: CONFIG.repo, timeout: RUN_TIMEOUT_MS, windowsHide: true, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
+    const child = exec(bin, relayArgs(CONFIG.factory.relayModel), { cwd: CONFIG.repo, timeout: RUN_TIMEOUT_MS, windowsHide: true, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
       const why = !err ? '' : err.killed ? `timed out after ${RUN_TIMEOUT_MS / 1000} s` : typeof err.code === 'number' ? `exited with code ${err.code}` : String(err.code || 'failed to start')
       resolve({ ok: !err, out: String(stdout).trim(), err: String(stderr).trim() || why })
     })
+    child.stdin?.on?.('error', () => {}) // a binary that failed to start closes stdin: the callback above says why
+    child.stdin?.end(prompt)
   })
 }
 
@@ -191,13 +197,22 @@ function deletedLine(flow) {
   return `The user deleted the flow ${quoted(flow.title)} (${flow.id}). Stop work on it and do not write to it again. It is in the flow archive, and only the user can restore it.`
 }
 
-/** The relay turn's prompt for `agent`; `entries` is [{ flow, node?, status?, request?, note?, question?, term?, sentence?, deleted? }], one line each in the message. */
-export function buildPrompt(agent, entries) {
+/**
+ * The relay turn's prompt around ready-made `lines`: send them to the session named `agent` as ONE message.
+ * buildPrompt uses it for the flow lines; the phone's message to the coordinator (phone-talk.mjs) uses it for its
+ * one line, so both reach a session the same way.
+ */
+export function messagePrompt(agent, lines) {
   return [
     `Send the session named ${JSON.stringify(String(agent))} ONE message with SendMessage (use ListAgents first to resolve the exact name; if two match, pick the one whose cwd is in ${CONFIG.repo}). The message, verbatim:`,
-    ...entries.map(e => (e.deleted ? deletedLine(e.flow) : e.rework ? reworkLine(e.flow, CONFIG.pipeline.qa) : e.question ? questionLine(e.flow, e.term, e.sentence) : e.hand ? handText(e.flow, e.note) : e.request ? requestText(e.flow, e.note) : e.status ? statusLine(e.flow, e.node) : askLine(e.flow, e.node))),
+    ...lines,
     'Reply with only SENT or FAILED: <reason>.',
   ].join('\n')
+}
+
+/** The relay turn's prompt for `agent`; `entries` is [{ flow, node?, status?, request?, note?, question?, term?, sentence?, deleted? }], one line each in the message. */
+export function buildPrompt(agent, entries) {
+  return messagePrompt(agent, entries.map(e => (e.deleted ? deletedLine(e.flow) : e.rework ? reworkLine(e.flow, CONFIG.pipeline.qa) : e.question ? questionLine(e.flow, e.term, e.sentence) : e.hand ? handText(e.flow, e.note) : e.request ? requestText(e.flow, e.note) : e.status ? statusLine(e.flow, e.node) : askLine(e.flow, e.node))))
 }
 
 // ═══ Result handling ═══
@@ -210,9 +225,9 @@ const firstLine = s => String(s || '').split(/\r?\n/).map(l => l.trim()).find(Bo
  * failure whose reason is that text, so a SENT inside an error never counts.
  * Plain-text output passes through unchanged and records nothing.
  */
-function unwrap(r) {
+function unwrap(r, kind = 'relay') {
   const turn = parseTurn(r?.out)
-  recordCost('relay', turn.cost)
+  recordCost(kind, turn.cost)
   if (!turn.isError) return { ...r, out: turn.text }
   return { ok: false, out: '', err: turn.text || r?.err || 'the turn reported an error' }
 }
@@ -224,6 +239,12 @@ function judge(r) {
   const error = (/^FAILED:.*$/m.exec(out) || [])[0]?.trim() || firstLine(r?.err) || 'no reply'
   return { ok: false, error: error.slice(0, ERROR_CAP) }
 }
+
+/**
+ * A finished relay turn judged the relay's way: { ok } on SENT, else { ok: false, error }. Its cost is recorded
+ * as `kind` spend (spend.mjs): the phone's messages to the coordinator are their own kind, `phone`.
+ */
+export const relayOutcome = (r, kind = 'relay') => judge(unwrap(r, kind))
 
 /** The flow and its answered ask, read fresh; throws a one-line reason when either is gone or unanswered. */
 function lookup(flowId, nodeId) {

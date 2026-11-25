@@ -59,6 +59,8 @@ import { listLessons } from './quality-lessons.mjs'
 import { riskOf } from './quality-risk.mjs'
 import { signals } from './predict-signals.mjs'
 import { flowTokens } from './predict-flow-tokens.mjs'
+import { startPhone } from './phone-wiring.mjs'
+import { makePhoneDesktopRoute } from './phone-desktop-routes.mjs'
 import { listenWhenFree, makeRestarter, underKeepAlive, waitForPredecessor } from './restart.mjs'
 import {
   CLAUDE_DIRS,
@@ -883,6 +885,8 @@ const projectRoute = makeProjectRoutes({
 })
 /** Each agent's model, effort, files and notes, from its window on the Agents page (agent-settings-routes.mjs). */
 const agentSettingsRoute = makeAgentSettingsRoute({ port: PORT })
+/** The Phone card on Settings (phone-desktop-routes.mjs): on this 127.0.0.1 listener only. */
+const phoneRoute = makePhoneDesktopRoute({ port: PORT })
 /** Pipeline tokens (token-routes.mjs): what the transcripts spent, from a running index built in the background. */
 const tokenRoute = makeTokenRoute({ claudeDirs: CLAUDE_DIRS, match: CONFIG.sessionCwdMatch, names: async () => new Map((await liveSessions()).map(s => [s.sessionId, s.name])), labelOf, placed: o => predictRoute.placed(o) })
 /** Predict and warn (predict-routes.mjs): alerts, estimates and per flow tokens, on Pipeline tokens' own index. No model runs. */
@@ -918,6 +922,7 @@ const server = createServer(async (req, res) => {
     if (await predictRoute(req, res, url)) return
     if (await routingRoute(req, res, url)) return
     if (await learnRoute(req, res, url)) return
+    if (await phoneRoute(req, res, url)) return
     if (url.pathname === '/api/orchestration') {
       const data = await orchestration(url.searchParams.get('c'), url.searchParams.has('refresh'))
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' })
@@ -973,6 +978,8 @@ const restartServer = makeRestarter({ server, loop: () => supervised })
 await waitForPredecessor()
 if (!(await listenWhenFree(server, PORT, '127.0.0.1'))) process.exit(1)
 console.log(`Yz Agent Orchestration on http://127.0.0.1:${PORT}${CONFIG.project ? ` (project ${CONFIG.project.name})` : ''}`)
+// Phone access (phone-wiring.mjs): a second listener on one private address, ONLY when config.json's remote block turns it on
+startPhone({ getStatus, relay, run: claudeRun, sessions: liveSessions, transcriptFile })
 
 await fetchOrigin()
 setInterval(fetchOrigin, FETCH_EVERY_MS).unref()

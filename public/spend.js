@@ -24,6 +24,8 @@
   KIND_ORDER.push('intake')
   // the Learn page's two runs (learn-retro.mjs, learn-routes.mjs): each flow's retrospective and the weekly Learn run
   Object.assign(KIND_LABEL, { retro: 'Retrospective', learn: 'Learn' }), KIND_ORDER.push('retro', 'learn')
+  KIND_LABEL.phone = 'Phone messages' // a message sent from the phone page (phone-talk.mjs)
+  KIND_ORDER.push('phone')
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
   const num = v => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0)
 
