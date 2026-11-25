@@ -23,6 +23,11 @@
 //                                          a flow that waits on SENIOR (every step ticked, or sent with senior-ask,
 //                                          or being reviewed) is no row at all, so it leaves the count and the page
 //                                          head too (QA B-2); it comes back when Senior sends it back, saying why
+//                                          `kinds` (id -> code | no-code | needs-a-person, ticket intake's SURE sorts,
+//                                          routing-intake-store.mjs ticketKinds): when a ticket has one, it decides: a
+//                                          ticket sorted code is no row even when marked, and one sorted no-code or
+//                                          needs-a-person is a row even unmarked (`sorted` says which). A ticket with
+//                                          no kind is decided by its mark, as before
 
 import { handProgress } from './hand-steps.mjs'
 
@@ -74,7 +79,23 @@ function blockedReason(f) {
   return isText(f.why) ? line(`Blocked. ${f.why}`) : 'The agent marked this flow blocked.'
 }
 
-export function humanItems({ flows = [], marks = {}, tickets = new Map(), senior = null } = {}) {
+/** Ticket intake's sorts that mean a person does the work (routing-intake.mjs KINDS); `code` means an agent builds it. */
+export const HUMAN_KINDS = Object.freeze(['no-code', 'needs-a-person'])
+const KIND_WHY = { 'no-code': 'Sorted as no-code work: a console, a setting or a check a person does.', 'needs-a-person': 'Sorted as needing a person: a decision or an act only you can take.' }
+
+/** Ticket rows for tickets intake sorted as no-code or needs-a-person that carry no human mark (those are rows already). */
+function sortedTicketRows({ kinds, marks, tickets, covered }) {
+  const rows = []
+  for (const [id, kind] of Object.entries(kinds || {})) {
+    if (!HUMAN_KINDS.includes(kind) || covered.has(id) || HUMAN_MARKS.includes(marks?.[id]?.review)) continue
+    const t = tickets.get(id)
+    if (!t || DONE_STATES.includes(t.state)) continue
+    rows.push({ key: `ticket:${id}`, kind: 'ticket', ticketId: id, title: String(t.title || id), agent: '', since: '', reason: KIND_WHY[kind], sorted: kind })
+  }
+  return rows
+}
+
+export function humanItems({ flows = [], marks = {}, tickets = new Map(), senior = null, kinds = null } = {}) {
   const items = []
   const covered = new Set() // tickets a live (not dropped) flow carries: that flow speaks for them
   const humanMark = id => HUMAN_MARKS.includes(marks?.[id]?.review)
@@ -109,6 +130,7 @@ export function humanItems({ flows = [], marks = {}, tickets = new Map(), senior
   }
   for (const [id, mark] of Object.entries(marks || {})) {
     if (!HUMAN_MARKS.includes(mark?.review) || covered.has(id)) continue
+    if (kinds?.[id] && !HUMAN_KINDS.includes(kinds[id])) continue // ticket intake sorted it as code: an agent builds it
     const t = tickets.get(id)
     if (t && DONE_STATES.includes(t.state)) continue
     items.push({
@@ -116,6 +138,7 @@ export function humanItems({ flows = [], marks = {}, tickets = new Map(), senior
       since: mark.at || '', reason: line(isText(mark.note) ? mark.note : MARK_WHY[mark.review]), mark: mark.review,
     })
   }
+  items.push(...sortedTicketRows({ kinds, marks, tickets, covered }))
   items.sort((a, b) => String(b.since).localeCompare(String(a.since)) || KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) || a.key.localeCompare(b.key))
   const counts = { total: items.length, ask: 0, hand: 0, blocked: 0, ticket: 0 }
   for (const i of items) counts[i.kind]++

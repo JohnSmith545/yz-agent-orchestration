@@ -160,3 +160,12 @@ A flow may carry an `estimate` the dashboard stored when it started (how long an
 > CI, the database, deleting data, public pages. It is printed with the self-check. A high label that asks for a
 > Security or Senior review means that review will come; one that asks for a deeper QA pass means QA will try the edge
 > cases, so test them first.
+
+## The routing suggestion
+
+When you start a flow (`flow new`) or the planner starts or hands one out (`flow plan-start`, `flow plan`), the
+dashboard may add two lines on stderr: the task type it read (`Task type: wording (likely), small.`) and a
+suggestion (`Suggested: Agent 2, Sonnet 5.5, medium effort, because small wording fixes rarely fail QA`). It comes
+from the user's routing rules. It is a suggestion, NOT an order: weigh it when you hand work out, and say so if you
+choose otherwise. Never switch a model or a setting yourself because of it. The hand-out records which agent got the
+work and whether that followed the suggestion; that is data for the user, not a mark against you.

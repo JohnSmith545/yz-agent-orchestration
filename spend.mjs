@@ -27,7 +27,7 @@ import { DATA_DIR } from './factory-state.mjs'
 
 export const SPEND_FILE = path.join(DATA_DIR, 'spend.jsonl')
 /** The headless turns the dashboard runs itself. */
-export const KINDS = Object.freeze(['chat', 'relay', 'explain', 'refresh', 'script', 'standup', 'lesson', 'critic'])
+export const KINDS = Object.freeze(['chat', 'relay', 'explain', 'refresh', 'script', 'standup', 'lesson', 'critic', 'intake'])
 const RECENT = 20
 
 const isCost = usd => typeof usd === 'number' && Number.isFinite(usd) && usd > 0

@@ -69,6 +69,7 @@ import { pipelineGraph } from './pipeline.mjs'
 import { keepHand, validateHand } from './hand-steps.mjs'
 import { keepEstimate, validateEstimate } from './predict-keep.mjs'
 import { keepRoute, validateRoute } from './flow-route.mjs'
+import { keepRouting, validateRouting } from './routing-flow.mjs'
 import { sayShorter, STORY_ID, STORY_MAX, storyOf, YOU } from './flow-story.mjs'
 import { lookup } from './glossary.mjs'
 import { DATA_DIR } from './project-store.mjs'
@@ -177,6 +178,7 @@ export function validateFlow(flow) {
   if (flow.senior !== undefined) problems.push(...validateSenior(flow.senior))
   problems.push(...validateQuality(flow)) // selfcheck, critic, risk (quality-flow.mjs)
   if (flow.estimate !== undefined) problems.push(...validateEstimate(flow.estimate)) // the server's (predict-keep.mjs)
+  if (flow.routing !== undefined) problems.push(...validateRouting(flow.routing))
   return problems
 }
 
@@ -631,6 +633,7 @@ export function mergeKeepingAnswers(incoming, existing) {
   keepSenior(incoming, existing) // Senior's verdict: only the Senior commands write it
   keepQuality(incoming, existing) // the self-check, the plan critic and the risk label: never from an agent's file
   keepEstimate(incoming, existing) // the estimate (predict-keep.mjs): only the server writes it
+  keepRouting(incoming, existing) // the routing record: only the dashboard writes it (routing-flow.mjs)
   if (existing?.createdAt) incoming.createdAt = existing.createdAt
   delete incoming.derived
   return incoming

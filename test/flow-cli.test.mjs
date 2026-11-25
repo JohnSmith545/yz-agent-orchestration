@@ -47,7 +47,8 @@ const EVIDENCE_ERROR = 'evidence must be an existing png, jpg, jpeg, webp, gif, 
 
 test('new creates the flow with the agent from by', () => {
   const r = run('new', 'dark', 'Add a dark mode toggle', '--type', 'build', '--tickets', 'ABC-101', '--env', 'dev')
-  assert.deepEqual(r, { out: 'Flow dark created', code: 0 })
+  assert.deepEqual({ out: r.out, code: r.code }, { out: 'Flow dark created', code: 0 })
+  assert.match(r.err, /^Task type: style/, 'the routing suggestion is a note on stderr (tools/routing-cli.mjs)')
   const flow = F.readFlow('dark')
   assert.equal(flow.agent, 'Agent 3')
   assert.deepEqual(flow.tickets, ['ABC-101'])

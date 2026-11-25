@@ -57,6 +57,7 @@
       const r = await fetch('/api/factory?c=' + encodeURIComponent(store.get('collection', '')))
       if (!r.ok) throw new Error((await r.json()).error || r.status)
       data = await r.json()
+      await window.RoutingTickets?.load() // ticket intake: the sort, the task type, duplicates (routing-tickets.js)
       render()
       window.OrchestrationGrid?.load(store.get('collection', '')).then(() => open && data && renderRows())
     } catch (e) {
@@ -99,6 +100,8 @@
     owner: { label: 'Owner', get: t => t.owner, names: { me: 'Mine', other: 'Someone else', none: 'Unowned' }, order: ['me', 'other', 'none'] },
     must: { label: 'Launch', get: mustOf, names: { must: 'Must for launch', later: 'Later', no: 'Not needed', unplanned: 'Not in the plan' }, order: ['must', 'later', 'no', 'unplanned'] },
   }
+  // ticket intake's Sort facet: code, no code, needs a person, unsure (routing-tickets.js)
+  if (window.RoutingTickets) FACETS.kind = window.RoutingTickets.facet(t => window.RoutingTickets.kindOf(window.RoutingTickets.entry(t.id)))
   function passes(t, skip) {
     for (const [k, f] of Object.entries(FACETS)) {
       if (k === skip) continue
@@ -289,7 +292,7 @@
       </div>
       <div class="fx-stat-row">
         ${Object.entries(REVIEW).map(([k, v]) => chip('review', k, by(reviewOf, k), v.label, 'rv-' + k)).join('')}
-      </div>`
+      </div>${FACETS.kind ? window.RoutingTickets.chipsHtml(k => by(FACETS.kind.get, k), chip) : ''}`
     $$('[data-count]', $('#fxStats')).forEach(b => window.Motion.countUp(b, Number(b.dataset.to)))
     $$('.fx-stat', $('#fxStats')).forEach(b => b.addEventListener('click', () => {
       const f = b.dataset.facet, v = b.dataset.value
@@ -366,7 +369,7 @@
     return `<tr class="fx-r ${isOpen ? 'open' : ''} ${isDone(t) ? 'done' : ''}" data-id="${esc(t.id)}">
         <td class="sel"><input type="checkbox" data-sel="${esc(t.id)}" ${selected.has(t.id) ? 'checked' : ''} aria-label="Select ${esc(t.id)}"></td>
         <td class="num faint">${sort === 'board' ? pos : ''}</td>
-        <td class="title"><span class="id">${esc(t.id)}</span>${t.extra ? ' <span class="fx-tag">extra</span>' : ''}<span class="fx-t">${esc(t.title)}</span>
+        <td class="title"><span class="id">${esc(t.id)}</span>${t.extra ? ' <span class="fx-tag">extra</span>' : ''}${window.RoutingTickets?.rowTag(window.RoutingTickets.entry(t.id)) || ''}<span class="fx-t">${esc(t.title)}</span>
           <span class="sub">${esc(t.phase || '')}${t.plan?.verdict ? ` · plan: ${esc(t.plan.verdict)}` : ''}${t.plan?.wave ? ` · wave ${esc(t.plan.wave)}` : ''}</span></td>
         <td>${statePill(t.state)}</td>
         <td>${whereTxt(t.id)}</td>
@@ -395,6 +398,7 @@
             <input name="note" value="${esc(m.note || '')}" placeholder="Note: what is left">
             <button type="submit">Save mark</button>
           </form>
+          ${window.RoutingTickets?.detailHtml(t.id, window.RoutingTickets.entry(t.id)) || ''}
         </div>
         <div>
           <h4>Do something</h4>
@@ -405,6 +409,7 @@
           <form class="fx-pass" data-pass="${esc(t.id)}">
             <div data-cv-reminder hidden></div>
             <label class="small">Pass a task to an agent</label>
+            ${window.RoutingTickets?.suggestionHtml(window.RoutingTickets.entry(t.id)) || ''}
             <select name="agent" required>${agentOpts || '<option value="">No live agents found</option>'}</select>
             <textarea name="task" rows="2" placeholder="What should they do for ${esc(t.id)}?" required></textarea>
             <button type="submit">Send through ${esc(window.FactoryChat?.name || 'chat')}</button>
@@ -521,7 +526,8 @@
   })
 
   window.FactoryView = {
-    async open() {
+    async open(query = {}) {
+      if (query?.ticket) pendingTicket = String(query.ticket).toUpperCase() // #/tickets?ticket=FLA-820 opens that row (routing-tickets.js links)
       if (open) return
       open = true
       const gen = ++generation

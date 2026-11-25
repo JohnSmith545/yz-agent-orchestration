@@ -51,6 +51,7 @@ import { startReworkWatch } from './qa-rework.mjs'
 import { makeProjectRoutes } from './projects-routes.mjs'
 import { makeTokenRoute } from './token-routes.mjs'
 import { makePredictRoute } from './predict-routes.mjs'
+import { makeRoutingRoute } from './routing-routes.mjs'
 import { listenWhenFree, makeRestarter, underKeepAlive, waitForPredecessor } from './restart.mjs'
 import {
   CLAUDE_DIRS,
@@ -879,6 +880,7 @@ const agentSettingsRoute = makeAgentSettingsRoute({ port: PORT })
 const tokenRoute = makeTokenRoute({ claudeDirs: CLAUDE_DIRS, match: CONFIG.sessionCwdMatch, names: async () => new Map((await liveSessions()).map(s => [s.sessionId, s.name])), labelOf, placed: o => predictRoute.placed(o) })
 /** Predict and warn (predict-routes.mjs): alerts, estimates and per flow tokens, on Pipeline tokens' own index. No model runs. */
 const predictRoute = makePredictRoute({ index: tokenRoute.index, names: async () => new Map((await liveSessions()).map(s => [s.sessionId, s.name])), live: async () => new Map((await liveSessions()).filter(s => !s.pinned).map(s => [s.sessionId, s.name])), labelOf })
+const routingRoute = makeRoutingRoute({ port: PORT }) // the Routing page, ticket intake, a flow task type (routing-routes.mjs)
 /** The paths factory-routes.mjs answers. */
 const FACTORY_PREFIXES = ['/api/factory', '/api/chat', '/api/flows', '/api/trash', '/api/archive', '/api/human', '/api/tickets/', '/api/commit', '/api/explain', '/api/glossary', '/api/since', '/api/spend', '/api/settings', '/api/pipeline', '/api/qa', '/api/agents/rules', '/api/score', '/api/log', '/api/time', '/evidence/', '/api/outputs']
 
@@ -903,6 +905,7 @@ const server = createServer(async (req, res) => {
     if (await subagentRoute(req, res, url)) return
     if (await tokenRoute(req, res, url)) return
     if (await predictRoute(req, res, url)) return
+    if (await routingRoute(req, res, url)) return
     if (url.pathname === '/api/orchestration') {
       const data = await orchestration(url.searchParams.get('c'), url.searchParams.has('refresh'))
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' })
@@ -965,6 +968,7 @@ startAutoRefresh()
 tokenRoute.start() // Pipeline tokens: the first read of the transcripts, in the background
 qualityRoute.start() // risk labels, and the automatic lesson and second-opinion runs (quality-watch.mjs)
 predictRoute.start() // Predict and warn: an estimate stored once on each open flow, now and every minute
+routingRoute.start() // Routing: each finished flow gets its one outcome line (routing-outcomes.mjs), once a minute
 
 // ─── end-of-day stop ───────────────────────────────────────────────────────────────
 

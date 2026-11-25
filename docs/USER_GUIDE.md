@@ -741,3 +741,26 @@ already record.
 - **Settings** (`config.json`): `alerts` (`stuckFactor`, `stuckMinMinutes`, `stuckHours`, `spikeFactor`,
   `spikeMinTokens`, `contextTokens`, `dailyUsd`, `dailyTokens`, `enabled`) and `estimates` (`enabled`,
   `nearest`). Restart the dashboard after a change.
+
+## 13. Routing: suggestions for who does what
+
+Open **Routing** at the bottom of the rail. Each rule says: when a task is this type, this risk or this size,
+suggest this agent, this model and this effort, because of this reason. The first rule that fits wins, so put the
+narrow ones first. Change a rule in place, move it up or down, add or remove one, then **Save rules** and confirm.
+
+A suggestion is never an order. You see it in **Pass a task** on the Tickets page, and the agents see it when they
+start a flow or the planner hands one out. Nothing is switched by itself. The planner, Security and Senior always
+stay on Opus at high effort.
+
+**What happened** counts the finished flows and shows, per task type and model, how often the work was right the
+first time, the usual time and the usual cost. A row with fewer than 5 flows says Too few to trust. Cost shows only
+when the dashboard records it per flow.
+
+**Latest flows** shows each flow's task type. If it is wrong, pick the right one: your choice always wins.
+
+**Sorting tickets.** On the Tickets page every ticket carries a small tag: Code, No code, Needs a person or Unsure,
+with the reason when you point at it. The Sort chips filter by it. Open a row to correct the sort or the task type,
+or to say a ticket flagged `Looks like FLA-761` is not a duplicate. Human review lists the tickets sorted as no code
+or needs a person, and leaves out the ones sorted as code. To let a cheap model sort the unsure ones, set
+`routing.intakeModel` in config.json (for example `claude-haiku-5-5`) and press **Sort the unsure tickets** on the
+Routing page. One run costs about a cent.

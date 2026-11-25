@@ -81,7 +81,7 @@ export const MESSAGES = Object.freeze({
 /**
  * The argv of one run: headless, streamed, no tools, no MCP, no settings, no session. The text goes on stdin.
  * `system` replaces Claude Code's own system prompt; `name` names the session (which also stops the CLI's paid
- * title call, see the header).
+ * title call, see the header). `model` lets a cheap tool (ticket intake, routing-intake-run.mjs) run on a cheaper model.
  */
 export function turnArgs({ system, effort = SCRIPT_EFFORT, name = 'SCRIPT', model = SCRIPT_MODEL }) {
   return [
