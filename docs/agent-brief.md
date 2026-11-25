@@ -49,6 +49,9 @@ so a relative path would not resolve.
 > it again. The user then reviews the Output and sends the pull request.
 > The pull request text must not credit an AI tool: no Co-Authored-By line, no Generated with line, no tool named as an author.
 > Only the user archives or deletes a flow; never try to do either yourself.
+> Only the user marks a flow completed (their sign-off on the Output); never try to, and never press them to: the
+> dashboard reminds them itself. When `flow new` prints that outputs wait for their sign-off, tell the user once, in
+> one calm line, and carry on with the request.
 > When a ticket needs a human decision, or is work the user must do by hand (CI/CD, cloud setup, a console
 > setting, an account or a billing change), record that work as by-hand steps and stop: one
 > `flow hand-step <flow> "<do this>" --expect "<what they should see>" --where "<the exact path, page or click path>"`

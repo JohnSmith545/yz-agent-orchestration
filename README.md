@@ -187,6 +187,7 @@ refresh themselves; the Refresh button in the page header rebuilds at once.
 | `levels` | The branches the levels compare: `{ "work": "followup", "dev": "origin/dev", "stage": "origin/stage", "prod": "origin/main" }` (these are the defaults). A bad value keeps its default, with a warning |
 | `reminders` | Reminders at a local time, once a day: `[{ "at": "17:55", "days": "weekdays", "text": "Wrap up: commit or park your work." }]`. `days` is `weekdays` (Monday to Friday) or `daily`; `[]` turns them off. Left out, there are none. `at` is a real time, 00:00 to 23:59, and one reminder per time. A bad or repeated entry is left out with a warning in the server log |
 | `standup` | The Standup creator, every key optional: `{ "author": "", "name": "", "project": "", "base": "", "ticketUrl": "https://app.switchboardpm.ai/stories/{id}" }`. `author` is whose commits count (left out: the repo's `git config user.name`); `name` and `project` fill the weekly header (left out: the author and the repo folder name); `base` is the default branch merges are read from (left out: `origin/HEAD`, else `levels.dev`); `ticketUrl` is the ticket link pattern, http(s) with `{id}`. A bad value warns and uses the default |
+| `outputs` | The sign-off reminders (Completed, below): `{ "max": 7, "warnAfterDays": 2 }`. `max` finished flows waiting for Completed make the Ask drawer, Pass a task and `flow new` remind you; `warnAfterDays` whole days (24 hours each) unmarked makes one overdue. Each a whole number (`max` 1 to 1000, `warnAfterDays` 1 to 365); a bad value keeps its default with one warning. Read at startup |
 | `tokens` | Pipeline tokens' prices: `{ "prices": { "<model id or prefix>": { "input": 4, "output": 20, "cacheWrite": 5, "cacheWrite1h": 8, "cacheRead": 0.2 } } }`, dollars per million tokens (`cacheWrite` is the 5 minute cache write, `cacheWrite1h` the 1 hour one, optional: without it 1 hour writes are priced at `cacheWrite`). Your entries go over the built-in defaults: one adds or replaces a model, `null` removes one, and an entry with a rate missing or not a number is left out and named on the page. A model takes its exact id, else the longest id it starts with. **Prices change, and keeping them current is yours**: the defaults were read from https://platform.claude.com/docs/en/about-claude/pricing on 2026-11-25 for the models the transcripts held (Opus 5.5, Opus 5, Sonnet 5.5, Fable 5.2, Fable 5.1); Haiku 5.5 has none, as its price depends on the prompt length. Read at startup |
 
 ### Keep it running
@@ -571,6 +572,28 @@ by title or ticket id. A title opens the flow read-only (a banner, every control
 refused); **Restore** puts it back, and **Delete for good** (Deleted only, asked in the row) removes it with its
 evidence files. Archived flows count in the pipeline score; deleted ones do not. Only you archive or delete: agents
 have no command for either, and any command on a deleted flow is refused.
+
+### Completed: the sign-off on an output
+
+A flow that reached the Output waits for your sign-off (`completed.mjs`, `completed-routes.mjs`,
+`public/completed-view.js`, `public/pipeline-output.js`, `completed.css`). **Completed** (at the end of the flow's
+Output tab, the tick on its row in the Agents page's Output list, or **Mark all completed** there and in the
+reminders) asks once in place, then sets `completedAt` and `completedBy: "you"` on the flow and archives it in the same
+write (`POST /api/flows/<id>/complete`, the page's own Origin required and present, like the by-hand tick). Only a
+finished flow can be completed (done, or standing at the Output); the write keeps `updatedAt`, so the pipeline score,
+Pipeline time and Pipeline tokens count it exactly as before, and the Log gains one `completed` event by You. A
+completed flow leaves the Flows board, the Agents diagram and its lists, Human review, Home, the Tickets page's flow
+chips and the Log's default view (its **Completed** chip shows them); it waits in the flow archive as **Completed
+<date>**, opens read-only from there, and **Uncomplete** puts it back (`{ "completed": false }`, both marks off, one
+`uncompleted` event). Unarchive refuses a completed flow. Only you complete a flow: agents have no command for it, and
+`flow write` keeps or drops the stored mark exactly as it does `archivedAt`.
+
+While outputs wait, the Agents page (over the diagram) and Home say `N outputs wait for your sign-off` with **Show
+them**; after `outputs.warnAfterDays` (2) days the line is a notice and the Output box counts the overdue. Once
+`outputs.max` (7) wait, the Ask drawer and Pass a task on the Tickets page show `N outputs wait for your sign-off. Mark
+them completed before a new request.` with Mark all completed, and `flow new` prints the same line on stderr (exit 0),
+so an agent tells you; nothing is blocked. `GET /api/outputs` answers `{ waiting: [{ id, title, agent, finishedAt,
+overdue }], counts: { waiting, overdue }, max, warnAfterDays, piled, builtAt }`.
 
 ### QA (#/qa)
 

@@ -190,6 +190,23 @@ The agent writes it out as steps and stops.
 - The pipeline score still counts archived flows. Deleted flows are left out.
 - Only you archive or delete flows. Agents cannot.
 
+#### Completed: your sign-off on an output
+
+- A flow that reached the **Output** waits for your sign-off. Its card, its chip on the Agents diagram and its row in
+  the Output list carry an amber dot and the words **Mark it completed**.
+- Mark it with **Completed**: at the end of the flow's **Output** tab (after Send), or with the tick on its row in the
+  Output list (open **Outputs** on the right of the Agents page). **Mark all completed** does every waiting one at
+  once. Each asks once, in place, before it does anything.
+- A completed flow goes to the **flow archive**, labelled **Completed** with its date, and leaves every board: Flows,
+  the Agents diagram, Human review, Home and the Log (the Log's **Completed** chip shows them). The pipeline score,
+  Pipeline time and Pipeline tokens still count it exactly as before.
+- Changed your mind? **Uncomplete** in the flow archive puts it back on the boards.
+- Only you mark a flow completed. Agents cannot, and they never ask you to.
+- The reminders: while outputs wait, the Agents page (over the diagram) and Home say how many, with **Show them**.
+  After 2 days unmarked the line becomes a notice and the Output box says how many are overdue. Once 7 wait, the Ask
+  drawer and **Pass a task** on the Tickets page remind you to mark them before a new request (you can still send).
+  The two numbers are `outputs.warnAfterDays` and `outputs.max` in `config.json` (see the README).
+
 ### Generators
 
 Two tools that write for you, picked with the two pills at the top of the page (the rail's **Generators**, or

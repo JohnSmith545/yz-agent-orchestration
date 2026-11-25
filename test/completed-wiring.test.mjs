@@ -49,3 +49,18 @@ test('a slot is filled with the reminder at the limit and emptied below it (the 
   assert.equal(slot.hidden, true)
   assert.equal(slot.innerHTML, '')
 })
+
+test('help and docs say what Completed does, that only the user does it, and the two settings', () => {
+  const root = f => fs.readFileSync(path.join(HERE, '..', f), 'utf8')
+  assert.deepEqual(JSON.parse(root('config.example.json')).outputs, { max: 7, warnAfterDays: 2 })
+  for (const [f, src] of [['README.md', root('README.md')], ['docs/USER_GUIDE.md', root('docs/USER_GUIDE.md')], ['flows-page.js', read('flows-page.js')], ['agents-page.js', read('agents-page.js')]]) {
+    assert.match(src, /Completed/, f)
+    assert.match(src, /only you/i, f)
+    assert.match(src, /outputs\.max/, f)
+    assert.match(src, /outputs\.warnAfterDays/, f)
+  }
+  const brief = root('docs/agent-brief.md')
+  assert.match(brief, /Only the user marks a flow completed/)
+  assert.match(brief, /never press them/)
+  assert.match(brief, /dashboard reminds them itself/)
+})
