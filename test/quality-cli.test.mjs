@@ -100,8 +100,9 @@ test('flow self-check prints the checklist: the core rules, then this flow lesso
   for (const c of CORE_CHECKS.filter(c => c.id !== 'screens')) assert.match(r.out, new RegExp(`^  ${c.id} {2,}`, 'm'))
   assert.match(r.out, /^ {2}screens {2,}/m, 'UI work: the screenshots line is there')
   assert.match(r.out, /^ {2}L1 {2,}Look at the page in the dark theme\./m)
-  assert.match(r.out, /--done "<id>=ok"/)
+  assert.match(r.out, /one --done each: "<id>=ok" when it is true/)
   assert.match(r.out, /no:<what is missing>/)
+  assert.doesNotMatch(r.out, /--done "checks-run=ok"/, 'no ready-made all-ok line to copy without checking')
 })
 
 test('the screenshots line is left out of a task with no screen', () => {

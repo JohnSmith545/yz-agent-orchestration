@@ -79,9 +79,10 @@ export function checklistText(flowId, items, cli) {
   return [
     `Self-check for flow ${flowId}, before you hand it to QA. Check each item yourself, then answer every one:`,
     ...items.map(it => `  ${it.id.padEnd(width)}${it.text}${it.kind === 'lesson' ? ` (a lesson, ${it.area})` : ''}`),
-    `Answer with --done "<id>=ok" for each, or --done "<id>=no:<what is missing>" when you could not:`,
-    `  node ${cli} flow self-check ${flowId} ${items.map(it => `--done "${it.id}=ok"`).join(' ')}`,
-    'QA reads your answers when it starts testing, and tests the claims.',
+    // ⚠️ no ready-made all-ok line: one to copy would be copied without checking anything
+    `Answer all ${items.length} in one command, one --done each: "<id>=ok" when it is true, "<id>=no:<what is missing>" when it is not:`,
+    `  node ${cli} flow self-check ${flowId} --done "${items[0]?.id}=ok" --done "<id>=no:<what is missing>" ...`,
+    'Be honest: QA reads your answers when it starts testing, and tests the claims.',
   ].join('\n')
 }
 
