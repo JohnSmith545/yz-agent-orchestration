@@ -26,6 +26,7 @@
 .rr-why input { width: 100%; box-sizing: border-box; }
 .rr-acts { white-space: nowrap; text-align: right; }
 .rr-icon { min-width: 28px; padding: 2px 6px; margin-right: 2px; }
+.rr-card > button { justify-self: start; }
 .rr-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .rr-spacer { flex: 1; }
 

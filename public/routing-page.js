@@ -94,12 +94,12 @@
     }).join('')}</ul>`
   }
 
-  function intakeHtml(ui) {
+  function intakeHtml(ui, models) {
     const m = ui.model
     if (!m) return ''
     if (!m.on) return '<p class="rr-muted">Sorting tickets with a model is off. The rules sort every ticket; set <code>routing.intakeModel</code> in config.json (for example claude-haiku-5-5) to let one cheap run sort the ones they are unsure about.</p>'
-    if (!m.unsure) return `<p class="rr-muted">The model sort is on (${esc(m.model)}). No open ticket is unsure right now.</p>`
-    return `<p class="rr-muted">${m.unsure} open ${m.unsure === 1 ? 'ticket is' : 'tickets are'} unsure. One run sorts up to 30 at once with ${esc(m.model)}, for about one cent.</p>` +
+    if (!m.unsure) return `<p class="rr-muted">The model sort is on (${esc(modelName(m.model, models))}). No open ticket is unsure right now.</p>`
+    return `<p class="rr-muted">${m.unsure} open ${m.unsure === 1 ? 'ticket is' : 'tickets are'} unsure. One run sorts up to 30 at once with ${esc(modelName(m.model, models))}, for about one cent.</p>` +
       `<button type="button" data-rr-intake${m.running || ui.busy ? ' disabled' : ''}>${m.running || ui.busy ? 'Sorting…' : 'Sort the unsure tickets'}</button>`
   }
 
@@ -117,7 +117,7 @@
       </section>
       <section class="rr-card" aria-labelledby="rrOutH"><h3 class="rr-h" id="rrOutH">What happened</h3>${tableHtml(v.table, v.models)}</section>
       <section class="rr-card" aria-labelledby="rrFlowsH"><h3 class="rr-h" id="rrFlowsH">Latest flows</h3>${flowsHtml(v.flows, v)}</section>
-      <section class="rr-card" aria-labelledby="rrIntakeH"><h3 class="rr-h" id="rrIntakeH">Ticket sorting</h3>${intakeHtml(ui)}</section>
+      <section class="rr-card" aria-labelledby="rrIntakeH"><h3 class="rr-h" id="rrIntakeH">Ticket sorting</h3>${intakeHtml(ui, v.models)}</section>
     </div>`
   }
 
