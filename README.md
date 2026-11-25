@@ -1778,6 +1778,40 @@ whose tools only read) runs one short headless Claude turn per collection that r
 `data/sources/<id>.json`; see Collections by kind above. Home warns when the newest source is more than
 6 hours old.
 
+## Routing (#/routing) and ticket intake
+
+The **Routing** page (last on the rail) holds plain rules that SUGGEST who does a task and on what: the first rule
+that fits the task's type, risk and size names an agent, a model and an effort, with a one-line why. Defaults live
+in `routing-rules.mjs` (small wording fixes go to Sonnet 5.5 at medium effort); the page saves your own list to
+`routing.rules` in `config.json` after a plain confirm, every other line of the file kept. A list with any bad rule
+keeps the defaults and warns once. The planner, Security and Senior always run on Opus at high effort: no rule
+suggests them down.
+
+- **Task type** (`routing-type.mjs`): wording, style, small fix, feature, refactor, tests, docs, data, infra,
+  investigation, review or by hand, from the words, labels and story type, with a confidence (certain, likely,
+  unsure) and the reason. Unsure fits only a rule with Any type. Correct it on the Routing page (a flow) or in an
+  opened ticket row; your correction always wins.
+- **Where the suggestion shows**: Pass a task on the Tickets page; `flow new` and the planner's `plan-start` and
+  `plan` note it on stderr when a rule fits. It is a suggestion, never an order: nothing is switched by itself.
+- **The record** on each flow (`flow.routing`, `routing-flow.mjs`): type, size, risk, the suggestion, what was used
+  (the agent that got the work and the model and effort set for it on the Agents page at that time) and whether the
+  suggestion was followed. An agent rewrite keeps the stored record.
+- **What happened** (`data/routing-outcomes.jsonl`, `routing-outcomes.mjs`): one line per finished flow (delivered,
+  slipped, stopped or dropped, as the scorecard says), written once, from stored records only. The page sums them
+  per task type and model (right first time, median time, median cost) and says Too few to trust under 5 flows,
+  with the count against the 100 a later learning method needs. No learning method is built. Tokens and cost come
+  from another feature's per-flow provider when one is wired; without it they are left out and marked missing.
+- **Ticket intake** (`routing-intake.mjs`): every ticket is sorted into code, no code or needs a person, with the
+  reason, and likely duplicates show as `Looks like FLA-761` with a Not a duplicate button that is remembered. A
+  Sort chip row and facet filter the Tickets page. Human review's Tickets list reads the sure sorts: a ticket sorted
+  as code leaves it, one sorted no code or needs a person joins it. With `routing.intakeModel` set (off by default),
+  the Routing page's **Sort the unsure tickets** runs ONE cheap model turn over up to 30 unsure open tickets (about a
+  cent with Haiku 5.5, recorded as Ticket sorting spend); its answers are stored as the model's and you can correct
+  any. Corrections live in `data/factory-state.json`.
+
+Routes: `GET /api/routing`, `PUT /api/routing/rules`, `POST /api/routing/flows/<id>`, `GET /api/routing/tickets`,
+`POST /api/routing/tickets/<ID>`, `POST /api/routing/intake/run` (writes need the page's own Origin).
+
 ## License
 
 MIT, see `LICENSE`. The bundled fonts in `public/fonts/` keep their own SIL Open Font License.

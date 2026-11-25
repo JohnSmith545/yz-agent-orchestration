@@ -138,3 +138,12 @@ When the pipeline has **Security** (config `pipeline.security`), it sits after Q
 What the user sees: the flow as a card on the Flows page (`#/flows`), and each `flow ask` in the **Human review** box on the Agents page with your `--why` under the question and Yes and No; the answer is sent back to the agent as a message. An opened flow lands on **Output**: the result screenshot (or your diagram, or with neither a summary chart the dashboard draws from your steps), the summary with its commits, and the numbered test steps. If the user presses **Request test steps**, a message arrives asking for those steps: drive the app, then record each step with `flow test-step`. **Request visuals** (a flow with no screenshot and no diagram) asks for a screenshot or a diagram first.
 
 The full command list is in the README, under "Agents writing flows".
+
+## The routing suggestion
+
+When you start a flow (`flow new`) or the planner starts or hands one out (`flow plan-start`, `flow plan`), the
+dashboard may add two lines on stderr: the task type it read (`Task type: wording (likely), small.`) and a
+suggestion (`Suggested: Agent 2, Sonnet 5.5, medium effort, because small wording fixes rarely fail QA`). It comes
+from the user's routing rules. It is a suggestion, NOT an order: weigh it when you hand work out, and say so if you
+choose otherwise. Never switch a model or a setting yourself because of it. The hand-out records which agent got the
+work and whether that followed the suggestion; that is data for the user, not a mark against you.
