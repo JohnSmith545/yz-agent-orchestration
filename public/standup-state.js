@@ -62,7 +62,8 @@
         return MODES.includes(ev.mode) && ev.mode !== s.mode ? { ...s, mode: ev.mode } : s
       case 'start': {
         if (s.busy || !MODES.includes(ev.mode)) return s
-        const v = { ...blank(), source: 'live', at: ev.at || '', window: s.windows[ev.mode] || null }
+        // `before` is what the view showed: a run refused or failed before any text puts it back (QA A-2)
+        const v = { ...blank(), source: 'live', at: ev.at || '', window: s.windows[ev.mode] || null, before: s.views[ev.mode] }
         return withView({ ...s, mode: ev.mode, busy: ev.mode, run: s.run + 1 }, ev.mode, v)
       }
       case 'facts':
@@ -73,7 +74,10 @@
         const v = s.views[mode]
         if (ev.type === 'facts') return withView(s, mode, { ...v, read: String(ev.read || ''), left: String(ev.left || ''), window: ev.window || v.window, started: true })
         if (ev.type === 'delta') return withView(s, mode, { ...v, output: v.output + String(ev.text ?? ''), started: true })
-        return withView({ ...s, busy: null }, mode, { ...v, error: ev.ok ? '' : String(ev.error || 'The run stopped before it finished.'), runId: ev.runId || null, cost: typeof ev.cost === 'number' ? ev.cost : null })
+        const error = ev.ok ? '' : String(ev.error || 'The run stopped before it finished.')
+        const { before, ...live } = v
+        if (!ev.ok && !v.output) return withView({ ...s, busy: null }, mode, { ...(before || blank()), error })
+        return withView({ ...s, busy: null }, mode, { ...live, error, runId: ev.runId || null, cost: typeof ev.cost === 'number' ? ev.cost : null })
       }
       case 'show': {
         const r = ev.run
@@ -90,7 +94,8 @@
   /** The line over the box: which stand-up, when it was made and what it covers. */
   function made(mode, v) {
     const at = new Date(v.at)
-    if (!v.at || !valid(at) || (!v.output && v.source !== 'live')) return `${KIND[mode]} · not written yet today`
+    // only a stand-up that has text was made: a run with nothing yet, refused or failed, made nothing (QA A-2)
+    if (!v.at || !valid(at) || !v.output) return `${KIND[mode]} · not written yet today`
     const from = new Date(v.window?.from)
     const to = new Date(v.window?.to)
     const covers = !valid(from) ? '' : mode === 'daily' ? ` · Covers ${dayLabel(from)}` : ` · Covers ${dayLabel(from)}${valid(to) ? ` to ${dayLabel(to)}` : ''}`

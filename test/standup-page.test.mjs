@@ -250,3 +250,36 @@ test('standup.css: the pills show which is checked, the archive never widens a p
   assert.match(css, /overflow-wrap: anywhere/)
   assert.doesNotMatch(css, /#[0-9a-f]{3,6}\b/i, 'colours come from the tokens, so dark mode follows')
 })
+
+// ═══ QA A-2, 2026-11-25: a refused or failed Generate showed a Made time for a stand-up that did not exist ═══
+
+test('regression: a Generate refused before any text (409, no server) never shows a Made time', () => {
+  let s = S.reduce(S.initial(), todayEv({ today: { day: '2026-11-25', daily: null, week: null }, runs: [] }))
+  s = S.reduce(s, { type: 'start', mode: 'daily', at: new Date(2026, 10, 25, 10, 28).toISOString() })
+  assert.equal(S.view(s).made, 'Daily · not written yet today', 'nothing is made until text arrives')
+  s = S.reduce(s, { type: 'end', run: s.run, ok: false, error: 'A stand-up is already being written. Wait for it to finish, then try again.' })
+  const v = S.view(s)
+  assert.equal(v.made, 'Daily · not written yet today')
+  assert.equal(v.output, '')
+  assert.match(v.error, /already being written/)
+})
+
+test('regression: a failed Generate over today s stand-up brings that stand-up and its own Made time back, with the error', () => {
+  let s = S.reduce(S.initial(), todayEv())
+  s = S.reduce(s, { type: 'start', mode: 'daily', at: new Date(2026, 10, 25, 10, 28).toISOString() })
+  s = S.reduce(s, { type: 'end', run: s.run, ok: false, error: 'Could not reach the dashboard.' })
+  const v = S.view(s)
+  assert.equal(v.output, RUN.output)
+  assert.equal(v.made, 'Daily · Made Wed 25 Nov 09:14 · Covers Tue 24 Nov')
+  assert.equal(v.error, 'Could not reach the dashboard.')
+  assert.equal(v.canRetry, true)
+})
+
+test('a run that failed after some text keeps that text and its own time, marked by the error', () => {
+  let s = S.reduce(S.initial(), todayEv())
+  s = S.reduce(s, { type: 'start', mode: 'daily', at: new Date(2026, 10, 25, 10, 28).toISOString() })
+  s = S.reduce(s, { type: 'delta', run: s.run, text: 'Stand up, Tue' })
+  s = S.reduce(s, { type: 'end', run: s.run, ok: false, error: 'Stopped.' })
+  assert.equal(S.view(s).output, 'Stand up, Tue')
+  assert.match(S.view(s).made, /Made Wed 25 Nov 10:28/)
+})
