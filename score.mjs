@@ -23,9 +23,10 @@
 //
 // WITH SENIOR on the pipeline (config pipeline.senior, flow-senior.mjs), a no-code flow that Senior gates (seniorApplies)
 // is DELIVERED only at Senior's pass; one Senior stopped (senior-failed) is MISSED, stopped; one that finished (done)
-// with a Senior record but no pass SLIPPED THROUGH; and EACH Senior failure verdict is a CATCH. A flow is Senior's when
-// Senior has a record on it, or it has by-hand steps and is still on its way. A flow that FINISHED with no Senior
-// record (before Senior existed, or with no by-hand work) is judged as before: done with no code changes, delivered.
+// while Senior held it but with no pass SLIPPED THROUGH; and EACH Senior failure verdict is a CATCH. A flow is Senior's
+// when Senior has a record on it, or it has by-hand steps and is still on its way or was planned through Senior (its
+// stored route names Senior). A flow that FINISHED with no Senior record on a route planned before Senior existed, or
+// with no by-hand work at all, is judged as before: done with no code changes, delivered.
 //
 // Not counted: flows still on their way (open or blocked, waiting at QA, being tested, or sent back for a fix) that
 // changed in the last stallDays (`inFlight`). Trashed flows have no file, so they never reach here; archived flows
@@ -195,14 +196,20 @@ export function seniorVerdictsOf(flow) {
 
 /**
  * Whether Senior's pass is part of what THIS flow needs to count as delivered: Senior is on the graph, the flow has no
- * QA record (code is QA's), and Senior has a record on it or it has by-hand steps and is still on its way. ⚠️ Like
- * securityApplies, turning Senior on must not rewrite the past: a flow that FINISHED with no Senior record is judged as
- * it was when it finished.
+ * QA record (code is QA's), and Senior has a record on it (a senior-ask or a review), or it has by-hand steps and either
+ * is still on its way or was planned through Senior (its stored route names Senior: Senior held it when it finished, so
+ * done with no pass slipped through). ⚠️ Like securityApplies, turning Senior on must not rewrite the past: a flow that
+ * FINISHED with no Senior record on a route planned before Senior existed is judged as it was when it finished, and a
+ * flow with no by-hand work never waits on Senior at all. (The store refuses done while Senior holds a flow, flows.mjs
+ * writeFlow, so this is the score's side of the same rule.)
  */
 export function seniorApplies(flow, graph) {
-  if (!seniorOn(graph) || isObject(flow?.qa)) return false
+  const id = (graph?.nodes || []).find(n => n.role === 'senior')?.id
+  if (!id || isObject(flow?.qa)) return false
   if (isObject(flow?.senior)) return true
-  return handSteps(flow).length > 0 && flow?.status !== 'done'
+  if (!handSteps(flow).length) return false
+  const steps = Array.isArray(flow?.route?.steps) ? flow.route.steps : []
+  return flow?.status !== 'done' || steps.includes(id)
 }
 
 /**
