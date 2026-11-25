@@ -1,5 +1,5 @@
 // Pipeline time on the Agents page, the DOM half: a block under the Pipeline score with five tiles (Finished, Per
-// day, Per hour, Time per ticket, Waiting on you), the stage bar with its table, the bars per day with their list,
+// day, Per hour, Time per job, Waiting on you), the stage bar with its table, the bars per day with their list,
 // the per agent table and a How it is counted disclosure, plus a Minutes | Hours | Days | Auto switch. The words and
 // HTML come from time-view.js (pure); the numbers from GET /api/time (time-routes.mjs).
 //

@@ -64,7 +64,9 @@ const EMPTY = {
 
 test('Auto picks the unit that fits, at every boundary', () => {
   const d = ms => V.duration(ms, 'auto')
-  assert.equal(d(0), '0 min')
+  assert.equal(d(0), '0 s')
+  assert.equal(d(400), 'under 1 s')
+  assert.equal(d(4 * S), '4 s')
   assert.equal(d(59 * S), '59 s')
   assert.equal(d(59.6 * S), '1 min', 'rounds up into the next unit, never 60 s')
   assert.equal(d(60 * S), '1 min')
@@ -81,26 +83,47 @@ test('Auto picks the unit that fits, at every boundary', () => {
   assert.equal(d(-5), '')
 })
 
-test('a fixed unit shows every duration in it', () => {
+test('under a minute is whole seconds in every unit, under a second says so', () => {
+  for (const u of ['auto', 'min', 'h', 'day']) {
+    assert.equal(V.duration(0, u), '0 s', u)
+    assert.equal(V.duration(1, u), 'under 1 s', u)
+    assert.equal(V.duration(999, u), 'under 1 s', u)
+    assert.equal(V.duration(1000, u), '1 s', u)
+    assert.equal(V.duration(4.4 * S, u), '4 s', u)
+    assert.equal(V.duration(59 * S, u), '59 s', u)
+    assert.equal(V.duration(59.4 * S, u), '59 s', u)
+  }
+  // the small times QA saw printed as unreadable decimals
+  assert.equal(V.duration(0.000082 * HOUR, 'h'), 'under 1 s')
+  assert.equal(V.duration(0.0000099 * DAY, 'day'), 'under 1 s')
+  assert.equal(V.duration(0.005 * MIN, 'min'), 'under 1 s')
+})
+
+test('a fixed unit: at most 2 decimals, and the next smaller unit when it would round to 0', () => {
   assert.equal(V.duration(42 * MIN, 'min'), '42 min')
   assert.equal(V.duration(2.1 * DAY, 'min'), '3,024 min')
   assert.equal(V.duration(90 * S, 'min'), '1.5 min')
+  assert.equal(V.duration(61 * S, 'min'), '1 min')
   assert.equal(V.duration(42 * MIN, 'h'), '0.7 h')
   assert.equal(V.duration(3.5 * HOUR, 'h'), '3.5 h')
-  assert.equal(V.duration(42 * MIN, 'day'), '0.029 days')
+  assert.equal(V.duration(60 * S, 'h'), '0.02 h')
+  assert.equal(V.duration(42 * MIN, 'day'), '0.03 days')
+  assert.equal(V.duration(15 * MIN, 'day'), '0.01 days')
+  assert.equal(V.duration(5 * MIN, 'day'), '0.08 h', 'would read 0 days: falls to hours')
+  assert.equal(V.duration(60 * S, 'day'), '0.02 h')
   assert.equal(V.duration(DAY, 'day'), '1 day')
-  assert.equal(V.duration(0, 'h'), '0 h')
+  for (const u of ['min', 'h', 'day']) {
+    for (const ms of [61 * S, 7 * MIN, 42 * MIN, 3.5 * HOUR, 2.1 * DAY]) assert.doesNotMatch(V.duration(ms, u), /\.\d{3}/,`${ms} in ${u}`)
+  }
 })
 
-test('rates read a day or an hour; in Minutes, 1 every so many minutes', () => {
-  const perHour = 0.6 / HOUR
-  assert.equal(V.rate(perHour, 'auto', 'h'), '0.6 an hour')
-  assert.equal(V.rate(3.3 / DAY, 'auto', 'day'), '3.3 a day')
-  assert.equal(V.rate(perHour, 'day', 'h'), '14 a day')
-  assert.equal(V.rate(3.3 / DAY, 'h', 'day'), '0.14 an hour')
-  assert.equal(V.rate(1 / (95 * MIN), 'min', 'h'), '1 every 95 min')
-  assert.equal(V.rate(0, 'auto', 'h'), null)
-  assert.equal(V.rate(null, 'min', 'h'), null)
+test('rates keep their own basis; the gap form is 1 every so many minutes', () => {
+  assert.equal(V.rate(0.6 / HOUR, 'h'), '0.6 an hour')
+  assert.equal(V.rate(3.3 / DAY, 'day'), '3.3 a day')
+  assert.equal(V.rate(0, 'h'), null)
+  assert.equal(V.rate(null, 'day'), null)
+  assert.equal(V.gap(1 / (95 * MIN)), '1 every 95 min')
+  assert.equal(V.gap(0), null)
 })
 
 test('a remembered unit: Minutes, Hours, Days or Auto, anything else Auto', () => {
@@ -114,19 +137,30 @@ test('a remembered unit: Minutes, Hours, Days or Auto, anything else Auto', () =
 test('five tiles in order, each a number and one plain sentence', () => {
   const t = plain(V.tiles(STATS, 'auto'))
   assert.deepEqual(t.map(x => x.key), ['finished', 'perDay', 'perHour', 'took', 'waiting'])
-  assert.deepEqual(t.map(x => x.name), ['Finished', 'Per day', 'Per hour', 'Time per ticket', 'Waiting on you'])
+  assert.deepEqual(t.map(x => x.name), ['Finished', 'Per day', 'Per hour', 'Time per job', 'Waiting on you'])
   assert.deepEqual(t.map(x => x.number), ['23 tickets', '3.9 a day', '0.6 an hour', '42 min', '5 min'])
   assert.equal(t[0].line, 'And 4 other jobs, from 25 flows.')
   assert.equal(t[1].line, 'Over the 7 days, today included.')
   assert.equal(t[2].line, 'Over 45 hours with work; 0.17 an hour round the clock.')
-  assert.equal(t[3].line, 'Half took less. Mean 3.5 h, fastest 9 min, slowest 2.1 days.')
+  assert.equal(t[3].line, 'Half the finished jobs took less. Mean 3.5 h, fastest 9 min, slowest 2.1 days.')
   assert.equal(t[4].line, 'Half waited less. Mean 20 min, 8% of their time. 2 flows with an undated question left out.')
   assert.ok(t.every(x => x.empty === false))
 })
 
-test('the tiles in Minutes', () => {
-  const t = plain(V.tiles(STATS, 'min'))
-  assert.deepEqual(t.map(x => x.number), ['23 tickets', '1 every 373 min', '1 every 100 min', '42 min', '5 min'])
+test('each rate tile keeps its own meaning in every unit: the switch changes times only', () => {
+  for (const u of ['auto', 'min', 'h', 'day']) {
+    const t = plain(V.tiles(STATS, u))
+    assert.equal(t[1].number, '3.9 a day', `Per day in ${u}`)
+    assert.equal(t[2].number, '0.6 an hour', `Per hour in ${u}`)
+    const gapDay = u === 'min' ? ' That is 1 every 373 min.' : ''
+    const gapHour = u === 'min' ? ' That is 1 every 100 min.' : ''
+    assert.equal(t[1].line, `Over the 7 days, today included.${gapDay}`, u)
+    assert.equal(t[2].line, `Over 45 hours with work; 0.17 an hour round the clock.${gapHour}`, u)
+    assert.match(V.line(STATS, u), / · 3\.9 a day · 0\.6 an hour · /, u)
+    assert.match(V.agentsHtml(STATS, u), /<td class="num">0\.86 a day<\/td>/, u)
+  }
+  const days = plain(V.tiles(STATS, 'day'))
+  assert.deepEqual(days.slice(3).map(x => x.number), ['0.03 days', '0.08 h'], 'the times do follow the switch (5 min would read 0 days)')
 })
 
 test('Finished: the flows only when they differ, other jobs only when there are tickets too', () => {
@@ -162,7 +196,7 @@ test('All: the days since the first flow started', () => {
 
 test('waiting: nobody waited says so in words, not as half waited less than nothing', () => {
   const t = plain(V.tiles({ ...STATS, waiting: { median: 0, mean: 0, share: 0, flows: 12, undated: 1 } }, 'auto'))[4]
-  assert.equal(t.number, '0 min')
+  assert.equal(t.number, '0 s')
   assert.equal(t.line, 'No question or by-hand step held these flows up. 1 flow with an undated question left out.')
 })
 
@@ -173,7 +207,7 @@ test('waiting with no dated flow says so', () => {
 })
 
 test('the collapsed line', () => {
-  assert.equal(V.line(STATS, 'auto'), '23 tickets and 4 other jobs · 3.9 a day · 0.6 an hour · 42 min a ticket · 5 min waiting on you')
+  assert.equal(V.line(STATS, 'auto'), '23 tickets and 4 other jobs · 3.9 a day · 0.6 an hour · 42 min a job · 5 min waiting on you')
 })
 
 // ═══ where the time goes ═══
@@ -222,12 +256,17 @@ test('the per agent table: tickets, other jobs, time per ticket, per day, sent b
   assert.match(h, /Agent &lt;1&gt;/)
   assert.doesNotMatch(h, /Agent <1>/)
   assert.match(h, /<th scope="row">Master<\/th><td class="num">3<\/td><td class="num">3<\/td><td class="num">2 h<\/td><td class="num">0.86 a day<\/td><td class="num">0<\/td>/)
+  assert.match(h, /<th scope="col">Time per job<\/th>/)
+  assert.doesNotMatch(h, /Time per ticket/)
   assert.match(V.agentsHtml(EMPTY, 'auto'), /No agent finished work/)
 })
 
 test('How it is counted names the rules, the live counts and what the flow files cannot date', () => {
   const h = V.howHtml(STATS)
   for (const words of ['delivered', 'local', 'midnight', '45 hours', 'Median', 'cannot be dated', 'planner', '1 slipped through', '2 dropped', '4 stalled']) assert.match(h, new RegExp(words), words)
+  assert.match(h, /Time per job/)
+  assert.doesNotMatch(h, /Time per ticket/)
+  assert.match(h, /changes the times only/)
   assert.doesNotMatch(h, /—/, 'no em dashes in the copy')
 })
 

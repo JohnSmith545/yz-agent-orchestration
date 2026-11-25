@@ -65,7 +65,7 @@ example first.
   from the transcripts and git.
 - **Agents**: the orchestration as a pipeline diagram, from request to outcome, under a
   pipeline score (precision, recall, F-score, accuracy and correctness) and Pipeline time (tickets finished per
-  day and per hour, time per ticket, where the time goes), with
+  day and per hour, time per job, where the time goes), with
   a live view of one agent (its feed, its edits as diffs, its uncommitted changes)
   and a draft progress report.
 - **Subagents**: every subagent the sessions started, live or ended: what each one is working on, how it
@@ -1573,13 +1573,14 @@ read again with every status refresh without redrawing.
   tiles line up under the score's: **Finished** (tickets, a ticket finished twice once, and other jobs: flows with no
   ticket), **Per day** (over the days of the period, today included), **Per hour** (over the active hours: clock hours
   in which a flow recorded an event of the Log, so idle nights do not dilute it; the round-the-clock rate beside it),
-  **Time per ticket** (the median from createdAt to the finish, with the mean, fastest and slowest) and **Waiting on
+  **Time per job** (the median from createdAt to the finish over every finished flow, with the mean, fastest and slowest) and **Waiting on
   you** (each question to its answer, each by-hand step to its tick, overlaps once). Then a stacked bar of the median
   time at each stage the files can date (coordinator and planner, producer, QA, Security, Human task, Senior,
   reworks) with a table, bars of work finished per day (per week for All) with a text list and arrow keys, a By agent
   table and How it is counted, which names what cannot be dated. The period is whole local days; the score's window
-  switch drives both blocks. A Minutes, Hours, Days or Auto switch sets every time and rate (in Minutes a rate reads
-  `1 every 95 min`); it and the block folded are remembered in this browser. Under 3 finished flows says Too few to
+  switch drives both blocks. A Minutes, Hours, Days or Auto switch sets every duration (under a minute is whole seconds in
+  every unit; a fixed unit shows at most 2 decimals and drops to the next smaller unit rather than read 0). The
+  rates keep their basis, Per day a day and Per hour an hour; in Minutes their small line adds `1 every 95 min`. It and the block folded are remembered in this browser. Under 3 finished flows says Too few to
   trust; none is an empty state, never a 0.
 - **Log**, the side panel's third choice (`score-log.mjs`, `GET /api/log`, `pipeline-log.js`): one timeline of what
   happened, newest first. Each event is a time (as the pages show times, the exact one on hover), one plain

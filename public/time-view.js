@@ -4,8 +4,10 @@
 // (time-strip.js does those), so test/time-view.test.mjs runs it in a vm with a bare window. `stats` is /api/time's
 // body (time-stats.mjs timeStats): every time in ms, every rate per day or per hour.
 //
-//   TimeView.duration(ms, unit)       '42 min', '3.5 h', '2.1 days' (Auto), or every value in Minutes, Hours or Days
-//   TimeView.rate(perMs, unit, auto)  '3.3 a day', '0.6 an hour', or in Minutes '1 every 95 min'; null for no rate
+//   TimeView.duration(ms, unit)       '42 min', '3.5 h', '2.1 days' (Auto), or every value in Minutes, Hours or Days;
+//                                     under a minute always whole seconds ('4 s', 'under 1 s'), in every unit
+//   TimeView.rate(perMs, basis)       '3.3 a day' or '0.6 an hour': a rate ALWAYS keeps its own basis; null for none
+//   TimeView.gap(perMs)               '1 every 95 min': the same rate as a gap, for the small line in Minutes
 //   TimeView.tiles(stats, unit)       [{ key, name, side, number, line, empty }] for the five tiles, in order
 //   TimeView.line(stats, unit)        the collapsed line
 //   TimeView.stageParts / stagesHtml  the stacked bar (widths add to exactly 100) and its table
@@ -13,6 +15,10 @@
 //   TimeView.agentsHtml / howHtml     the per agent table, the help
 //   TimeView.skeleton()               the block's markup, built once; unitOf(v) a stored unit with a safe default
 //
+// ⚠️ The units switch changes DURATIONS only (Time per job, Waiting on you, the stage bar and table, By agent). Per
+// day is always tickets per calendar day and Per hour always tickets per active hour, whatever the unit: a Per day
+// tile reading so many an hour beside a Per hour tile reading so many a day contradicted itself (QA, 2026-11-25).
+// In Minutes the two rate tiles add the gap form to their small line, never to the headline.
 // Rules: nothing finished is an honest empty state ('Nothing finished yet', 'Not enough data yet'), never a 0 that
 // reads as a result; fewer than 3 finished flows says Too few to trust; every value from the server goes through
 // UI.esc; no em dashes in the copy. The tiles reuse the score's tile classes (score.css psc-) so the two rows line up.
@@ -27,7 +33,7 @@
     Object.freeze({ key: 'day', label: 'Days' }),
     Object.freeze({ key: 'auto', label: 'Auto' }),
   ])
-  const NAMES = Object.freeze({ finished: 'Finished', perDay: 'Per day', perHour: 'Per hour', took: 'Time per ticket', waiting: 'Waiting on you' })
+  const NAMES = Object.freeze({ finished: 'Finished', perDay: 'Per day', perHour: 'Per hour', took: 'Time per job', waiting: 'Waiting on you' })
   const ORDER = Object.freeze(['finished', 'perDay', 'perHour', 'took', 'waiting'])
   const NONE = 'Not enough data yet'
   const FEW = 'Too few to trust. '
@@ -40,7 +46,11 @@
   const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
   const round1 = v => Math.round(v * 10) / 10
   const grouped = v => String(Math.round(v)).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-  /** A number as the block shows it: whole from 10 up, one decimal from 1, two significant digits below 1. */
+  /** A value in a fixed unit: whole from 10 up, one decimal from 1, at most 2 decimals below 1 ('0' when it rounds away). */
+  const fixed = v => (v >= 10 ? grouped(v) : v >= 1 ? String(round1(v)) : String(Math.round(v * 100) / 100))
+  const UNIT_MS = Object.freeze({ day: DAY, h: HOUR, min: MIN })
+  const SMALLER = Object.freeze({ day: 'h', h: 'min' })
+  /** A number as the block shows it (rates): whole from 10 up, one decimal from 1, two significant digits below 1. */
   const num = v => {
     if (!isNum(v)) return ''
     const a = Math.abs(v)
@@ -51,15 +61,24 @@
   }
   const days = text => `${text} ${text === '1' ? 'day' : 'days'}`
 
-  /** A duration in `unit`: Auto picks the unit that fits (59 s, 42 min, 3.5 h, 2.1 days), rounding up into the next. */
+  /**
+   * A duration in `unit`. Under a minute it is whole seconds in EVERY unit ('4 s', 'under 1 s', '0 s'), never an
+   * unreadable 0.000082 h. Auto picks the unit that fits (59 s, 42 min, 3.5 h, 2.1 days), rounding up into the next.
+   * A fixed unit shows at most 2 decimals and falls to the next smaller unit when the value would round to 0
+   * (5 min in Days reads 0.08 h, not 0 days).
+   */
   function duration(ms, unit = 'auto') {
     if (!isNum(ms) || ms < 0) return ''
-    if (unit === 'min') return `${num(ms / MIN)} min`
-    if (unit === 'h') return `${num(ms / HOUR)} h`
-    if (unit === 'day') return days(num(ms / DAY))
-    if (ms === 0) return '0 min'
+    if (ms === 0) return '0 s'
+    if (ms < S) return 'under 1 s'
     const s = Math.round(ms / S)
     if (s < 60) return `${s} s`
+    if (UNIT_MS[unit]) {
+      let u = unit
+      while (SMALLER[u] && fixed(ms / UNIT_MS[u]) === '0') u = SMALLER[u]
+      const text = fixed(ms / UNIT_MS[u])
+      return u === 'day' ? days(text) : `${text} ${u}`
+    }
     const m = Math.round(ms / MIN)
     if (m < 60) return `${m} min`
     const h = round1(ms / HOUR)
@@ -67,14 +86,16 @@
     return days(String(round1(ms / DAY)))
   }
 
-  /** A rate (pieces per ms) in `unit`; Auto reads it per `auto` ('day' or 'h'). Null when there is no rate. */
-  function rate(perMs, unit, auto) {
+  /** A rate (pieces per ms) on its own basis, 'day' or 'h', whatever the units switch says. Null when there is none. */
+  function rate(perMs, basis) {
     if (!isNum(perMs) || perMs <= 0) return null
-    const u = unit === 'auto' ? auto : unit
-    if (u === 'min') return `1 every ${duration(1 / perMs, 'min')}`
-    if (u === 'h') return `${num(perMs * HOUR)} an hour`
-    return `${num(perMs * DAY)} a day`
+    return basis === 'h' ? `${num(perMs * HOUR)} an hour` : `${num(perMs * DAY)} a day`
   }
+
+  /** The same rate as a gap between pieces: '1 every 95 min'. Null when there is no rate. */
+  const gap = perMs => (isNum(perMs) && perMs > 0 ? `1 every ${duration(1 / perMs, 'min')}` : null)
+  /** In Minutes, a rate tile's small line adds its gap form; in any other unit nothing. */
+  const gapLine = (perMs, unit) => (unit === 'min' && gap(perMs) ? ` That is ${gap(perMs)}.` : '')
 
   const finishedNow = stats => Number(stats?.finished?.flows) > 0
   const spanOf = stats => (stats?.window?.days ? `in the last ${stats.window.days} days` : 'yet')
@@ -107,15 +128,15 @@
     const w = stats.window || {}
     const d = ms => duration(ms, unit)
     const f = finishedTile(stats.finished)
-    const clock = rate(isNum(stats.rates?.perClockHour) ? stats.rates.perClockHour / HOUR : null, unit, 'h')
+    const clock = rate(isNum(stats.rates?.perClockHour) ? stats.rates.perClockHour / HOUR : null, 'h')
     const took = stats.took
     const wait = stats.waiting
     const undated = Number(wait?.undated) || 0
     return [
       tile('finished', f.number, f.line),
-      tile('perDay', rate(perDayMs(stats), unit, 'day'), `${few}${w.days ? `Over the ${w.days} days, today included.` : `Over ${plural(Number(w.dayCount) || 0, 'day')}, since the first flow started.`}`),
-      tile('perHour', rate(perHourMs(stats), unit, 'h'), `${few}Over ${plural(Number(w.activeHours) || 0, 'hour')} with work${clock ? `; ${clock} round the clock` : ''}.`),
-      took ? tile('took', d(took.median), `${few}Half took less. Mean ${d(took.mean)}, fastest ${d(took.fastest)}, slowest ${d(took.slowest)}.`) : tile('took', null, 'No finished flow has its start dated.'),
+      tile('perDay', rate(perDayMs(stats), 'day'), `${few}${w.days ? `Over the ${w.days} days, today included.` : `Over ${plural(Number(w.dayCount) || 0, 'day')}, since the first flow started.`}${gapLine(perDayMs(stats), unit)}`),
+      tile('perHour', rate(perHourMs(stats), 'h'), `${few}Over ${plural(Number(w.activeHours) || 0, 'hour')} with work${clock ? `; ${clock} round the clock` : ''}.${gapLine(perHourMs(stats), unit)}`),
+      took ? tile('took', d(took.median), `${few}Half the finished jobs took less. Mean ${d(took.mean)}, fastest ${d(took.fastest)}, slowest ${d(took.slowest)}.`) : tile('took', null, 'No finished flow has its start dated.'),
       wait
         ? tile('waiting', d(wait.median), `${few}${wait.mean > 0 ? `Half waited less. Mean ${d(wait.mean)}${isNum(wait.share) ? `, ${pct(wait.share)} of their time` : ''}.` : 'No question or by-hand step held these flows up.'}${undated ? ` ${plural(undated, 'flow')} with an undated question left out.` : ''}`)
         : tile('waiting', null, 'No finished flow has its questions dated.'),
@@ -128,9 +149,9 @@
     const what = f.tickets && f.jobs ? `${plural(f.tickets, 'ticket')} and ${plural(f.jobs, 'other job')}` : f.tickets ? plural(f.tickets, 'ticket') : plural(f.jobs, 'job')
     return [
       what,
-      rate(perDayMs(stats), unit, 'day'),
-      rate(perHourMs(stats), unit, 'h'),
-      stats.took ? `${duration(stats.took.median, unit)} a ticket` : null,
+      rate(perDayMs(stats), 'day'),
+      rate(perHourMs(stats), 'h'),
+      stats.took ? `${duration(stats.took.median, unit)} a job` : null,
       stats.waiting ? `${duration(stats.waiting.median, unit)} waiting on you` : null,
     ].filter(Boolean).join(' · ')
   }
@@ -207,11 +228,11 @@
     const agents = Array.isArray(stats?.agents) ? stats.agents : []
     if (!agents.length) return '<p class="psc-none">No agent finished work or had work sent back in this period.</p>'
     const rows = agents.map(a => `<tr><th scope="row">${esc(a.label)}</th><td class="num">${Number(a.tickets) || 0}</td><td class="num">${Number(a.jobs) || 0}</td>` +
-      `<td class="num">${esc(duration(a.median, unit))}</td><td class="num">${esc(rate(isNum(a.perDay) ? a.perDay / DAY : null, unit, 'day') ?? '')}</td><td class="num">${Number(a.sentBack) || 0}</td></tr>`).join('')
+      `<td class="num">${esc(duration(a.median, unit))}</td><td class="num">${esc(rate(isNum(a.perDay) ? a.perDay / DAY : null, 'day') ?? '')}</td><td class="num">${Number(a.sentBack) || 0}</td></tr>`).join('')
     return '<div class="psc-scroll"><table class="ptm-table ptm-agent-table"><thead><tr><th scope="col">Agent</th><th scope="col">Tickets</th><th scope="col">Other jobs</th>' +
-      '<th scope="col">Time per ticket</th><th scope="col">Per day</th><th scope="col">Sent back</th></tr></thead>' +
+      '<th scope="col">Time per job</th><th scope="col">Per day</th><th scope="col">Sent back</th></tr></thead>' +
       `<tbody>${rows}</tbody></table></div>` +
-      '<p class="psc-foot">Tickets: finished on that agent&#39;s flows (a ticket finished twice counts for the last one). Time per ticket: the median from start to finish. Sent back: times QA, Security or Senior failed its work in this period, as the score counts it.</p>'
+      '<p class="psc-foot">Tickets: finished on that agent&#39;s flows (a ticket finished twice counts for the last one). Time per job: the median from start to finish over its finished flows. Sent back: times QA, Security or Senior failed its work in this period, as the score counts it.</p>'
   }
 
   // ═══ How it is counted ═══
@@ -234,8 +255,9 @@
       `<li><b>The period</b> is whole days in this computer&#39;s local time: ${period}. The score above counts the last 7 or 30 times 24 hours, so near midnight the two can differ by a few hours of work.</li>` +
       `<li><b>Per day</b> divides by ${plural(n(w.dayCount), 'day')}, today included. <b>Per hour</b> divides by ${plural(n(w.activeHours), 'hour')} with work: the clock hours in which at least one flow recorded something (started, planned, handed to QA, a verdict, pushed, finished, dropped). Nights and weekends with no work do not dilute it. Round the clock divides by every hour of the period.</li>` +
       '<li><b>Median</b> is the middle value: half took less, half took more. It is the headline because one three-day wait must not hide ten 20-minute tickets; the mean (the average) is beside it. Fewer than 3 finished flows are too few to trust.</li>' +
-      '<li><b>Time per ticket</b> runs from when the flow was started to when it finished. <b>Waiting on you</b> runs from each question to its answer and from each by-hand step to its tick, overlaps counted once.</li>' +
-      '<li><b>Where the time goes</b>: Coordinator and planner, start to the planner&#39;s first hand-out; Producer, to the first QA attempt (or the first by-hand step, or the finish when there is no code); QA, each attempt from start to verdict; Security, QA&#39;s pass to Security&#39;s verdict; Human task, the first by-hand step to Senior starting (or the last tick); Senior, each review; Reworks, each failure to the next attempt or review. Each part is the median of the flows that went through it, so the parts do not add up to the time per ticket.</li>' +
+      '<li><b>Time per job</b> runs from when a flow was started to when it finished, over every finished flow: a flow with no ticket counts, and so does each flow of a ticket finished twice.<b>Waiting on you</b> runs from each question to its answer and from each by-hand step to its tick, overlaps counted once.</li>' +
+      '<li><b>Where the time goes</b>: Coordinator and planner, start to the planner&#39;s first hand-out; Producer, to the first QA attempt (or the first by-hand step, or the finish when there is no code); QA, each attempt from start to verdict; Security, QA&#39;s pass to Security&#39;s verdict; Human task, the first by-hand step to Senior starting (or the last tick); Senior, each review; Reworks, each failure to the next attempt or review. Each part is the median of the flows that went through it, so the parts do not add up to the time per job.</li>' +
+      '<li><b>Minutes, Hours, Days, Auto</b> changes the times only. Per day is always tickets per day and Per hour always tickets per hour with work; in Minutes their small line also says how often one finishes (1 every 95 min). Under a minute, every unit shows whole seconds.</li>' +
       '</ul>' +
       '<h4 class="psc-h">What cannot be dated</h4><ul class="psc-sums">' +
       '<li>Without the planner, the hand-over from the coordinator to a producer has no time in the flow file, so that time counts as the producer&#39;s.</li>' +
@@ -273,5 +295,5 @@
       '<p class="psc-note" role="status" hidden></p>'
   }
 
-  window.TimeView = { UNITS, NONE, unitOf, num, duration, rate, tiles, line, stageParts, stagesHtml, barModel, chartHtml, agentsHtml, howHtml, skeleton }
+  window.TimeView = { UNITS, NONE, unitOf, num, duration, rate, gap, tiles, line, stageParts, stagesHtml, barModel, chartHtml, agentsHtml, howHtml, skeleton }
 })()
