@@ -125,7 +125,7 @@
         : st.tab === 'talk' ? V.talk(st.thread, st.ui)
         : V.now(st.summary)
       root.innerHTML = '<div class="ph-app">' +
-        `<header class="ph-top"><span class="ph-brand">Agents</span><span class="ph-notice" role="status">${V.esc(st.notice)}</span>` +
+        `<header class="ph-top"><span class="ph-brand">${V.esc(V.tabTitle(st.tab, label))}</span><span class="ph-notice" role="status">${V.esc(st.notice)}</span>` +
         '<button type="button" class="link ph-out" data-ph-signout>Sign out</button></header>' +
         `<main class="ph-main" id="phMain">${body}</main>${V.nav(st.tab, st.summary, label)}</div>`
     }

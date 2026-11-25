@@ -198,3 +198,9 @@ test('talk reads the thread and sends through phone-talk.mjs, the text as given'
   assert.equal(r.body.text, 'hello')
   assert.equal(r.body.sid, 'abc')
 })
+
+test('an agent line never shows a raw session id: an unmapped session is an Unnamed session (QA, 2026-11-26)', async () => {
+  const raw = [{ label: '3f2a9c1e-7b4d-4e21-9a0b-6c5d4e3f2a1b', state: 'idle' }, { label: '', state: 'idle' }, { label: 'Agent 2', state: 'idle' }]
+  const { body } = await makePhoneActions({ relay, talk, getStatus: async () => ({ agents: raw }) }).summary()
+  assert.deepEqual(body.agents.map(a => a.label), ['Unnamed session', 'Unnamed session', 'Agent 2'])
+})

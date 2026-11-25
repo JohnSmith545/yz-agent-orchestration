@@ -151,7 +151,7 @@ test('Outputs: the story, Completed, and an inline confirm in its place', () => 
   const plainView = V.outputs(SUMMARY, {}, Date.parse('2026-11-26T10:00:00Z'))
   assert.match(text(plainView), /Agent 1 · finished 24 Nov · waiting a while/)
   assert.match(text(plainView), /Agent 1 Built the box\. You asked\./)
-  assert.match(plainView, /data-ph-complete data-flow="shipped">Completed</)
+  assert.match(plainView, /data-ph-complete data-flow="shipped" aria-label="Completed: Search box">Completed</)
   const confirm = V.outputs(SUMMARY, { confirm: 'shipped' })
   assert.match(text(confirm), /Mark it completed\? It moves to the archive\. Yes Cancel/)
   assert.doesNotMatch(confirm, /data-ph-complete data-flow/)
@@ -227,4 +227,24 @@ test('a by-hand flow with no steps says where to ask for them: the PC, since the
 
 test('an empty thread says replies show once you write, and only from then on', () => {
   assert.match(text(V.talk({ label: 'Master', messages: [], replies: [] }, {})), /Replies from Master show here once you write: only what it says after your first message from this phone\./)
+})
+
+// QA 2026-11-26: story lines showed the glossary brackets ([quota project]) and repeated the agent (Master Master
+// gave...); every Completed button read the same to a screen reader; the header said Agents on every tab.
+test('Outputs: story lines lose the glossary brackets and never repeat the agent; Completed names its flow', () => {
+  const sum = { ...SUMMARY, outputs: [{ flowId: 'quota', title: 'Quota fix', agent: 'Master', story: [{ who: 'Master', did: 'Master gave the [quota project] a new [billing account].', why: '' }] }] }
+  const t = text(V.outputs(sum, {}))
+  assert.match(t, /Master gave the quota project a new billing account\./)
+  assert.doesNotMatch(t, /Master Master/)
+  assert.doesNotMatch(t, /\[|\]/)
+  assert.match(V.outputs(sum, {}), /aria-label="Completed: Quota fix"/)
+})
+
+test('the header names the tab: Now, Needs you, Outputs, or the coordinator', () => {
+  assert.equal(V.tabTitle('now', 'Master'), 'Now')
+  assert.equal(V.tabTitle('needs', 'Master'), 'Needs you')
+  assert.equal(V.tabTitle('outputs', 'Master'), 'Outputs')
+  assert.equal(V.tabTitle('talk', 'Master'), 'Master')
+  assert.equal(V.tabTitle('talk'), 'Master')
+  assert.match(read('phone-app.js'), /V\.tabTitle\(st\.tab, label\)/)
 })

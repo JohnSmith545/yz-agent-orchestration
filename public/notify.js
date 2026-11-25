@@ -361,7 +361,8 @@
    * `html` is already escaped; `action` is the plain { label, kind, flowId, nodeId } runAction knows.
    * `keep: false` leaves it out of the history (the per-load summary: the asks it counts are already there).
    */
-  function toast(html, { kind = 'info', action, sticky = false, keep = true } = {}) {
+  /** One toast; returns its element. `onDismiss` runs when the user presses its ✕ (phone-notice.js keeps that per browser). */
+  function toast(html, { kind = 'info', action, sticky = false, keep = true, onDismiss = null } = {}) {
     const a = KINDS.includes(action?.kind) ? JSON.parse(JSON.stringify(action)) : null
     if (keep) {
       saveHistory(raw, history(loadHistory(raw), { at: new Date().toISOString(), html, action: a }))
@@ -370,11 +371,12 @@
     const el = document.createElement('div')
     el.className = `nt-toast ${kind}`
     el.innerHTML = `<div class="nt-text">${html}</div><div class="nt-actions">${a ? `<button type="button" class="link nt-go">${esc(a.label)}</button>` : ''}<button type="button" class="link nt-x" aria-label="Dismiss">✕</button></div>`
-    el.querySelector('.nt-x').addEventListener('click', () => el.remove())
+    el.querySelector('.nt-x').addEventListener('click', () => { el.remove(); onDismiss?.() })
     if (a) el.querySelector('.nt-go').addEventListener('click', () => { el.remove(); runAction(a) })
     stack.appendChild(el)
     while (stack.children.length > 4) stack.firstChild.remove()
     if (!sticky) setTimeout(() => el.remove(), 12_000)
+    return el
   }
   function desktop(title, body, onClick) {
     if (!desktopOn() || document.visibilityState === 'visible' && document.hasFocus()) return

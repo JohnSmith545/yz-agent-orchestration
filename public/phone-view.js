@@ -20,6 +20,16 @@
   /** A reply's text with its Markdown bold and code shown as such, AFTER escaping: nothing else becomes markup. */
   const marks = s => esc(s).replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>').replace(/`([^`\n]+)`/g, '<code>$1</code>')
   const busy = (ui, key) => (ui?.busy?.[key] ? ' disabled' : '')
+  /** A story line as plain words: the glossary's [term] marks dropped (QA, 2026-11-26). */
+  const plain = s => String(s ?? '').replace(/\[([^\[\]\n]{1,80})\]/g, '$1')
+  /** What the agent did, without its own name again at the start: Master, not Master Master gave... */
+  const didOf = (who, did) => {
+    const w = String(who ?? '').trim()
+    const d = plain(did)
+    return w && d.toLowerCase().startsWith(w.toLowerCase() + ' ') ? d.slice(w.length + 1) : d
+  }
+  /** The header's name for a tab (QA, 2026-11-26: it said Agents on every tab). */
+  const tabTitle = (tab, label) => ({ now: 'Now', needs: 'Needs you', outputs: 'Outputs' })[tab] || label || 'Master'
 
   const ICON = '<svg class="ph-logo" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><rect x="6" y="6" width="36" height="36" rx="9"/><path d="M16 25.5l5.5 5.5L32 19"/></svg>'
 
@@ -122,12 +132,12 @@
       const key = `out:${o.flowId}`
       const ids = attr('data-flow', o.flowId)
       const story = (o.story || []).length
-        ? `<ul class="ph-story">${o.story.map(l => `<li><b>${esc(l.who)}</b> ${esc(l.did)}${l.why ? ` <span class="ph-faint">${esc(l.why)}</span>` : ''}</li>`).join('')}</ul>`
+        ? `<ul class="ph-story">${o.story.map(l => `<li><b>${esc(l.who)}</b> ${esc(didOf(l.who, l.did))}${l.why ? ` <span class="ph-faint">${esc(plain(l.why))}</span>` : ''}</li>`).join('')}</ul>`
         : ''
       const act = ui.confirm === o.flowId
         ? `<div class="ph-confirm" role="group" aria-label="Confirm Completed"><p class="ph-line">Mark it completed? It moves to the archive.</p>` +
           `<div class="ph-actions"><button type="button" class="primary" data-ph-complete-yes${ids}${busy(ui, key)}>Yes</button><button type="button" data-ph-complete-no${ids}>Cancel</button></div></div>`
-        : `<div class="ph-actions"><button type="button" class="primary" data-ph-complete${ids}>Completed</button></div>`
+        : `<div class="ph-actions"><button type="button" class="primary" data-ph-complete${ids}${attr('aria-label', `Completed: ${o.title}`)}>Completed</button></div>`
       const when = o.finishedAt ? `finished ${S.when(o.finishedAt, nowMs)}` : 'finished'
       return `<article class="ph-card"${attr('data-key', key)}>` +
         `<p class="ph-kicker">${esc(o.agent || 'An agent')} · ${esc(when)}${o.overdue ? ' · <span class="ph-warn-text">waiting a while</span>' : ''}</p>` +
@@ -157,5 +167,5 @@
       status(ui, 'talk') + '</section>'
   }
 
-  window.PhoneView = { esc, signIn, nav, now, needs, outputs, talk }
+  window.PhoneView = { tabTitle, esc, signIn, nav, now, needs, outputs, talk }
 })()

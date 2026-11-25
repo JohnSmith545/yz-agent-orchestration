@@ -58,6 +58,12 @@ export const AGENTS_WAIT_MS = 3000
 
 export function makePhoneActions({ relay, talk, getStatus, config = CONFIG, now = Date.now, agentsWaitMs = AGENTS_WAIT_MS }) {
   /** Each agent in one line; null while the PC is still building the list (the page says so and asks again later). */
+  /** A label to show: an unmapped session is an Unnamed session, never its raw id (QA, 2026-11-26). */
+  const shownLabel = l => {
+    const s = String(l || '').trim()
+    return !s || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s) || /^[0-9a-f]{16,}$/i.test(s) ? 'Unnamed session' : s
+  }
+
   async function agentLines(flows) {
     let agents = []
     let timer
@@ -72,7 +78,7 @@ export function makePhoneActions({ relay, talk, getStatus, config = CONFIG, now 
       clearTimeout(timer)
     }
     const onFlow = label => flows.filter(f => f.agent === label && live(f)).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))[0]?.title || ''
-    return agents.map(a => ({ label: String(a.label || ''), busy: a.state === 'active' || a.status === 'busy', flow: onFlow(a.label) }))
+    return agents.map(a => ({ label: shownLabel(a.label), busy: a.state === 'active' || a.status === 'busy', flow: onFlow(a.label) }))
   }
 
   async function summary() {

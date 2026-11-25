@@ -107,6 +107,31 @@ test('the notices are the events newer than the last seen, of the kinds that mat
   assert.equal(N.fresh(events, '2026-11-25T10:06:00.000Z').length, 0)
 })
 
+// QA 2026-11-26: an urgent notice raised in one tab marked it seen for the whole browser, so other tabs never showed it.
+// Urgent ones now stay in EVERY tab until dismissed in this browser; the seen marker only moves for the passing ones.
+test('plan: an urgent notice shows in each tab until dismissed in this browser; a passing one shows once per browser', () => {
+  const P = (...a) => JSON.parse(JSON.stringify(N.plan(...a))) // out of the vm realm, for deepEqual
+  const now = Date.parse('2026-11-25T12:00:00.000Z')
+  const events = [
+    { at: '2026-11-25T10:03:00.000Z', kind: 'login', address: '100.64.1.2' },
+    { at: '2026-11-25T10:05:00.000Z', kind: 'lockout', address: '100.64.1.9' },
+  ]
+  const tabA = P(events, { seenAt: '2026-11-25T10:00:00.000Z', dismissed: [], shownHere: [], now })
+  assert.deepEqual(tabA.show.map(e => e.kind), ['login', 'lockout'])
+  assert.equal(tabA.seenAt, '2026-11-25T10:03:00.000Z', 'the seen marker moves past the passing one only')
+  // tab B opens after tab A raised both: the lockout still shows there, the sign-in does not again
+  const tabB = P(events, { seenAt: tabA.seenAt, dismissed: [], shownHere: [], now })
+  assert.deepEqual(tabB.show.map(e => e.kind), ['lockout'])
+  // the next poll in tab A raises nothing twice
+  assert.deepEqual(P(events, { seenAt: tabA.seenAt, dismissed: [], shownHere: tabA.show.map(N.keyOf), now }).show, [])
+  // dismissed in this browser: no tab shows it again, and tab A takes it down
+  const after = P(events, { seenAt: tabA.seenAt, dismissed: [N.keyOf(events[1])], shownHere: [N.keyOf(events[1])], now })
+  assert.deepEqual(after.show, [])
+  assert.deepEqual(after.close, [N.keyOf(events[1])])
+  // an urgent notice older than a week is not raised again
+  assert.deepEqual(P(events, { seenAt: '', dismissed: [], shownHere: [], now: now + 8 * 86_400_000 }).show.filter(e => e.kind === 'lockout'), [])
+})
+
 test('the rail badge: Phone on, a link to the Phone card, only while phone access is on', () => {
   assert.match(N.badgeHtml(true), /href="#\/settings"/)
   assert.match(N.badgeHtml(true), /Phone on/)
