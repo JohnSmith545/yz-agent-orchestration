@@ -57,7 +57,7 @@
     '<p>Click an agent for its settings: the model you want it on, its subagents, its specification and rules, and the files and notes it is given. ' +
     'A green pill on an agent says how many subagents run under it now.</p>' +
     '<p><b>Completed</b> is your sign-off on a finished output. Only you can give it: tick an output in the Output list (open Outputs on the right), or ' +
-    'press Completed at the end of the Output tab of an opened flow. A completed flow goes to the flow archive and off every board, and still counts in the score. ' +
+    'press Completed at the end of the Output tab of an opened flow. A completed flow goes to the flow archive and off every board, and still counts in the score. Archiving is not a sign-off: an archived output you never marked completed still waits, with an Archived mark in the Output list. ' +
     'A finished output you have not marked carries an amber dot; after 2 days the line over the diagram turns into a notice, and once 7 wait the Ask ' +
     'drawer reminds you before a new request (outputs.warnAfterDays and outputs.max in config.json).</p>'
 

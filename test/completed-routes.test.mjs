@@ -207,6 +207,14 @@ test('the scorecard and Pipeline time are exactly the same before and after comp
 
 // ═══ GET /api/outputs ═══
 
+test('GET /api/outputs: an archived output never signed off still waits, and says it is archived', async () => {
+  put('away', 'done', { nodes: [], archivedAt: UPDATED })
+  const j = await (await get('/api/outputs')).json()
+  assert.deepEqual(j.waiting.map(w => [w.id, w.archived]), [['away', true]])
+  const t = pipelineGet().body.tickets.find(x => x.id === 'away')
+  assert.deepEqual([t.archived, t.waiting, t.completed], [true, true, false])
+})
+
 test('GET /api/outputs: what waits, overdue after 2 days, piled at outputs.max', async () => {
   put('new', 'done', { updatedAt: new Date(Date.now() - 60_000).toISOString() })
   put('old', 'done')

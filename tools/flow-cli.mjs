@@ -212,7 +212,7 @@ function cmdNew(f, { by, config }) {
  */
 function pileUp(config) {
   const c = config || CONFIG
-  const s = outputsSummary(listFlows().flows, pipelineGraph(c), c.outputs, Date.now())
+  const s = outputsSummary(listFlows({ archived: 'any' }).flows, pipelineGraph(c), c.outputs, Date.now()) // archiving is no sign-off
   return s.piled ? reminderLine(s.counts.waiting) : ''
 }
 

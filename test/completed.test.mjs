@@ -81,10 +81,10 @@ test('a done flow still on its way (code QA has not tested) can be completed but
   assert.equal(atOutput(flow('dropped'), G), false)
 })
 
-test('waiting for sign-off: at the Output and neither completed, archived nor deleted', () => {
+test('waiting for sign-off: at the Output and neither completed nor deleted; archiving is not a sign-off', () => {
   assert.equal(waitsForSignOff(flow('done'), G), true)
   assert.equal(waitsForSignOff(flow('done', { completedAt: iso(T0), archivedAt: iso(T0) }), G), false)
-  assert.equal(waitsForSignOff(flow('done', { archivedAt: iso(T0) }), G), false, 'put away by the user')
+  assert.equal(waitsForSignOff(flow('done', { archivedAt: iso(T0) }), G), true, 'put away by the user, but never signed off: it still waits')
   assert.equal(waitsForSignOff(flow('done', { deletedAt: iso(T0) }), G), false)
   assert.equal(waitsForSignOff(flow('open'), G), false)
   assert.equal(isCompleted(flow('done', { completedAt: iso(T0) })), true)
@@ -142,10 +142,11 @@ test('the summary lists only what waits, the oldest finish first, each with over
     null,
   ]
   const s = outputsSummary(list, G, OUTPUT_DEFAULTS, T0 + DAY)
-  assert.deepEqual(s.waiting.map(w => w.id), ['old', 'push', 'new'])
-  assert.deepEqual(s.waiting.map(w => w.overdue), [true, false, false])
-  assert.deepEqual(s.counts, { waiting: 3, overdue: 1 })
-  assert.deepEqual(Object.keys(s.waiting[0]), ['id', 'title', 'agent', 'finishedAt', 'overdue'])
+  assert.deepEqual(s.waiting.map(w => w.id), ['old', 'push', 'away', 'new'])
+  assert.deepEqual(s.waiting.map(w => w.overdue), [true, false, false, false])
+  assert.deepEqual(s.counts, { waiting: 4, overdue: 1 })
+  assert.deepEqual(s.waiting.map(w => w.archived), [false, false, true, false], 'an archived one says so')
+  assert.deepEqual(Object.keys(s.waiting[0]), ['id', 'title', 'agent', 'finishedAt', 'overdue', 'archived'])
   assert.equal(s.waiting[0].finishedAt, iso(T0 - 3 * DAY))
   assert.deepEqual(outputsSummary([], G, OUTPUT_DEFAULTS, T0), { waiting: [], counts: { waiting: 0, overdue: 0 }, max: 7, warnAfterDays: 2, piled: false })
   assert.deepEqual(outputsSummary(undefined, G, undefined, T0).counts, { waiting: 0, overdue: 0 })

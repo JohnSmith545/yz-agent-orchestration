@@ -12,7 +12,9 @@
 //   outputList / outputsHtml    Outputs: finished tickets with output or a QA pass, or waiting for sign-off, newest
 //                               first; a waiting one says Mark it completed and has its Completed tick (completed-view.js)
 //   outputsHeadHtml(summary)    the list's head: how many wait and are overdue, Mark all completed
-// A COMPLETED ticket (the user's sign-off) is in none of these, Show archived or not: it is put away for good.
+// A COMPLETED ticket (the user's sign-off) is in none of these, Show archived or not: it is put away for good. An
+// ARCHIVED one that still waits for sign-off stays in Outputs, Show archived or not, with an Archived mark and its tick:
+// archiving is not a sign-off (completed.mjs). It is still no chip on the diagram.
 //   testTarget(t, steps)        where How to test goes: 'qa' (QA has a record), 'flow' (its Output has test
 //                               steps), or null (no button: there is nothing to show)
 //   stepsToFetch(list, known)   the outputs whose test step count the page must still look up (/api/flows/<id>)
@@ -99,7 +101,7 @@
 
   const finished = t => t.status === 'done' || t.stage?.node === 'outcome'
   const outputList = (tickets, { archived = false } = {}) =>
-    (tickets || []).filter(t => visible(t, archived) && finished(t) && (t.hasOutput || t.qa?.status === 'passed' || t.waiting)).sort(newest)
+    (tickets || []).filter(t => (visible(t, archived) || (t.waiting && !t.completed)) && finished(t) && (t.hasOutput || t.qa?.status === 'passed' || t.waiting)).sort(newest)
 
   const qaWord = t => QA_WORD[t.qa?.status] || (t.codeProducing ? 'Not tested' : 'No code changes')
   const qaTone = t => (t.qa?.status === 'passed' ? 'ok' : t.qa?.status === 'failed' || t.qa?.status === 'qa-failed' ? 'bad' : '')
@@ -121,7 +123,7 @@
         const on = t.id === selected
         const to = testTarget(t, steps[t.id])
         const sign = t.waiting && C() // waits for the user's sign-off: the mark in words, and its Completed tick
-        const mark = sign ? C().markHtml(C().overdue(t.id), Number(C().data?.warnAfterDays) || 2) : ''
+        const mark = (sign && t.archived ? '<span class="cv-arch">Archived</span>' : '') + (sign ? C().markHtml(C().overdue(t.id), Number(C().data?.warnAfterDays) || 2) : '')
         return `<li class="pl-out"><button type="button" class="pl-row${t.archived ? ' pl-archived' : ''}" data-ticket="${esc(t.id)}" aria-pressed="${on}" title="${esc(t.title || t.id)}">` +
           `<span class="pl-row-title">${esc(t.title || t.id)}</span>` +
           `<span class="pl-row-meta"><span class="pl-word${tn ? ` t-${tn}` : ''}">${esc(qaWord(t))}</span>${mark}</span></button>` +

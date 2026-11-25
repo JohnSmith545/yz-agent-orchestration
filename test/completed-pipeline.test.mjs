@@ -41,6 +41,18 @@ test('a completed flow is no chip on any box, and in neither panel list, even wi
   }
 })
 
+test('Outputs lists an archived flow that still waits for sign-off, Show archived or not, with an Archived mark and the same tick', () => {
+  const away = tk('outcome', { id: 'away', title: 'Put away', archived: true })
+  const old = tk('outcome', { id: 'old', archived: true, waiting: false })
+  assert.deepEqual(plain(T.outputList([away, old]).map(t => t.id)), ['away'])
+  assert.deepEqual(plain(T.outputList([away, old], { archived: true }).map(t => t.id)).sort(), ['away', 'old'])
+  const html = T.outputsHtml([away], {})
+  assert.match(html, /<span class="cv-arch">Archived<\/span>/)
+  assert.match(html, /data-cv-yes data-cv-ids="away">Completed<\/button>/)
+  assert.doesNotMatch(T.outputsHtml([old], {}), /cv-arch|cv-confirm/)
+  assert.deepEqual(plain(Object.values(T.byNode([away])).flat()), [], 'still no chip on the diagram: an archived flow is put away')
+})
+
 test('Outputs lists every finished flow that waits for sign-off, with output or not; the rest as before', () => {
   const bare = tk('outcome', { id: 'bare', hasOutput: false })
   const old = tk('outcome', { id: 'old', hasOutput: false, waiting: false })

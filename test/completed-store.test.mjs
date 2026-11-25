@@ -131,10 +131,9 @@ test('flow new at 7 outputs waiting prints the reminder on stderr, exits 0 and s
   assert.ok(F.readFlow('next-one'), 'the flow is there')
 })
 
-test('flow new at 6 waiting says nothing extra; completed and archived ones do not count', () => {
+test('flow new at 6 waiting says nothing extra; completed ones do not count', () => {
   for (let i = 1; i <= 6; i++) done(`out-${i}`)
   F.writeFlow(fx('gone', f => Object.assign(f, MARK, { status: 'done' })))
-  F.writeFlow(fx('away', f => { f.status = 'done'; f.archivedAt = AT }))
   const r = run(['new', 'next-one', 'The next request', '--type', 'ask'])
   assert.equal(r.code, 0)
   assert.equal(r.err, undefined)
@@ -145,6 +144,16 @@ test('flow new reads outputs.max from the config it runs with', () => {
   const r = run(['new', 'next-one', 'The next request', '--type', 'ask'], { ...CONFIG, outputs: { max: 3, warnAfterDays: 2 } })
   assert.equal(r.code, 0)
   assert.equal(r.err, '3 outputs wait for your sign-off. Mark them completed before a new request.')
+})
+
+test('an archived output never signed off still counts: 6 waiting plus 1 archived is the reminder', () => {
+  for (let i = 1; i <= 6; i++) done(`out-${i}`)
+  done('away')
+  const f = F.readFlow('away')
+  f.archivedAt = AT
+  F.writeFlow(f)
+  const r = run(['new', 'next-one', 'The next request', '--type', 'ask'])
+  assert.equal(r.err, '7 outputs wait for your sign-off. Mark them completed before a new request.')
 })
 
 test('a refused flow new prints no reminder', () => {

@@ -77,3 +77,5 @@
 .fx-bulk-remind .cv-remind, .fx-pass .cv-remind { margin: 0 0 4px; }
 .pl-out .pl-row-meta { flex-wrap: wrap; row-gap: 2px; }
 .pl-out .pl-word { white-space: nowrap; }
+/* an archived output that still waits for sign-off: archiving is not a sign-off */
+.cv-arch { color: var(--muted); font-size: 12px; white-space: nowrap; }

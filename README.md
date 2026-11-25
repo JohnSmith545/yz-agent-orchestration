@@ -586,7 +586,9 @@ completed flow leaves the Flows board, the Agents diagram and its lists, Human r
 chips and the Log's default view (its **Completed** chip shows them); it waits in the flow archive as **Completed
 <date>**, opens read-only from there, and **Uncomplete** puts it back (`{ "completed": false }`, both marks off, one
 `uncompleted` event). Unarchive refuses a completed flow. Only you complete a flow: agents have no command for it, and
-`flow write` keeps or drops the stored mark exactly as it does `archivedAt`.
+`flow write` keeps or drops the stored mark exactly as it does `archivedAt`. Archiving is not a sign-off: a flow at the
+Output that is archived but not completed still waits (it counts, the Output list shows it with an Archived mark and its
+tick, and so does its archive row).
 
 While outputs wait, the Agents page (over the diagram) and Home say `N outputs wait for your sign-off` with **Show
 them**; after `outputs.warnAfterDays` (2) days the line is a notice and the Output box counts the overdue. Once

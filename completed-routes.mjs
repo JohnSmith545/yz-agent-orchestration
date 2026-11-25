@@ -37,6 +37,7 @@ export function completeRoute(id, b, { config = CONFIG, now = Date.now() } = {})
 }
 
 export function outputsGet({ config = CONFIG, now = Date.now() } = {}) {
-  const summary = outputsSummary(listFlows().flows, pipelineGraph(config), config.outputs, now)
+  // archived flows too: archiving is not a sign-off (completed.mjs)
+  const summary = outputsSummary(listFlows({ archived: 'any' }).flows, pipelineGraph(config), config.outputs, now)
   return ok({ ...summary, builtAt: new Date(now).toISOString() })
 }

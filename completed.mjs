@@ -10,12 +10,12 @@
 //                                      routeProgress, public/flow-route.js at): a done flow still on its way (code QA
 //                                      has not tested, a pass Push still waits for) is finished but not there yet, and
 //                                      a flow whose route was planned before Security joined is there once QA pushed
-//   waitsForSignOff(flow, graph)       at the Output, and neither completed nor archived nor deleted: what the reminders
+//   waitsForSignOff(flow, graph)       at the Output, and neither completed nor deleted: what the reminders
 //                                      count and the amber mark shows
 //   finishedAt(flow, graph)            when it finished, in ms: the time the scorecard counts it at (score.mjs cellOf),
 //                                      else its last update; null when it has neither
 //   isOverdue(flow, graph, now, s)     it has waited `warnAfterDays` whole days (24 h each) or more since it finished
-//   outputsSummary(flows, graph, s, now)  { waiting: [{ id, title, agent, finishedAt, overdue }], counts: { waiting,
+//   outputsSummary(flows, graph, s, now)  { waiting: [{ id, title, agent, finishedAt, overdue, archived }], counts: { waiting,
 //                                      overdue }, max, warnAfterDays, piled }, the oldest finish first
 //   waitingLine(n) / reminderLine(n)   the two sentences every page says, so they never drift apart
 //   completeRefusal(flow, graph)       why `flow` cannot be completed, one plain sentence, or ''
@@ -32,6 +32,9 @@
 //   trace is the Log's `completed` (and `uncompleted`) event, by You (score-log.mjs).
 // - OVERDUE is elapsed time, not calendar days: finished at 23:59 is not overdue at 00:01 two dates later (24 h 2 min).
 //   One rule that a clock change or a late-night finish cannot bend.
+// - ARCHIVING IS NOT A SIGN-OFF: a flow at the Output the user archived but never completed still waits (it counts,
+//   it is in the Output list with an Archived mark, the reminders name it). Putting work away is not saying it is done;
+//   only Completed is. So the callers count over every flow file, archived ones included (listFlows archived any).
 // - PILED is waiting >= max: at 7 (the default) the reminder shows, at 6 nothing does. A reminder, never a block.
 
 import { routeProgress } from './flow-route.mjs'
@@ -84,7 +87,7 @@ export function atOutput(flow, graph) {
   }
 }
 
-export const waitsForSignOff = (flow, graph) => atOutput(flow, graph) && !isCompleted(flow) && !flow.archivedAt && !flow.deletedAt
+export const waitsForSignOff = (flow, graph) => atOutput(flow, graph) && !isCompleted(flow) && !flow.deletedAt
 
 export function finishedAt(flow, graph) {
   let counted = null
@@ -108,7 +111,7 @@ export function outputsSummary(flows, graph, settings = OUTPUT_DEFAULTS, now = D
     .filter(f => isObject(f) && typeof f.id === 'string' && waitsForSignOff(f, graph))
     .map(f => {
       const at = finishedAt(f, graph)
-      return { id: f.id, title: String(f.title || f.id), agent: String(f.agent || ''), finishedAt: at === null ? null : new Date(at).toISOString(), overdue: isOverdue(f, graph, now, s) }
+      return { id: f.id, title: String(f.title || f.id), agent: String(f.agent || ''), finishedAt: at === null ? null : new Date(at).toISOString(), overdue: isOverdue(f, graph, now, s), archived: !!f.archivedAt }
     })
     .sort((a, b) => String(a.finishedAt || '').localeCompare(String(b.finishedAt || '')) || a.id.localeCompare(b.id))
   const overdue = waiting.filter(w => w.overdue).length

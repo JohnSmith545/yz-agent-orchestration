@@ -201,6 +201,8 @@ The agent writes it out as steps and stops.
   the Agents diagram, Human review, Home and the Log (the Log's **Completed** chip shows them). The pipeline score,
   Pipeline time and Pipeline tokens still count it exactly as before.
 - Changed your mind? **Uncomplete** in the flow archive puts it back on the boards.
+- Archiving is not a sign-off. An output you archive without marking it completed still counts as waiting: it stays
+  in the Output list (with an **Archived** mark) and in the reminders, and its archive row has the **Completed** tick.
 - Only you mark a flow completed. Agents cannot, and they never ask you to.
 - The reminders: while outputs wait, the Agents page (over the diagram) and Home say how many, with **Show them**.
   After 2 days unmarked the line becomes a notice and the Output box says how many are overdue. Once 7 wait, the Ask

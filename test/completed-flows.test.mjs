@@ -75,6 +75,26 @@ test('the archive lists a completed flow with Completed and its date, and Uncomp
   assert.doesNotMatch(other, /ar-done|data-ar-uncomplete/)
 })
 
+test('an archived flow that still waits for sign-off says Mark it completed in the archive, with its Completed tick', () => {
+  C.setData(sum([['away', false]]))
+  const html = A.html(DATA)
+  const row = html.slice(html.indexOf('data-id="away"'))
+  assert.match(row, /Mark it completed/)
+  assert.match(row, /data-cv-yes data-cv-ids="away">Completed<\/button>/)
+  assert.match(row, /data-ar-unarchive="away"/, 'Restore stays')
+  C.setData(null)
+  assert.doesNotMatch(A.html(DATA).slice(A.html(DATA).indexOf('data-id="away"')), /cv-confirm/)
+  assert.match(read('archive-page.js'), /addEventListener\('outputs:change'/)
+})
+
+test('the help says archiving is not a sign-off', () => {
+  assert.match(read('flows-page.js'), /Archiving is not a sign-off/)
+  assert.match(text(A.html(DATA)), /Completed ones are the outputs you signed off/)
+  const guide = fs.readFileSync(path.join(HERE, '..', 'docs', 'USER_GUIDE.md'), 'utf8')
+  assert.match(guide, /Archiving is not a sign-off/)
+  assert.match(fs.readFileSync(path.join(HERE, '..', 'README.md'), 'utf8'), /Archiving is not a sign-off/)
+})
+
 test('the archive says what Completed is, and its Uncomplete posts completed false', () => {
   assert.match(text(A.html(DATA)), /Completed ones are the outputs you signed off/)
   const src = read('archive-page.js')
