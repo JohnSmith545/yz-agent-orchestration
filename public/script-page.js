@@ -345,10 +345,21 @@
     copiedTimer = setTimeout(() => (els.copied.textContent = ''), COPIED_MS)
   }
 
-  function open() {
+  /**
+   * The page opens as Generators (#/generators): the tool switch (generators.js) shows the Prompt generator, which is
+   * this file, unless the address asks for the Standup creator. `query` is the route's (?tool=standup&day=...).
+   */
+  function open(query = {}) {
     if (!els) mount()
     window.Shell.setTitle('Generators', 'script')
+    if (window.Generators?.open) window.Generators.open(doc.getElementById('scriptView'), query, { prompt: openPrompt })
+    else openPrompt()
+  }
+
+  /** The Prompt generator shown: its status and help, and the focus in Your thoughts. */
+  function openPrompt() {
     window.Shell.setStatus('Opus 5.5 · high effort',
+      '<p>Generators has two tools: switch with the pills at the top. This is the <b>Prompt generator</b>; the <b>Standup creator</b> writes your stand-up.</p>' +
       '<p>Each <b>Generate</b> is one Claude Code run on Opus 5.5 at high effort, with no tools and none of your settings, CLAUDE.md or memory. It uses the brainstorming skill when it is installed. It is billed to your Claude account and counted in <b>Spend today</b>.</p>' +
       '<p>One run goes at a time. When the model asks questions first, answer them in the pop-up and press <b>Answer and generate</b>. <b>Restart</b> stops a run and starts the page over. <b>History</b>, under the boxes, brings back an earlier run.</p>')
     if (state.phase === 'idle') els.input.focus({ preventScroll: true })
