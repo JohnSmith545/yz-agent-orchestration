@@ -99,7 +99,7 @@ const within = (iso, window) => {
 
 export async function gatherFacts({
   window, now = new Date(), git, settings = standupSettings(undefined), prefixes = [], repoName = '', fallbackBase = 'origin/dev',
-  readTickets = () => null, readFlows = () => [], readHuman = () => [],
+  readTickets = () => null, readFlows = () => [], readHuman = () => [], agentNames = [],
 }) {
   const skipped = []
   let author = settings.author
@@ -135,7 +135,7 @@ export async function gatherFacts({
   // tracker ticket merely marked no-code: backlog, not a blocker, so it stays out (silently, like the rest above).
   const waiting = (Array.isArray(humanAll) ? humanAll : [])
     .filter(i => i && WAITING_KINDS.includes(i.kind))
-    .map(i => ({ kind: i.kind, title: text(i.title), reason: text(i.reason), tickets: oursOf(Array.isArray(i.tickets) ? i.tickets : i.ticketId ? [i.ticketId] : []) }))
+    .map(i => ({ kind: i.kind, title: text(i.title), reason: text(i.reason), question: text(i.ask?.title), tickets: oursOf(Array.isArray(i.tickets) ? i.tickets : i.ticketId ? [i.ticketId] : []) }))
     .filter(i => i.tickets.length)
     .slice(0, WAITING_MAX)
   const next = Object.values(saved)
@@ -162,5 +162,7 @@ export async function gatherFacts({
     commits: g.commits, merges: g.merges, unmerged: g.unmerged, tickets,
     next: next.map(t => tickets.find(x => x.id === t.id)), flows, waiting,
     ticketListAt: typeof list?.fetchedAt === 'string' ? list.fetchedAt : null, skipped, builtAt: now.toISOString(),
+    // the config's agent labels, so the blockers can be written without them (standup-blockers.mjs)
+    agentNames: (Array.isArray(agentNames) ? agentNames : []).filter(n => typeof n === 'string' && n.trim()),
   }
 }

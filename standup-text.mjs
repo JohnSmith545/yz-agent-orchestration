@@ -11,6 +11,7 @@
 // - Empty sections say `- None.`, so the model has nothing to pad.
 // - Times are LOCAL (the server machine's), short: Tue 24 Nov 15:02. Pure: `now` is passed in.
 
+import { blockerLines } from './standup-blockers.mjs'
 import { dayLabel, localDay } from './standup-window.mjs'
 
 export const FACTS_MAX = 30_000
@@ -54,7 +55,9 @@ export function factsText(f, now = new Date()) {
     section(`MERGED PULL REQUESTS into ${f.base} (newest first)`, f.merges.map(m => `- PR #${m.number}, branch ${m.branch}, merged ${when(m.at)}${idsPart(m.ids)}`)),
     section(`NOT MERGED YET (branches with this work that ${f.base} does not have)`, f.unmerged.map(u => `- ${u.branch}: ${plural(u.commits, 'commit')}, ${u.pushed ? 'pushed' : 'not pushed'}${idsPart(u.ids)}`)),
     // ⚠️ Its own heading, firm words: two runs on the same facts once disagreed on blockers (QA A-6, 2026-11-25).
-    section('BLOCKERS (every item here waits on another person or an outside system: each one IS a blocker)', f.waiting.map(i => `- ${i.title}: ${i.reason.replace(/[.\s]+$/, '')}${i.tickets.length ? ` (tickets ${i.tickets.join(', ')})` : ''}`)),
+    // The lines are in the team's words, one per ticket (standup-blockers.mjs: no agent label, no dashboard word).
+    section('BLOCKERS (every item here waits on another person or an outside system: each one IS a blocker)',
+      blockerLines(f.waiting, f.agentNames || []).map(l => `- ${l.tickets.length ? `${l.tickets.join(', ')}: ` : ''}${l.text}`)),
     section('IN PROGRESS AND YOURS in the ticket list (candidates for What s next)', f.next.map(t => `- ${t.id} [${t.state}]`)),
     section('FLOWS TOUCHED in this time (records of agent work on these tickets)', f.flows.map(x => `- ${x.title}: ${x.status}, agent ${x.agent || 'unknown'}, updated ${when(x.updatedAt)}${idsPart(x.tickets)}`)),
     ...(f.skipped.length ? [section('LEFT OUT', f.skipped.map(s => `- ${s.title}: ${s.why}`))] : []),

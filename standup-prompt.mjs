@@ -17,7 +17,9 @@ Rules:
 - Plain, short sentences in British-neutral English. Say what changed for a person using the app, in words a teammate understands: no file names, no function names, no code words, no commit hashes, no branch names.
 - Group the work by ticket. Every ticket line is the ticket's line from the TICKETS facts, exactly as given: \`ID: title — link\`. Copy it character for character. Put one to three short bullets under it.
 - A commit or line with no ticket may be mentioned only when it is work in the repo the stand-up is about (the developer's commits in the facts), never work on the dashboard itself or its agents. It goes last in its section, as one short line without a link.
-- Every item under BLOCKERS in the facts IS a blocker, in the daily and the weekly stand-up alike: an open question or a by-hand step that waits on another person or an outside system (a grant, a console or account change, a DNS record, a review, QA, a decision, another team). List each one, named with its ticket line's ID and link, and say in a few words what it waits on. Write \`None\` only when BLOCKERS in the facts says None. Ordinary work still to do is What's next, not a blocker.
+- Every item under BLOCKERS in the facts IS a blocker, in the daily and the weekly stand-up alike: an open question or a manual step that waits on another person or an outside system (a grant, a console or account change, a DNS record, a review, QA, a decision, another team). List each one, named with its ticket line's ID and link. Write \`None\` only when BLOCKERS in the facts says None. Ordinary work still to do is What's next, not a blocker.
+- A blocker says what is waited on and from whom, in words the team uses: needs a review of the plan, needs a production admin to grant access, waits on a DNS record from the domain owner, needs a decision on the layout. The stand-up is read by people who do not know the dashboard. Never name an AI agent, an agent label or the dashboard (no flows, no by-hand steps, no Human review). you and your in the facts mean the developer: write needs my approval as waits on a decision or approval, plainly. An item that only says steps are not written yet is not a blocker: leave it out. One line per ticket: merge the items of one ticket into that line.
+- A merged pull request is named in the bullets under the ticket it belongs to (Merged to dev in PR #1226). Work pushed but not merged says so under its own ticket. A line about a pull request never sits loose after another ticket, where it would read as that ticket's.
 - What's next comes from the branches not merged yet, the tickets in progress and the work just done. Keep it to the few that matter.
 - The ticket list can be out of date: trust git over a ticket state when they disagree, and never claim a ticket was accepted or closed unless the facts say so.
 - Output plain text that pastes into Slack or Google Chat: no Markdown headings, no bold, no tables, no code blocks. Dashes for bullets, two spaces before a bullet under a ticket. Write nothing before or after the stand-up.`
@@ -44,9 +46,11 @@ Name: <Name from the facts>
 Project: <Project from the facts>
 This week — done:
 Done <Done dates from the facts>:
-FLA-700: Confirm the list before the cards — https://app.switchboardpm.ai/stories/FLA-700
-FLA-701: Another ticket done this week — https://app.switchboardpm.ai/stories/FLA-701
 Merged to dev in PRs #889, #911 and #925.
+FLA-700: Confirm the list before the cards — https://app.switchboardpm.ai/stories/FLA-700
+  - Merged to dev in PR #889.
+FLA-701: Another ticket worked on this week — https://app.switchboardpm.ai/stories/FLA-701
+  - Pushed, not merged yet.
 FLA-699 moved to the Backlog: the code waits on a decision about the layout.
 
 Blockers
@@ -56,7 +60,7 @@ This week — committing to:
 <Committing dates from the facts>
 - FLA-868: finish the tests and open the pull request — https://app.switchboardpm.ai/stories/FLA-868
 
-Under Done, one line per ticket worked on (its line exactly as given), then one line naming the merged pull requests (leave it out when there were none), then one short line for each item that moved or waits. Blockers is \`None\` when there are none.`,
+The one summary line Merged to dev in PRs lists only pull requests and goes straight under the Done line, never after a ticket (leave it out when there were none). Then one line per ticket worked on (its line exactly as given) with short bullets under it, its own pull request or Pushed, not merged yet among them, then one short line for each item that moved or waits. Blockers is \`None\` when there are none.`,
 })
 
 /** The whole system prompt for `mode`: the rules, then that mode's format only. Throws for any other mode. */

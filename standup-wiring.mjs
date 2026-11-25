@@ -14,6 +14,7 @@
 import path from 'node:path'
 
 import { CONFIG } from './config.mjs'
+import { pipelineGraph } from './pipeline.mjs'
 import { collections, readSource } from './factory.mjs'
 import { listFlows } from './flows.mjs'
 import { humanGet } from './human-routes.mjs'
@@ -24,13 +25,24 @@ import { makeStandupRoute } from './standup-routes.mjs'
 export function makeStandupServerRoute({ port, git, prefixes }) {
   const settings = standupSettings(CONFIG.standup)
   const readTickets = () => savedTicketList({ collections: collections(), readSource })
+  // every name an agent goes by in this project, kept out of the blockers the team reads (standup-blockers.mjs)
+  const agentNames = () => {
+    let graph = []
+    try {
+      graph = pipelineGraph(CONFIG).nodes.filter(n => n.kind === 'agent').map(n => n.label)
+    } catch {
+      graph = []
+    }
+    return [...graph, CONFIG.coordinator, CONFIG.coordinatorLabel, CONFIG.factory?.chat?.name, ...Object.keys(CONFIG.codingAgents || {}), ...Object.values(CONFIG.codingAgents || {}),
+      ...Object.keys(CONFIG.aliases || {}), ...Object.values(CONFIG.aliases || {}), ...Object.keys(CONFIG.pinnedAgents || {})]
+  }
   return makeStandupRoute({
     port, log: e => appendRun(e), prefixes, linkOf: id => ticketLink(settings.ticketUrl, id),
     ticketListAt: () => readTickets().fetchedAt,
     facts: window => gatherFacts({
       window, now: new Date(), git: args => git(args), settings, prefixes: prefixes(),
       repoName: path.basename(CONFIG.repo), fallbackBase: CONFIG.levels.dev,
-      readTickets, readFlows: () => listFlows({ archived: 'any' }).flows, readHuman: () => humanGet().body.items,
+      readTickets, agentNames: agentNames(), readFlows: () => listFlows({ archived: 'any' }).flows, readHuman: () => humanGet().body.items,
     }),
   })
 }
