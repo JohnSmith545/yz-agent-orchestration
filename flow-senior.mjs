@@ -11,7 +11,7 @@
 //     ask        { text, by, at }: `flow senior-ask`, an agent sending a no-code flow to Senior on purpose
 //     summary    the verdict in one plain paragraph: what was checked, or what to redo (at most 1000 characters)
 //     redo       on a failure, the by-hand step ids Senior unticked (every step when it named none)
-//     history    the earlier FAILED verdicts, oldest first ({ status, by, at, summary, redo }), at most 20
+//     history    the earlier FAILED verdicts, oldest first ({ status, by, startedAt?, at, summary, redo }), at most 20
 //   }
 //
 // A failure goes back to the Human task box (the user), not to a producer: its summary shows at the top of the
@@ -78,7 +78,7 @@ export function keepSenior(incoming, existing) {
 }
 
 /** A failed verdict as history keeps it. */
-export const asPast = s => ({ status: 'failed', by: s.by, at: s.at, summary: s.summary ?? '', redo: Array.isArray(s.redo) ? s.redo : [] })
+export const asPast = s => ({ status: 'failed', by: s.by, ...(s.startedAt ? { startedAt: s.startedAt } : {}), at: s.at, summary: s.summary ?? '', redo: Array.isArray(s.redo) ? s.redo : [] })
 
 /** The record's earlier failed verdicts, plus the current one when it is a failure: what moves into history next. */
 export function failedSoFar(s) {

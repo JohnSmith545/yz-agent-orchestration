@@ -23,6 +23,9 @@
 //             a catch, like a QA failure; the final pass carries the delivered cell (with Security on the graph a QA
 //             pass carries none: score.mjs cellOf counts the flow at Security's verdict)
 //   planned   the planner handed the flow to a producer with a plan (flow-plan.mjs, each hand-out's at)
+//   senior    Senior's work on a no-code flow (flow-senior.mjs), on a pipeline with Senior: each review it started
+//             (startedAt) and each verdict (at). A failure went back to Human task and is a catch; the final pass
+//             carries the delivered cell (score.mjs cellOf counts a flow Senior gates at its pass)
 // LEFT OUT: push-refused. The file keeps the refusal's text (qa.pushError) but no time for it, so it is never shown.
 // An attempt with no startedAt has no `handed` event; a verdict with no `at` has no event and no count.
 //
@@ -34,11 +37,13 @@
 // `text` is one plain sentence with agent labels only: no ids, no file names. Ties in time keep the order things
 // happen in (a verdict before the stop it causes), newest first. ⚠️ PURE like score.mjs: no file, no git, no config.
 
-import { DAY, FAILED, SECURITY_FAILED, cellOf, securityOn, securityVerdictsOf, verdictsOf, windowOf } from './score.mjs'
+import { DAY, FAILED, SECURITY_FAILED, SENIOR_FAILED, cellOf, securityOn, securityVerdictsOf, seniorOn, seniorVerdictsOf, verdictsOf, windowOf } from './score.mjs'
 
 export const LOG_KINDS = Object.freeze(['started', 'route', 'handed', 'passed', 'failed', 'pushed', 'done', 'dropped', 'stopped', 'stalled', 'rule'])
 /** The kinds of the optional agents (above): kept apart so a pipeline without them reads exactly as before. */
-export const GATE_KINDS = Object.freeze(['security', 'planned'])
+export const GATE_KINDS = Object.freeze(['security', 'planned', 'senior'])
+/** The graph role each gate kind needs: its kind is offered only on a pipeline with that agent (score-routes.mjs). */
+export const GATE_ROLE = Object.freeze({ security: 'security', planned: 'planner', senior: 'senior' })
 export const LOG_CELLS = Object.freeze(['delivered', 'caught', 'missed', 'slipped'])
 
 const ROUTE_WORD = { build: 'a code change', review: 'a code review', ask: 'a question' }
@@ -81,7 +86,7 @@ function planEvents(flow, add) {
 }
 
 /** Every event of one flow, oldest first (by generation, which sorting keeps for ties). */
-function flowEvents(flow, graph, now, stallMs, labels, qaLabel, securityLabel, push) {
+function flowEvents(flow, graph, now, stallMs, labels, qaLabel, securityLabel, seniorLabel, push) {
   const ref = { id: flow.id, title: isText(flow.title) ? flow.title : flow.id }
   const owner = isText(flow.agent) ? flow.agent : null
   const add = (at, kind, agent, text, cell = null) => push({ at, kind, flow: ref, agent, text, cell })
@@ -111,15 +116,32 @@ function flowEvents(flow, graph, now, stallMs, labels, qaLabel, securityLabel, p
     }
     if (v.pushedAt !== null) add(v.pushedAt, 'pushed', qa, `${qa} pushed the change it tested.`)
   })
+  // Senior's reviews of work done by hand (no QA record: code is QA's), oldest first; off the graph: not shown
+  const senior = seniorOn(graph) && !isObject(flow.qa) ? seniorVerdictsOf(flow) : []
+  const review = isObject(flow.senior) && flow.senior.status === 'reviewing' && seniorOn(graph) && !isObject(flow.qa) ? flow.senior : null
+  senior.forEach((v, i) => {
+    const who = v.by || seniorLabel
+    if (v.startedAt !== null) add(v.startedAt, 'senior', who, `${who} started reviewing the work done by hand.`)
+    if (v.at === null) return
+    const failed = SENIOR_FAILED.has(v.status)
+    const text = v.status === 'failed' ? `${who} failed this and sent it back to Human task.` : failed ? `${who} failed this.` : `${who} passed the work done by hand.`
+    add(v.at, 'senior', who, text, failed ? 'caught' : i === senior.length - 1 && kind === 'senior' ? cell : null)
+  })
+  if (review && timeOf(review.startedAt) !== null) {
+    const who = isText(review.by) ? review.by : seniorLabel
+    add(timeOf(review.startedAt), 'senior', who, `${who} started reviewing the work done by hand.`)
+  }
 
   // the flow's own cell event (a pass already carries its cell above)
-  if (time === null || kind === null || kind === 'passed' || kind === 'security') return
+  if (time === null || kind === null || kind === 'passed' || kind === 'security' || kind === 'senior') return
   const lastReview = reviews.at(-1)
   const stoppedBySecurity = kind === 'stopped' && lastReview && SECURITY_FAILED.has(lastReview.status) && lastReview.attempt === verdicts.at(-1)?.attempt
-  const qa = stoppedBySecurity ? lastReview.by || securityLabel : verdicts.at(-1)?.by || qaLabel
+  const stoppedBySenior = kind === 'stopped' && senior.at(-1)?.status === 'senior-failed'
+  const qa = stoppedBySenior ? senior.at(-1).by || seniorLabel : stoppedBySecurity ? lastReview.by || securityLabel : verdicts.at(-1)?.by || qaLabel
   const untested = verdicts.at(-1)?.status === 'passed' ? `${securityLabel} never passed` : 'QA never tested'
+  const byHand = senior.length || isObject(flow.senior) // a flow Senior gates (score.mjs seniorApplies) that slipped
   const TEXT = {
-    done: cell === 'slipped' ? `This finished with code changes that ${untested}.` : 'This finished with no code changes.',
+    done: cell === 'slipped' ? (byHand && !verdicts.length ? `This finished by hand before ${seniorLabel} passed it.` : `This finished with code changes that ${untested}.`) : 'This finished with no code changes.',
     dropped: 'This was dropped.',
     stopped: `${qa} stopped this, so it will not reach the Output.`,
     stalled: `This had no update for ${Math.round(stallMs / DAY)} days.`,
@@ -134,6 +156,7 @@ export function orchestrationLog(flows, graph, { now = Date.now(), days = 30, st
   const labels = new Map((graph?.nodes || []).map(n => [n.id, n.label]))
   const qaLabel = (graph?.nodes || []).find(n => n.role === 'qa')?.label || 'QA'
   const securityLabel = (graph?.nodes || []).find(n => n.role === 'security')?.label || 'Security'
+  const seniorLabel = (graph?.nodes || []).find(n => n.role === 'senior')?.label || 'Senior'
   const out = []
   let seq = 0
   const push = e => {
@@ -141,7 +164,7 @@ export function orchestrationLog(flows, graph, { now = Date.now(), days = 30, st
   }
   for (const flow of Array.isArray(flows) ? flows : []) {
     if (!isObject(flow) || !isText(flow.id)) continue
-    flowEvents(flow, graph, now, stallMs, labels, qaLabel, securityLabel, push)
+    flowEvents(flow, graph, now, stallMs, labels, qaLabel, securityLabel, seniorLabel, push)
   }
   for (const e of Array.isArray(extra) ? extra : []) {
     if (!isObject(e)) continue

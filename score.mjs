@@ -21,6 +21,12 @@
 // A flow that finished on a route planned BEFORE Security joined the pipeline is judged by QA alone (securityApplies):
 // switching Security on never turns work delivered earlier into work that slipped through.
 //
+// WITH SENIOR on the pipeline (config pipeline.senior, flow-senior.mjs), a no-code flow that Senior gates (seniorApplies)
+// is DELIVERED only at Senior's pass; one Senior stopped (senior-failed) is MISSED, stopped; one that finished (done)
+// with a Senior record but no pass SLIPPED THROUGH; and EACH Senior failure verdict is a CATCH. A flow is Senior's when
+// Senior has a record on it, or it has by-hand steps and is still on its way. A flow that FINISHED with no Senior
+// record (before Senior existed, or with no by-hand work) is judged as before: done with no code changes, delivered.
+//
 // Not counted: flows still on their way (open or blocked, waiting at QA, being tested, or sent back for a fix) that
 // changed in the last stallDays (`inFlight`). Trashed flows have no file, so they never reach here; archived flows
 // count like any other.
@@ -48,9 +54,11 @@
 //
 //   scoreOf(flows, graph, { now, days, stallDays })   the whole scorecard
 //   securityVerdictsOf(flow)                          every Security verdict on a flow, oldest first
+//   seniorVerdictsOf(flow) / seniorApplies(flow, graph)   every Senior verdict on a flow; whether Senior gates it
 //   fBeta(p, r, beta)                                 the F-score of a precision and a recall
 //   scoreText(score)                                  a few plain lines: the five scores with their counts
 
+import { handSteps } from './pipeline-hand.mjs'
 import { isCodeProducing, stageOf } from './pipeline.mjs'
 
 export const DAY = 86_400_000
@@ -167,6 +175,36 @@ export function securityApplies(flow, graph) {
   return steps.includes(id) || flow.status !== 'done'
 }
 
+/** Senior's failure verdicts (flow-senior.mjs): each one is a catch too. */
+export const SENIOR_FAILED = new Set(['failed', 'senior-failed'])
+
+/** Whether the graph has Senior after Human task (pipeline.mjs). Without it, Senior data in a flow is not counted. */
+export const seniorOn = graph => (graph?.nodes || []).some(n => n.role === 'senior')
+
+/**
+ * Every Senior verdict on a flow (flow-senior.mjs), oldest first: the earlier failures, then the current verdict when
+ * there is one: { status, at (ms or null), startedAt (ms or null), by }. A review still going is no verdict.
+ */
+export function seniorVerdictsOf(flow) {
+  const s = flow?.senior
+  if (!isObject(s)) return []
+  const past = (Array.isArray(s.history) ? s.history : []).filter(h => isObject(h) && h.status === 'failed')
+  const now = s.status === 'passed' || SENIOR_FAILED.has(s.status) ? [s] : []
+  return [...past, ...now].map(v => ({ status: v.status, at: timeOf(v.at), startedAt: timeOf(v.startedAt), by: isText(v.by) ? v.by : null }))
+}
+
+/**
+ * Whether Senior's pass is part of what THIS flow needs to count as delivered: Senior is on the graph, the flow has no
+ * QA record (code is QA's), and Senior has a record on it or it has by-hand steps and is still on its way. ⚠️ Like
+ * securityApplies, turning Senior on must not rewrite the past: a flow that FINISHED with no Senior record is judged as
+ * it was when it finished.
+ */
+export function seniorApplies(flow, graph) {
+  if (!seniorOn(graph) || isObject(flow?.qa)) return false
+  if (isObject(flow?.senior)) return true
+  return handSteps(flow).length > 0 && flow?.status !== 'done'
+}
+
 /**
  * THE rule for the three flow cells, shared with the log: { cell: delivered | slipped | missed | null, why, kind,
  * time }. `why` (missed only) is dropped | stopped | stalled; `kind` is the log event that puts the flow in its cell
@@ -189,7 +227,13 @@ export function cellOf(flow, graph, now, stallMs) {
     if (flow.status === 'done') return out('slipped', 'done', updated)
   } else if (qa?.status === 'passed') return out('delivered', 'passed', last())
   else if (qa && !ON_ITS_WAY_AT_QA.has(qa.status) && stageOf(flow, graph).status === 'failed') return out('missed', 'stopped', last(), 'stopped')
-  if (!qa && flow.status === 'done') return out(isCodeProducing(flow) ? 'slipped' : 'delivered', 'done', updated)
+  if (!qa && seniorApplies(flow, graph)) {
+    // work done by hand: delivered only at Senior's pass (flow-senior.mjs); kind `senior` is its verdict
+    const s = isObject(flow.senior) ? flow.senior : null
+    if (s?.status === 'passed') return out('delivered', 'senior', timeOf(s.at))
+    if (s?.status === 'senior-failed') return out('missed', 'stopped', timeOf(s.at), 'stopped')
+    if (flow.status === 'done') return out('slipped', 'done', updated)
+  } else if (!qa && flow.status === 'done') return out(isCodeProducing(flow) ? 'slipped' : 'delivered', 'done', updated)
   // on its way: working, blocked, waiting at or tested by QA, or sent back for a fix
   if (updated !== null && now - updated >= stallMs) return out('missed', 'stalled', updated + stallMs, 'stalled')
   return out(null, null, updated)
@@ -213,7 +257,7 @@ export function scoreOf(flows, graph, { now = Date.now(), days = 30, stallDays =
 
   for (const flow of Array.isArray(flows) ? flows : []) {
     if (!isObject(flow) || !isText(flow.id)) continue
-    const { cell, why, time } = cellOf(flow, graph, now, stallMs)
+    const { cell, why, kind, time } = cellOf(flow, graph, now, stallMs)
     if (inWindow(time)) {
       if (cell === null) inFlight++
       else counts[cell]++
@@ -235,6 +279,22 @@ export function scoreOf(flows, graph, { now = Date.now(), days = 30, stallDays =
       if (SECURITY_FAILED.has(r.status) && inWindow(r.at)) {
         counts.caught++
         agent(r.agent).sentBack++
+      }
+    }
+    // every Senior failure verdict is one catch too, against the flow's own agent (it wrote the steps)
+    const senior = seniorOn(graph) && !isObject(flow.qa) ? seniorVerdictsOf(flow) : []
+    for (const v of senior) {
+      if (SENIOR_FAILED.has(v.status) && inWindow(v.at)) {
+        counts.caught++
+        agent(isText(flow.agent) ? flow.agent : 'Unknown').sentBack++
+      }
+    }
+    // Senior's final verdict (its pass, or the stop): judged for correctness like QA's
+    if (senior.length && (kind === 'senior' || (why === 'stopped' && flow.senior?.status === 'senior-failed')) && inWindow(time)) {
+      judged++
+      if (why !== 'stopped' && !senior.some(v => SENIOR_FAILED.has(v.status))) {
+        right++
+        agent(isText(flow.agent) ? flow.agent : 'Unknown').firstTime++
       }
     }
     // a final verdict: passed (by QA, and by Security when it is on the graph), or stopped (not a failure on its way
