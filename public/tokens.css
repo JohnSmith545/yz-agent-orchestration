@@ -1,0 +1,41 @@
+/* Pipeline tokens under Pipeline time on the Agents page (token-strip.js, token-view.js). The head, the tiles and the
+   disclosures are the score's own classes (score.css psc-), the two panels, the bars and the tables Pipeline time's
+   (time.css ptm-), so the three rows of tiles line up exactly and read as one system; this file adds only what the
+   other two have no use for: the tokens or dollars switch in the panel head, the building note, the subagents line
+   of the by agent table and the price column. Every colour is a styles.css token, so light and dark both follow.
+   Class prefix ptk-. */
+
+.ptk-building {
+  margin: 4px 0 0; padding: 5px 10px; width: fit-content; max-width: 100%;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius);
+  font-size: 12.5px; color: var(--ink-2);
+}
+
+/* the per day panel: its title and the tokens or dollars switch on one line */
+.ptk-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 8px; }
+.ptk-panel-head .ptm-h { margin: 0; }
+.ptk-measure button { padding: 0 8px; font-size: 11.5px; line-height: 18px; }
+.ptk-measure button:disabled { opacity: .45; cursor: not-allowed; }
+
+/* the tables: numbers right, words left; the exact number is a hover away */
+.ptk-table td.num[title] { cursor: default; }
+.ptk-table td.ptk-models { min-width: 150px; text-align: left; color: var(--ink-2); }
+.ptk-nw { white-space: nowrap; } /* a model id never breaks at its hyphens; the list wraps between ids */
+.ptk-table tr.ptk-price td { padding-left: 22px; text-align: left; white-space: normal; }
+.ptk-table tr.ptk-sub > * { color: var(--muted); font-size: 12px; padding-top: 2px; }
+.ptk-table tr.ptk-sub th { padding-left: 22px; font-weight: 500; }
+.ptk-table tr:has(+ tr.ptk-sub) > * { border-bottom: 0; }
+.ptk-noprice { color: var(--muted); font-style: italic; }
+.ptk-part { margin-left: 2px; color: var(--muted); }
+.ptk-as { color: var(--muted); }
+
+/* By agent: as wide as its content, up to the page */
+.ptk-agents { max-width: 1100px; }
+
+/* the two panels stack sooner than Pipeline time's: the by model table needs the width */
+@media (max-width: 1200px) {
+  .ptk-row { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 480px) {
+  .ptk-panel-head { flex-wrap: wrap; }
+}
