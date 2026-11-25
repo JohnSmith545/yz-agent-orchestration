@@ -37,6 +37,8 @@
 //   the same thing (keepHand).
 // - `plan` (optional) is the planner's record of planning the flow and handing it to a producer (flow-plan.mjs):
 //   only the plan commands (tools/plan-cli.mjs) write it, and mergeKeepingAnswers takes it from the stored file only.
+// - `senior` (optional) is Senior's review of work with no code to test (flow-senior.mjs): only the Senior commands
+//   (tools/senior-cli.mjs) write it, and mergeKeepingAnswers takes it from the stored file only (keepSenior).
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -47,6 +49,7 @@ import { hasBefore, validateChange } from './flow-change.mjs'
 import { mergeReady, validateSend } from './flow-merge.mjs'
 import { keepPlan, validatePlan } from './flow-plan.mjs'
 import { keepQa, validateQa } from './flow-qa.mjs'
+import { keepSenior, validateSenior } from './flow-senior.mjs'
 import { keepHand, validateHand } from './hand-steps.mjs'
 import { keepRoute, validateRoute } from './flow-route.mjs'
 import { sayShorter, STORY_ID, STORY_MAX, storyOf, YOU } from './flow-story.mjs'
@@ -151,6 +154,7 @@ export function validateFlow(flow) {
   if (flow.route !== undefined) problems.push(...validateRoute(flow.route))
   if (flow.hand !== undefined) problems.push(...validateHand(flow.hand))
   if (flow.plan !== undefined) problems.push(...validatePlan(flow.plan, flow.id))
+  if (flow.senior !== undefined) problems.push(...validateSenior(flow.senior))
   return problems
 }
 
@@ -544,6 +548,7 @@ export function mergeKeepingAnswers(incoming, existing) {
   keepRoute(incoming, existing) // the plan: only `flow route` changes a stored one
   keepHand(incoming, existing) // the user's ticks on the by-hand steps: only ever from the stored file
   keepPlan(incoming, existing) // the planner's hand-out: only the plan commands write it
+  keepSenior(incoming, existing) // Senior's verdict: only the Senior commands write it
   if (existing?.createdAt) incoming.createdAt = existing.createdAt
   delete incoming.derived
   return incoming
