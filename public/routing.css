@@ -1,0 +1,86 @@
+/* The Routing page (routing-page.js) and ticket intake on the Tickets page (routing-tickets.js).
+   Tokens only (styles.css), so dark mode follows; the same card look as Settings, one accent. */
+
+.rr-page { display: grid; gap: 20px; max-width: 1300px; min-width: 0; }
+.rr-card { display: grid; gap: 12px; min-width: 0; padding: 18px 22px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.rr-h { margin: 0; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.rr-lead, .rr-muted, .rr-count { margin: 0; font-size: 13.5px; color: var(--ink-2); }
+.rr-note, .rr-empty { margin: 0; font-size: 12.5px; color: var(--muted); }
+.rr-warn { margin: 0; font-size: 13px; }
+.rr-status { margin: 0; font-size: 13px; color: var(--ink-2); }
+
+.rr-tablewrap { max-height: none; max-width: 100%; overflow-x: auto; }
+.rr-rules, .rr-out { width: 100%; border-collapse: collapse; font-size: 13px; }
+.rr-rules th, .rr-out th { text-align: left; font-weight: 550; font-size: 12px; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.rr-rules td, .rr-out td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.rr-out td.num, .rr-out th:nth-child(n+3) { text-align: right; font-variant-numeric: tabular-nums; }
+.rr-rules select, .rr-rules input { font: inherit; font-size: 13px; padding: 4px 6px; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--line-strong); border-radius: var(--radius); max-width: 100%; }
+.rr-when { display: flex; gap: 4px; white-space: nowrap; }
+.rr-when [data-rr-type] { width: 120px; }
+.rr-when [data-rr-risk] { width: 106px; }
+.rr-when [data-rr-size] { width: 88px; }
+.rr-rules td:nth-child(3) select, .rr-rules td:nth-child(4) select { width: 112px; }
+.rr-rules td:nth-child(5) select { width: 92px; }
+.rr-why { min-width: 220px; width: 100%; }
+.rr-why input { width: 100%; box-sizing: border-box; }
+.rr-acts { white-space: nowrap; text-align: right; }
+.rr-icon { min-width: 28px; padding: 2px 6px; margin-right: 2px; }
+.rr-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.rr-spacer { flex: 1; }
+
+.rr-flows { list-style: none; margin: 0; padding: 0; display: grid; }
+.rr-flow { display: grid; gap: 6px; padding: 10px 0; border-bottom: 1px solid var(--line); min-width: 0; }
+.rr-flow:last-child { border-bottom: 0; }
+.rr-flow-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.rr-flow-t { font-weight: 550; overflow-wrap: anywhere; }
+.rr-flow-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; font-size: 12.5px; color: var(--ink-2); }
+.rr-type { display: inline-flex; align-items: center; gap: 6px; }
+.rr-type select { font: inherit; font-size: 12.5px; padding: 2px 6px; color: var(--ink); background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius); }
+.rr-f { font-weight: 550; }
+.rr-f.f-true { color: var(--ok); }
+.rr-f.f-false { color: var(--warn); }
+.rr-f.f-null, .rr-f.f-undefined { color: var(--muted); font-weight: 400; }
+
+/* ticket intake on the Tickets page */
+.rt-kind { display: inline-block; margin-left: 6px; font-size: 11px; font-weight: 550; padding: 0 7px; border-radius: 999px; white-space: nowrap;
+  background: var(--surface-3); color: var(--ink-2); vertical-align: 1px; }
+.rt-kind.rt-k-no-code { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+.rt-kind.rt-k-needs-a-person { background: color-mix(in srgb, var(--bad) 13%, transparent); color: var(--bad); }
+.rt-kind.rt-k-unsure { background: transparent; color: var(--faint); border: 1px dashed var(--line-strong); }
+.rt-dup { margin-left: 6px; font-size: 11px; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); border-radius: 4px; padding: 0 5px; white-space: nowrap; }
+.fx-stat.rt-k-code, .fx-stat.rt-k-no-code, .fx-stat.rt-k-needs-a-person, .fx-stat.rt-k-unsure { background: var(--surface); border: 1px solid var(--line-strong); }
+.fx-stat.rt-k-no-code b { color: var(--warn); }
+.fx-stat.rt-k-needs-a-person b { color: var(--bad); }
+.rt-box { display: grid; gap: 6px; margin-top: 8px; }
+.rt-box h4 { margin: 6px 0 0; }
+.rt-line { margin: 0; font-size: 13px; color: var(--ink-2); }
+.rt-line .rt-kind { margin-left: 0; }
+.rt-field { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
+.rt-field select { font: inherit; font-size: 13px; padding: 3px 6px; color: var(--ink); background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius); }
+.rt-btn { margin-left: 6px; font-size: 12.5px; padding: 2px 8px; }
+.rt-suggest { margin: 2px 0 4px; color: var(--ink-2); }
+
+/* below this the rules table stacks: each rule one wrapped block with small labels, so nothing is cut or scrolls sideways */
+@media (max-width: 1240px) {
+  .rr-rules thead { display: none; }
+  .rr-rules, .rr-rules tbody { display: block; width: 100%; }
+  .rr-rules tr { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .rr-rules td { display: block; border: 0; padding: 0; }
+  .rr-rules td[data-k]::before { content: attr(data-k); display: block; margin-bottom: 3px; font-size: 11.5px; color: var(--muted); }
+  .rr-rules td.num { flex: 0 0 auto; align-self: flex-end; padding-bottom: 6px; font-weight: 600; color: var(--ink-2); }
+  .rr-rules td.rr-why { flex: 1 1 100%; min-width: 0; order: 9; }
+  .rr-rules td.rr-acts { margin-left: auto; text-align: right; }
+  .rr-rules td.rr-when { display: flex; flex-wrap: wrap; row-gap: 0; }
+  .rr-rules td.rr-when::before { flex: 0 0 100%; }
+}
+@media (max-width: 640px) {
+  .rr-card { padding: 16px; }
+  .rr-rules td.rr-when { flex: 1 1 100%; min-width: 0; }
+  .rr-rules .rr-when select { flex: 1 1 0; min-width: 0; width: auto; }
+  .rr-rules td[data-k="Agent"], .rr-rules td[data-k="Model"], .rr-rules td[data-k="Effort"] { flex: 1 1 0; min-width: 0; }
+  .rr-rules td[data-k] select { width: 100%; }
+  .rr-rules td.num { display: none; }
+  .rr-rules td.rr-acts { flex: 1 1 100%; order: 10; text-align: left; margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .rr-page * { transition: none !important; } }

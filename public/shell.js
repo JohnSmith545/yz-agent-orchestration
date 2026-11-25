@@ -16,6 +16,7 @@
 ;(() => {
   const VIEWS = ['home', 'flows', 'qa', 'script', 'tickets', 'timeline', 'agents', 'subagents', 'glossary', 'settings', 'archive', 'agent']
   VIEWS.push('bank') // the Orchestration bank (bank-page.js): #/bank, #/bank/<id>, #/bank/<id>/use
+  VIEWS.push('routing') // the Routing page (routing-page.js): #/routing, #/routing?flow=<id>
   const OLD = { factory: 'tickets', flow: 'timeline' }
   const route = (view, params = {}, redirect = null) => ({ view, params, redirect })
   const decode = s => {
@@ -151,6 +152,7 @@
   const SECTION = { home: 'home', flows: 'flowsView', qa: 'qaView', script: 'scriptView', tickets: 'factoryView', timeline: 'flowView', agents: 'agentsView', subagents: 'subagentsView', glossary: 'glossaryView', settings: 'settingsView', archive: 'archiveView', agent: 'agentView' }
   const PAGE = { flows: 'FlowsPage', qa: 'QaPage', script: 'ScriptPage', tickets: 'FactoryView', timeline: 'FlowView', agents: 'AgentsPage', subagents: 'SubagentsPage', glossary: 'GlossaryPage', settings: 'SettingsPage', archive: 'ArchivePage', agent: 'AgentView' }
   Object.assign(TITLE, { bank: 'Orchestration bank' }), Object.assign(SECTION, { bank: 'bankView' }), Object.assign(PAGE, { bank: 'BankPage' })
+  Object.assign(TITLE, { routing: 'Routing' }), Object.assign(SECTION, { routing: 'routingView' }), Object.assign(PAGE, { routing: 'RoutingPage' })
 
   // ─── icons: 24-unit boxes drawn at 20 px, 1.75 stroke (shell.css) ───
   const svg = d => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`
@@ -206,6 +208,9 @@
   // (Added after the template, not in it, so the rail's one long line stays as it was; ?. for the tests' bare DOM.)
   rail.querySelector('.rail-top')?.insertAdjacentHTML?.('afterend', '<div class="rail-project" id="railProject"></div>')
   rail.querySelector('a.rail-item[data-view="agents"]')?.insertAdjacentHTML?.('afterend', link('bank', '#/bank', 'Orchestration bank'))
+  // Routing (routing-page.js): a signpost, one way splitting in two; its link goes at the END of the rail's list
+  ICON.routing = svg('<path d="M12 21v-7.5"/><path d="m12 13.5-5.5-5.5"/><path d="m12 13.5 5.5-5.5"/><path d="M5 11.5V6.5h5"/><path d="M19 11.5V6.5h-5"/>')
+  rail.querySelector('.rail-nav')?.insertAdjacentHTML?.('beforeend', link('routing', '#/routing', 'Routing'))
 
   // Labels as tooltips by default; after a 300 ms hover the rail opens to
   // 200 px over the page. Pinned, it stays open and pushes the page instead.
