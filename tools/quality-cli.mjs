@@ -31,6 +31,7 @@ import { lessonsBlock, lessonsFor, readLessons } from '../quality-lessons.mjs'
 import { riskOf, riskRoute, riskText } from '../quality-risk.mjs'
 import { answerChecklist, checklistFor, checklistText, doneValues, selfCheckBlock, selfCheckRefusal } from '../quality-selfcheck.mjs'
 import { taskAreas } from '../quality-areas.mjs'
+import { criticText } from '../quality-critic.mjs'
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), 'factory.mjs').replace(/\\/g, '/')
 const DEEP_QA = 'This task asks for a deeper QA pass: test the edge cases its risk names (wrong input, a signed-out user, a second click, a failure half way), not only the happy path.'
@@ -82,6 +83,9 @@ function newestOf(by) {
   return mine.sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))[0] || null
 }
 
+/** The second opinion on the flow's CURRENT plan, as the producer reads it, or '' (quality-critic.mjs). */
+const criticOf = flow => (flow?.critic && flow.critic.plan === flow.plan?.file ? criticText(flow.critic) : '')
+
 /** Does this task have a screen to look at: the ui area, or result shots on the flow. */
 const hasScreen = (flow, config) => taskAreas(taskOf(flow), qualityOf(config).areas).has('ui') || (flow.output?.result || []).length > 0
 
@@ -103,10 +107,7 @@ export function qualityCommands(given, { noName }) {
     } catch (err) {
       return fail(err.message)
     }
-    if (!values.length) {
-      const risk = flow.risk ? `\n${riskText(flow.risk)}` : ''
-      return ok(`${checklistText(flow.id, items, CLI)}${risk}`)
-    }
+    if (!values.length) return ok([checklistText(flow.id, items, CLI), flow.risk ? riskText(flow.risk) : '', criticOf(flow)].filter(Boolean).join('\n'))
     const r = answerChecklist(items, values)
     if (r.error) return fail(r.error)
     flow.selfcheck = { at: now(), by: ctx.by, items: r.items }
@@ -126,7 +127,7 @@ export function qualityCommands(given, { noName }) {
     const r = commands.rules(f, ctx)
     if (r.code) return r
     const flow = f._[0] ? load(f._[0]) : newestOf(ctx.by)
-    return add(r, lessonsText(flow, configOf(ctx)))
+    return add(r, [lessonsText(flow, configOf(ctx)), criticOf(flow)].filter(Boolean).join('\n'))
   }
 
   const afterPlan = (f, ctx) => {
