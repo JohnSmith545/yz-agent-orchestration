@@ -32,8 +32,10 @@
 /* By agent: as wide as its content, up to the page */
 .ptk-agents { max-width: 1100px; }
 
-/* the two panels stack sooner than Pipeline time's: the by model table needs the width */
-@media (max-width: 1200px) {
+/* By model has eight columns since the two cache write lifetimes stand apart (about 880 px): it takes the wider
+   share beside the chart on a wide screen, and the two panels stack below 1600 px rather than cut its last column */
+.ptk-row { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); }
+@media (max-width: 1600px) {
   .ptk-row { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 480px) {
