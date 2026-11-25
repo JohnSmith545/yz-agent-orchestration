@@ -197,3 +197,6 @@ export function makeAuthStore({ file = AUTH_FILE, now = Date.now, log = line => 
 
   return { read, login, session, logout, signOutEverywhere, lockedFor: () => lockedFor(), events, logEvents }
 }
+
+/** The lockouts in the machine's auth file as Log events: what score-routes.mjs adds to the orchestration Log. */
+export const phoneLockouts = () => makeAuthStore({ log: () => {} }).logEvents()

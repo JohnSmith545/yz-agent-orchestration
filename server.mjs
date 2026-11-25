@@ -50,6 +50,7 @@ import { startReworkWatch } from './qa-rework.mjs'
 import { makeProjectRoutes } from './projects-routes.mjs'
 import { makeTokenRoute } from './token-routes.mjs'
 import { startPhone } from './phone-wiring.mjs'
+import { makePhoneDesktopRoute } from './phone-desktop-routes.mjs'
 import { listenWhenFree, makeRestarter, underKeepAlive, waitForPredecessor } from './restart.mjs'
 import {
   CLAUDE_DIRS,
@@ -873,6 +874,8 @@ const projectRoute = makeProjectRoutes({
 })
 /** Each agent's model, effort, files and notes, from its window on the Agents page (agent-settings-routes.mjs). */
 const agentSettingsRoute = makeAgentSettingsRoute({ port: PORT })
+/** The Phone card on Settings (phone-desktop-routes.mjs): on this 127.0.0.1 listener only. */
+const phoneRoute = makePhoneDesktopRoute({ port: PORT })
 /** Pipeline tokens (token-routes.mjs): what the transcripts spent, from a running index built in the background. */
 const tokenRoute = makeTokenRoute({ claudeDirs: CLAUDE_DIRS, match: CONFIG.sessionCwdMatch, names: async () => new Map((await liveSessions()).map(s => [s.sessionId, s.name])), labelOf })
 /** The paths factory-routes.mjs answers. */
@@ -897,6 +900,7 @@ const server = createServer(async (req, res) => {
     if (await agentSettingsRoute(req, res, url)) return
     if (await subagentRoute(req, res, url)) return
     if (await tokenRoute(req, res, url)) return
+    if (await phoneRoute(req, res, url)) return
     if (url.pathname === '/api/orchestration') {
       const data = await orchestration(url.searchParams.get('c'), url.searchParams.has('refresh'))
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' })
