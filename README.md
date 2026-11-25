@@ -64,7 +64,8 @@ example first.
 - **Timeline**: what each agent did on each task as a zoomable flowchart, built
   from the transcripts and git.
 - **Agents**: the orchestration as a pipeline diagram, from request to outcome, under a
-  pipeline score (precision, recall, F-score, accuracy and correctness), with
+  pipeline score (precision, recall, F-score, accuracy and correctness) and Pipeline time (tickets finished per
+  day and per hour, time per ticket, where the time goes), with
   a live view of one agent (its feed, its edits as diffs, its uncommitted changes)
   and a draft progress report.
 - **Subagents**: every subagent the sessions started, live or ended: what each one is working on, how it
@@ -1334,6 +1335,13 @@ Routes:
   pushed, done, dropped, stopped, stalled or rule. `cell` marks the event that put a count in that scorecard cell,
   from the same rule as `/api/score` (`score.mjs cellOf`), so the `total` for each cell equals that window's count.
   Left out, the window is 30 days; a bad window, cell or kind is a 400 with one plain sentence.
+- `GET /api/time[?days=7|30|all]` returns Pipeline time (`time-stats.mjs`, `time-stages.mjs`) over the same flow
+  files, never cached: `{ window: { days, from, to, dayCount, bucket: day|week, activeHours, clockHours }, finished:
+  { tickets, jobs, flows }, rates: { perDay, perHour, perClockHour }, took: { median, mean, fastest, slowest, flows },
+  waiting: { median, mean, share, flows, undated }, stages: [{ key, label, median, mean, flows, undated }], bars: [{
+  day, count }], agents: [{ label, tickets, jobs, flows, median, perDay, sentBack }], left: { slipped, dropped,
+  stopped, stalled }, fewer, builtAt }`. Times are ms; a number with nothing to count is null. The period is whole
+  local days (7 or 30 to today; All from the first flow event). A bad window is the score's 400.
 
 Each agent on `/api/status` carries `pushesOutsideQa`: how many `git push` commands it ran in the last 24 hours,
 read from the same transcript scan (0 for QA), so a page can flag a push that did not go through QA.
@@ -1559,6 +1567,20 @@ read again with every status refresh without redrawing.
   through or were missed (each a link to the flow), the sums, and a By agent table (handed to QA, passed first
   time, sent back). The window, F1 or F4, and the strip collapsed to one line are remembered in this browser; the
   strip is read again with the diagram.
+- **Pipeline time**, a block under the score (`time-stats.mjs`, `time-stages.mjs`, `GET /api/time`, `time-strip.js`,
+  `time-view.js`): how much work finishes and how long it takes, counted only from times the flow files store.
+  Finished is the score's delivered cell (`score.mjs cellOf`), so the two never disagree on what finished. Five
+  tiles line up under the score's: **Finished** (tickets, a ticket finished twice once, and other jobs: flows with no
+  ticket), **Per day** (over the days of the period, today included), **Per hour** (over the active hours: clock hours
+  in which a flow recorded an event of the Log, so idle nights do not dilute it; the round-the-clock rate beside it),
+  **Time per ticket** (the median from createdAt to the finish, with the mean, fastest and slowest) and **Waiting on
+  you** (each question to its answer, each by-hand step to its tick, overlaps once). Then a stacked bar of the median
+  time at each stage the files can date (coordinator and planner, producer, QA, Security, Human task, Senior,
+  reworks) with a table, bars of work finished per day (per week for All) with a text list and arrow keys, a By agent
+  table and How it is counted, which names what cannot be dated. The period is whole local days; the score's window
+  switch drives both blocks. A Minutes, Hours, Days or Auto switch sets every time and rate (in Minutes a rate reads
+  `1 every 95 min`); it and the block folded are remembered in this browser. Under 3 finished flows says Too few to
+  trust; none is an empty state, never a 0.
 - **Log**, the side panel's third choice (`score-log.mjs`, `GET /api/log`, `pipeline-log.js`): one timeline of what
   happened, newest first. Each event is a time (as the pages show times, the exact one on hover), one plain
   sentence ("QA failed this and sent it back to Agent 1."), the flow's title, and, when it put a count in a score, a
