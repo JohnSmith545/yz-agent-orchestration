@@ -214,6 +214,7 @@
     const q = box.querySelector('.cv-ask')
     ask.hidden = on
     ask.setAttribute('aria-expanded', String(on))
+    box.classList.toggle('is-open', on) // an open question takes the whole row (completed.css)
     q.hidden = !on
     ;(on ? q.querySelector('[data-cv-yes]') : ask).focus()
   }

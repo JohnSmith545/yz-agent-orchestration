@@ -90,7 +90,7 @@
     tokens = window.TokenStrip?.create(section.querySelector('#plTokens')) || null
     // the line over the diagram (completed-view.js fills it), and a sign-off re-reads the pipeline: the flow leaves it
     window.CompletedView?.paint(section)
-    document.addEventListener('outputs:change', () => showing && loadPipeline())
+    document.addEventListener('outputs:change', () => showing && loadPipeline(true))
     // Delegated: the agent card's Progress report (agent-cards.js leaves [data-report] to its page), a
     // subagent row (watch it live), the pane's Close, and the ticket rows of Here now.
     details.addEventListener('click', e => {
@@ -154,8 +154,10 @@
     render()
   }
 
-  async function loadPipeline() {
-    if (loading) return
+  /** A read asked for while one is in flight (a sign-off, completed-view.js): that read may predate it, so one more follows. */
+  let again = false
+  async function loadPipeline(fresh = false) {
+    if (loading) return void (again ||= fresh)
     loading = true
     window.AgentRules?.load() // the saved specifications and rules, at the same cadence
     score?.refresh()
@@ -174,6 +176,10 @@
     render()
     syncFromHash()
     if (pipeline) loadSteps(pipeline.tickets)
+    if (again) {
+      again = false
+      loadPipeline()
+    }
   }
 
   /** Looks up the test steps of the outputs with no QA record that are new or changed since last read. */

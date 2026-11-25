@@ -118,3 +118,10 @@ test('wired in: the Agents page line over the diagram, the panel head and its Sh
   assert.match(pkg.scripts.check, /node --check public\/pipeline-output\.js/)
   assert.match(read('pipeline-details.js'), /mark it completed/i, 'the Output step says what Completed does')
 })
+
+test('a sign-off while the pipeline is being read asks for one more read, so the completed rows never linger', () => {
+  const page = read('agents-page.js')
+  assert.match(page, /if \(loading\) return void \(again \|\|= fresh\)/)
+  assert.match(page, /if \(again\) \{\s*again = false\s*loadPipeline\(\)/)
+  assert.match(page, /addEventListener\('outputs:change', \(\) => showing && loadPipeline\(true\)\)/)
+})
