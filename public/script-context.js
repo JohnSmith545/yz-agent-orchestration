@@ -1,4 +1,4 @@
-// The Context panel on the Brainstorming page (#/brainstorming): what it is told before it writes. It slides out from the
+// The Context panel of the Prompt generator (#/generators): what it is told before it writes. It slides out from the
 // right edge like the Agents page's panel (pipeline-panel.js), with a slim "Context · N" tab while closed.
 //
 //   ScriptContext.create(el, { page })   el: <aside class="sc-ctx">, page: the .sc-page (gets `ctx-open`)
@@ -70,7 +70,7 @@
         <h2 class="sc-ctx-title" id="scCtxTitle">Context</h2>
         <button type="button" class="sc-ctx-x" aria-label="Close the context panel" title="Close">${X}</button>
       </div>
-      <p class="sc-ctx-lede">What Brainstorming is told before it writes. It goes only to your own Claude run.</p>
+      <p class="sc-ctx-lede">What the Prompt generator is told before it writes. It goes only to your own Claude run.</p>
       <div class="sc-ctx-scroll">
         <section class="sc-ctx-sec" aria-labelledby="scCtxOrchH">
           <div class="sc-ctx-row">

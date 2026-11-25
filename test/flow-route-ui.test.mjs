@@ -119,7 +119,10 @@ test('highlight: a rework lights the return arrow; a flow that skipped QA lights
   const back = plain(R.highlight(G, flow({ nodes: committed, qa: qa('failed', { rework: { to: 'Agent 1' } }) }).progress))
   assert.ok(back.edges.includes(G.edges.findIndex(e => e.from === 'qa' && e.to === 'agent-1' && e.kind === 'rework')))
   const skipped = plain(R.highlight(G, flow({ status: 'done' }).progress))
-  assert.ok(skipped.edges.includes(edgeIndex('agent-1', 'outcome')))
+  // the no code changes lane: past Human task (it did not stop there) to the Output
+  assert.ok(skipped.edges.includes(edgeIndex('agent-1', 'human')))
+  assert.ok(skipped.edges.includes(edgeIndex('human', 'outcome')))
+  assert.ok(!skipped.nodes.includes('human'), 'a box it went past is not lit')
   assert.ok(!skipped.nodes.includes('qa'))
   assert.deepEqual(skipped.next, { nodes: [], edges: [] })
   assert.equal(R.highlight(G, undefined), null)

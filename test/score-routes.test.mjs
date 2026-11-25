@@ -69,7 +69,7 @@ test('GET /api/score: the scorecard over the flow files for the last 30 days by 
   assert.deepEqual(j.lists.missed, [{ id: 'dropped', title: 'Flow dropped', why: 'dropped' }])
   assert.equal(j.inFlight, 1)
   assert.deepEqual(j.precision, { value: 0.5, top: 1, bottom: 2 })
-  assert.deepEqual(Object.keys(j).sort(), ['accuracy', 'agents', 'builtAt', 'correctness', 'counts', 'f', 'inFlight', 'lists', 'precision', 'recall', 'window'])
+  assert.deepEqual(Object.keys(j).sort(), ['accuracy', 'agents', 'builtAt', 'correctness', 'counts', 'f', 'gates', 'inFlight', 'lists', 'precision', 'recall', 'window'])
 })
 
 test('GET /api/score?days=7 and days=all set the window', async () => {
@@ -144,8 +144,8 @@ test('GET /api/log with a bad window, cell or kind is a 400 with a plain sentenc
   const cases = {
     'days=14': 'The window must be 7, 30 or all days.',
     'cell=wrong': 'The cell must be delivered, caught, missed or slipped.',
-    // the kinds of the planner and Security are named only when the live config.json has them (score-routes.mjs)
-    'kind=nope': `The kind must be one of started, route, handed, passed, failed, pushed, done, dropped, stopped, stalled, rule${SECURITY ? ', security' : ''}${pipelineGraph(CONFIG).nodes.some(n => n.role === 'planner') ? ', planned' : ''}`.replace(/, ([a-z]+)$/, ' or $1') + '.',
+    // the kinds of the planner, Security and Senior are named only when the live config.json has them (score-routes.mjs)
+    'kind=nope': `The kind must be one of started, route, handed, passed, failed, pushed, done, dropped, stopped, stalled, rule${SECURITY ? ', security' : ''}${pipelineGraph(CONFIG).nodes.some(n => n.role === 'planner') ? ', planned' : ''}${pipelineGraph(CONFIG).nodes.some(n => n.role === 'senior') ? ', senior' : ''}`.replace(/, ([a-z]+)$/, ' or $1') + '.',
   }
   for (const [q, error] of Object.entries(cases)) {
     const r = await get(`/api/log?${q}`)

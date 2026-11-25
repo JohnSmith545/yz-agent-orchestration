@@ -18,7 +18,11 @@
 //   blocked one too; a ticket a live flow carries is that flow's row, never a ticket row as well.
 // - Pure: no file and no clock, so the tests build any state.
 //
-//   humanItems({ flows, marks, tickets })   { items, counts: { total, ask, hand, blocked, ticket } }
+//   humanItems({ flows, marks, tickets, senior })   { items, counts: { total, ask, hand, blocked, ticket } }; `senior`
+//                                          is Senior's label when the pipeline has Senior (pipeline.mjs gateLabels):
+//                                          a flow that waits on SENIOR (every step ticked, or sent with senior-ask,
+//                                          or being reviewed) is no row at all, so it leaves the count and the page
+//                                          head too (QA B-2); it comes back when Senior sends it back, saying why
 
 import { handProgress } from './hand-steps.mjs'
 
@@ -43,13 +47,24 @@ const latest = times => times.filter(isText).sort().pop() || ''
 const live = f => f.status === 'open' || f.status === 'blocked'
 
 /** Why a flow's by-hand work waits on the user, in one line. */
-function handReason(f, marked) {
+function handReason(f, marked, senior) {
   const steps = Array.isArray(f.hand?.steps) ? f.hand.steps : []
   const { done, total } = handProgress(f)
+  if (senior && f.senior?.status === 'failed' && done < total) return line(`${senior} sent it back: ${f.senior.summary || 'do the unticked steps again'}`)
   if (total && done === total) return `All ${total} steps are done by you: mark the flow done.`
   if (total) return line(`${done} of ${total} done. Next: ${steps.find(s => !s.done)?.do || ''}`)
   if (f.hand?.requestedAt) return f.hand.requestError ? 'Steps asked for, but the request was not sent: ask again.' : 'Steps asked for: waiting on the agent to write them.'
   return line(`Work only you can do (${marked.join(', ')}), with no steps yet: ask the agent for them.`)
+}
+
+/** Whether a flow waits on Senior, not on the user (pipeline-hand.mjs handStage puts it at Senior): no row for it. */
+function atSenior(f, senior) {
+  if (!senior || (f.qa && typeof f.qa === 'object')) return false
+  const s = f.senior && typeof f.senior === 'object' ? f.senior : null
+  if (['passed', 'senior-failed', 'released'].includes(s?.status)) return false
+  if (s?.status === 'asked' || s?.status === 'reviewing') return true
+  const { done, total } = handProgress(f)
+  return total > 0 && done === total
 }
 
 /** Why a blocked flow waits, in one line: its first blocked step, else the flow's own reason. */
@@ -59,7 +74,7 @@ function blockedReason(f) {
   return isText(f.why) ? line(`Blocked. ${f.why}`) : 'The agent marked this flow blocked.'
 }
 
-export function humanItems({ flows = [], marks = {}, tickets = new Map() } = {}) {
+export function humanItems({ flows = [], marks = {}, tickets = new Map(), senior = null } = {}) {
   const items = []
   const covered = new Set() // tickets a live (not dropped) flow carries: that flow speaks for them
   const humanMark = id => HUMAN_MARKS.includes(marks?.[id]?.review)
@@ -80,12 +95,13 @@ export function humanItems({ flows = [], marks = {}, tickets = new Map() } = {})
       })
     }
     const marked = ids.filter(humanMark)
+    if (atSenior(f, senior)) continue // it waits on Senior now, not on you (its asks above still count)
     const steps = Array.isArray(f.hand?.steps) ? f.hand.steps : []
     const isHand = steps.length > 0 || !!f.hand?.requestedAt || marked.length > 0
     if (isHand) {
       items.push({
         key: `hand:${f.id}`, kind: 'hand', ...base, since: latest([...steps.map(s => s.at), f.hand?.requestedAt]) || f.updatedAt || '',
-        reason: handReason(f, marked), progress: handProgress(f),
+        reason: handReason(f, marked, senior), progress: handProgress(f),
       })
     } else if (f.status === 'blocked' && !waiting.length) {
       items.push({ key: `blocked:${f.id}`, kind: 'blocked', ...base, since: f.updatedAt || '', reason: blockedReason(f) })

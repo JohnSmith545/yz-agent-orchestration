@@ -6,7 +6,8 @@
 //     what its role is, a line when it pushed outside QA, and the tickets standing on it;
 //     and the user's Specification and Rules for it, with a Settings button in the head that turns them into
 //     an editor (agent-rules-view.js draws them; agent-rules.js owns the editor; with neither loaded, the role line);
-//   - a step (Request, Push, Output): a short plain description and the tickets standing there.
+//   - a step (Request, Human task, Push, Output): a short plain description and the tickets standing there (a click
+//     on the Human task box itself goes to the Human review list instead: agents-page.js).
 // With nothing clicked it holds the Independent chat card (agent-cards.js renderChat) and one line of help.
 // Pure: a node and what is known about it in, HTML out (test/pipeline-details.test.mjs).
 ;(() => {
@@ -17,12 +18,14 @@
     request: 'Where work starts: a request you give the coordinator, who hands it out.',
     coordinator: 'Hands each request to a producer (through the planner when there is one), or does it itself. Its own code changes go to QA too.',
     planner: 'Plans each task the coordinator hands it and gives it to a producer. It writes no code. Always on Opus at high effort.',
-    producer: 'Writes the code. Finished code goes to QA; work with no code changes goes straight to the Output.',
+    producer: 'Writes the code. Finished code goes to QA; work with no code changes goes to Human task.',
     chat: 'The chat agent in the Ask drawer: answers questions, explains tickets and reviews code. It changes no code, so its work goes straight to the Output.',
     qa: 'Tests every code change. A pass goes on to Push (through Security when there is one); a failure goes back to the producer that made it.',
     security: 'Reviews every change QA passed, at the same commit. A pass lets QA push it; a failure goes back to the producer that made it. Always on Opus at high effort.',
+    human: 'You. Work with no code changes passes through here; a flow with steps only you can do (CI/CD, a cloud console, an account setting) waits here until you tick them all.',
+    senior: 'Reviews work done by hand that has no code to test: CI/CD, cloud console changes, commands run in a terminal. A pass goes to the Output; a failure goes back to Human task. Always on Opus at high effort.',
     push: 'QA pushes the branch at the exact commit it tested (and Security passed, when there is Security): never forced, never a protected branch.',
-    outcome: 'Where work ends: pushed after a QA pass (and a Security pass, when there is Security), or done with no code changes. You open the pull request with Send.',
+    outcome: 'Where work ends: pushed after a QA pass (and a Security pass, when there is Security), or done with no code changes past Human task (and Senior, when there is one). You open the pull request with Send.',
   }
 
   const pushes = a => Math.max(0, Number(a?.pushesOutsideQa) || 0)

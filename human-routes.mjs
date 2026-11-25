@@ -25,10 +25,11 @@
 import { CONFIG } from './config.mjs'
 import { collections, readSource } from './factory.mjs'
 import { readState } from './factory-state.mjs'
-import { createFlow, listFlows, readFlow, validateFlow, writeFlow } from './flows.mjs'
+import { createFlow, listFlows, readFlow, seniorHold, validateFlow, writeFlow } from './flows.mjs'
+import { failedSoFar, SENIOR_MAX } from './flow-senior.mjs'
 import { applyHandTick } from './hand-steps.mjs'
 import { HUMAN_MARKS, humanItems } from './human.mjs'
-import { pipelineGraph } from './pipeline.mjs'
+import { gateLabels, pipelineGraph } from './pipeline.mjs'
 import { handText } from './relay.mjs'
 import { isTrashed } from './trash.mjs'
 import { newRoute } from './tools/route-cli.mjs'
@@ -53,7 +54,7 @@ function ticketsOf() {
 }
 
 export function humanGet({ now = Date.now() } = {}) {
-  const { items, counts } = humanItems({ flows: listFlows().flows, marks: readState().marks, tickets: ticketsOf() })
+  const { items, counts } = humanItems({ flows: listFlows().flows, marks: readState().marks, tickets: ticketsOf(), senior: gateLabels(CONFIG).senior })
   return ok({ items, counts, builtAt: new Date(now).toISOString() })
 }
 
@@ -71,6 +72,24 @@ export function handTickRoute(id, b) {
   if (problems.length) return no(400, problems.join('\n'))
   writeFlow(flow)
   return ok({ ok: true, step: flow.hand.steps.find(s => s.id === b.step) })
+}
+
+/**
+ * The user finishes a flow Senior holds WITHOUT Senior's review (POST /api/flows/<id>/senior-release, the flow page
+ * only: the agent CLI has no way to write this). The record becomes released (by you) and the flow done; the scorecard
+ * counts it slipped through, since nobody reviewed it (score.mjs). A flow Senior does not hold is refused.
+ */
+export function seniorReleaseRoute(id) {
+  const flow = readFlow(id)
+  if (!flow) return no(404, `No flow ${id}.`)
+  if (!seniorHold(flow)) return no(400, `Senior does not hold ${id}: finish it the usual way.`)
+  const at = new Date().toISOString()
+  flow.senior = { status: 'released', by: 'you', at, ...(failedSoFar(flow.senior).length ? { history: failedSoFar(flow.senior).slice(-SENIOR_MAX.history) } : {}) }
+  flow.status = 'done'
+  const problems = validateFlow(flow)
+  if (problems.length) return no(400, problems.join('\n'))
+  writeFlow(flow)
+  return ok({ ok: true, status: flow.status })
 }
 
 /** Ask the agent for by-hand steps: the same relay path as Request test steps (factory-routes.mjs requestTests). */

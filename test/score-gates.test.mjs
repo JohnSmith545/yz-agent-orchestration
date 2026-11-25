@@ -71,7 +71,7 @@ test('scoreOf: each Security failure is one catch, against the work it reviewed;
 })
 
 test('the log tags Security verdicts and the planners hand-outs as their own kinds, each one plain sentence', () => {
-  assert.deepEqual(GATE_KINDS, ['security', 'planned'])
+  assert.deepEqual(GATE_KINDS, ['security', 'planned', 'senior'])
   assert.ok(!LOG_KINDS.includes('security'), 'the base kinds stay as they were')
   const f = flow('gated', {
     status: 'done',

@@ -1,4 +1,4 @@
-// The Brainstorming page's system prompt (script.mjs passes it with --system-prompt).
+// The Prompt generator's system prompt (script.mjs passes it with --system-prompt).
 //
 // Where it comes from: the user's own method, C:/Users/jjt_j/Downloads/MAGIC_Instructions.pdf, which was
 // written for Claude on the web. Only its rules for HOW A PROMPT IS BUILT were brought over (2026-11-25, on the

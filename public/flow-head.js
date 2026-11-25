@@ -76,14 +76,16 @@
       `<button type="button" class="fl-tk-more" data-tk-more="${esc(f.id)}" aria-expanded="false" title="Show all ${all.length} tickets">+${rest}</button>`
   }
 
-  function html(f, { tickets, envPill, statusPill, statuses, asking = null }) {
+  function html(f, { tickets, envPill, statusPill, statuses, asking = null, refused = null }) {
     const sep = '<span class="fl-sep" aria-hidden="true">·</span>'
     const meta = [`<b>${esc(f.agent)}</b>`, ticketChips(f, tickets), envPill(f.env), statusPill(f.status), window.FlowQa?.mark(f), '<span class="fl-updated" data-updated></span>'].filter(Boolean).join(sep)
     const del = asking
       ? `<p class="small fl-ask-delete">${esc(asking)}</p><span class="fl-ask-acts"><button type="button" class="link" data-delete data-confirmed>Delete</button><button type="button" class="link" data-delete-cancel>Cancel</button></span>`
       : '<button type="button" class="link" data-delete>Delete</button>'
-    const menu = `<details class="fl-more"${asking ? ' open' : ''}><summary aria-label="Flow actions" title="Flow actions">⋯</summary><div class="fl-more-menu">
-        <label class="small">Flow <select data-flow-status aria-label="Flow status">${statuses.map(s => `<option ${s === f.status ? 'selected' : ''}>${s}</option>`).join('')}</select></label>
+    // a refused status change is said here, under the menu it came from, with the menu on the real status (QA B-7)
+    const said = refused ? `<p class="small fl-refused" role="alert">${esc(refused)}</p>` : ''
+    const menu = `<details class="fl-more"${asking || refused ? ' open' : ''}><summary aria-label="Flow actions" title="Flow actions">⋯</summary><div class="fl-more-menu">
+        <label class="small">Flow <select data-flow-status aria-label="Flow status">${statuses.map(s => `<option ${s === f.status ? 'selected' : ''}>${s}</option>`).join('')}</select></label>${said}
         ${f.status !== 'dropped' ? '<button type="button" class="link" data-drop>Drop</button>' : ''}
         <button type="button" class="link" data-archive>${f.archivedAt ? 'Unarchive' : 'Archive'}</button>${del}</div></details>`
     return {

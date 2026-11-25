@@ -32,6 +32,17 @@
 .fh-asked { color: var(--muted); font-size: 12.5px; }
 .fh-asked.is-bad { color: var(--bad); }
 .fl-open.is-readonly .fh-tick { cursor: default; }
+/* Senior sent the by-hand work back (flow-hand.js): its verdict over the steps, and each step to redo marked */
+.fh-redo { margin: 10px 0 0; padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--bad) 40%, var(--line)); border-left: 3px solid var(--bad);
+  border-radius: var(--radius); background: var(--surface); color: var(--ink); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.fh-again { flex: none; align-self: center; margin-left: 4px; padding: 0 6px; border-radius: 4px; background: var(--del-bg); color: var(--del-ink); font-size: 11.5px; font-weight: 600; }
+.fh-next { color: var(--ink-2); font-size: 13px; }
+/* Finish without Senior (flow-hand.js): a quiet link, asked once more inline; a refusal said inline too */
+.fh-release { font-size: 12.5px; }
+.fh-release-ask, .fh-refused { margin: 10px 0 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--ink); font-size: 13px; line-height: 1.5; }
+.fh-refused { border-left: 3px solid var(--bad); }
+.fh-released { margin: 10px 0 0; color: var(--ink-2); font-size: 13px; }
+.fh-done { padding: 0; }
 
 @media (max-width: 600px) {
   .fl-open > .fl-hand { padding: 12px 16px 14px; }

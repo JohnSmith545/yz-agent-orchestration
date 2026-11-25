@@ -9,7 +9,7 @@ so a relative path would not resolve.
 > Every request gets a flow FIRST, before you change anything: `flow new <id> "<title>" --type build|review|ask`
 > (or `flow write` with `"route": { "type": "build" }`). The type sets its route from the Request to the Output:
 > build for a code change (Request, the coordinator, you, QA, Push, Output), review for a code review of a ticket
-> (the chat agent's), ask for a question, an explanation or an investigation (Request, you, Output). Follow that
+> (the chat agent's), ask for a question, an explanation or an investigation (Request, you, Human task, Output). Follow that
 > route. If the plan changes, say so with `flow route <flow> --type ...`: the old route stays visible. A
 > `flow new` without `--type` is refused.
 > Narrate your work on the dashboard as a flow: `node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow …`.
@@ -54,8 +54,13 @@ so a relative path would not resolve.
 > `flow hand-step <flow> "<do this>" --expect "<what they should see>" --where "<the exact path, page or click path>"`
 > per step, in order, with `--copy "<the value to paste>"` and `--why "<one line>"` when they help. You never run
 > that work yourself. The user ticks each step off on the dashboard; a message asking for steps means record them.
+> Leave the flow open: it waits at the Human task box until every step is ticked (when the pipeline has Senior, Senior
+> then reviews it, and a Senior failure comes back to the user, not to you). A flow with no by-hand steps goes past
+> Human task to the Output as before. When you made a change with no code to test yourself (a CI setting changed
+> through a web console with your own tools, say) and the pipeline has Senior, send it for review:
+> `flow senior-ask <flow> "<what you changed, where, and how to check it>"`, then send Senior a message naming the flow.
 > A command refused with "deleted" means the user deleted that flow (it waits in the flow archive): stop work on it and do not write to it again.
-> When the user asks you to give the Brainstorming page some context, add it as a note with
+> When the user asks you to give the Prompt generator (on the Generators page) some context, add it as a note with
 > `context add "<title>" --text "..."` (or `--file <path>`); `context list` and `context remove <id>` manage them.
 > The rules that `flow new`, `flow qa-start` and `flow rules` print are the user's own, set on the dashboard: follow them.
 
@@ -109,6 +114,13 @@ When the pipeline has a **planner** (config `pipeline.planner`), it sits between
 > `flow plan <flow> --file plan.md --to "<you>"`. From then on the flow is yours: read the plan (its path is in
 > `flow show`), follow it, and record your work on that flow as usual. The planner writes no code. Its brief is
 > `docs/planner-agent-brief.md`.
+
+When the pipeline has **Senior** (config `pipeline.senior`), it sits after the Human task box:
+
+> Work with no code changes goes from you to Human task (the user), then to Senior, then to the Output. Senior reviews
+> what has no code to test: CI/CD setup, cloud console changes, commands run in a terminal, settings in a third-party
+> account. It passes the flow, or sends it back to the user with the steps to do again. If the steps you wrote were
+> wrong, the user asks you to rewrite them (`flow hand-step --replace`). Its brief is `docs/senior-agent-brief.md`.
 
 When the pipeline has **Security** (config `pipeline.security`), it sits after QA:
 

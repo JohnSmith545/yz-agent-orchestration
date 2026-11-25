@@ -55,7 +55,7 @@ test('a producer gets the model and effort choices, the honest line, and a note 
 })
 
 test('the planner and Security show Opus at high effort with no control, and warn when the session is not Opus', () => {
-  for (const role of ['planner', 'security']) {
+  for (const role of ['planner', 'security', 'senior']) {
     const html = V.modelHtml({ label: 'X', role, entry: { fixed: true } })
     assert.match(html, /<b>Opus 5\.5, high effort<\/b>/)
     assert.doesNotMatch(html, /<select/)

@@ -33,7 +33,7 @@
     ['Home', '#/home'],
     ['Flows', '#/flows'],
     ['QA', '#/qa'],
-    ['Brainstorming', '#/brainstorming', ['script', 'prompt']], // its old name and what it makes, as hidden keys
+    ['Generators', '#/generators', ['script', 'prompt', 'brainstorming', 'standup', 'stand up']], // its old names and its two tools, as hidden keys
     ['Tickets', '#/tickets'],
     ['Timeline', '#/timeline'],
     ['Agents', '#/agents'],

@@ -62,7 +62,7 @@ test('the three flow types, with the build and review routes in planRoute order'
   }
   assert.match(line, /Agent 1, Agent 2 or Agent 3/)
   assert.match(brief, /^- review[^\n]*Request, Independent, Output/m)
-  assert.match(brief, /^- ask[^\n]*Request, the agent asked, Output/m)
+  assert.match(brief, /^- ask[^\n]*Request, the agent asked, Human task, Output/m) // past Human task, stopping only for steps
 })
 
 test('the QA rules come from the pipeline settings', () => {
@@ -71,7 +71,7 @@ test('the QA rules come from the pipeline settings', () => {
 })
 
 test('the pages, one line each, and what the dashboard is built with', () => {
-  for (const page of ['Flows', 'Home', 'QA', 'Brainstorming', 'Tickets', 'Timeline', 'Agents', 'Subagents', 'Glossary', 'Settings']) {
+  for (const page of ['Flows', 'Home', 'QA', 'Generators', 'Tickets', 'Timeline', 'Agents', 'Subagents', 'Glossary', 'Settings']) {
     assert.match(brief, new RegExp(`^- ${page}: `, 'm'), page)
   }
   assert.match(brief, /Node(\.js)? 20/)

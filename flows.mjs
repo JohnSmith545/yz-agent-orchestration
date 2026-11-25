@@ -37,6 +37,13 @@
 //   the same thing (keepHand).
 // - `plan` (optional) is the planner's record of planning the flow and handing it to a producer (flow-plan.mjs):
 //   only the plan commands (tools/plan-cli.mjs) write it, and mergeKeepingAnswers takes it from the stored file only.
+// - `senior` (optional) is Senior's review of work with no code to test (flow-senior.mjs): only the Senior commands
+//   (tools/senior-cli.mjs) write it, and mergeKeepingAnswers takes it from the stored file only (keepSenior).
+// - ⚠️ THE SENIOR GATE lives HERE, in writeFlow, the one door every writer goes through (the agent CLI's set and
+//   write, the dashboard's status route, anything added later): while Senior holds a flow (flow-senior.mjs
+//   seniorHolds), a write that moves it to done is refused with that one sentence. Only Senior's own pass, which
+//   records the pass in the same write, gets through. The pipeline is the live config's (config.mjs); the CLI runs
+//   each command inside withPipeline(its config), so a test config is honoured.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -47,6 +54,9 @@ import { hasBefore, validateChange } from './flow-change.mjs'
 import { mergeReady, validateSend } from './flow-merge.mjs'
 import { keepPlan, validatePlan } from './flow-plan.mjs'
 import { keepQa, validateQa } from './flow-qa.mjs'
+import { keepSenior, recordHold, seniorHolds, validateSenior } from './flow-senior.mjs'
+import { CONFIG } from './config.mjs'
+import { pipelineGraph } from './pipeline.mjs'
 import { keepHand, validateHand } from './hand-steps.mjs'
 import { keepRoute, validateRoute } from './flow-route.mjs'
 import { sayShorter, STORY_ID, STORY_MAX, storyOf, YOU } from './flow-story.mjs'
@@ -151,6 +161,7 @@ export function validateFlow(flow) {
   if (flow.route !== undefined) problems.push(...validateRoute(flow.route))
   if (flow.hand !== undefined) problems.push(...validateHand(flow.hand))
   if (flow.plan !== undefined) problems.push(...validatePlan(flow.plan, flow.id))
+  if (flow.senior !== undefined) problems.push(...validateSenior(flow.senior))
   return problems
 }
 
@@ -364,11 +375,56 @@ export function listFlows({ open, waiting, agent, ticket, archived } = {}, tally
  * the user reopening an answer). With no stored copy there is nothing to
  * compare, and the trusted caller's archivedAt stands.
  */
+/** The graph the Senior gate reads: the live config's, or the one withPipeline set for the call in progress. */
+let gateGraph = () => pipelineGraph(CONFIG)
+
+/** Run `fn` with `config`'s pipeline as the one the Senior gate reads (the CLI passes its own config). */
+export function withPipeline(config, fn) {
+  const was = gateGraph
+  gateGraph = () => pipelineGraph(config || CONFIG)
+  try {
+    return fn()
+  } finally {
+    gateGraph = was
+  }
+}
+
+/** Who stopped a flow after too many failures, so the user decides what happens next: Senior, QA, Security, or ''. */
+export function stoppedBy(flow) {
+  const qa = flow?.qa && typeof flow.qa === 'object' ? flow.qa : null
+  if (!qa && flow?.senior?.status === 'senior-failed') return 'Senior'
+  if (qa?.status === 'qa-failed') return 'QA'
+  if (qa?.status === 'passed' && qa.security?.status === 'security-failed') return 'Security'
+  return ''
+}
+
+/**
+ * Why an AGENT may not move `stored` to `next` (QA round two B-F3): a flow Senior, QA or Security stopped is moved on
+ * (done or open again) by the user only, on the dashboard. The agent CLI's set and write ask this; the page does not.
+ * Dropping it is not moving it on, so it is allowed.
+ */
+export function agentMoveRefusal(stored, next) {
+  const who = stored && (next === 'done' || next === 'open') && next !== stored.status ? stoppedBy(stored) : ''
+  return who ? `${stored.id} was stopped by ${who}: only the user moves it on, on the dashboard.` : ''
+}
+
+/** Why Senior holds `flow` now (flow-senior.mjs seniorHolds) on the pipeline the store reads, or ''. */
+export const seniorHold = flow => seniorHolds(flow, gateGraph())
+
 export function writeFlow(flow) {
   const problems = validateFlow(flow)
   if (problems.length) throw new Error(problems.join('\n'))
   const stored = storedFlow(flow.id)
   const before = stored?.status ?? null
+  // the Senior gate: the hold is recorded on the flow and kept across every rewrite (flow-senior.mjs recordHold), then
+  // only the move to done is checked, so a flow done before Senior existed may still be written
+  const graph = gateGraph()
+  recordHold(flow, stored, graph)
+  if (flow.status === 'done' && before !== 'done') {
+    const held = seniorHolds(flow, graph)
+    // the code lets the page say what the USER can do instead of the agent's sentence (public/flow-hand.js holdText)
+    if (held) throw Object.assign(new Error(held), { code: 'senior-hold' })
+  }
   if (flow.archivedAt && stored && hasNewOpenAsk(flow, stored)) delete flow.archivedAt
   flow.updatedAt = now()
   writeAtomic(flowFile(flow.id), JSON.stringify(flow, null, 1))
@@ -544,6 +600,7 @@ export function mergeKeepingAnswers(incoming, existing) {
   keepRoute(incoming, existing) // the plan: only `flow route` changes a stored one
   keepHand(incoming, existing) // the user's ticks on the by-hand steps: only ever from the stored file
   keepPlan(incoming, existing) // the planner's hand-out: only the plan commands write it
+  keepSenior(incoming, existing) // Senior's verdict: only the Senior commands write it
   if (existing?.createdAt) incoming.createdAt = existing.createdAt
   delete incoming.derived
   return incoming

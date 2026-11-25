@@ -14,7 +14,7 @@ import { pipelineGraph } from '../pipeline.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const window = {}
-vm.runInNewContext(fs.readFileSync(path.join(HERE, '..', 'public', 'pipeline-layout.js'), 'utf8'), { window })
+for (const f of ['pipeline-labels.js', 'pipeline-layout.js']) vm.runInNewContext(fs.readFileSync(path.join(HERE, '..', 'public', f), 'utf8'), { window })
 const L = window.PipelineLayout
 const plain = v => JSON.parse(JSON.stringify(v))
 
@@ -25,12 +25,12 @@ const byId = lay => new Map(lay.nodes.map(n => [n.id, n]))
 
 // ═══ layers ═══
 
-test('the default graph layers as Request | Master | the producers | QA | Push | Outcome', () => {
-  assert.deepEqual(plain(L.ranks(G3)), { request: 0, master: 1, 'agent-1': 2, 'agent-2': 2, 'agent-3': 2, qa: 3, push: 4, outcome: 5 })
+test('the default graph layers as Request | Master | the producers | QA and Human task | Push | Outcome', () => {
+  assert.deepEqual(plain(L.ranks(G3)), { request: 0, master: 1, 'agent-1': 2, 'agent-2': 2, 'agent-3': 2, qa: 3, human: 3, push: 4, outcome: 5 })
 })
 
 test('with no producers QA follows the coordinator straight away', () => {
-  assert.deepEqual(plain(L.ranks(graphWith(0))), { request: 0, master: 1, qa: 2, push: 3, outcome: 4 })
+  assert.deepEqual(plain(L.ranks(graphWith(0))), { request: 0, master: 1, qa: 2, human: 2, push: 3, outcome: 4 })
 })
 
 test('one and five producers each share one layer, between the coordinator and QA', () => {
@@ -179,7 +179,7 @@ test('every arrow fits inside the drawing', () => {
   }
 })
 
-test('rework arrows end on the producer they return to, skip arrows end on the Outcome', () => {
+test('rework arrows end on the producer they return to, skip arrows end on their box (Human task or the Outcome)', () => {
   const lay = L.layout(G3, { width: 1160 })
   const at = byId(lay)
   const end = e => samples(e.d).at(-1)
@@ -189,7 +189,7 @@ test('rework arrows end on the producer they return to, skip arrows end on the O
     assert.ok(Math.abs(x - (p.x + p.w)) <= 8 && y > p.y && y < p.y + p.h, `${e.to}: ${x},${y}`)
   }
   for (const e of lay.edges.filter(x => x.kind === 'skip')) {
-    const o = at.get('outcome')
+    const o = at.get(e.to)
     const [x, y] = end(e)
     assert.ok(Math.abs(x - o.x) <= 8 && y > o.y && y < o.y + o.h, `${e.from}: ${x},${y}`)
   }
@@ -214,9 +214,9 @@ test('every label is drawn: failed for every return, own changes, passed, and no
   const failed = lay.labels.filter(l => l.text === 'failed')
   assert.deepEqual(plain(failed.flatMap(l => l.edges).sort()), plain(lay.edges.filter(e => e.kind === 'rework').map(e => e.i).sort()))
   const texts = plain(lay.labels.filter(l => l.text !== 'failed').map(l => l.text)).sort()
-  assert.deepEqual(texts, ['no code changes', 'own changes', 'passed'])
+  assert.deepEqual(texts, ['done by hand', 'no code changes', 'own changes', 'passed'])
   const skip = lay.labels.find(l => l.text === 'no code changes')
-  assert.equal(skip.edges.length, 4, 'the one skip label stands for all four skip arrows')
+  assert.equal(skip.edges.length, 4, 'the one skip label stands for all four skip arrows into Human task')
 })
 
 test('no label sits on a box, both ways, for 1, 3 and 5 producers', () => {

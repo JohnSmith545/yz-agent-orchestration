@@ -25,6 +25,7 @@
 //   POST /api/flows/<id>/deliver       { node }: relay.deliverNow, returns { ok, error? }
 //   GET  /api/human; POST /api/flows/<id>/hand { step, done }; POST /api/flows/<id>/request-hand { note? };
 //   POST /api/tickets/<id>/request-hand { note? }: Human review and the by-hand steps (human-routes.mjs)
+//   POST /api/flows/<id>/senior-release: the user finishes a flow Senior holds without its review (human-routes.mjs)
 //   POST /api/flows/<id>/request-tests { note? ≤ 500 }: stamps output.requestedAt, then relay.queueRequest,
 //                                      { ok, via: 'relay', requestedAt }; the chat agent's own flow: { ok, via: 'chat', text }
 //   GET  /api/flows/<id>/pr            { merge, pr, ready, facts }: what Send would do (pr-routes.mjs)
@@ -38,6 +39,7 @@
 //   GET  /api/qa[?status=passed]       { qa, flows, remotes, builtAt }: what QA recorded, with report text and links (pipeline-routes.mjs)
 //   GET  /api/score[?days=7|30|all]    the pipeline scorecard: precision, recall, F-score, accuracy, correctness (score-routes.mjs)
 //   GET  /api/log[?days&cell&kind]     { events, total, window, builtAt }: the orchestration log, each event with its score cell (score-routes.mjs)
+//   GET  /api/time[?days=7|30|all]     Pipeline time: tickets finished per day and per hour, time per ticket, stage times (time-routes.mjs)
 //   POST /api/flows/<id>/rework        send a QA failure back to its producer again after it was not delivered (qa-rework.mjs)
 //   GET  /api/agents/rules             { agents, limits }: the user's specification and rules for each agent (agent-rules-routes.mjs)
 //   PUT  /api/agents/rules/<label>     { spec?, rules? }: the page's own Origin only; 404 a label not in the graph, 400 a limit
@@ -75,7 +77,7 @@ import { settingsGet, settingsPin, settingsSend } from './settings-routes.mjs'
 import { explain as explainTurn } from './explain.mjs'
 import { buildFactory, collections, readSource, refreshSource } from './factory.mjs'
 import { setMark, updateState } from './factory-state.mjs'
-import { handRequestRoute, handTickRoute, humanGet, ticketHandRoute } from './human-routes.mjs'
+import { handRequestRoute, handTickRoute, humanGet, seniorReleaseRoute, ticketHandRoute } from './human-routes.mjs'
 import { askTermRoute, explainRoute, learnRoute, listGlossary, removeRoute, termRoute } from './glossary-routes.mjs'
 import { learnTerms } from './learn.mjs'
 import { originAllowed } from './local-origin.mjs'
@@ -86,6 +88,7 @@ import { pipelineGraph } from './pipeline.mjs'
 import { pipelineGet, qaGet } from './pipeline-routes.mjs'
 import { reworkRetry } from './qa-rework.mjs'
 import { logGet, scoreGet } from './score-routes.mjs'
+import { timeGet } from './time-routes.mjs'
 import { requestText } from './relay.mjs'
 import { sinceRoute } from './since.mjs'
 import { readSpend } from './spend.mjs'
@@ -140,6 +143,16 @@ async function body(req) {
  * the request's own Host header, which a rebinding site controls.
  */
 const sameOrigin = (req, port) => !req.headers.origin || originAllowed(req.headers.origin, port)
+/**
+ * THE USER'S OWN ROUTES (QA round two B-F1): the by-hand tick (`hand`) and Finish without Senior (`senior-release`) are
+ * what the user does on the page, and a browser always sends Origin on a POST. So these need the header PRESENT and
+ * the page's own: curl or a script with none is refused, where every other route still takes a missing Origin (agent
+ * tools call some of them). This stops an accident, not a determined process on the same machine: such a process can
+ * forge the header. That is why a release is always scored as slipped through (score.mjs): nobody reviewed the work,
+ * whoever pressed it.
+ */
+const USER_ONLY = new Set(['hand', 'senior-release'])
+const pageOrigin = (req, port) => !!req.headers.origin && originAllowed(req.headers.origin, port)
 
 export async function factoryRoute(req, res, url, { git, gh, push, pr, port = CONFIG.port, fetched, relay, explain = explainTurn, learn = learnTerms, getStatus, settings, pipelineConfig = null } = {}) {
   const p = url.pathname
@@ -182,7 +195,9 @@ export async function factoryRoute(req, res, url, { git, gh, push, pr, port = CO
     if (action === 'drop' && post) return changeFlow(res, id, f => ((f.status = 'dropped'), f)), true
     if (action === 'deliver' && post) return await deliver(res, id, await body(req), relay), true
     if (action === 'request-tests' && post) return requestTests(res, id, await body(req), relay), true
+    if (post && USER_ONLY.has(action) && !pageOrigin(req, port)) return json(res, 403, { error: 'The user does this, only from the dashboard page.' }), true
     if (action === 'hand' && post) return send(res, handTickRoute(id, await body(req))), true
+    if (action === 'senior-release' && post) return send(res, seniorReleaseRoute(id)), true
     if (action === 'request-hand' && post) return send(res, handRequestRoute(id, await body(req), relay)), true
     if (p === '/api/human' && !post) return send(res, humanGet()), true
     const ticketHand = /^\/api\/tickets\/([^/]+)\/request-hand$/.exec(p)
@@ -199,6 +214,7 @@ export async function factoryRoute(req, res, url, { git, gh, push, pr, port = CO
     if (p === '/api/qa' && !post) return send(res, await qaGet(q.get('status') || '', { git })), true
     if (p === '/api/score' && !post) return send(res, scoreGet(q.get('days'))), true
     if (p === '/api/log' && !post) return send(res, logGet({ days: q.get('days'), cell: q.get('cell'), kind: q.get('kind') })), true
+    if (p === '/api/time' && !post) return send(res, timeGet(q.get('days'))), true
     if (p === '/api/commit' && !post) return await commit(res, q.get('sha'), git), true
     if (p.startsWith('/evidence/') && !post) return await evidence(res, p), true
     if (p === '/api/explain' && post) return send(res, await explainRoute(await body(req), explain)), true
@@ -212,7 +228,7 @@ export async function factoryRoute(req, res, url, { git, gh, push, pr, port = CO
     if (p === '/api/since' && !post) return json(res, 200, await sinceRoute(q.get('t'), { git, getStatus, listFlows, collections, readSource })), true
     if (p === '/api/spend' && !post) return json(res, 200, readSpend()), true
   } catch (e) {
-    return json(res, e.status || 400, { error: e.message }), true
+    return json(res, e.status || 400, { error: e.message, ...(e.code ? { code: e.code } : {}) }), true
   }
   return false
 }
@@ -296,6 +312,7 @@ function status(res, id, b, relay) {
     return
   }
   if (!FLOW_STATUS.includes(b.status)) throw new Error(`status must be one of ${FLOW_STATUS.join(', ')}`)
+  // done while Senior holds the flow is refused by the store itself (flows.mjs writeFlow, the Senior gate)
   changeFlow(res, id, f => ((f.status = b.status), f))
 }
 

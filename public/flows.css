@@ -92,6 +92,8 @@ svg.fc .fc-type text { font-size: 11px; font-weight: 600; fill: var(--muted); }
 .fl-row .fl-row-bad, .fl-more-menu [data-delete] { justify-self: start; color: var(--bad); }
 .fl-more-menu [data-archive] { justify-self: start; }
 .fl-ask-delete { margin: 0; max-width: 30ch; color: var(--ink-2); }
+/* a refused flow status, said under the menu it came from (flow-head.js, QA B-7) */
+.fl-refused { margin: 0; max-width: 34ch; padding-left: 8px; border-left: 3px solid var(--bad); color: var(--ink); }
 .fl-ask-acts { display: flex; gap: 12px; }
 
 /* ─── the opened flow (flow-head.js): the head on the left, the view tabs on its title row ─── */

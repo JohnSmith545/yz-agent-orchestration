@@ -20,7 +20,7 @@ const text = h => h.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
 function load() {
   const window = { Shell: { ago: iso => (iso ? '3h' : '') }, FlowDrawer: { delivery: () => '' } }
   vm.runInNewContext(read('flow-board.js'), { window })
-  vm.runInNewContext(read('pipeline-layout.js'), { window })
+  for (const f of ['pipeline-labels.js', 'pipeline-layout.js']) vm.runInNewContext(read(f), { window })
   vm.runInNewContext(read('human-review.js'), { window })
   return window
 }
@@ -154,8 +154,13 @@ test('Home says what needs you now, the tickets apart, and links to the box; or 
 test('wired: one line in pipeline-view.js, the box tall when the screen has room but never past it, loaded, checked', () => {
   const view = read('pipeline-view.js')
   assert.match(view, /window\.HumanReview\?\.place\(st\.canvas, lay\)/)
-  assert.equal(view.split('HumanReview').length - 1, 1)
-  assert.doesNotMatch(fs.readFileSync(path.join(HERE, '..', 'pipeline.mjs'), 'utf8'), /human/i, 'not a node or an edge of any route')
+  // pipeline-view.js reads the box twice: it places it, and the Human task box shows its counts (pipeline-human.js)
+  assert.equal(view.split('HumanReview').length - 1, 2)
+  assert.match(view, /humanReview \? window\.HumanReview\?\.data\?\.counts \|\| null : undefined/)
+  // the LIST is still no node and no step of any route: the graph's own Human task box (id human) points at it
+  const graph = fs.readFileSync(path.join(HERE, '..', 'pipeline.mjs'), 'utf8')
+  assert.doesNotMatch(graph, /Human review/, 'the list is not a node or an edge of any route')
+  assert.match(graph, /\{ id: 'human', kind: 'step', label: 'Human task', role: 'human' \}/)
   const css = read('human.css')
   assert.match(css, /\.hr-box \{ position: absolute;/)
   assert.match(css, /border-left: 3px solid var\(--warn\)/)

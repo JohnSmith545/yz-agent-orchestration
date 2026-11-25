@@ -11,22 +11,29 @@
 //   tested (tools/qa-cli.mjs `flow qa-push`, never forced, never a protected branch); on a fail the
 //   flow goes back to the producer that made the change (qa-rework.mjs delivers the report), at most
 //   `pipeline.maxReworks` times, then it stops. The user then opens the pull request with Send.
-// - A flow that changed no code (an investigation, a plan, an ask) skips QA and Push: its producer's
-//   `no code changes` edge goes straight to the Output.
+// - A flow that changed no code (an investigation, a plan, an ask) skips QA and Push: the coordinator's and each
+//   producer's `no code changes` edge goes to the HUMAN TASK box (id `human`, role `human`, always drawn: it is the
+//   user, not an agent), and from there to the Output (`done by hand`), or through Senior when there is one.
+//   A flow with no by-hand steps passes it without stopping; one with steps waits there until the user ticks them
+//   all (pipeline-hand.mjs handStage).
 // - The chat agent (config factory.chat.name, the Ask drawer) answers, explains and reviews; it changes no
 //   code, so it takes requests straight from the Request and its work ends at the Output. Rework never goes to
 //   it. A config with no chat name, or one that names an agent already in the graph, draws no chat node.
 // - The end node's id stays `outcome` (stored paths and routes name it); only its label says Output.
-// - Two OPTIONAL agents, each drawn only when config names it (`pipeline.planner`, `pipeline.security`, a dashboard
-//   label) and that label is not already the coordinator, QA, a producer or the chat agent (gateLabels):
+// - Three OPTIONAL agents, each drawn only when config names it (`pipeline.planner`, `pipeline.security`,
+//   `pipeline.senior`, a dashboard label) and that label is not already the coordinator, QA, a producer, the chat
+//   agent or an earlier optional agent (gateLabels):
 //     the planner   between the coordinator and the producers: Request -> coordinator -> planner -> each producer.
 //                   It only plans and hands out tasks (tools/plan-cli.mjs), so the coordinator no longer hands to a
 //                   producer directly; its `own changes` and `no code changes` edges stay.
 //     Security      after QA, before Push: QA -> Security on a pass, Security -> Push on a pass, Security -> each
 //                   producer on a failure (rework, like QA's). QA still pushes, but only once Security passed the
 //                   very commit QA passed (tools/security-cli.mjs, flow-security.mjs).
-//   Neither is ever a producer (producersOf skips both when it derives the list). Their ids are taken after the
-//   chat agent's, so no id of a config without them ever moves; with neither the graph is exactly as before.
+//     Senior        after Human task: Human task -> Senior (`done by hand`) -> Output (`reviewed`), and Senior -> Human
+//                   task (`redo`) on a failure. It reviews work with no code to test (CI/CD, a cloud console, commands
+//                   run in a terminal, a third-party account's settings): tools/senior-cli.mjs, flow-senior.mjs.
+//   None is ever a producer (producersOf skips them when it derives the list). Their ids are taken after the
+//   chat agent's, so no id of a config without them ever moves; with none the graph is exactly as before.
 //
 // Everything here is PURE: no file, no git, no config.json (config.mjs passes its values in), so the
 // tests build any graph they like. ⚠️ It must not import flows.mjs or config.mjs: config.mjs imports
@@ -35,9 +42,11 @@
 //   pipelineSettings(raw, warn)  the `pipeline` block of config.json, checked (config.mjs)
 //   pipelineGraph(config)        { nodes: [{ id, kind, label, role }], edges: [{ from, to, label?, kind }] }
 //   producersOf(config)          the producer labels
-//   gateLabels(config)           { planner, security }: the label of each optional agent that draws a box, or null
+//   gateLabels(config)           { planner, security, senior }: the label of each optional agent that draws a box, or null
 //   isCodeProducing(flow)        commit or diff evidence, a change in the summary, or a recorded pull request
 //   stageOf(flow, graph)         { node, status, path, reworks }: where the flow stands, and how it got there
+
+import { handStage } from './pipeline-hand.mjs'
 
 /** The QA label, the producers (null: derived), the branches QA never pushes to, and how often a flow goes back. */
 export const DEFAULT_PIPELINE = Object.freeze({ qa: 'QA', producers: null, protectedBranches: Object.freeze(['dev', 'stage', 'main', 'master']), maxReworks: 3 })
@@ -79,18 +88,22 @@ export function pipelineSettings(raw, warn = console.warn) {
   }
   gateSetting(raw, 'planner', out, warn)
   gateSetting(raw, 'security', out, warn)
+  gateSetting(raw, 'senior', out, warn)
   return out
 }
 
+/** What a warning calls each optional agent when there is none. */
+const NONE = { planner: 'planner', security: 'Security agent', senior: 'Senior agent' }
+
 /**
- * An optional agent's label (`planner`, `security`): left out or null is none, and then the key stays off the
+ * An optional agent's label (`planner`, `security`, `senior`): left out or null is none, and then the key stays off the
  * settings, so a config without them reads exactly as before. A bad value is one warning and none.
  */
 function gateSetting(raw, key, out, warn) {
   const v = raw[key]
   if (v === undefined || v === null) return
   if (typeof v === 'string' && LABEL.test(v.trim())) out[key] = v.trim()
-  else warn(`config.json: pipeline.${key} needs null or a dashboard label (letters, digits, spaces, dots, dashes, underscores, at most 40); there is no ${key === 'planner' ? 'planner' : 'Security agent'}.`)
+  else warn(`config.json: pipeline.${key} needs null or a dashboard label (letters, digits, spaces, dots, dashes, underscores, at most 40); there is no ${NONE[key]}.`)
 }
 
 /** The settings a config object carries, or the defaults (a test config, an older config with no key). */
@@ -105,7 +118,7 @@ const isLabel = v => typeof v === 'string' && v.trim() !== ''
 export function producersOf(config) {
   const s = settingsOf(config)
   if (Array.isArray(s.producers)) return [...s.producers]
-  const skip = new Set([config?.coordinatorLabel, s.qa, s.planner, s.security].filter(isLabel))
+  const skip = new Set([config?.coordinatorLabel, s.qa, s.planner, s.security, s.senior].filter(isLabel))
   return [...new Set(Object.values(config?.codingAgents || {}).filter(l => typeof l === 'string' && l && !skip.has(l)))]
 }
 
@@ -119,9 +132,9 @@ function chatOf(config, producers) {
 }
 
 /**
- * { planner, security }: each optional agent's configured label when it draws a box, else null. A label that is
- * already the coordinator, QA, a producer or the chat agent draws no second box, and Security's may not be the
- * planner's either (the planner is placed first).
+ * { planner, security, senior }: each optional agent's configured label when it draws a box, else null. A label that
+ * is already the coordinator, QA, a producer or the chat agent draws no second box, and a later one may not take an
+ * earlier one's label either (the planner is placed first, then Security, then Senior).
  */
 export function gateLabels(config) {
   const s = settingsOf(config)
@@ -133,7 +146,8 @@ export function gateLabels(config) {
     return v
   }
   const planner = pick(s.planner)
-  return { planner, security: pick(s.security) }
+  const security = pick(s.security)
+  return { planner, security, senior: pick(s.senior) }
 }
 
 /** `Agent 1` -> `agent-1`; never empty. */
@@ -141,15 +155,16 @@ const slug = label => String(label).toLowerCase().replace(/[^a-z0-9]+/g, '-').re
 
 /**
  * The graph, in execution order. Node ids are stable slugs of the labels; the fixed steps keep their own ids
- * (request, push, outcome), and a label that would take an id already used gets -2, -3 … Edge kinds:
+ * (request, human, push, outcome), and a label that would take an id already used gets -2, -3 … Edge kinds:
  *   main    the way every code change goes
  *   branch  the coordinator handing work out (one per producer, and to QA for its own changes)
  *   rework  QA sending a failure back to a producer
- *   skip    a flow that changed no code, straight to the outcome
+ *   skip    a flow that changed no code: to Human task, then on to the Output (through Senior when there is one)
+ * A Senior failure going back to Human task is a `rework` edge too (`redo`).
  */
 export function pipelineGraph(config) {
   const s = settingsOf(config)
-  const used = new Set(['request', 'push', 'outcome'])
+  const used = new Set(['request', 'human', 'push', 'outcome'])
   const idFor = label => {
     const base = slug(label)
     let id = base
@@ -168,6 +183,7 @@ export function pipelineGraph(config) {
   const gates = gateLabels(config)
   const planner = gates.planner ? { id: idFor(gates.planner), kind: 'agent', label: gates.planner, role: 'planner' } : null
   const security = gates.security ? { id: idFor(gates.security), kind: 'agent', label: gates.security, role: 'security' } : null
+  const senior = gates.senior ? { id: idFor(gates.senior), kind: 'agent', label: gates.senior, role: 'senior' } : null
   const nodes = [
     { id: 'request', kind: 'start', label: 'Request', role: 'request' },
     coordinator,
@@ -176,6 +192,9 @@ export function pipelineGraph(config) {
     ...(chat ? [chat] : []),
     qa,
     ...(security ? [security] : []),
+    // the user's own box: a fixed step like Push, never an agent (no settings window, no model)
+    { id: 'human', kind: 'step', label: 'Human task', role: 'human' },
+    ...(senior ? [senior] : []),
     { id: 'push', kind: 'step', label: 'Push', role: 'push' },
     { id: 'outcome', kind: 'end', label: 'Output', role: 'outcome' },
   ]
@@ -192,8 +211,11 @@ export function pipelineGraph(config) {
   for (const p of producers) edges.push({ from: qa.id, to: p.id, label: 'failed', kind: 'rework' })
   if (security) for (const p of producers) edges.push({ from: security.id, to: p.id, label: 'failed', kind: 'rework' })
   edges.push({ from: 'push', to: 'outcome', kind: 'main' })
-  for (const p of producers) edges.push({ from: p.id, to: 'outcome', label: 'no code changes', kind: 'skip' })
-  edges.push({ from: coordinator.id, to: 'outcome', label: 'no code changes', kind: 'skip' })
+  // no code changes: to Human task (the user), where a flow with by-hand steps waits, then on to the Output
+  for (const p of producers) edges.push({ from: p.id, to: 'human', label: 'no code changes', kind: 'skip' })
+  edges.push({ from: coordinator.id, to: 'human', label: 'no code changes', kind: 'skip' })
+  if (senior) edges.push({ from: 'human', to: senior.id, label: 'done by hand', kind: 'skip' }, { from: senior.id, to: 'outcome', label: 'reviewed', kind: 'skip' }, { from: senior.id, to: 'human', label: 'redo', kind: 'rework' })
+  else edges.push({ from: 'human', to: 'outcome', label: 'done by hand', kind: 'skip' })
   // last, so every edge above keeps its index (the Agents page keys its arrows by it)
   if (chat) edges.push({ from: 'request', to: chat.id, kind: 'branch' }, { from: chat.id, to: 'outcome', label: 'no code changes', kind: 'skip' })
   return { nodes, edges }
@@ -226,7 +248,8 @@ const sentBack = a => a?.status === 'failed' && isText(a?.rework?.to)
  *                                         an agent not in the graph sits on the coordinator
  *   the chat agent's flow                 on the chat node straight from the request; done is the Output (it
  *                                         changes no code, so it never waits for QA)
- *   no qa, done, no code changes          outcome, done, by the skip edge
+ *   no qa, done, no code changes          outcome, done, past Human task (it does not stop there)
+ *   no qa, by-hand steps or Senior data   Human task, then Senior: pipeline-hand.mjs handStage says how
  *   no qa, done, code changes             qa, waiting (for QA to pick it up)
  *   qa pending or testing                 qa, pending or testing
  *   qa failed, sent back                  the producer it went back to, rework
@@ -244,7 +267,8 @@ const sentBack = a => a?.status === 'failed' && isText(a?.rework?.to)
  *   security failed with no producer,     security, failed (stopped)
  *     security-failed
  *   security passed                       on to Push, as a QA pass is without Security
- * Security data on a graph without Security, or a plan on one without a planner, is not drawn.
+ * Security data on a graph without Security, a plan on one without a planner, or Senior data on one without Senior,
+ * is not drawn.
  */
 export function stageOf(flow, graph) {
   const byLabel = new Map(graph.nodes.filter(n => n.kind === 'agent').map(n => [n.label, n]))
@@ -268,10 +292,11 @@ export function stageOf(flow, graph) {
   if (own.id !== coordinator.id) path.push(own.id)
   const qa = flow?.qa
   if (!qa || typeof qa !== 'object') {
-    if (flow?.status === 'done') {
-      if (!isCodeProducing(flow)) return out('outcome', 'done', [...path, 'outcome'])
-      return out(qaNode.id, 'waiting', [...path, qaNode.id])
-    }
+    if (flow?.status === 'done' && isCodeProducing(flow)) return out(qaNode.id, 'waiting', [...path, qaNode.id])
+    // by-hand steps or a Senior record: Human task, then Senior (pipeline-hand.mjs); else as before
+    const hand = handStage(flow, graph, path)
+    if (hand) return hand
+    if (flow?.status === 'done') return out('outcome', 'done', [...path, 'outcome'])
     return out(path.at(-1), flow?.status === 'blocked' ? 'blocked' : 'working', path)
   }
 

@@ -214,6 +214,7 @@
     last = sig
     paintBox()
     paintElsewhere()
+    doc.dispatchEvent(new CustomEvent('humanreview:change')) // the diagram's Human task box shows the counts too (pipeline-view.js)
     // the open flow's checklist may now know it needs the user (flows.js reads needsHand on its next draw)
     if (window.Shell?.current?.view === 'flows') window.FlowsView?.load()
   }

@@ -17,6 +17,13 @@
   "reminders": [
     { "at": "17:55", "days": "weekdays", "text": "Wrap up: commit or park your work." }
   ],
+  "standup": {
+    "author": "",
+    "name": "Your Name",
+    "project": "Your project",
+    "base": "",
+    "ticketUrl": "https://app.switchboardpm.ai/stories/{id}"
+  },
   "factory": {
     "collections": [
       {
@@ -59,7 +66,8 @@
     "protectedBranches": ["dev", "stage", "main", "master"],
     "maxReworks": 3,
     "planner": null,
-    "security": null
+    "security": null,
+    "senior": null
   },
   "pr": {
     "enabled": false,

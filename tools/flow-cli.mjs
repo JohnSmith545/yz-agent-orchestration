@@ -23,9 +23,10 @@ import path from 'node:path'
 import { parseDiagram } from '../diagram-text.mjs'
 import {
   addEvidence, addNode, createFlow, derive, EVIDENCE_DIR, EVIDENCE_KINDS, listFlows,
-  mergeKeepingAnswers, readFlow, setNodeStatus, validateFlow, visualOf, writeFlow,
+  agentMoveRefusal, mergeKeepingAnswers, readFlow, setNodeStatus, validateFlow, visualOf, withPipeline, writeFlow,
 } from '../flows.mjs'
 import { securityBlock } from '../flow-security.mjs'
+import { seniorBlock } from '../flow-senior.mjs'
 import { isTrashed } from '../trash.mjs'
 import { changeBlock, changeCommands } from './change-cli.mjs'
 import { handBlock, handCommands } from './hand-cli.mjs'
@@ -35,6 +36,7 @@ import { qaBlock, qaCommands } from './qa-cli.mjs'
 import { newRoute, routeBlock, routeCommands, settleRoute } from './route-cli.mjs'
 import { rulesCommands, withQaRules, withRules } from './rules-cli.mjs'
 import { securityCommands } from './security-cli.mjs'
+import { seniorCommands } from './senior-cli.mjs'
 import { sayCommands, storyBlock } from './story-cli.mjs'
 
 /** Flags that take no value. Every other `--x` takes the next argument. */
@@ -130,6 +132,13 @@ Security only (--by must be config pipeline.security):
   security-start <flow> [--commit <sha>]   review the commit QA passed
   security <flow> --status passed|failed --report <file.md> --commit <sha> [--summary "..."]   passed: QA may
      push it; failed: back to its producer, like a QA failure
+Work with no code to test (CI/CD, a cloud console, a terminal, an account setting) is reviewed by Senior when the
+pipeline has one (config pipeline.senior): a flow with by-hand steps goes to it once the user ticked them all.
+  senior-ask <flow> "<what to review>"   send a no-code flow to Senior on purpose, steps or not (any agent but Senior)
+Senior only (--by must be config pipeline.senior):
+  senior-start <flow>   review a flow that waits at Senior
+  senior <flow> pass|fail "<what was checked / what to redo>" [--steps h1,h2]   pass: the flow is done; fail: back to
+     Human task, the named steps (all when none) unticked for the user to do again
 The planner only (--by must be config pipeline.planner):
   plan-start <flow>     you took the request from the coordinator and are planning it
   plan <flow> --file <plan.md> --to "<producer>"   hand the task out: the flow becomes that producer's
@@ -276,6 +285,8 @@ function cmdSet(f) {
   const changes = { status: f.status, title: f.title, why: f.why, tickets: tickets(f.tickets) }
   const keys = Object.keys(changes).filter(k => changes[k] !== undefined)
   if (!keys.length) return fail('set needs --status, --title, --why or --tickets')
+  const stopped = changes.status !== undefined ? agentMoveRefusal(flow, changes.status) : ''
+  if (stopped) return fail(stopped)
   for (const k of keys) flow[k] = changes[k]
   writeFlow(flow)
   return ok(`Flow ${flow.id}: ${keys.join(', ')} set`)
@@ -301,7 +312,10 @@ function cmdWrite(f, { by, cwd, config }) {
   // as a problem line rather than crashing the merge.
   const problems = [...routeProblems, ...validateFlow(incoming)]
   if (problems.length) return fail(problems.join('\n'))
-  const flow = mergeKeepingAnswers(incoming, readFlow(incoming.id))
+  const stored = readFlow(incoming.id)
+  const stopped = agentMoveRefusal(stored, incoming.status)
+  if (stopped) return fail(stopped)
+  const flow = mergeKeepingAnswers(incoming, stored)
   flow.createdAt ||= new Date().toISOString()
   writeFlow(flow)
   const bare = (incoming.nodes || []).filter(noWhy).map(n => n.id)
@@ -341,6 +355,7 @@ function outputBlock(flow, config) {
     ...planBlock(flow),
     ...qaBlock(flow),
     ...securityBlock(flow),
+    ...seniorBlock(flow),
   ]
   // A request counts until a step arrives after it. The relay records requestError when it could not
   // deliver it (relay.mjs), and then it is NOT an open request: the page says not sent the same way
@@ -489,6 +504,12 @@ const COMMANDS = {
   ...rulesCommands(NO_NAME),
   ...plannerCommands(planCommands({ noName: NO_NAME, copyEvidence })),
   ...reviewerCommands(securityCommands({ noName: NO_NAME, copyEvidence })),
+  ...seniorWithRules(seniorCommands({ noName: NO_NAME })),
+}
+
+/** The Senior commands, with `senior-start` printing its rules and settings (it refuses anyone but Senior). */
+function seniorWithRules(commands) {
+  return { ...commands, 'senior-start': withRules(commands['senior-start']) }
 }
 
 /** The Security commands, with `security-start` printing its rules and settings (it refuses anyone but Security). */
@@ -516,7 +537,8 @@ export function runFlow(argv, { by, cwd, git, config } = {}) {
     const f = flags(rest, cmd === 'summary' ? SUMMARY_REPEAT : cmd === 'qa' ? QA_REPEAT : undefined, booleans)
     // Every command but new, write and list names its flow first (say, change and pr too): one guard for them all.
     if (!['new', 'write', 'list', 'rules'].includes(cmd) && isTrashed(f._[0])) return fail(TRASHED(f._[0]))
-    return command(f, { by, cwd, argv: rest, ...(git ? { git } : {}), ...(config ? { config } : {}) })
+    // every write of this command is checked against this config's pipeline (flows.mjs, the Senior gate)
+    return withPipeline(config, () => command(f, { by, cwd, argv: rest, ...(git ? { git } : {}), ...(config ? { config } : {}) }))
   } catch (err) {
     return fail(err.message)
   }

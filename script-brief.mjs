@@ -1,5 +1,5 @@
 // The orchestration, live: a plain-text brief of the user's own agent setup that the dashboard writes from
-// facts it already has, so the Brainstorming page knows the system when an idea is about it (#/brainstorming, the
+// facts it already has, so the Prompt generator knows the system when an idea is about it (#/generators, the
 // Context panel's Orchestration switch).
 //
 //   orchestrationBrief({ config, graph, extras }) -> text, at most 8,000 characters
@@ -29,21 +29,23 @@ export const ROLE = Object.freeze({
   request: 'Where work starts: a request you give the coordinator, who hands it out.',
   coordinator: 'Hands each request to a producer (through the planner when there is one), or does it itself. Its own code changes go to QA too.',
   planner: 'Plans each task the coordinator hands it and gives it to a producer. It writes no code. Always on Opus at high effort.',
-  producer: 'Writes the code. Finished code goes to QA; work with no code changes goes straight to the Output.',
+  producer: 'Writes the code. Finished code goes to QA; work with no code changes goes to Human task.',
   chat: 'The chat agent in the Ask drawer: answers questions, explains tickets and reviews code. It changes no code, so its work goes straight to the Output.',
   qa: 'Tests every code change. A pass goes on to Push (through Security when there is one); a failure goes back to the producer that made it.',
   security: 'Reviews every change QA passed, at the same commit. A pass lets QA push it; a failure goes back to the producer that made it. Always on Opus at high effort.',
+  human: 'You. Work with no code changes passes through here; a flow with steps only you can do (CI/CD, a cloud console, an account setting) waits here until you tick them all.',
+  senior: 'Reviews work done by hand that has no code to test: CI/CD, cloud console changes, commands run in a terminal. A pass goes to the Output; a failure goes back to Human task. Always on Opus at high effort.',
   push: 'QA pushes the branch at the exact commit it tested (and Security passed, when there is Security): never forced, never a protected branch.',
-  outcome: 'Where work ends: pushed after a QA pass (and a Security pass, when there is Security), or done with no code changes. You open the pull request with Send.',
+  outcome: 'Where work ends: pushed after a QA pass (and a Security pass, when there is Security), or done with no code changes past Human task (and Senior, when there is one). You open the pull request with Send.',
 })
-const ROLE_NAME = { coordinator: 'coordinator', planner: 'planner', producer: 'producer', chat: 'chat agent', qa: 'tester', security: 'security reviewer' }
+const ROLE_NAME = { coordinator: 'coordinator', planner: 'planner', producer: 'producer', chat: 'chat agent', qa: 'tester', security: 'security reviewer', senior: 'reviewer of work done by hand' }
 
 /** The dashboard's pages, one line each (README "A quick tour"). */
 const PAGES = [
   ['Flows', 'the first page. Every request as a flow, with its route from Request to Output, what was built, how to test it, and questions from agents to answer.'],
   ['Home', 'what changed since you last looked, open questions from agents, and a card per agent.'],
   ['QA', 'every ticket that passed QA, with its report, its screenshots and the steps to test it yourself.'],
-  ['Brainstorming', 'turns a rough idea into a ready-to-paste prompt in six labelled parts.'],
+  ['Generators', 'two writing tools: the Prompt generator turns a rough idea into a ready-to-paste prompt in six labelled parts, and the Standup creator writes the daily or weekly stand-up.'],
   ['Tickets', 'a ticket collection from the tracker, which agent took which ticket how far, and every worktree.'],
   ['Timeline', 'what each agent did on each task, as a zoomable chart.'],
   ['Agents', 'the orchestration as a pipeline diagram, and a live view of one agent.'],
@@ -90,7 +92,8 @@ function routes(graph) {
   lines.push(chat
     ? `- review, a code review of a tracker ticket: ${name(planRoute('review', chat.label, graph).steps)}.`
     : '- review, a code review of a tracker ticket: not set up, as there is no chat agent.')
-  lines.push(`- ask, a question, an explanation or an investigation: Request, the agent asked, Output${producers.length ? ` (a producer is reached through ${one(coordinator?.label)})` : ''}. No QA, no push.`)
+  const hand = ['human', 'senior'].map(r => role(r)).filter(Boolean).map(n => one(n.label))
+  lines.push(`- ask, a question, an explanation or an investigation: Request, the agent asked, ${hand.length ? `${hand.join(', ')}, ` : ''}Output${producers.length ? ` (a producer is reached through ${one(coordinator?.label)})` : ''}. No QA, no push. It stops at ${hand[0] || 'the Human task'} only when it has steps only the user can do.`)
   return lines
 }
 

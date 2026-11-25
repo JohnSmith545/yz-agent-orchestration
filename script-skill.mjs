@@ -1,4 +1,4 @@
-// Where the Brainstorming run (script.mjs) finds the brainstorming skill (/superpowers:brainstorming), and its
+// Where the Prompt generator run (script.mjs) finds the brainstorming skill (/superpowers:brainstorming), and its
 // text, read from the installed plugin at run time so the run can carry it (script.mjs says why it is carried in
 // the system prompt rather than invoked as a slash command, with the measured costs).
 //

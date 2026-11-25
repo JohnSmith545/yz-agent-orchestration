@@ -169,7 +169,8 @@ The agent writes it out as steps and stops.
   see when it worked. A value to paste sits in a box with a **Copy** button.
 - Tick each step when it is done. Your ticks are saved on the flow, so they survive a reload and the agent
   rewriting the flow. If the agent changes what a step asks, that step waits for you again.
-- When every step is ticked, **Mark the flow done** finishes it.
+- When every step is ticked, **Mark the flow done** finishes it. With Senior on the pipeline it says
+  **Senior reviews it next** instead: the flow is done once Senior passed it.
 - A flow that needs you but has no steps yet says so, with one button: **Ask the agent for steps**. It sends the
   agent a message the same way as Request test steps (about $0.30). The page never makes up a step.
 
@@ -188,6 +189,24 @@ The agent writes it out as steps and stops.
   flow, and cannot be undone.
 - The pipeline score still counts archived flows. Deleted flows are left out.
 - Only you archive or delete flows. Agents cannot.
+
+### Generators
+
+Two tools that write for you, picked with the two pills at the top of the page (the rail's **Generators**, or
+`#/generators`). It always opens on the first one.
+
+- **Prompt generator** (it was called Brainstorming): write a rough idea, press **Generate**, and get back a prompt for
+  any AI in six labelled parts, ready to paste.
+- **Standup creator** (`#/generators?tool=standup`): press **Generate** and it writes your stand-up, in the format you
+  send: each ticket as its name and link with a few short lines under it, then **Blockers** (only what needs someone
+  else), then **What's next**. Pick **Daily** (the last working day until now; on a Monday that starts on Friday) or
+  **This week** (the last seven days, in your weekly template with Name, Project and the dates). It reads your commits
+  on every branch, the pull requests merged into dev, your branches not merged yet, the SAVED ticket list (its date is
+  shown, so refresh it on Tickets when it is old) and the flows. **Copy** copies the stand-up exactly as shown.
+- Each view starts empty every day and keeps today's stand-up across a reload. Every stand-up is kept in the **Date
+  archive** under the box: days by month, **Go to a day** to jump to one, and **Ticket** (type `FLA-886`) to see every
+  day a ticket came up, with the lines about it. The files are on your machine, one per day, in `data/standup/`.
+  Set your name, project and ticket link pattern in config.json's `standup` block (the README lists the keys).
 
 ### Tickets
 
@@ -210,10 +229,47 @@ scroll wheel, and click a node for details.
 
 The orchestration as a pipeline diagram, from **Request** to **Output**: the coordinator, each producing
 agent, **QA** and **Push**, with every ticket as a chip on the step it stands at now. Click a step for its
-details below the diagram; for an agent that is its card, with its subagents and a **Progress report**. Click
+details below the diagram; for an agent that is its card, with its subagents and a **Progress report**.
+
+- **Human task** is you. It sits to the right of Agent 1, in the same row. Work with no code changes goes there
+  (the dashed `no code changes` lane). A flow with by-hand steps waits there until you tick them all; anything else
+  passes straight through to the Output. The box says what waits on you (for example **8 questions**, **2 by hand**)
+  and shows up to three flows standing there. Click it, or press Enter on it, to jump to **Human review**.
+- **Senior** (only when config.json sets `pipeline.senior`) sits to the right of Human task. It reviews work with no
+  code to test: CI/CD setup, cloud console changes, commands run in a terminal, account settings. Once you ticked every
+  step, send Senior a message naming the flow. A pass sends the flow to the Output. A failure sends it back to you:
+  its reason shows at the top of the flow's **Do this by hand**, and the steps to redo say **Do again**. Senior always
+  runs on Opus at high effort, and never changes anything itself. Click
 an agent's card on Home, or a subagent row in its details card, for its **live view**: its activity as it happens, each
 edit as a diff, the uncommitted changes in its worktree, and **Draft report**, a Markdown summary of a time
 window built from the transcript and git (no model writes it).
+
+#### Pipeline time
+
+Under the **Pipeline score**, **Pipeline time** says how much work the agents finish and how long it takes. It counts
+over the same period as the score: the score's **7 days | 30 days | All** switch sets both.
+
+- **Finished**: tickets finished in the period, and other jobs (finished flows with no ticket). Finished means what
+  the score calls delivered. A ticket finished twice counts once.
+- **Per day**: finished work divided by the days in the period, today included.
+- **Per hour**: finished work divided by the hours in which the agents did something, so nights and weekends with
+  no work do not lower it. The line under it gives the rate round the clock as well.
+- **Time per job**: from when a flow was started to when it finished, over every finished flow (jobs with no ticket
+  included). The big number is the median (half the finished jobs took less), so one very slow job does not hide
+  many quick ones; the mean, the fastest and the slowest are under it.
+- **Waiting on you**: how long flows waited on your answers and by-hand steps.
+- **Where the time goes**: one bar of how long work spends with the coordinator and planner, the producer, QA,
+  Security, Human task, Senior and in reworks, with a table of the same numbers.
+- **Finished per day**: a bar for each day (each week for All). Hover or focus a bar for its day and count; the left
+  and right arrow keys move along the bars. **As a list** shows the same as text.
+- **By agent**: what each agent finished, its time per job, per day, and how often its work was sent back.
+
+**Minutes | Hours | Days | Auto** shows every time in that unit (Auto picks the one that fits); anything under a
+minute shows in seconds whatever you pick. The rates do not change: Per day always counts a day and Per hour an
+hour with work. In Minutes their small line adds how often one finishes, for example **1 every 95 min**. The choice, and the block folded to one line, are remembered in this
+browser. With fewer than 3 finished flows the numbers say **Too few to trust**; with none, the block says nothing
+finished yet instead of showing zeros. Every number comes from times the flow files store; **How it is counted**
+says how, and names what cannot be timed.
 
 #### Human review
 
@@ -326,7 +382,7 @@ the repo, with `C:/path/to/yz-agent-orchestration` replaced by the absolute path
 > Every request gets a flow FIRST, before you change anything: `flow new <id> "<title>" --type build|review|ask`
 > (or `flow write` with `"route": { "type": "build" }`). The type sets its route from the Request to the Output:
 > build for a code change (Request, the coordinator, you, QA, Push, Output), review for a code review of a ticket
-> (the chat agent's), ask for a question, an explanation or an investigation (Request, you, Output). Follow that
+> (the chat agent's), ask for a question, an explanation or an investigation (Request, you, Human task, Output). Follow that
 > route. If the plan changes, say so with `flow route <flow> --type ...`: the old route stays visible.
 > Narrate your work on the dashboard as a flow: `node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow …`.
 > Start with `flow new --type` or `flow write` before you change anything, keep statuses current with
@@ -499,6 +555,8 @@ The sizes below were measured on one setup; yours will differ.
 | Explain | A selection the glossary does not know | $0.001 |
 | Learning words | A flow's marked words the glossary does not know, up to 12 per turn, at most 200 words a day | a fraction of a cent |
 | Ticket refresh | Every press of Refresh, and every timer tick | one short turn per collection |
+| Prompt generator | Every Generate on Generators | about $0.10 for the first run in an hour, then about $0.05 |
+| Standup creator | Every Generate on Generators › Standup creator (nothing runs by itself) | about $0.11 (Opus 5.5, medium effort) |
 
 **Spend today** in the rail adds up these turns. Your own terminal sessions are not counted.
 

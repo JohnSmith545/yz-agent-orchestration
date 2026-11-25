@@ -6,12 +6,17 @@
 //             [--why "<one line>"] [--id h3] [--replace]      one step, added at the end, or rewritten in place
 //   hand-clear <flow>                                         empties the steps, to record them again
 //
+// ⚠️ SENIOR'S HOLD (pipeline.senior, flow-senior.mjs): the first step records the hold on the flow, and hand-clear
+// never lifts it. On a flow Senior holds, hand-clear is refused once the user ticked any step (rewrite a step with
+// --replace instead), and allowed before that, the hold staying in place: the flow still needs Senior's pass, or the
+// user's release on the dashboard, to be done.
+//
 // The shape and limits are hand-steps.mjs's; flows.mjs validates them on every write. A step rewritten with
 // --replace keeps the user's tick only while it asks the same thing (hand-steps.mjs sameAsk): a changed step is a
 // new thing to do. No command ever sets a tick. Like the other Output commands, these return { out, code } and
 // never print: tools/flow-cli.mjs registers them (handCommands) and tools/factory.mjs prints.
 
-import { readFlow, validateFlow, writeFlow } from '../flows.mjs'
+import { readFlow, seniorHold, validateFlow, writeFlow } from '../flows.mjs'
 import { fieldProblem, HAND_MAX, sameAsk } from '../hand-steps.mjs'
 
 const fail = out => ({ out, code: 1 })
@@ -61,6 +66,8 @@ export function handCommands(noName) {
     if (f.replace && f.id === undefined) return fail('--replace needs --id <the step to rewrite>')
     if (f.id !== undefined && !STEP_ID.test(f.id)) return fail('--id must match /^[a-z0-9-]+$/')
     const flow = load(id)
+    // a finished flow waits on no one, so steps on it would never be done (QA round two B-F2)
+    if (flow.status === 'done' || flow.status === 'dropped') return fail(`${flow.id} is ${flow.status}: start a new flow for this work, or ask the user to reopen this one.`)
     const steps = flow.hand?.steps || []
     const at = f.id === undefined ? -1 : steps.findIndex(s => s.id === f.id)
     if (f.replace && at < 0) return fail(`${flow.id} has no by-hand step ${f.id} to replace`)
@@ -79,9 +86,11 @@ export function handCommands(noName) {
   function handClear(f, { by }) {
     if (!by) return fail(noName)
     const flow = load(f._[0])
+    const held = !!seniorHold(flow)
+    if (held && (flow.hand?.steps || []).some(s => s.done)) return fail(`${flow.id}: the user already ticked a by-hand step, so the steps cannot be cleared. Rewrite a step with hand-step --id <step> --replace instead.`)
     flow.hand = { ...flow.hand, steps: [] }
     writeFlow(flow)
-    return ok(`${flow.id}: by-hand steps cleared`)
+    return ok(`${flow.id}: by-hand steps cleared${held ? '. Senior still holds this flow: it needs a Senior review, or the user to release it on the dashboard, before it is done' : ''}`)
   }
 
   return { 'hand-step': handStep, 'hand-clear': handClear }

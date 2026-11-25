@@ -17,13 +17,16 @@
 //                                         under it, agent-window-view.js pillHtml), for the tests
 //
 // A click on a chip is onChip(ticketId) (the page opens its explanation on Flows); a click anywhere else on
-// a box is onNode(nodeId). Each box's name is a button, so Tab and Enter reach every node.
+// a box is onNode(nodeId). Each box's name is a button, so Tab and Enter reach every node. The Human task box (role
+// human: the user) draws its inside with pipeline-human.js: what waits on you, from the live Human review's counts
+// when `humanReview` is on, and up to three flows standing there; it is redrawn when those counts change.
 ;(() => {
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
   const cls = s => String(s ?? '').replace(/[^A-Za-z0-9_-]/g, '')
 
   /** Pure: one box's inside. `list` is the tickets standing on it, `pushes` its pushes outside QA today. */
-  function nodeInner(node, { list = [], labels = {}, pushes = 0, running = 0 } = {}) {
+  function nodeInner(node, { list = [], labels = {}, pushes = 0, running = 0, counts } = {}) {
+    if (node.role === 'human' && window.PipelineHuman) return window.PipelineHuman.inner(node, { list, labels, counts })
     const T = window.PipelineTickets
     const { shown, more } = T.chips(list)
     const n = list.length
@@ -43,7 +46,7 @@
   }
 
   function create(box, { onNode = () => {}, onChip = () => {}, humanReview = false } = {}) {
-    const st = { sig: '', graph: null, rows: 0, width: 0, canvas: null, svg: null, nodes: new Map(), edges: new Map(), labels: null, labelsHtml: '', inner: new Map(), path: null, node: null }
+    const st = { sig: '', graph: null, rows: 0, width: 0, canvas: null, svg: null, nodes: new Map(), edges: new Map(), labels: null, labelsHtml: '', inner: new Map(), path: null, node: null, data: null }
 
     box.addEventListener('click', e => {
       const chip = e.target.closest('[data-ticket]')
@@ -125,9 +128,14 @@
 
     function update({ graph, tickets = [], agents = [] }) {
       if (!graph) return
+      st.data = { graph, tickets, agents }
       const T = window.PipelineTickets
       const groups = T.byNode(tickets)
-      const rows = T.chipRows(groups)
+      // the Human task box has its count lines over its chips: a row each
+      const human = (graph.nodes || []).some(n => n.role === 'human') && window.PipelineHuman
+      // the live page's counts (null while loading); a saved orchestration has none (pipeline-human.js)
+      const counts = humanReview ? window.HumanReview?.data?.counts || null : undefined
+      const rows = Math.max(T.chipRows(groups), human ? window.PipelineHuman.rows(groups.human, counts) : 0)
       const sig = signature(graph)
       let relayout = rows !== st.rows
       st.rows = rows
@@ -143,7 +151,7 @@
         if (!el) continue
         const agent = n.kind === 'agent' ? agents.find(a => a.label === n.label) : null
         const running = window.AgentWindowView?.running(agent).length || 0
-        const html = nodeInner(n, { list: groups[n.id] || [], labels, pushes: window.PipelineDetails.pushes(agent), running })
+        const html = nodeInner(n, { list: groups[n.id] || [], labels, pushes: window.PipelineDetails.pushes(agent), running, counts })
         if (st.inner.get(n.id) !== html) {
           el.innerHTML = html
           st.inner.set(n.id, html)
@@ -155,6 +163,8 @@
       paint()
     }
 
+    // the live Human review's counts changed (human-review.js): the Human task box says so at once
+    if (humanReview) window.document?.addEventListener('humanreview:change', () => st.data && update(st.data))
     if ('ResizeObserver' in window) new ResizeObserver(() => draw(false)).observe(box)
     else window.addEventListener('resize', () => draw(false))
 

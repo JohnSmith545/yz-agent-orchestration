@@ -83,8 +83,9 @@ test('planRoute: build is Request, the coordinator, the producer, QA, Push, Outp
 test('planRoute: review is the chat agent only; ask is the one agent that answers', () => {
   assert.deepEqual(R.planRoute('review', 'Independent', G), { steps: ['request', 'independent', 'outcome'] })
   assert.deepEqual(R.planRoute('ask', 'Independent', G), { steps: ['request', 'independent', 'outcome'] })
-  assert.deepEqual(R.planRoute('ask', 'Master', G), { steps: ['request', 'master', 'outcome'] })
-  assert.deepEqual(R.planRoute('ask', 'Agent 2', G), { steps: ['request', 'master', 'agent-2', 'outcome'] })
+  // an ask ends past Human task (the graph has no edge from an agent straight to the Output any more)
+  assert.deepEqual(R.planRoute('ask', 'Master', G), { steps: ['request', 'master', 'human', 'outcome'] })
+  assert.deepEqual(R.planRoute('ask', 'Agent 2', G), { steps: ['request', 'master', 'agent-2', 'human', 'outcome'] })
 })
 
 test('planRoute: what has no route says why in one line', () => {
@@ -116,11 +117,11 @@ test('planRoute: every route it plans passes checkRoute', () => {
 // ═══ older flows (inferRoute, routeOf) ═══
 
 test('inferRoute: build when the flow changed code or QA has it, ask otherwise, with its own agent, flagged inferred', () => {
-  assert.deepEqual(R.inferRoute(flow(), G), { type: 'ask', steps: ['request', 'master', 'agent-1', 'outcome'], at: AT, by: 'dashboard', inferred: true })
+  assert.deepEqual(R.inferRoute(flow(), G), { type: 'ask', steps: ['request', 'master', 'agent-1', 'human', 'outcome'], at: AT, by: 'dashboard', inferred: true })
   assert.equal(R.inferRoute(flow(committed), G).type, 'build')
   assert.deepEqual(R.inferRoute(flow({ qa: qa('testing') }), G).steps, BUILD)
   assert.deepEqual(R.inferRoute(flow({ agent: 'Independent', ...committed }), G).steps, ['request', 'independent', 'outcome'], 'the chat agent never builds')
-  assert.deepEqual(R.inferRoute(flow({ agent: 'QA' }), G).steps, ['request', 'master', 'outcome'], 'an agent with no route of its own: the coordinator')
+  assert.deepEqual(R.inferRoute(flow({ agent: 'QA' }), G).steps, ['request', 'master', 'human', 'outcome'], 'an agent with no route of its own: the coordinator')
 })
 
 test('routeOf: the stored route as it is, else the inferred one', () => {
@@ -222,7 +223,7 @@ test('routeProgress: the chat agent flow is Request, Independent, Output', () =>
 })
 
 test('routeProgress: an older flow with no route follows its inferred one; a flow whose agent left its route still has one current step', () => {
-  assert.deepEqual(states(R.routeProgress(flow(), G)), ['request:done', 'master:done', 'agent-1:current', 'outcome:upcoming'])
+  assert.deepEqual(states(R.routeProgress(flow(), G)), ['request:done', 'master:done', 'agent-1:current', 'human:upcoming', 'outcome:upcoming'])
   const moved = on({ agent: 'Agent 2' })
   assert.equal(moved.filter(s => s.state === 'current').length, 1)
   assert.equal(moved.find(s => s.state === 'current').node, 'master')
@@ -238,5 +239,5 @@ test('withRoute: the route and the progress a page reads, for any flow', () => {
   const w = R.withRoute(flow(), G)
   assert.deepEqual(Object.keys(w), ['route', 'progress'])
   assert.equal(w.route.inferred, true)
-  assert.equal(w.progress.length, 4)
+  assert.equal(w.progress.length, 5)
 })

@@ -66,26 +66,54 @@
 
   // ═══ How it is counted ═══
 
-  const WHY = { dropped: () => 'Dropped', stopped: () => 'Stopped at QA', stalled: days => `No update for ${days} days` }
+  const STOPPED = { senior: 'Stopped by Senior', security: 'Stopped by Security' }
+  const WHY = { dropped: () => 'Dropped', stopped: (_, f) => STOPPED[f?.stoppedBy] || 'Stopped at QA', stalled: days => `No update for ${days} days` }
+  /** 'QA', 'QA or Senior', 'QA, Security or Senior'. */
+  const orWords = list => (list.length < 2 ? list.join('') : `${list.slice(0, -1).join(', ')} or ${list.at(-1)}`)
+  /**
+   * The words that depend on who reviews (score.mjs gates): only the reviewers on this pipeline are named. A score
+   * with no gates (an older server) keeps the words it always had.
+   */
+  function reviewWords(gates) {
+    if (!gates) {
+      return {
+        who: 'QA or Security', senior: false,
+        delivered: 'QA passed it (and Security, when it is on the pipeline), or it finished with no code changes.',
+        slipped: 'It finished with code changes QA never tested, or that Security never passed. Work finished before Security joined the pipeline is judged by QA alone.',
+        correct: 'flows passed (by QA, and by Security when it is on the pipeline)',
+      }
+    }
+    const sec = !!gates.security
+    const sen = !!gates.senior
+    const passed = [`QA passed it${sec ? ' and so did Security' : ''}`, ...(sen ? ['Senior passed the work done by hand'] : []), 'it finished with no code changes']
+    return {
+      who: orWords(['QA', ...(sec ? ['Security'] : []), ...(sen ? ['Senior'] : [])]),
+      senior: sen,
+      delivered: `${orWords(passed)}.`,
+      slipped: `It finished with code changes QA never tested${sec ? ', or that Security never passed' : ''}${sen ? ', or by hand before Senior passed it' : ''}.` +
+        (sec ? ' Work finished before Security joined the pipeline is judged by QA alone.' : ''),
+      correct: `flows passed (by QA${sec ? ', and by Security' : ''}${sen ? ', or by Senior for work done by hand' : ''})`,
+    }
+  }
 
   function flowList(items, stall) {
     if (!items?.length) return '<p class="psc-none">None.</p>'
     return `<ul class="psc-flows">${items
       .map(f => {
-        const why = WHY[f.why] ? ` <span class="psc-why">${esc(WHY[f.why](stall))}</span>` : ''
+        const why = WHY[f.why] ? ` <span class="psc-why">${esc(WHY[f.why](stall, f))}</span>` : ''
         return `<li><button type="button" class="link" data-score-flow="${esc(f.id)}">${esc(f.title || f.id)}</button>${why}</li>`
       })
       .join('')}</ul>`
   }
 
-  function agentsTable(agents) {
+  function agentsTable(agents, who = 'QA or Security') {
     if (!agents?.length) return '<p class="psc-none">Nothing was handed to QA in this window.</p>'
     const rows = agents
       .map(a => `<tr><th scope="row">${esc(a.label)}</th><td class="num">${Number(a.handed) || 0}</td><td class="num">${Number(a.firstTime) || 0}</td><td class="num">${Number(a.sentBack) || 0}</td></tr>`)
       .join('')
     return '<div class="psc-scroll"><table class="psc-agents"><thead><tr><th scope="col">Agent</th><th scope="col">Handed to QA</th><th scope="col">Passed first time</th><th scope="col">Sent back</th></tr></thead>' +
       `<tbody>${rows}</tbody></table></div>` +
-      '<p class="psc-foot">Handed to QA: times its work went to QA. Passed first time: flows QA passed with no failure on the way. Sent back: times QA or Security failed its work.</p>'
+      `<p class="psc-foot">Handed to QA: times its work went to QA. Passed first time: flows QA passed with no failure on the way. Sent back: times ${who} failed its work.</p>`
   }
 
   function howHtml(score) {
@@ -93,6 +121,7 @@
     const stall = stallOf(score)
     const c = score.correctness || {}
     const num = v => Number(v) || 0
+    const w = reviewWords(score.gates)
     // each count links to the events behind it (pipeline-panel.js opens its Log with that filter)
     const cell = (count, name, says, filter) => `<td><b class="psc-n">${num(count)}</b> ${name}<span class="psc-says">${says}</span>` +
       `<button type="button" class="link psc-seelog" data-log-filter="${filter}">See these in the log</button></td>`
@@ -100,10 +129,11 @@
     return `<p class="psc-lede">The pipeline makes one call on each piece of work: let it through to the Output, or hold it back. Counted over ${esc(spanOf(score))}.</p>` +
       '<div class="psc-scroll"><table class="psc-four"><caption class="psc-sr">The four counts</caption>' +
       '<thead><tr><td></td><th scope="col">The work was good</th><th scope="col">The work was not good</th></tr></thead><tbody>' +
-      `<tr><th scope="row">Went to the Output</th>${cell(n.delivered, 'Right, delivered', 'QA passed it (and Security, when it is on the pipeline), or it finished with no code changes.', 'delivered')}${cell(n.slipped, 'Wrong, slipped through', 'It finished with code changes QA never tested, or that Security never passed. Work finished before Security joined the pipeline is judged by QA alone.', 'slipped')}</tr>` +
-      `<tr><th scope="row">Held back</th>${cell(n.missed, 'Wrong, missed', `Dropped, stopped at QA or Security, or no update for ${stall} days.`, 'missed')}${cell(n.caught, 'Right, caught', 'Each time QA or Security failed the work and held it back.', 'caught')}</tr>` +
+      `<tr><th scope="row">Went to the Output</th>${cell(n.delivered, 'Right, delivered', w.delivered, 'delivered')}${cell(n.slipped, 'Wrong, slipped through', w.slipped, 'slipped')}</tr>` +
+      `<tr><th scope="row">Held back</th>${cell(n.missed, 'Wrong, missed', `Dropped, stopped at ${w.who}, or no update for ${stall} days.`, 'missed')}${cell(n.caught, 'Right, caught', `Each time ${w.who} failed the work and held it back.`, 'caught')}</tr>` +
       '</tbody></table></div>' +
       `<p class="psc-way">${way}</p>` +
+      (w.senior ? '<p class="psc-way">With Senior on the pipeline, work done by hand counts as delivered only once Senior passed it; work finished before Senior joined is judged as before.</p>' : '') +
       `<div class="psc-lists"><div><h4 class="psc-h">Slipped through</h4>${flowList(score.lists?.slipped, stall)}</div>` +
       `<div><h4 class="psc-h">Missed</h4>${flowList(score.lists?.missed, stall)}</div></div>` +
       '<h4 class="psc-h">The sums</h4><ul class="psc-sums">' +
@@ -111,8 +141,8 @@
       `<li>Recall: ${num(n.delivered)} ÷ (${num(n.delivered)} + ${num(n.missed)}), right delivered over everything that should have been.</li>` +
       '<li>F-score: precision and recall together. F1 weighs them the same; F4 treats recall as 4 times as important.</li>' +
       `<li>Accuracy: (${num(n.delivered)} + ${num(n.caught)}) ÷ ${num(n.delivered) + num(n.slipped) + num(n.missed) + num(n.caught)}, the right calls over all four counts.</li>` +
-      `<li>Correctness: ${num(c.right)} ÷ ${num(c.judged)}, flows passed (by QA, and by Security when it is on the pipeline) with no failure on the way, over flows passed or stopped.</li></ul>` +
-      `<h4 class="psc-h">By agent</h4>${agentsTable(score.agents)}` +
+      `<li>Correctness: ${num(c.right)} ÷ ${num(c.judged)}, ${w.correct} with no failure on the way, over flows passed or stopped.</li></ul>` +
+      `<h4 class="psc-h">By agent</h4>${agentsTable(score.agents, w.who)}` +
       '<p class="psc-foot">Archived flows count. Deleted flows do not.</p>'
   }
 

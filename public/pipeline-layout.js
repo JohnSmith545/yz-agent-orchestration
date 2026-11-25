@@ -22,14 +22,17 @@
 // Every box spreads the arrows on each side along that side, ordered by where their other end is, so no
 // two arrow heads share a point. Pure: no DOM, so test/pipeline-layout.test.mjs runs it in a vm.
 //
-// ═══ LABELS IN THE CLEAR ═══ Last, every label is moved, if it must, to a free spot (clearLabels): no arrow,
-// arrowhead or dashed line may touch or run under its text, and it may not sit on a box, an agent's pill or another
-// label (QA 2026-11-25: Security's return arrow and the skip lines ran into the producers' `failed`). QA's returns
-// keep a label beside each producer while those spots are free; when the gap is too full they share ONE label beside
-// QA, where they leave it. Security's returns end in the same arrowhead as QA's return to that producer (one arrival
-// each). Only labels move: the boxes and the arrows of a graph without Security stay exactly where they were. The
-// text is measured as pipeline.css draws it (11 px, LABEL_CHAR a character): MUST CHANGE IN LOCKSTEP with
-// test/diagram-geometry.mjs, which checks it.
+// ═══ THE USER'S ROW ═══ A box that only `no code changes` lanes reach (every forward arrow into it is a skip: the
+// Human task box, and Senior after it, pipeline.mjs) sits level with the FIRST box that sends it work from the layer
+// before (Agent 1; Human task for Senior), so Agent 1 -> Human task -> Senior reads straight across one row. The
+// other boxes of its layer keep the place they would have alone (QA level with the middle producer, Security with
+// QA), moved past it only when they would touch it (alignRows). With one producer that may make the diagram one box
+// taller left to right; top to bottom (a phone) the width is fixed, so a layer that cannot fit that way is laid out as
+// before, the user's box first. The `no code changes` arrows into Human task carry ONE label, on the outermost lane.
+//
+// ═══ LABELS IN THE CLEAR ═══ Last, every label is moved, if it must, to a free spot (pipeline-labels.js, loaded
+// before this file). Security's returns end in the same arrowhead as QA's return to that producer (one arrival each).
+// Only labels move: the boxes and the arrows of a graph without Security stay exactly where they were.
 ;(() => {
   const LR = { pad: 12, wMin: 100, wMax: 200, gMin: 44, gPref: 64, gMax: 120, gc: 24 }
   const TB = { pad: 8, wMin: 72, wMax: 220, roomy: 160, gm: 56, gc: 14, busRoom: 20 }
@@ -43,13 +46,104 @@
   const ARROW = 7 // an arrow head's length
   const R = 6 // a corridor arrow's rounded corner
 
-  const LABEL_CHAR = 6.3 // an 11 px label's width per character
-  const LABEL_UP = 9 // above its baseline
-  const LABEL_DOWN = 3 // below it
-  const LABEL_PAD = 3 // the clear room kept round its text
-  const CELL = 2 // the grid the drawn lines are noted on
 
   const nodeHeight = rows => Math.max(MIN_H, HEAD_H + Math.max(0, rows | 0) * CHIP_H + (rows > 0 ? 6 : 0))
+  const LABEL_W = 6.3 // an 11 px label's width per character (pipeline-labels.js LABEL_CHAR)
+
+  /**
+   * Each gap's width, left to right: the even gap, but a gap whose arrow label is wider than that (`done by hand`) gets
+   * room from the others, none going under gMin or under its own label, so the label sits by its arrow in the gap
+   * (QA 2026-11-25 B-8: it sat 80 px above it). Top to bottom, or when the others cannot give the room, all even.
+   */
+  function gapWidths(edges, rank, L, gm, lr) {
+    const gaps = Array.from({ length: Math.max(0, L - 1) }, () => gm)
+    if (!lr || gaps.length < 2) return gaps
+    // a `no code changes` into Human task shares the corridor label of the coordinator's lane: it needs no room
+    const shared = new Set(edges.filter(e => e.type === 'long' && e.kind === 'skip' && e.label).map(e => `${e.to}|${e.label}`))
+    const need = gaps.map((_, g) => Math.max(LR.gMin, ...edges
+      .filter(e => e.type === 'adj' && e.label && rank.get(e.from) === g && !(e.kind === 'skip' && shared.has(`${e.to}|${e.label}`)))
+      .map(e => Math.ceil(e.label.length * LABEL_W) + 20)))
+    const total = gm * gaps.length
+    if (!need.some(n => n > gm) || need.reduce((a, b) => a + b, 0) > total) return gaps
+    // the ones that need more get it; the rest share what is left evenly, each never under its own need
+    const fixed = need.map(n => n > gm)
+    for (;;) {
+      const left = total - need.reduce((s, n, g) => s + (fixed[g] ? n : 0), 0)
+      const free = fixed.filter(x => !x).length
+      const even = free ? left / free : 0
+      const short = need.findIndex((n, g) => !fixed[g] && n > even)
+      if (short < 0) return need.map((n, g) => (fixed[g] ? n : even))
+      fixed[short] = true
+    }
+  }
+
+  /** id -> the ids in the layer before that send it work, for a box every forward arrow into which is a skip. */
+  function anchorsOf(nodes, edges, rank) {
+    const out = new Map()
+    for (const n of nodes) {
+      const ins = edges.filter(e => e.to === n.id && e.kind !== 'rework')
+      if (!ins.length || ins.some(e => e.kind !== 'skip')) continue
+      const near = ins.filter(e => rank.get(e.from) === rank.get(n.id) - 1).map(e => e.from)
+      if (near.length) out.set(n.id, near)
+    }
+    return out
+  }
+
+  /**
+   * THE USER'S ROW (see the head): each anchored box moves level with its first sender; the other boxes of its layer
+   * keep their place alone, else the nearest place that touches nothing, inside the cross span when there is one.
+   * Returns the cross span the boxes now need [lo, hi] (wider than before only left to right).
+   */
+  function alignRows(layers, box, anchors, { c0, crossSpan, gc, lr, crossOf, spanOf }) {
+    let lo = c0
+    let hi = c0 + crossSpan
+    for (const layer of layers) {
+      const pinned = layer.filter(n => anchors.has(n.id))
+      if (!pinned.length) continue
+      const placed = []
+      for (const n of pinned) {
+        const src = anchors.get(n.id).map(id => box.get(id)).sort((a, b) => a.c - b.c)[0]
+        const b = box.get(n.id)
+        // top to bottom (a phone) the box keeps its own row's width, starting under its sender: three producers share
+        // a narrow row, and the user's box must read whole (QA B-4: Huma…, 8 qu…)
+        const cs = lr ? src.cs : Math.max(src.cs, crossOf(layer.length))
+        const c = lr ? src.c : Math.max(c0, Math.min(src.c, c0 + crossSpan - cs)) // never past the width a phone has
+        Object.assign(b, { c, cs, mid: c + cs / 2 })
+        placed.push(b)
+      }
+      const rest = layer.filter(n => !anchors.has(n.id))
+      const cs = crossOf(layer.length)
+      const start = c0 + (crossSpan - (rest.length * cs + Math.max(0, rest.length - 1) * gc)) / 2
+      const clash = c => placed.some(p => c < p.c + p.cs + gc && p.c < c + cs + gc)
+      const inside = c => c >= c0 - 0.01 && c + cs <= c0 + crossSpan + 0.01
+      let fits = true
+      const spots = rest.map((n, i) => {
+        const want = start + i * (cs + gc)
+        const tries = [want, ...placed.flatMap(p => [p.c + p.cs + gc, p.c - gc - cs])]
+        const ok = tries.filter(c => !clash(c)).sort((a, b) => (inside(b) - inside(a)) || Math.abs(a - want) - Math.abs(b - want) || b - a)
+        const c = ok[0] ?? want
+        if (!inside(c)) fits = lr
+        placed.push({ c, cs })
+        return c
+      })
+      if (!fits) {
+        // top to bottom the width is fixed: lay the layer out as before, the user's box first
+        const all = [...pinned, ...rest]
+        const k = all.length
+        const w = crossOf(k)
+        const s0 = c0 + (crossSpan - spanOf(k)) / 2
+        all.forEach((n, i) => Object.assign(box.get(n.id), { c: s0 + i * (w + gc), cs: w, mid: s0 + i * (w + gc) + w / 2 }))
+        continue
+      }
+      rest.forEach((n, i) => Object.assign(box.get(n.id), { c: spots[i], cs, mid: spots[i] + cs / 2 }))
+      for (const n of layer) {
+        const b = box.get(n.id)
+        lo = Math.min(lo, b.c)
+        hi = Math.max(hi, b.c + b.cs)
+      }
+    }
+    return [lo, hi]
+  }
 
   /** The nodes with unique ids, and the edges whose ends both exist (no self loops), with their index in the graph. */
   function clean(graph) {
@@ -188,9 +282,11 @@
     const freeTB = width - 2 * TB.pad - mNeg - mPos
     const crossOf = k => (lr ? S.cross : Math.max(S.cross, Math.min(roomy, Math.floor((freeTB - (k - 1) * S.gc) / Math.max(1, k)))))
     const spanOf = k => k * crossOf(k) + Math.max(0, k - 1) * S.gc
-    const crossSpan = Math.max(spanOf(kMax), ...layers.map(l => spanOf(l.length)))
+    let crossSpan = Math.max(spanOf(kMax), ...layers.map(l => spanOf(l.length)))
     const c0 = S.pad + mNeg
-    const mainOf = r => S.pad + r * (S.main + S.gm)
+    const gaps = gapWidths(edges, rank, L, S.gm, lr)
+    const before = gaps.map((_, g) => gaps.slice(0, g).reduce((a, b) => a + b, 0))
+    const mainOf = r => S.pad + r * S.main + (r < gaps.length ? before[r] : gaps.reduce((a, b) => a + b, 0))
 
     // every box: main is its layer, cross its place in the layer, the layer centred
     const box = new Map()
@@ -202,6 +298,10 @@
         box.set(n.id, { id: n.id, layer: r, m: mainOf(r), c, cs, mid: c + cs / 2 })
       })
     })
+    // the user's row (Agent 1, Human task, Senior); a box that had to move past it may need more cross span
+    const [lo, hi] = alignRows(layers, box, anchorsOf(nodes, edges, rank), { c0, crossSpan, gc: S.gc, lr, crossOf, spanOf })
+    if (lo < c0) for (const b of box.values()) Object.assign(b, { c: b.c + c0 - lo, mid: b.mid + c0 - lo })
+    crossSpan = hi - lo
 
     // ── corridor lanes: the longest span outermost; among equals the source nearest that side outermost
     const lane = new Map() // edge -> corridor cross position
@@ -231,7 +331,12 @@
       const inSide = fwd ? 'start' : 'end'
       const otherOut = e.type === 'long' ? lane.get(e) : box.get(e.to).mid
       const otherIn = e.type === 'long' ? lane.get(e) : box.get(e.from).mid
-      const order = e.type === 'ret' ? 1 : 0
+      // where a return sits beside its forward arrow, so each label is by its own arrow (QA B-8): left to right a QA
+      // return runs ABOVE the work it sends back (its shared label over QA's corner is then by a return), and Senior's
+      // redo below Human task -> Senior (whose label sits above); top to bottom every return runs right of its forward
+      // arrow, and a skip (Human task -> Senior) right of its return, its label outside
+      const bySkip = e.type === 'ret' && edges.some(f => f.from === e.to && f.to === e.from && f.kind === 'skip')
+      const order = e.type === 'ret' ? (lr && !bySkip ? -1 : 1) : !lr && e.kind === 'skip' ? 2 : 0
       ends.push({ e, end: 'out', node: e.from, side: outSide, other: otherOut, order })
       if (!joins.has(e)) ends.push({ e, end: 'in', node: e.to, side: inSide, other: otherIn, order })
     }
@@ -254,7 +359,7 @@
     for (const [e, twin] of joins) port.set(`${e.i}:in`, port.get(`${twin.i}:in`))
 
     // ── gap lanes for the long edges: the gap g lies between layer g and g + 1
-    const gapMid = g => mainOf(g) + S.main + S.gm / 2
+    const gapMid = g => mainOf(g) + S.main + gaps[g] / 2
     const gapUse = new Map() // gap -> [{ e, end }]
     const useGap = (g, e, end) => (gapUse.get(g) || gapUse.set(g, []).get(g)).push({ e, end })
     for (const e of edges) {
@@ -273,13 +378,30 @@
       const ins = list.filter(u => u.end === 'in').sort((a, b) => depth(a.e) - depth(b.e) || a.e.i - b.e.i)
       const all = [...outs, ...ins]
       const n = all.length
-      const step = n > 1 ? Math.min(LANE, (S.gm - 16) / (n - 1)) : 0
+      const step = n > 1 ? Math.min(LANE, (gaps[g] - 16) / (n - 1)) : 0
       all.forEach((u, i) => gapAt.set(`${u.e.i}:${u.end}`, gapMid(g) + (i - (n - 1) / 2) * step))
     }
 
     // ── the paths and the labels
     const labels = []
     const longLabel = new Map() // `${side}|${to}|${label}` -> label
+    /**
+     * One label for arrows that share it: a corridor lane's beats one in a gap, the outermost lane's beats an inner
+     * one, and among arrows in a gap the one nearest the skip side (the top row's) wins. `adj`: an arrow in a gap.
+     */
+    const share = (key, e, spot, c, adj) => {
+      const has = longLabel.get(key)
+      if (!has) {
+        const l = { text: e.label, ...spot, edges: [e.i], c, adj }
+        longLabel.set(key, l)
+        labels.push(l)
+        return
+      }
+      has.edges.push(e.i)
+      const outer = has.adj !== adj ? has.adj : adj ? c < has.c : Math.abs(c - c0) > Math.abs(has.c - c0)
+      if (outer) Object.assign(has, spot, { c, adj })
+    }
+    const top = e => Math.min(box.get(e.from).c, box.get(e.to).c)
     const out = edges.map(e => {
       const p0 = port.get(`${e.i}:out`)
       const p3 = port.get(`${e.i}:in`)
@@ -290,7 +412,12 @@
         d = curve(lr, p0, tail)
         if (e.label && e.type === 'adj') {
           const mid = [(p0[0] + p3[0]) / 2, (p0[1] + p3[1]) / 2]
-          labels.push(lr ? { text: e.label, x: r1(mid[0]), y: r1(mid[1] - 6), rotate: 0, anchor: 'middle', edges: [e.i] } : { text: e.label, x: r1(mid[1] + 6), y: r1(mid[0] + 4), rotate: 0, anchor: 'start', edges: [e.i] })
+          // left to right, a label wider than its gap starts over the two boxes' top edge, where the gap opens out
+          const wide = lr && e.label.length * LABEL_W + 8 > gaps[rank.get(e.from)]
+          const spot = lr ? { x: r1(mid[0]), y: r1(wide ? top(e) - 7 : mid[1] - 6), rotate: 0, anchor: 'middle' } : { x: r1(mid[1] + 6), y: r1(mid[0] + 4), rotate: 0, anchor: 'start' }
+          // every `no code changes` into Human task shares ONE label (on the coordinator's corridor lane)
+          if (e.kind === 'skip') share(`skip|${e.to}|${e.label}`, e, spot, mid[1], true)
+          else labels.push({ text: e.label, ...spot, edges: [e.i] })
         } else if (e.label) {
           // a return arrow: its label beside the producer it goes back to, on the far side from the forward arrow
           // (`src`, QA, lets clearLabels give all its returns ONE label beside QA when a producer spot is crossed)
@@ -302,27 +429,21 @@
         const c = lane.get(e)
         d = rounded(lr, [p0, [g1, p0[1]], [g1, c], [g2, c], [g2, tail[1]], tail])
         if (e.label) {
-          const key = e.kind === 'rework' ? `${e.side}|from ${e.from}|${e.label}` : `${e.side}|${e.to}|${e.label}`
+          const key = e.kind === 'rework' ? `${e.side}|from ${e.from}|${e.label}` : e.kind === 'skip' ? `skip|${e.to}|${e.label}` : `${e.side}|${e.to}|${e.label}`
           const at = (g1 + g2) / 2
           const off = e.side === 'neg' ? -5 : 13
-          const spot = lr ? { x: r1(at), y: r1(c + off), rotate: 0 } : { x: r1(c + (e.side === 'neg' ? -4 : 13)), y: r1(at), rotate: -90 }
-          const has = longLabel.get(key)
-          const outer = !has || Math.abs(c - c0) > Math.abs(has.c - c0)
-          if (!has) {
-            const l = { text: e.label, ...spot, anchor: 'middle', edges: [e.i], c }
-            longLabel.set(key, l)
-            labels.push(l)
-          } else {
-            has.edges.push(e.i)
-            if (outer) Object.assign(has, spot, { c })
-          }
+          const spot = lr ? { x: r1(at), y: r1(c + off), rotate: 0, anchor: 'middle' } : { x: r1(c + (e.side === 'neg' ? -4 : 13)), y: r1(at), rotate: -90, anchor: 'middle' }
+          share(key, e, spot, c, false)
         }
       }
       return { i: e.i, from: e.from, to: e.to, kind: e.kind, label: e.label, d, head: head(lr, p3, way) }
     })
-    for (const l of labels) delete l.c
+    for (const l of labels) {
+      delete l.c
+      delete l.adj
+    }
 
-    const mainLen = 2 * S.pad + L * S.main + Math.max(0, L - 1) * S.gm
+    const mainLen = 2 * S.pad + L * S.main + gaps.reduce((a, b) => a + b, 0)
     const crossLen = 2 * S.pad + mNeg + crossSpan + mPos
     const placed = [...box.values()].map(b => {
       const [x, y] = xy(lr, b.m, b.c)
@@ -330,127 +451,8 @@
     })
     const [W, Ht] = lr ? [mainLen, crossLen] : [crossLen, mainLen]
     const kinds = new Map(nodes.map(n => [n.id, n.kind]))
-    clearLabels(labels, out.flatMap(e => [e.d, e.head]), placed.map(b => ({ ...b, agent: kinds.get(b.id) === 'agent' })), Math.ceil(W), Math.ceil(Ht), lr)
+    window.PipelineLabels.clear(labels, out, placed.map(b => ({ ...b, agent: kinds.get(b.id) === 'agent' })), Math.ceil(W), Math.ceil(Ht), lr)
     return { dir: lr ? 'LR' : 'TB', width: Math.ceil(W), height: Math.ceil(Ht), nodes: placed, edges: out, labels }
-  }
-
-  // ─── labels in the clear ───────────────────────────────────────────────────
-
-  /** Points every 2 px or so along a path this file wrote (M, L, Q, C and Z only). */
-  function pathPoints(d) {
-    const out = []
-    const tok = String(d).match(/[MLQCZ]|-?\d+(?:\.\d+)?/g) || []
-    let cur = [0, 0]
-    let start = cur
-    let i = 0
-    const num = () => Number(tok[i++])
-    const run = (f, len) => {
-      const n = Math.max(2, Math.ceil(len / 2))
-      for (let k = 0; k <= n; k++) out.push(f(k / n))
-    }
-    const len = (...ps) => ps.slice(1).reduce((s, p, k) => s + Math.hypot(p[0] - ps[k][0], p[1] - ps[k][1]), 0)
-    while (i < tok.length) {
-      const cmd = tok[i++]
-      const a = cur
-      if (cmd === 'M') {
-        cur = start = [num(), num()]
-        out.push(cur)
-      } else if (cmd === 'L' || cmd === 'Z') {
-        const p = cmd === 'Z' ? start : [num(), num()]
-        run(t => [a[0] + (p[0] - a[0]) * t, a[1] + (p[1] - a[1]) * t], len(a, p))
-        cur = p
-      } else if (cmd === 'Q') {
-        const c = [num(), num()]
-        const p = [num(), num()]
-        run(t => [0, 1].map(k => (1 - t) ** 2 * a[k] + 2 * (1 - t) * t * c[k] + t ** 2 * p[k]), len(a, c, p))
-        cur = p
-      } else if (cmd === 'C') {
-        const c1 = [num(), num()]
-        const c2 = [num(), num()]
-        const p = [num(), num()]
-        run(t => [0, 1].map(k => (1 - t) ** 3 * a[k] + 3 * (1 - t) ** 2 * t * c1[k] + 3 * (1 - t) * t ** 2 * c2[k] + t ** 3 * p[k]), len(a, c1, c2, p))
-        cur = p
-      }
-    }
-    return out
-  }
-
-  /** [x1, y1, x2, y2] of a label's text at (x, y), grown by `pad`; a rotate(-90) label stands up from its point. */
-  function textBox(l, x, y, pad = LABEL_PAD) {
-    const w = l.text.length * LABEL_CHAR
-    const from = l.anchor === 'middle' ? -w / 2 : l.anchor === 'end' ? -w : 0
-    if (l.rotate === -90) return [x - LABEL_UP - pad, y - from - w - pad, x + LABEL_DOWN + pad, y - from + pad]
-    return [x + from - pad, y - LABEL_UP - pad, x + from + w + pad, y + LABEL_DOWN + pad]
-  }
-  const overlaps = (a, b) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3]
-
-  /**
-   * Put every label where nothing touches it. Free is: no drawn line or arrowhead touches its text, and it sits on no
-   * box, no agent's pill (agent-window.css: the bottom edge centred left to right, the top right corner top to
-   * bottom) and no label placed before it, inside the canvas. A label already free stays exactly where it was.
-   *   - QA's return labels (`src`) stay beside each producer while each one is free there or a step or two away;
-   *     when one is not (the gap is full of lines: Security's bus, the skips), QA's returns share ONE label instead,
-   *     beside QA where they leave it: over its top left corner left to right, left of it top to bottom.
-   *   - Every other label, and that shared one, moves to the nearest free spot, in rings of 3 px up to 60 px out;
-   *     one with no free spot nearby stays where it was.
-   */
-  function clearLabels(labels, paths, boxes, width, height, lr) {
-    const lines = new Set()
-    for (const d of paths) for (const [x, y] of pathPoints(d)) lines.add(`${Math.floor(x / CELL)},${Math.floor(y / CELL)}`)
-    const taken = boxes.map(b => [b.x, b.y, b.x + b.w, b.y + b.h])
-    for (const b of boxes.filter(x => x.agent)) {
-      const mid = b.x + b.w / 2
-      taken.push(lr ? [mid - 40, b.y + b.h - 10, mid + 40, b.y + b.h + 11] : [b.x + b.w - 16, b.y - 11, b.x + b.w + 8, b.y + 11])
-    }
-    const byId = new Map(boxes.map(b => [b.id, b]))
-    const free = (l, x, y) => {
-      const r = textBox(l, x, y)
-      if (r[0] < 0 || r[1] < 0 || r[2] > width || r[3] > height) return false
-      if (taken.some(t => overlaps(r, t))) return false
-      for (let cx = Math.floor(r[0] / CELL); cx <= Math.floor(r[2] / CELL); cx++) {
-        for (let cy = Math.floor(r[1] / CELL); cy <= Math.floor(r[3] / CELL); cy++) if (lines.has(`${cx},${cy}`)) return false
-      }
-      return true
-    }
-    /** The nearest free spot within `rings` rings, or null. */
-    const near = (l, rings) => {
-      if (free(l, l.x, l.y)) return [l.x, l.y]
-      for (let ring = 1; ring <= rings; ring++) {
-        const r = ring * 3
-        const spot = [[0, -r], [0, r], [r, 0], [-r, 0], [r, -r], [-r, -r], [r, r], [-r, r]].map(([dx, dy]) => [l.x + dx, l.y + dy]).find(([x, y]) => free(l, x, y))
-        if (spot) return spot
-      }
-      return null
-    }
-    const settle = (l, spot) => {
-      if (spot) [l.x, l.y] = spot.map(r1)
-      taken.push(textBox(l, l.x, l.y, 0))
-    }
-    // QA's returns first: beside each producer when every one of them is free there, else one label by QA
-    const groups = new Map()
-    for (const l of labels) if (l.src) (groups.get(l.src) || groups.set(l.src, []).get(l.src)).push(l)
-    for (const [src, list] of groups) {
-      const spots = list.map(l => near(l, 3))
-      const clash = (a, b) => overlaps(textBox(a.l, ...a.s), textBox(b.l, ...b.s))
-      const placed = list.map((l, i) => ({ l, s: spots[i] }))
-      if (spots.every(Boolean) && !placed.some((a, i) => placed.slice(i + 1).some(b => clash(a, b)))) {
-        placed.forEach(({ l, s }) => settle(l, s))
-        continue
-      }
-      const box = byId.get(src)
-      const one = list[0]
-      one.edges = list.flatMap(l => l.edges)
-      Object.assign(one, lr ? { x: r1(box.x + 2), y: r1(box.y - 5), anchor: 'start' } : { x: r1(box.x - 6), y: r1(box.y + 14), anchor: 'end' })
-      for (const l of list.slice(1)) labels.splice(labels.indexOf(l), 1)
-      settle(one, near(one, 20))
-    }
-    for (const l of labels) {
-      if (l.src) {
-        delete l.src
-        continue
-      }
-      settle(l, near(l, 20))
-    }
   }
 
   // A flow's lit route is flow-route.js highlight, over its own progress.

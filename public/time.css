@@ -1,0 +1,92 @@
+/* Pipeline time under the Pipeline score on the Agents page (time-strip.js, time-view.js). The head, the tiles and the
+   disclosures are the score's own classes (score.css psc-), so the two rows of tiles line up exactly and read as one
+   system; this file adds only what the score has no use for: the units switch's place, the stage bar and its table,
+   the bars per day, the per agent table. Every colour is a styles.css token (the stages take the timeline's --t-
+   colours), so light and dark both follow. Class prefix ptm-. */
+
+.ptm-span { margin-left: auto; font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+/* ─── the two panels: where the time goes, finished per day ─── */
+.ptm-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
+.ptm-panel {
+  min-width: 0; padding: 8px 10px 10px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  font-size: 12.5px; color: var(--ink-2);
+}
+.ptm-h { margin: 0 0 8px; font-size: 12px; color: var(--muted); }
+.ptm-none { margin: 0; font-size: 12.5px; }
+
+/* each stage its own colour, shared by its bar part and its row in the table */
+.ptm-s-planning { --c: var(--t-brief); }
+.ptm-s-producing { --c: var(--t-edit); }
+.ptm-s-qa { --c: var(--t-test); }
+.ptm-s-security { --c: var(--t-message); }
+.ptm-s-human { --c: var(--t-spawn); }
+.ptm-s-senior { --c: var(--t-heard); }
+.ptm-s-rework { --c: var(--bad); }
+
+.ptm-stackbar { display: flex; height: 26px; margin: 0 0 8px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); }
+.ptm-seg {
+  display: flex; align-items: center; min-width: 0; padding: 0 6px;
+  background: color-mix(in srgb, var(--c) 20%, var(--surface)); border-left: 3px solid var(--c);
+  font-size: 11.5px; color: var(--ink); white-space: nowrap;
+}
+.ptm-seg-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+.ptm-table { width: auto; }
+.ptm-table th, .ptm-table td { padding: 5px 9px; font-size: 12.5px; }
+.ptm-table td { text-align: right; }
+.ptm-table tbody tr:last-child > * { border-bottom: 0; }
+.ptm-stage-table tbody th::before {
+  content: ""; display: inline-block; width: 9px; height: 9px; margin-right: 7px; vertical-align: 0;
+  border-radius: 2px; background: var(--c);
+}
+.ptm-scroll { margin: 0; }
+.ptm-foot { margin: 6px 0 0; }
+
+/* ─── the bars per day: one tab stop, the arrow keys move along; the day and count show in the corner ─── */
+.ptm-chart {
+  position: relative; display: flex; align-items: stretch; gap: 3px; height: 112px;
+  margin: 0; padding: 20px 0 0; list-style: none;
+}
+.ptm-col { display: flex; flex: 1 1 0; flex-direction: column; min-width: 0; outline: none; }
+.ptm-well { display: flex; flex: 1 1 auto; align-items: flex-end; border-bottom: 1px solid var(--line-strong); }
+.ptm-fill { display: block; width: 100%; min-height: 0; background: var(--accent); border-radius: 2px 2px 0 0; opacity: .78; transition: opacity .12s ease; }
+.ptm-fill.zero { height: 0 !important; }
+.ptm-tick { display: flex; justify-content: center; height: 18px; padding-top: 3px; font-size: 11px; line-height: 15px; color: var(--muted); white-space: nowrap; }
+.ptm-col:first-child .ptm-tick { justify-content: flex-start; }
+.ptm-col:last-child .ptm-tick { justify-content: flex-end; }
+.ptm-col:only-child .ptm-tick { justify-content: center; }
+.ptm-tip {
+  display: none; position: absolute; top: 0; right: 0;
+  padding: 0 6px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface-2);
+  font-size: 11.5px; line-height: 17px; color: var(--ink); white-space: nowrap;
+}
+.ptm-col:hover .ptm-fill, .ptm-col:focus-visible .ptm-fill { opacity: 1; }
+.ptm-col:hover .ptm-tip, .ptm-col:focus .ptm-tip { display: block; }
+.ptm-col:focus-visible .ptm-well { box-shadow: 0 0 0 2px var(--accent); border-radius: 2px; }
+.ptm-chart:has(.ptm-col:focus) .ptm-col:hover:not(:focus) .ptm-tip { display: none; }
+.ptm-list { margin-top: 6px; }
+.ptm-list > summary { width: fit-content; font-size: 12px; color: var(--muted); cursor: pointer; }
+.ptm-list > summary:hover { color: var(--ink); }
+.ptm-list ul { margin: 4px 0 0; padding: 0 0 0 16px; columns: 2; column-gap: 20px; font-size: 12px; }
+
+/* By agent: the table needs no more than its content */
+.ptm-agents { max-width: 760px; }
+
+/* A narrow window: the two panels stack; a phone: the units switch wraps under the title. */
+@media (max-width: 900px) {
+  .ptm-row { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 480px) {
+  .ptm-span { margin-left: 0; }
+  .ptm-units { margin-left: auto; }
+  .ptm-units button { padding: 1px 7px; }
+  .ptm-chart { gap: 2px; }
+  .ptm-list ul { columns: 1; }
+  .ptm-num { font-size: 19px; line-height: 25px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ptm-fill { transition: none; }
+}

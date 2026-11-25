@@ -32,6 +32,7 @@ import { makeContextGatherer, makeScriptContextRoute } from './script-context-ro
 import { makeAgentSettingsRoute } from './agent-settings-routes.mjs'
 import { makeScriptLogRoute } from './script-log-routes.mjs'
 import { appendRun } from './script-log.mjs'
+import { makeStandupServerRoute } from './standup-wiring.mjs'
 import { orchestrationBrief } from './script-brief.mjs'
 import { briefExtras } from './script-brief-extras.mjs'
 import { pipelineGraph } from './pipeline.mjs'
@@ -856,6 +857,8 @@ const scriptRoute = makeScriptRoute({ port: PORT, gather: makeContextGatherer(sc
 const scriptContextRoute = makeScriptContextRoute({ port: PORT, ...scriptContext })
 /** The SCRIPT run log (script-log-routes.mjs): the newest 50 runs, for the page's History list. */
 const scriptLogRoute = makeScriptLogRoute({ port: PORT })
+/** The Standup creator (standup-routes.mjs): POST /api/standup/generate and GET /api/standup/log. */
+const standupRoute = makeStandupServerRoute({ port: PORT, git, prefixes: ticketPrefixes })
 /**
  * The Project menu and the Orchestration bank (projects-routes.mjs). A switch restarts this process (restart.mjs):
  * whether the keep-alive loop runs it is read once now, off the request path.
@@ -869,7 +872,7 @@ const projectRoute = makeProjectRoutes({
 /** Each agent's model, effort, files and notes, from its window on the Agents page (agent-settings-routes.mjs). */
 const agentSettingsRoute = makeAgentSettingsRoute({ port: PORT })
 /** The paths factory-routes.mjs answers. */
-const FACTORY_PREFIXES = ['/api/factory', '/api/chat', '/api/flows', '/api/trash', '/api/archive', '/api/human', '/api/tickets/', '/api/commit', '/api/explain', '/api/glossary', '/api/since', '/api/spend', '/api/settings', '/api/pipeline', '/api/qa', '/api/agents/rules', '/api/score', '/api/log', '/evidence/']
+const FACTORY_PREFIXES = ['/api/factory', '/api/chat', '/api/flows', '/api/trash', '/api/archive', '/api/human', '/api/tickets/', '/api/commit', '/api/explain', '/api/glossary', '/api/since', '/api/spend', '/api/settings', '/api/pipeline', '/api/qa', '/api/agents/rules', '/api/score', '/api/log', '/api/time', '/evidence/']
 
 const server = createServer(async (req, res) => {
   // a website that rebinds its name to 127.0.0.1 sends its own Host: only requests addressed to us are answered (local-origin.mjs)
@@ -886,6 +889,7 @@ const server = createServer(async (req, res) => {
     if (await scriptRoute(req, res, url)) return
     if (await scriptContextRoute(req, res, url)) return
     if (await scriptLogRoute(req, res, url)) return
+    if (await standupRoute(req, res, url)) return
     if (await agentSettingsRoute(req, res, url)) return
     if (await subagentRoute(req, res, url)) return
     if (url.pathname === '/api/orchestration') {

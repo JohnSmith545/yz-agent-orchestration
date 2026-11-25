@@ -4,9 +4,9 @@
 // open/close, the way app.js route() did before.
 //
 // Routes: #/ Flows (the landing page: every request is a flow), #/flows (the same page, so old links
-// keep working), #/home Home, #/qa[/<flow id>], #/brainstorming, #/tickets, #/timeline, #/agents, #/subagents,
+// keep working), #/home Home, #/qa[/<flow id>], #/generators[?tool=standup], #/tickets, #/timeline, #/agents, #/subagents,
 // #/glossary, #/settings, #/archive (the flow archive), #/agent/<id>[/<sub>]. Old links redirect (#/factory → #/tickets,
-// #/flow → #/timeline, #/script → #/brainstorming) and anything unknown goes to the landing page.
+// #/flow → #/timeline, #/script and #/brainstorming → #/generators, a query kept) and anything unknown goes to the landing page.
 // A page route may carry a query, `#/flows?flow=dark-mode&at=hand`, handed to the page as params.query (an
 // object of strings): a link that opens a page in a given state (archive-page.js, flows-page.js, human-review.js).
 //
@@ -38,9 +38,10 @@
     if (bank) return route('bank', { id: decode(bank[1]), mode: bank[2] || null })
     const [, page, query] = /^#\/([a-z]+)\/?(?:\?([^#]*))?$/.exec(h) || []
     const params = query ? { query: queryOf(query) } : {}
-    // Brainstorming was SCRIPT: its view keeps the old name (script-page.js says why); old links still land on it.
-    if (page === 'brainstorming') return route('script', params)
-    if (page === 'script') return route('script', params, '#/brainstorming')
+    // Generators was Brainstorming, and SCRIPT before that: its view keeps the oldest name (script-page.js says why),
+    // and the old links still land on it, with their query (?tool=standup opens the Standup creator).
+    if (page === 'generators') return route('script', params)
+    if (page === 'script' || page === 'brainstorming') return route('script', params, `#/generators${query ? `?${query}` : ''}`)
     if (page && page !== 'agent' && VIEWS.includes(page)) return route(page, params)
     const old = /^#\/(factory|flow)\b/.exec(h)?.[1]
     if (old) return route(OLD[old], {}, `#/${OLD[old]}`)
@@ -145,7 +146,7 @@
   const $ = id => doc.getElementById(id)
   const PIN_KEY = 'shell.railPinned'
   const HOVER_MS = 300
-  const TITLE = { home: 'Home', flows: 'Flows', qa: 'QA', script: 'Brainstorming', tickets: 'Tickets', timeline: 'Timeline', agents: 'Agents', subagents: 'Subagents', glossary: 'Glossary', settings: 'Settings', archive: 'Flow archive', agent: 'Agent' }
+  const TITLE = { home: 'Home', flows: 'Flows', qa: 'QA', script: 'Generators', tickets: 'Tickets', timeline: 'Timeline', agents: 'Agents', subagents: 'Subagents', glossary: 'Glossary', settings: 'Settings', archive: 'Flow archive', agent: 'Agent' }
   // Which section each view shows, and which page object it opens and closes.
   const SECTION = { home: 'home', flows: 'flowsView', qa: 'qaView', script: 'scriptView', tickets: 'factoryView', timeline: 'flowView', agents: 'agentsView', subagents: 'subagentsView', glossary: 'glossaryView', settings: 'settingsView', archive: 'archiveView', agent: 'agentView' }
   const PAGE = { flows: 'FlowsPage', qa: 'QaPage', script: 'ScriptPage', tickets: 'FactoryView', timeline: 'FlowView', agents: 'AgentsPage', subagents: 'SubagentsPage', glossary: 'GlossaryPage', settings: 'SettingsPage', archive: 'ArchivePage', agent: 'AgentView' }
@@ -158,7 +159,7 @@
     flows: svg('<circle cx="6" cy="5" r="2.2"/><circle cx="6" cy="19" r="2.2"/><circle cx="18" cy="7" r="2.2"/><path d="M6 7.2v9.6"/><path d="M18 9.2c0 5-6 4.6-10.6 8.3"/>'),
     // QA: a circle with a tick in it (a test passed)
     qa: svg('<circle cx="12" cy="12" r="8.5"/><path d="m8.4 12.3 2.5 2.5 4.8-5.2"/>'),
-    // Brainstorming: a page with three lines of writing and a small spark (a rough idea made into a prompt)
+    // Generators: a page with three lines of writing and a small spark (a prompt or a stand-up, written for you)
     script: svg('<path d="M14 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V11"/><path d="M8.5 10h5M8.5 13.5h7M8.5 17h5"/><path d="M18.5 2.5v5M16 5h5"/>'),
     tickets: svg('<path d="M3 7h18v3a2 2 0 0 0 0 4v3H3v-3a2 2 0 0 0 0-4Z"/><path d="M14.5 8v1.5M14.5 11.25v1.5M14.5 14.5V16"/>'),
     timeline: svg('<path d="M3 12h4l3-7 4 14 3-7h4"/>'),
@@ -192,7 +193,7 @@
       <button type="button" class="rail-pin" id="railPin" aria-pressed="false" title="Keep the rail open">${ICON.pin}</button>
     </div>
     <nav class="rail-nav" aria-label="Pages">
-      ${link('flows', '#/flows', 'Flows')}${link('qa', '#/qa', 'QA')}${link('script', '#/brainstorming', 'Brainstorming')}${link('tickets', '#/tickets', 'Tickets')}${link('timeline', '#/timeline', 'Timeline')}${link('agents', '#/agents', 'Agents')}${link('subagents', '#/subagents', 'Subagents')}${link('glossary', '#/glossary', 'Glossary')}${link('archive', '#/archive', 'Flow archive')}
+      ${link('flows', '#/flows', 'Flows')}${link('qa', '#/qa', 'QA')}${link('script', '#/generators', 'Generators')}${link('tickets', '#/tickets', 'Tickets')}${link('timeline', '#/timeline', 'Timeline')}${link('agents', '#/agents', 'Agents')}${link('subagents', '#/subagents', 'Subagents')}${link('glossary', '#/glossary', 'Glossary')}${link('archive', '#/archive', 'Flow archive')}
     </nav>
     <div class="rail-bottom">
       <button type="button" class="rail-item" id="railAsk" aria-controls="drawer" aria-expanded="false" title="${ASK_TIP}"><span class="rail-icon">${ICON.ask}</span><span class="rail-label">Ask</span></button>

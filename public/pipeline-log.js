@@ -3,8 +3,9 @@
 //
 //   PipelineLog.listHtml({ data, failure }, { selected, win, filter })   the line above the list and the rows
 //   PipelineLog.chipsHtml(filter, { roles })   All | Delivered | Caught | Missed | Slipped through | Rules, then
-//                                          Plans and Security when `roles` (the graph's node roles) has the planner
-//                                          or Security (pipeline.mjs): their own log kinds (score-log.mjs GATE_KINDS)
+//                                          Plans, Security and Senior when `roles` (the graph's node roles) has the
+//                                          planner, Security or Senior (pipeline.mjs): their own log kinds
+//                                          (score-log.mjs GATE_KINDS)
 //   PipelineLog.queryOf(win, filter)       '/api/log?days=30&cell=caught' (Rules is kind=rule, Plans kind=planned,
 //                                          Security kind=security)
 //   PipelineLog.filterOf(v)                a filter key, All for anything else
@@ -27,14 +28,15 @@
   const GATE_FILTERS = Object.freeze([
     Object.freeze({ key: 'planned', label: 'Plans', role: 'planner' }),
     Object.freeze({ key: 'security', label: 'Security', role: 'security' }),
+    Object.freeze({ key: 'senior', label: 'Senior', role: 'senior' }),
   ])
-  const KINDS = ['rule', 'planned', 'security']
+  const KINDS = ['rule', 'planned', 'security', 'senior']
   const CELLS = ['delivered', 'caught', 'missed', 'slipped']
   const TAG = Object.freeze({ delivered: 'Counted: right, delivered', caught: 'Counted: right, caught', missed: 'Counted: wrong, missed', slipped: 'Counted: wrong, slipped through' })
   /** The empty line per filter: "Nothing caught in the last 7 days." */
   const NOTHING = Object.freeze({
     all: 'Nothing in the log', delivered: 'Nothing delivered', caught: 'Nothing caught', missed: 'Nothing missed', slipped: 'Nothing slipped through', rule: 'No rule changes',
-    planned: 'No plans handed out', security: 'No Security verdicts',
+    planned: 'No plans handed out', security: 'No Security verdicts', senior: 'No Senior reviews',
   })
 
   const esc = s => window.UI.esc(s)
