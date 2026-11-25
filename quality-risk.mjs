@@ -18,9 +18,10 @@
 // one bad entry keeps the defaults with ONE warning (riskRules), never a failed start: a typo must not switch the
 // labels off.
 //
-// ⚠️ A word matches WHOLE (`session` never fires inside `possession`), and a phrase's spaces also match a dash or an
+// ⚠️ A word matches WHOLE (`auth` never fires inside `author`), and a phrase's spaces also match a dash or an
 // underscore (`sign in` finds sign-in). Words a dashboard like this one uses for everything (pipeline, workflow, table,
-// public/ as a folder) are left out of the defaults on purpose: a label that is always high says nothing.
+// public/ as a folder, a bare `session`, which here is a Claude Code session) are left out of the defaults on purpose:
+// a label that is always high says nothing. A user's session is named as one (`user session`, `session cookie`).
 //
 // riskRoute lays the label over a planned route (flow-route.mjs): a build route that lacks Security gets it before
 // Push, an ask route that lacks Senior gets it (after Human task) before the Output, each only when that agent is on
@@ -35,7 +36,7 @@ const rule = (id, level, needs, why, words, paths = [], labels = []) => Object.f
 /** The built-in rules, in the order their reasons are listed. */
 export const DEFAULT_RISK_RULES = Object.freeze([
   rule('sign-in', 'high', ['security', 'deep-qa'], 'It touches sign-in or sessions.',
-    ['sign in', 'sign out', 'signin', 'login', 'log in', 'logout', 'log out', 'password', 'passwords', 'session', 'sessions', 'auth', 'authentication', 'oauth', '2fa', 'two factor', 'jwt', 'id token', 'cookie', 'cookies'],
+    ['sign in', 'sign out', 'signin', 'login', 'log in', 'logout', 'log out', 'password', 'passwords', 'user session', 'user sessions', 'session cookie', 'session token', 'session expiry', 'session timeout', 'sessions expire', 'auth', 'authentication', 'oauth', '2fa', 'two factor', 'jwt', 'id token', 'cookie', 'cookies'],
     ['auth/', 'auth.', 'oauth', 'session', 'login', 'signin', 'sign-in', 'send-pin', 'local-origin'], ['auth', 'login', 'account']),
   rule('payments', 'high', ['security', 'deep-qa'], 'It touches payments.',
     ['payment', 'payments', 'billing', 'stripe', 'subscription', 'subscriptions', 'invoice', 'invoices', 'checkout', 'refund', 'refunds'],

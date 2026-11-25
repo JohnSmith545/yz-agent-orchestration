@@ -18,7 +18,7 @@ test('a plain task is low risk, with no reasons and nothing it needs', () => {
 test('every default rule fires on its words', () => {
   const cases = [
     ['Fix the sign-in page timeout', 'sign-in'],
-    ['Keep the session after a reload', 'sign-in'],
+    ['Keep the user session after a reload', 'sign-in'],
     ['Add Stripe payments to premium', 'payments'],
     ['Move the API key into the secrets store', 'secrets'],
     ['Change the GitHub Actions workflow for deploys', 'infra'],
@@ -35,8 +35,9 @@ test('every default rule fires on its words', () => {
   }
 })
 
-test('a word only counts whole: session in possession does not fire', () => {
-  assert.equal(riskOf(flow('Show who has possession of the ball')).level, 'low')
+test('a word only counts whole: auth in author does not fire, nor a bare session (a Claude Code session here)', () => {
+  assert.equal(riskOf(flow('Show the author of each post')).level, 'low')
+  assert.equal(riskOf(flow('Open the Standup Creator session from the page')).level, 'low')
   assert.equal(riskOf(flow('Paint the dropdown')).level, 'low', 'drop alone is not a deletion')
 })
 
