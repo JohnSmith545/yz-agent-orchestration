@@ -10,6 +10,7 @@
 .ql-group h3 .faint { font-weight: 400; }
 .ql-line { margin: 4px 0 0; color: var(--muted); font-size: 12.5px; }
 .ql-empty { margin: 4px 0 8px; color: var(--muted); font-size: 13px; }
+.ql-only { margin: 0 0 12px; color: var(--ink-2); font-size: 13px; }
 .ql-rows { list-style: none; margin: 10px 0 0; padding: 0; }
 .ql-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 16px; padding: 10px 0; border-top: 1px solid var(--line); }
 .ql-main { flex: 1 1 360px; min-width: 0; display: grid; gap: 3px; }

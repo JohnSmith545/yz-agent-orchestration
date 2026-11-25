@@ -107,7 +107,9 @@
       return `<section class="card ql-group" aria-labelledby="ql-h-${esc(area)}"><h3 id="ql-h-${esc(area)}">${esc(area)} <span class="faint">· ${list.length}</span></h3>` +
         `<ul class="ql-rows">${list.map(l => lessonRow(l, titles)).join('')}</ul></section>`
     }).join('')
-    return groups || `<section class="card ql-group"><p class="ql-empty">No lessons in ${esc(state.area)}.</p></section>`
+    // an area picked by the address says so, with the way back to all of them
+    const only = state.area ? `<p class="ql-only">Showing the ${esc(state.area)} lessons only. <a class="link" href="#/lessons">Show every area</a></p>` : ''
+    return only + (groups || `<section class="card ql-group"><p class="ql-empty">No lessons in ${esc(state.area)}.</p></section>`)
   }
 
   /** The whole page. `data` is GET /api/lessons's answer. */
@@ -173,6 +175,15 @@
   }
   const toast = t => window.Notifier?.toast(esc(t), { kind: 'info', keep: false })
   const enc = encodeURIComponent
+  /** Reload, then put the focus on the first of `selectors` still there, so a keyboard user stays in place. */
+  async function reloadFocus(...selectors) {
+    await reload()
+    for (const sel of selectors) {
+      const el = view()?.querySelector(sel)
+      if (el) return el.focus()
+    }
+  }
+  const NEXT = ['[data-ql-accept]', '[data-ql-extract]:not([disabled])', '#qlNew']
 
   async function onClick(e) {
     const t = e.target
@@ -183,21 +194,22 @@
       return paint(`[data-ql-form="${CSS.escape(id)}"] input`)
     }
     if (t.closest('[data-ql-cancel]')) {
+      const was = state.edit
       Object.assign(state, { edit: null, error: '' })
-      return paint()
+      return paint(`[data-ql-edit="${CSS.escape(was || '')}"]`)
     }
     if ((id = pick('data-ql-accept')) || (id = pick('data-ql-reject'))) {
       const accept = !!t.closest('[data-ql-accept]')
       const r = await call(`/api/lessons/candidates/${enc(id)}/${accept ? 'accept' : 'reject'}`)
       if (!r.ok) window.alert?.(r.j?.error || `Failed (${r.status})`)
       else if (accept) toast(`Lesson ${r.j.lesson?.id} is in the library: ${r.j.lesson?.text}`)
-      return reload()
+      return reloadFocus(...NEXT)
     }
     if ((id = pick('data-ql-retire')) || (id = pick('data-ql-restore'))) {
       const retire = !!t.closest('[data-ql-retire]')
       const r = await call(`/api/lessons/${enc(id)}/${retire ? 'retire' : 'restore'}`)
       if (!r.ok) window.alert?.(r.j?.error || `Failed (${r.status})`)
-      return reload()
+      return reloadFocus(`[data-ql-${retire ? 'restore' : 'retire'}="${CSS.escape(id)}"]`, `[data-ql-${retire ? 'retire' : 'restore'}="${CSS.escape(id)}"]`)
     }
     if ((id = pick('data-ql-extract'))) {
       Object.assign(state, { running: id, note: '' })
@@ -206,7 +218,7 @@
       const cost = typeof r.j?.cost === 'number' ? ` It cost $${r.j.cost.toFixed(3)}.` : ''
       state.running = null
       state.note = r.ok ? `${r.j.candidates ? `${plural(r.j.candidates, 'lesson')} proposed: see Waiting for you.` : 'Nothing new to learn from that one.'}${cost}` : `${r.j?.error || `Failed (${r.status})`}${cost}`
-      return reload()
+      return reloadFocus(`[data-ql-extract="${CSS.escape(id)}"]`, ...NEXT)
     }
   }
 
@@ -230,7 +242,7 @@
     }
     Object.assign(state, { edit: null, error: '' })
     toast(`Lesson ${r.j.lesson?.id} is in the library: ${r.j.lesson?.text}`)
-    return reload()
+    return reloadFocus(...NEXT)
   }
 
   let built = false

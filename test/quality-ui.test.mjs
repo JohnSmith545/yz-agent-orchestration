@@ -105,6 +105,9 @@ test('An area filter from the address shows that area only', () => {
   const h = Q.html(DATA, { area: 'tests' })
   assert.doesNotMatch(h, /Check the page at phone width/)
   assert.match(h, /Write the failing test first/)
+  assert.match(text(h), /Showing the tests lessons only\. Show every area/)
+  assert.ok(h.includes('href="#/lessons"'), 'the way back to every area')
+  assert.doesNotMatch(Q.html(DATA), /Showing the/)
 })
 
 const PANEL = {
