@@ -41,6 +41,8 @@
 .fh-release { font-size: 12.5px; }
 .fh-release-ask, .fh-refused { margin: 10px 0 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--ink); font-size: 13px; line-height: 1.5; }
 .fh-refused { border-left: 3px solid var(--bad); }
+.fh-released { margin: 10px 0 0; color: var(--ink-2); font-size: 13px; }
+.fh-done { padding: 0; }
 
 @media (max-width: 600px) {
   .fl-open > .fl-hand { padding: 12px 16px 14px; }

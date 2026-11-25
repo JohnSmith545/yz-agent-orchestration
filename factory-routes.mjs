@@ -225,7 +225,7 @@ export async function factoryRoute(req, res, url, { git, gh, push, pr, port = CO
     if (p === '/api/since' && !post) return json(res, 200, await sinceRoute(q.get('t'), { git, getStatus, listFlows, collections, readSource })), true
     if (p === '/api/spend' && !post) return json(res, 200, readSpend()), true
   } catch (e) {
-    return json(res, e.status || 400, { error: e.message }), true
+    return json(res, e.status || 400, { error: e.message, ...(e.code ? { code: e.code } : {}) }), true
   }
   return false
 }

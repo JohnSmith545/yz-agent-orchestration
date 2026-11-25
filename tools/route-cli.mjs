@@ -101,7 +101,9 @@ export function routeBlock(flow, config) {
   const graph = graphOf(config)
   const route = routeOf(flow, graph)
   if (route.inferred) return [`  route: ${route.type} (inferred: set it with flow route ${flow.id} --type build|review|ask)`]
-  const now = routeProgress(flow, graph, route).find(s => s.state === 'current')
+  // the steps as the page shows them (flow-route.mjs routeProgress): Human task and Senior where the flow needs them
+  const progress = routeProgress(flow, graph, route)
+  const now = progress.find(s => s.state === 'current')
   const where = now ? `now at ${now.label} (${now.status})` : flow.status === 'dropped' ? 'dropped' : 'at the Output'
-  return [`  route: ${route.type}, ${labels(route.steps, graph)}; ${where}`]
+  return [`  route: ${route.type}, ${labels(progress.map(s => s.node), graph)}; ${where}`]
 }

@@ -422,7 +422,8 @@ export function writeFlow(flow) {
   recordHold(flow, stored, graph)
   if (flow.status === 'done' && before !== 'done') {
     const held = seniorHolds(flow, graph)
-    if (held) throw new Error(held)
+    // the code lets the page say what the USER can do instead of the agent's sentence (public/flow-hand.js holdText)
+    if (held) throw Object.assign(new Error(held), { code: 'senior-hold' })
   }
   if (flow.archivedAt && stored && hasNewOpenAsk(flow, stored)) delete flow.archivedAt
   flow.updatedAt = now()

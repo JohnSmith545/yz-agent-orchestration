@@ -27,7 +27,7 @@ test('a refused status change is said inline in the open flow menu, with the men
   assert.doesNotMatch(FlowHead.html(base, opts()).sub, /fl-refused/)
   const flows = read('flows.js')
   assert.match(flows, /if \(res\.error\) \{\r?\n\s+el\.value = f\.status/, 'the select goes back to the real status')
-  assert.match(flows, /opened\.refused = res\.error/)
+  assert.match(flows, /opened\.refused = res\.code === 'senior-hold' \? window\.FlowHand\.holdText\(f\) : res\.error/)
   assert.match(flows, /refused: opened\.refused/)
 })
 
