@@ -41,7 +41,7 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { clearCookie, csrfOk, sessionCookie, tokenFromCookie } from './phone-auth.mjs'
+import { clearCookie, csrfOk, sessionCookie, tokensFromCookie } from './phone-auth.mjs'
 import { makeLimiter, PHONE_LIMITS } from './phone-limits.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -167,8 +167,13 @@ export function makePhoneHandler({ settings, own, auth, actions, limits = PHONE_
       const isLogout = route === 'POST /phone/logout'
       if (!action && !isLogout && route !== 'GET /phone/api/me') return send(res, 404, 'Not found.')
 
-      const token = tokenFromCookie(req.headers.cookie)
-      const session = auth.session(token, s.sessionHours)
+      // the first cookie value that is a live session, so one tossed in by another service never hides the real one
+      let token = ''
+      let session = null
+      for (const t of tokensFromCookie(req.headers.cookie)) {
+        session = auth.session(t, s.sessionHours)
+        if (session) { token = t; break }
+      }
       if (!session) return send(res, 401, { error: 'Your phone session has ended. Sign in again.', signedOut: true }, { 'set-cookie': clearCookie() })
       const sessionLimit = bySession.hit(session.id)
       if (!sessionLimit.ok) return tooMany(res, sessionLimit)
@@ -189,6 +194,8 @@ export function makePhoneHandler({ settings, own, auth, actions, limits = PHONE_
       return send(res, r.status, r.body)
     } catch (err) {
       if (err?.status) return send(res, err.status, { error: err.message })
+      // the phone gave up mid-request (the screen locked, the network went): nothing to answer and nothing to log
+      if (err?.code === 'ECONNRESET' || err?.code === 'ERR_STREAM_PREMATURE_CLOSE' || err?.message === 'aborted' || req.destroyed) return void res.destroy()
       console.error(`phone: ${err?.stack || err}`)
       return send(res, 500, { error: 'Something went wrong on the PC.' })
     }

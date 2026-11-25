@@ -77,15 +77,25 @@ export const csrfOk = (token, header) => typeof header === 'string' && !!header 
 export const sessionCookie = (token, hours) => `${COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/phone; Max-Age=${Math.round(hours * 3600)}`
 export const clearCookie = () => `${COOKIE}=; HttpOnly; SameSite=Strict; Path=/phone; Max-Age=0`
 
-export function tokenFromCookie(header) {
+/**
+ * Every well-formed phone_session value in a Cookie header, in order. Cookies are not kept apart by port, so another
+ * service on the same address can set its own phone_session (cookie tossing): the server tries each value, never only
+ * the first. At most 5 are taken, so a header stuffed with them costs little.
+ */
+export function tokensFromCookie(header) {
+  const out = []
   for (const part of String(header ?? '').split(';')) {
     const at = part.indexOf('=')
     if (at < 0 || part.slice(0, at).trim() !== COOKIE) continue
     const v = part.slice(at + 1).trim()
-    return TOKEN.test(v) ? v : ''
+    if (TOKEN.test(v) && !out.includes(v)) out.push(v)
+    if (out.length >= 5) break
   }
-  return ''
+  return out
 }
+
+/** The first well-formed phone_session value, or ''. */
+export const tokenFromCookie = header => tokensFromCookie(header)[0] || ''
 
 const isTime = v => typeof v === 'string' && !Number.isNaN(Date.parse(v))
 const EMPTY = () => ({ fails: 0, lockedUntil: null, lockouts: [], sessions: [], events: [] })

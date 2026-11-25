@@ -386,3 +386,33 @@ test('a third lockout within 24 hours turns phone access off through onEscalate,
   const last = await signIn('11223344')
   assert.equal(last.r.status, 429)
 })
+
+test('cookie tossing: another phone_session cookie set first by another service on this IP does not hide the real one', async () => {
+  const user = await signIn()
+  const real = user.cookie.split('=')[1]
+  const tossed = `phone_session=${'B'.repeat(43)}; ${user.cookie}`
+  assert.equal((await request('GET', '/phone/api/summary', { headers: { cookie: tossed } })).status, 200)
+  assert.equal((await write('/phone/api/answer', {}, { cookie: tossed, 'x-phone-csrf': user.csrf })).status, 200, 'the CSRF token is checked against the cookie that matched')
+  assert.equal((await write('/phone/api/answer', {}, { cookie: `phone_session=${'B'.repeat(43)}`, 'x-phone-csrf': user.csrf })).status, 401)
+  assert.ok(real)
+})
+
+test('a request the phone gives up on mid-body is not logged as a server error', async () => {
+  const net = await import('node:net')
+  const errors = []
+  const was = console.error
+  console.error = (...a) => errors.push(a.join(' '))
+  try {
+    const user = await signIn()
+    await new Promise(resolve => {
+      const sock = net.connect(own.port, '127.0.0.1', () => {
+        sock.write(`POST /phone/api/talk HTTP/1.1\r\nHost: 127.0.0.1:${own.port}\r\nOrigin: ${ORIGIN()}\r\nContent-Type: application/json\r\nCookie: ${user.cookie}\r\nX-Phone-CSRF: ${user.csrf}\r\nContent-Length: 500\r\n\r\n{"text":"hal`)
+        setTimeout(() => { sock.destroy(); setTimeout(resolve, 100) }, 50)
+      })
+      sock.on('error', () => {})
+    })
+  } finally {
+    console.error = was
+  }
+  assert.deepEqual(errors.filter(e => /phone:/.test(e)), [])
+})
