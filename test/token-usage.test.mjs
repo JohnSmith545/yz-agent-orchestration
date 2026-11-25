@@ -17,6 +17,8 @@ import {
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const REAL = fs.readFileSync(path.join(HERE, 'fixtures', 'tokens-real-trimmed.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l))
+// the same reply in a forked session (0 / 0 / 0 / 0) and in its own session (2 / 1,989 / 1,125 / 246,176), trimmed
+const [FORK_COPY, OWN_COPY] = fs.readFileSync(path.join(HERE, 'fixtures', 'tokens-real-fork-copy.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l))
 
 const at = (y, m, d, h = 12, min = 0) => new Date(y, m - 1, d, h, min).getTime()
 const asst = (id, { t = at(2026, 11, 25), model = 'claude-opus-5-5', input = 1, output = 10, w5 = 0, w1 = 0, read = 0, side = false, extra = {} } = {}) => ({
@@ -74,7 +76,7 @@ test('REAL: two records of one streamed response with the same usage count once'
   for (const rec of REAL.slice(0, 3)) tallyRecord(t, rec, { self: 'main.jsonl', owners })
   const day = localDay(Date.parse('2026-10-19T04:53:19.923Z'))
   assert.deepEqual(t.days[day]['claude-opus-5-5'], [2, 342, 0, 35374, 29974, 1])
-  assert.deepEqual(t.ids, ['msg_011CgAzov9sFnFpbv26CjZoZ'])
+  assert.deepEqual(Object.keys(t.counted), ['msg_011CgAzov9sFnFpbv26CjZoZ'])
   assert.equal(t.title, 'indepenent') // the custom-title record names the session
 })
 
@@ -99,13 +101,53 @@ test('the same response in another file counts once, for the file that read it f
   assert.deepEqual(b.dupOf, ['a'])
 })
 
-test('a final record far from its partial one (out of the recent list) is not counted twice', () => {
+test('a final record far from its partial one is counted once, with its final usage', () => {
   const owners = new Map()
   const t = newTally()
   tallyRecord(t, asst('first', { output: 3 }), { self: 'f', owners })
   for (let i = 0; i < 200; i++) tallyRecord(t, asst(`m${i}`), { self: 'f', owners })
   tallyRecord(t, asst('first', { output: 300 }), { self: 'f', owners })
   assert.equal(t.days['2026-11-25']['claude-opus-5-5'][N], 201)
+  assert.equal(t.days['2026-11-25']['claude-opus-5-5'][O], 200 * 10 + 300)
+})
+
+test('REAL: a forked copy with zero usage read first gives the reply up to the larger copy, under that file', () => {
+  const owners = new Map()
+  const tallies = { fork: newTally(), own: newTally() }
+  const ctx = self => ({ self, owners, tallyOf: p => tallies[p] })
+  tallyRecord(tallies.fork, FORK_COPY, ctx('fork'))
+  tallyRecord(tallies.own, OWN_COPY, ctx('own'))
+  const day = localDay(Date.parse(OWN_COPY.timestamp))
+  assert.deepEqual(tallies.own.days[day]['claude-opus-5-5'], [2, 1989, 0, 1125, 246176, 1])
+  assert.deepEqual(tallies.fork.days[day]['claude-opus-5-5'], [0, 0, 0, 0, 0, 0])
+  assert.equal(owners.get('msg_011CgxMfyPUdHNTn64mizgP9'), 'own')
+  assert.deepEqual(Object.keys(tallies.fork.counted), [])
+  assert.equal(tallies.fork.dupes, 1)
+  assert.deepEqual(tallies.fork.dupOf, ['own'])
+  assert.equal(tallies.own.dupes, 0)
+})
+
+test('REAL: the larger copy read first keeps the reply; the zero copy after it is a dupe', () => {
+  const owners = new Map()
+  const tallies = { fork: newTally(), own: newTally() }
+  const ctx = self => ({ self, owners, tallyOf: p => tallies[p] })
+  tallyRecord(tallies.own, OWN_COPY, ctx('own'))
+  tallyRecord(tallies.fork, FORK_COPY, ctx('fork'))
+  const day = localDay(Date.parse(OWN_COPY.timestamp))
+  assert.deepEqual(tallies.own.days[day]['claude-opus-5-5'], [2, 1989, 0, 1125, 246176, 1])
+  assert.equal(tallies.fork.days[day], undefined)
+  assert.equal(tallies.fork.dupes, 1)
+  assert.deepEqual(tallies.fork.dupOf, ['own'])
+})
+
+test('a copy of the same size in another file never moves the reply', () => {
+  const owners = new Map()
+  const tallies = { a: newTally(), b: newTally() }
+  const ctx = self => ({ self, owners, tallyOf: p => tallies[p] })
+  tallyRecord(tallies.a, asst('m', { output: 5 }), ctx('a'))
+  tallyRecord(tallies.b, asst('m', { output: 5 }), ctx('b'))
+  assert.equal(owners.get('m'), 'a')
+  assert.equal(tallies.b.dupes, 1)
 })
 
 test('skipped records are counted; responses on fast mode or US only inference are counted as special', () => {

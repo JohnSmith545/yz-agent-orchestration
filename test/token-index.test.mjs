@@ -118,6 +118,34 @@ test('a missing file is dropped, and a copy of its responses in another file the
   assert.equal(snap.files[0].dupes, 0)
 })
 
+test('REAL: a fork read first with a zero copy of a reply gives it up to the session that holds it whole', async () => {
+  const [fork, own] = fs.readFileSync(path.join(import.meta.dirname, 'fixtures', 'tokens-real-fork-copy.jsonl'), 'utf8').trim().split(/\r?\n/)
+  const forkFile = path.join(project, 'fork.jsonl')
+  const ownFile = path.join(project, 'own.jsonl')
+  const NL = String.fromCharCode(10)
+  write(forkFile, JSON.stringify({ type: 'custom-title', customTitle: 'Fork' }) + NL + fork + NL)
+  write(ownFile, JSON.stringify({ type: 'custom-title', customTitle: 'Own' }) + NL + own + NL)
+  fs.utimesSync(forkFile, new Date(), new Date(Date.now() - 60_000)) // the fork is older: read first
+  const ix = index()
+  await ix.refresh()
+  const byTitle = t => ix.snapshot().files.find(f => f.title === t)
+  const sum = f => Object.values(f.days).flatMap(m => Object.values(m)).reduce((a, v) => a.map((x, i) => x + v[i]), [0, 0, 0, 0, 0, 0])
+  assert.deepEqual(sum(byTitle('Own')), [2, 1989, 0, 1125, 246176, 1])
+  assert.deepEqual(sum(byTitle('Fork')), [0, 0, 0, 0, 0, 0])
+  assert.equal(byTitle('Fork').dupes, 1)
+  // a new process with the saved index keeps it so
+  const again = index()
+  await again.refresh()
+  assert.deepEqual(sum(again.snapshot().files.find(f => f.title === 'Own')), [2, 1989, 0, 1125, 246176, 1])
+  // the session that held it whole is gone: the fork is read again and counts what it has, the zero copy
+  fs.rmSync(ownFile)
+  await again.refresh()
+  const left = again.snapshot().files
+  assert.equal(left.length, 1)
+  assert.deepEqual(sum(left[0]), [0, 0, 0, 0, 0, 1])
+  assert.equal(left[0].dupes, 0)
+})
+
 test('subagents carry the session that started them; other projects and other files are not read', async () => {
   write(path.join(project, 's1.jsonl'), JSON.stringify({ type: 'custom-title', customTitle: 'Master' }) + '\n' + line('a'))
   write(path.join(project, 's1', 'subagents', 'agent-x1.jsonl'), line('b', 5, { isSidechain: true }))
