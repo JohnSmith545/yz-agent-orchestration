@@ -208,7 +208,7 @@ test('server.mjs wires Learn, Predict and Routing through smart-wiring.mjs', () 
   assert.match(src, /from '\.\/smart-wiring\.mjs'/)
   assert.match(src, /makeLearnServerRoute\(\{[^\n]*lessons: learnLessons\(listLessons\)[^\n]*signals: learnSignals\(signals\)/)
   assert.match(src, /makePredictRoute\(\{[^\n]*riskOf: riskLevelOf\(riskOf\)/)
-  assert.match(src, /wireRouting\(\{ riskOf, flowTokens, tokensReady: \(\) => !tokenRoute\.snapshot\(\)\.building \}\)/)
+  assert.match(src, /wireRouting\(\{ riskOf, flowTokens, tokensReady: \(\) => !tokenRoute\.snapshot\(\)\.building && predictRoute\.ready\(\) \}\)/)
 })
 
 test('the CLI entry wires Routing too', () => {

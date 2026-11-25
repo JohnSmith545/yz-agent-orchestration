@@ -20,9 +20,14 @@
 //   GET  /api/predict/accuracy?days=    predict-estimate.mjs accuracyOf over Pipeline time's window (7, 30, all)
 //   route.placed({ from, now })         { placed, unplaced }: the period's tokens placed on flows, and not, for the
 //                                       one line Pipeline tokens gains (token-routes.mjs)
-//   route.sweep()                       stores an estimate ONCE on each open flow that has none (writeFlow with
+//   route.sweep()                       places the tokens on the flows again (what flowTokens answers from), then
+//                                       stores an estimate ONCE on each open flow that has none (writeFlow with
 //                                       stamp false, so the scorecard does not move); the count written
+//   route.ready()                       true once a placement was made: flowTokens has something to answer from
 //   route.start()                       the sweep now and every minute, in the background
+//   ⚠️ The sweep places EVERY minute once the index is built, even with nothing to estimate: Routing writes each
+//   finished flow's outcome line once, with flowTokens (smart-wiring.mjs), so a placement left from hours before, or
+//   none at all, would be written into it for good.
 //
 // Rules this file keeps:
 // - Answers are sent with cache-control no-store; errors are { error: one plain sentence } with 400, 403, 404 or 405.
@@ -305,11 +310,12 @@ export function makePredictRoute({
   // ═══ the sweep: an estimate stored once on each open flow ═══
   let sweeping = null
   async function sweepOnce() {
-    if (!est.enabled || snapshot().building) return 0
+    if (snapshot().building) return 0
+    await placed() // flowTokens answers from this: kept current every minute (see the header)
+    if (!est.enabled) return 0
     const flows = flowsOf()
     const todo = flows.filter(f => (f.status === 'open' || f.status === 'blocked') && !f.archivedAt && !f.estimate)
     if (!todo.length) return 0
-    await placed()
     let wrote = 0
     for (const f of todo) {
       try {
@@ -354,6 +360,7 @@ export function makePredictRoute({
     return { placed: p.placed, unplaced: p.unplaced }
   }
   route.sweep = sweep
+  route.ready = () => lastPlacement !== null
   route.start = () => {
     sweep().catch(err => log(`predict: ${err?.message || err}`))
     setInterval(() => sweep().catch(err => log(`predict: ${err?.message || err}`)), SWEEP_MS).unref()

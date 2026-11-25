@@ -169,6 +169,25 @@ test('the sweep stores an estimate once on each open flow, keeping its updatedAt
   assert.equal(await route.sweep(), 0)
 })
 
+// Broke when Routing read flowTokens: it answers from the last placement this route made, and the sweep only placed
+// when an open flow lacked an estimate, so with none (or estimates off) flowTokens stayed null or stale for good.
+test('the sweep keeps flowTokens current: it places every time the index is built, even with nothing to estimate', async () => {
+  const { flowTokens } = await import('../predict-flow-tokens.mjs')
+  const start = NOW - 3 * HOUR
+  put(done('f', start, 60))
+  files = [{ sessionId: 's1', sub: false, title: null, mtimeMs: 0, days: {}, recent: [], hours: { [hourKey(start)]: { m: [0, 1000, 0, 0, 0, 1] } } }]
+  let building = true
+  route = make({ index: { snapshot: () => ({ files, building, builtAt: building ? null : iso(NOW) }), refresh: async () => {} }, config: { ...CONFIG, estimates: { enabled: false } } })
+  assert.equal(route.ready(), false)
+  await route.sweep()
+  assert.equal(route.ready(), false, 'nothing is placed while the index is still being built')
+  assert.equal(flowTokens('f'), null)
+  building = false
+  await route.sweep()
+  assert.equal(route.ready(), true)
+  assert.ok(flowTokens('f')?.tokens > 0)
+})
+
 test('GET /api/predict/accuracy: per window, too few under 5; a bad window is the score s 400', async () => {
   const r = await get('/api/predict/accuracy?days=30')
   assert.equal(r.status, 200)
