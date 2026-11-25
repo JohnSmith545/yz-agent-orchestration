@@ -116,8 +116,7 @@ function scores({ title, body, labels, storyType }) {
     out[type].score += n
     return out[type]
   }
-  const both = `${title}
-${body}`
+  const both = `${title}\n${body}`
   const builds = buildsCode(both)
   const placesCount = !builds && BY_HAND_PHRASE.test(both)
   for (const [type, words] of Object.entries(WORDS)) {

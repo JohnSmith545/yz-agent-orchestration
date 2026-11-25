@@ -125,3 +125,25 @@ test('rules: a build verb with a UI or code object is code, whatever place it na
   assert.equal(I.intakeRules({ id: 'X-2', title: 'Turn on billing alerts in the Cloud Console', labels: [] }).kind === 'code', false)
   assert.equal(I.intakeRules({ id: 'X-3', title: 'Cloud Hosting: Email DNS records set (SPF, DKIM, DMARC)', labels: [] }).kind, 'no-code')
 })
+
+// QA 2026-11-26: the old rule (2 shared words making up 0.6 of all) flagged none of the 112 real tickets and missed
+// this pair. A shared NAME (written with a capital in both titles, found in no other open title) with one more shared
+// word now makes a pair; checklist boilerplate (verify, check, define, configured...) and a second heading are ignored.
+const REAL = [
+  ['FLA-775', 'Planning: Define SLIs/SLOs (latency, error rate, availability)'], ['FLA-810', 'CI/CD: Define rollback triggers (e.g., >2% error rate)'],
+  ['FLA-836', 'Observability: Error reporting (Sentry/Crashlytics)'], ['FLA-853', 'Verify: Check monitoring for error/latency spikes'],
+  ['FLA-884', 'Monitoring: Sentry error and performance monitoring for the web app'], ['FLA-780', 'Legal: Privacy Policy link accessible'],
+  ['FLA-784', 'Legal: Terms of Service (ToS) link accessible'], ['FLA-811', 'Technical SEO: Verify GSC & Bing Webmaster DNS records'],
+  ['FLA-832', 'Cloud Hosting: Email DNS records set (SPF, DKIM, DMARC)'], ['FLA-809', 'CI/CD: Staged rollout (canary) & automated rollback'],
+  ['FLA-838', 'Deploy: Pause staged rollout (e.g., at 25%) to review metrics'], ['FLA-839', 'Security: Firestore/RTDB rules locked down'],
+  ['FLA-841', 'Security: Cloud Storage rules locked down'], ['FLA-858', 'SEO Monitoring: Set up Semrush position tracking'],
+  ['FLA-864', 'SEO Monitoring: Perform quarterly Semrush site health audits'], ['FLA-797', 'Technical SEO: Configure Semrush pre-launch site audit'],
+]
+test('duplicates on real titles: a shared name plus one more word is a pair; generic words and boilerplate are not', () => {
+  const d = I.duplicates(REAL.map(([id, title]) => t(id, title)))
+  assert.equal(d['FLA-884']?.of, 'FLA-836')
+  assert.match(d['FLA-884'].reason, /Sentry/)
+  for (const id of ['FLA-810', 'FLA-853', 'FLA-784', 'FLA-832', 'FLA-838', 'FLA-841', 'FLA-864']) assert.equal(d[id], undefined, `${id}: ${d[id]?.reason}`)
+  // Not a duplicate still wins
+  assert.equal(I.duplicates(REAL.map(([id, title]) => t(id, title)), { [I.pairKey('FLA-884', 'FLA-836')]: '2026-11-26T10:00:00Z' })['FLA-884'], undefined)
+})

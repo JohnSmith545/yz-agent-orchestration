@@ -20,9 +20,13 @@
 // ═══ THE RULES ═══ Like routing-type.mjs: weighted words, a `Prefix:` bonus, the story type (a bug or a feature is
 // code). certain needs a strong lead; likely a clear one; anything else is unsure, and only an unsure ticket goes to
 // the model, and only when the user switched the model on (config routing.intakeModel).
-// ═══ DUPLICATES ═══ No model. Two open tickets whose titles, without their `Heading:` and the common words, share
-// at least DUP_SHARED significant words making up at least DUP_RATIO of all their words; or a ticket whose title
-// names another open ticket's id. The later ticket (higher number) looks like the earlier one. A pair the user
+// ═══ DUPLICATES ═══ No model. The words of a title leave out its `Heading:` (two, as in SEO Monitoring: Alert on:),
+// common words and checklist boilerplate (verify, check, define, configured...). Two open tickets are a likely pair
+// when they share at least DUP_SHARED words and either those make up at least DUP_RATIO of all their words, or one
+// of them is a NAME (written with a capital in both titles, not just as the first word of both, and in no other open
+// title: Sentry, Firestore) and they make up at least NAME_RATIO. Or a ticket's title names another open ticket's id.
+// Tuned on the 112 real tickets (QA, 2026-11-26): the old rule flagged none and missed Sentry error reporting against
+// Sentry error monitoring. The later ticket (higher number) looks like the earlier one. A pair the user
 // marked Not a duplicate is never shown again.
 
 import { DONE_STATES } from './human.mjs'
@@ -36,6 +40,8 @@ const CERTAIN_MIN = 5
 const LIKELY_MIN = 2
 const DUP_SHARED = 2
 const DUP_RATIO = 0.6
+const NAME_RATIO = 0.25
+const NAME_MAX_TITLES = 2
 const REASON_MAX = 140
 
 // `place`: console, DNS, billing, account and legal name WHERE work happens; a title that builds a UI or code object
@@ -157,6 +163,9 @@ export function parseIntakeReply(reply, ids) {
 
 // ═══ duplicates ═══
 
+/** Checklist boilerplate: the verbs and filler every checklist title uses, which say nothing about WHAT it is. */
+const BOILER = new Set(['verify', 'check', 'define', 'set', 'setup', 'enable', 'configure', 'create', 'implement', 'document', 'ensure', 'perform',
+  'live', 'prod', 'production', 'plan', 'run', 'web', 'app', 'site', 'use', 'using', 'after', 'before', 'each', 'one'])
 const STOP = new Set(['the', 'and', 'for', 'with', 'not', 'does', 'did', 'are', 'was', 'from', 'into', 'onto', 'this', 'that', 'when', 'all', 'any', 'our', 'your', 'its', 'has', 'have', 'can', 'cannot', 'will', 'should', 'same', 'like', 'per', 'via', 'bug', 'feat', 'fix', 'add', 'new', 'page'])
 /** A light stem, so load and loading match; a short word is left whole (feed must not become fe). */
 const stem = w => (w.length > 4 ? w.replace(/(?:ing|ed|es|s)$/, '') : w)
@@ -164,16 +173,28 @@ const stem = w => (w.length > 4 ? w.replace(/(?:ing|ed|es|s)$/, '') : w)
  * The significant words of a title, without its `Heading:` prefix: stem -> the word as written (for the reason), lower
  * case, no short or common words.
  */
+/** A title without its heading, or two (SEO Monitoring: Alert on: ...). */
+const bodyOf = title => String(title ?? '').replace(/^\s*[^:]{1,40}:\s*/, '').replace(/^\s*[^:]{1,40}:\s*/, '')
+
 function wordsOf(title) {
-  const body = String(title ?? '').replace(/^\s*[^:]{1,40}:\s*/, '')
   const out = new Map()
-  for (const w of body.toLowerCase().split(/[^a-z0-9]+/)) {
-    if (w.length < 3 || STOP.has(w)) continue
+  for (const w of bodyOf(title).toLowerCase().split(/[^a-z0-9]+/)) {
+    if (w.length < 3 || STOP.has(w) || BOILER.has(w) || /^\d+$/.test(w)) continue
     const s = stem(w)
-    if (s.length >= 3 && !STOP.has(s) && !out.has(s)) out.set(s, w)
+    if (s.length >= 3 && !STOP.has(s) && !BOILER.has(s) && !out.has(s)) out.set(s, w)
   }
   return out
 }
+
+/** The stems a title writes with a capital: { first: as the body's first word, later: anywhere after it }. */
+function capitalsOf(title) {
+  const raw = bodyOf(title).split(/[^A-Za-z0-9]+/).filter(Boolean)
+  const caps = raw.map((w, i) => ({ s: stem(w.toLowerCase()), first: i === 0, cap: /^[A-Z]/.test(w) })).filter(x => x.cap)
+  return { first: new Set(caps.filter(x => x.first).map(x => x.s)), later: new Set(caps.filter(x => !x.first).map(x => x.s)) }
+}
+
+/** A stem as the title writes it (Sentry, not sentry), for the reason. */
+const wordAsWritten = (title, k) => bodyOf(title).split(/[^A-Za-z0-9]+/).find(w => stem(w.toLowerCase()) === k) || k
 const numOf = id => Number(String(id).split('-').at(-1)) || 0
 
 export const pairKey = (a, b) => [a, b].sort().join('|')
@@ -182,6 +203,16 @@ export function duplicates(tickets, notDup = {}) {
   const live = (Array.isArray(tickets) ? tickets : []).filter(t => t?.id && open(t)).sort((a, b) => numOf(a.id) - numOf(b.id) || a.id.localeCompare(b.id))
   const ids = new Set(live.map(t => t.id))
   const words = new Map(live.map(t => [t.id, wordsOf(t.title)]))
+  const caps = new Map(live.map(t => [t.id, capitalsOf(t.title)]))
+  const titlesWith = new Map()
+  for (const w of words.values()) for (const k of w.keys()) titlesWith.set(k, (titlesWith.get(k) || 0) + 1)
+  /** A name: both titles write it with a capital, not only as the first word of both, and no other open title has it. */
+  const isName = (k, x, y) => {
+    const a = caps.get(x)
+    const b = caps.get(y)
+    const capped = c => c.first.has(k) || c.later.has(k)
+    return capped(a) && capped(b) && (a.later.has(k) || b.later.has(k)) && titlesWith.get(k) <= NAME_MAX_TITLES
+  }
   const out = {}
   const skip = (a, b) => !!notDup?.[pairKey(a, b)]
   for (const t of live) {
@@ -199,7 +230,11 @@ export function duplicates(tickets, notDup = {}) {
       const b = words.get(e.id)
       const shared = [...a.keys()].filter(w => b.has(w))
       const ratio = shared.length / new Set([...a.keys(), ...b.keys()]).size
-      if (shared.length >= DUP_SHARED && ratio >= DUP_RATIO && (!best || ratio > best.ratio)) best = { of: e.id, ratio, shared: shared.map(w => a.get(w)) }
+      const named = shared.filter(w => isName(w, t.id, e.id))
+      const pair = shared.length >= DUP_SHARED && (ratio >= DUP_RATIO || (named.length >= 1 && ratio >= NAME_RATIO))
+      // the reason names the shared names first, as the title writes them
+      const said = [...named.map(w => wordAsWritten(t.title, w)), ...shared.filter(w => !named.includes(w)).map(w => a.get(w))]
+      if (pair && (!best || ratio > best.ratio)) best = { of: e.id, ratio, shared: said }
     }
     if (best) out[t.id] = { of: best.of, reason: oneLine(`Both titles say ${list(best.shared.slice(0, 4))}.`) }
   }
