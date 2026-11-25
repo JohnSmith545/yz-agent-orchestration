@@ -113,7 +113,9 @@ test('a flow Senior does not hold is free to finish: no steps and no senior-ask,
   assert.equal(as('Agent 1', WITHOUT)('set', id, '--status', 'done').code, 0, 'no Senior on the pipeline')
   const stopped = handFlow()
   F.withPipeline(CONFIG, () => F.writeFlow({ ...F.readFlow(stopped), status: 'blocked', senior: { status: 'senior-failed', by: 'Senior', at: '2026-11-25T10:00:00Z', summary: 'x' } }))
-  assert.equal(A1('set', stopped, '--status', 'done').code, 0, 'stopped by Senior: the user decides')
+  // stopped by Senior: the store does not hold it any more, but only the USER moves it on (QA round two B-F3)
+  assert.equal(F.seniorHold(F.readFlow(stopped)), '')
+  assert.equal(A1('set', stopped, '--status', 'done').out, `${stopped} was stopped by Senior: only the user moves it on, on the dashboard.`)
 })
 
 test('a flow that is done already may be written again (an old flow finished before Senior existed)', () => {

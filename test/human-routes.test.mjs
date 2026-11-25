@@ -46,7 +46,8 @@ beforeEach(() => {
 })
 
 const get = p => fetch(base + p)
-const post = (p, body = {}, headers = {}) => fetch(base + p, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) })
+// the dashboard page itself: its Origin (the by-hand tick needs it present, factory-routes.mjs USER_ONLY)
+const post = (p, body = {}, headers = {}) => fetch(base + p, { method: 'POST', headers: { 'content-type': 'application/json', origin: `http://127.0.0.1:${CONFIG.port}`, ...headers }, body: JSON.stringify(body) })
 
 test('GET /api/human: the rows and the counts, from the flows and the ticket marks, newest first', async () => {
   S.updateState(s => S.setMark(s, 'FLA-820', { review: 'not-codebase', note: 'Link the billing account.', by: 'Coordinator' }))

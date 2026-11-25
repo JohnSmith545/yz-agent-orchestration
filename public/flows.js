@@ -105,7 +105,7 @@
     try {
       const r = await fetch(`/api/flows/${enc(flowId)}/${action}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}) })
       const j = await r.json().catch(() => ({}))
-      return r.ok ? { j } : { error: j.error || `Failed (${r.status})` }
+      return r.ok ? { j } : { error: j.error || `Failed (${r.status})`, code: j.code }
     } catch (e) {
       return { error: e.message }
     }
@@ -234,6 +234,8 @@
 
   /** The head (flow-head.js), in two slots so the view tabs sit on the title row; each redrawn only when it changed. */
   function renderHead(f) {
+    // a refusal goes once the flow moved on (Finish without Senior, Senior passed it)
+    if (opened.refused && f.status !== opened.refusedStatus) opened.refused = null
     const h = window.FlowHead.html(f, { tickets, envPill, statusPill, statuses: FLOW_STATUS, asking: opened.asking, refused: opened.refused })
     $('.fl-open', board).dataset.flow = f.id // where a word card finds its flow (term-card.js)
     if (opened.head !== h.head) { $('.fl-open-head', board).innerHTML = h.head; opened.head = h.head }
@@ -448,7 +450,9 @@
       const res = await tryPost(f.id, 'status', { status: el.value })
       if (res.error) {
         el.value = f.status
-        opened.refused = res.error
+        // a Senior hold says what the user can do here (the server sentence is the agent one)
+        opened.refused = res.code === 'senior-hold' ? window.FlowHand.holdText(f) : res.error
+        opened.refusedStatus = f.status
         opened.drawn = null
         return load()
       }

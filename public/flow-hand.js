@@ -43,7 +43,16 @@
   }
 
   /** Senior's failed verdict, when the work was sent back to the user (flow-senior.mjs). */
-  const redoOf = f => (f?.senior?.status === 'failed' ? f.senior : null)
+  // while a step waits to be done again; once all are ticked it waits at Senior, and the record keeps the verdict
+  const redoOf = f => {
+    const steps = Array.isArray(f?.hand?.steps) ? f.hand.steps : []
+    return f?.senior?.status === 'failed' && steps.some(s => !s.done) ? f.senior : null
+  }
+  /** What the USER can do when Senior holds the flow (the store sentence is the agent one: send Senior a message). */
+  const holdText = f => {
+    const label = (f?.progress || []).find(s => s.role === 'senior')?.label || 'Senior'
+    return `${label} reviews this flow before it is done: wait for its review, or use Finish without Senior below.`
+  }
   /** Senior's step when it is the flow's current one (flow-route.mjs progress): the flow waits at Senior. */
   const atSenior = f => (Array.isArray(f?.progress) ? f.progress : []).find(s => s.state === 'current' && s.role === 'senior') || null
 
@@ -80,9 +89,11 @@
     const steps = Array.isArray(f?.hand?.steps) ? f.hand.steps : []
     const req = asked(f?.hand, now)
     const held = holds(f, readonly)
-    if (!steps.length && !needs && !f?.hand?.requestedAt && !held) return ''
+    // finished without Senior's review (the user's release): one line saying so (QA round two B-N1)
+    const released = f?.senior?.status === 'released' ? '<p class="fh-released" role="note">You finished this without a Senior review.</p>' : ''
+    if (!steps.length && !needs && !f?.hand?.requestedAt && !held) return released ? `<section class="fh fh-done" aria-label="Do this by hand">${released}</section>` : ''
     const head = n => `<div class="fh-head"><h3 class="fh-h" id="fh-h-${esc(f.id)}" tabindex="-1">Do this by hand${n}</h3>`
-    const notes = (held ? releaseHtml(releasing) : '') + (refused ? `<p class="fh-refused" role="alert">${esc(refused)}</p>` : '')
+    const notes = released + (held ? releaseHtml(releasing) : '') + (refused ? `<p class="fh-refused" role="alert">${esc(refused)}</p>` : '')
     if (!steps.length) {
       const state = req ? `<span class="fh-asked${req.why ? ' is-bad' : ''}"${req.why ? ` title="${esc(req.why)}"` : ''}>${esc(req.text)}</span>` : ''
       return `<section class="fh fh-empty" aria-labelledby="fh-h-${esc(f.id)}">${head('')}${held && !releasing ? releaseLink : ''}</div>${notes}` +
@@ -137,7 +148,7 @@
     Object.assign(asides.get(el) || {}, change)
     if (s?.flow) fill(el, s.flow, s.opts)
   }
-  const refusal = r => r.j?.error || `Failed (${r.status})`
+  const refusal = (r, f) => (r.j?.code === 'senior-hold' ? holdText(f) : r.j?.error || `Failed (${r.status})`)
   const reload = () => {
     window.FlowsView?.load()
     window.HumanReview?.refresh()
@@ -152,7 +163,7 @@
       if (!box || !f || box.disabled) return
       const r = await call(`/api/flows/${enc(f.id)}/hand`, { step: box.dataset.handTick, done: box.checked })
       if (!r.ok) box.checked = !box.checked
-      aside(el, { refused: r.ok ? '' : refusal(r) })
+      aside(el, { refused: r.ok ? '' : refusal(r, f) })
       reload()
     })
     el.addEventListener('click', async e => {
@@ -174,14 +185,14 @@
       }
       if (e.target.closest('[data-hand-done]')) {
         const r = await call(`/api/flows/${enc(f.id)}/status`, { status: 'done' })
-        aside(el, { refused: r.ok ? '' : refusal(r) })
+        aside(el, { refused: r.ok ? '' : refusal(r, f) })
         return reload()
       }
       if (e.target.closest('[data-hand-release]')) return aside(el, { releasing: true, refused: '' })
       if (e.target.closest('[data-hand-release-no]')) return aside(el, { releasing: false })
       if (e.target.closest('[data-hand-release-yes]')) {
         const r = await call(`/api/flows/${enc(f.id)}/senior-release`)
-        aside(el, { releasing: false, refused: r.ok ? '' : refusal(r) })
+        aside(el, { releasing: false, refused: r.ok ? '' : refusal(r, f) })
         return reload()
       }
       const ask = e.target.closest('[data-hand-ask]')
@@ -189,12 +200,12 @@
         ask.disabled = true
         const r = await call(`/api/flows/${enc(f.id)}/request-hand`)
         ask.disabled = false
-        if (!r.ok) return aside(el, { refused: refusal(r) })
+        if (!r.ok) return aside(el, { refused: refusal(r, f) })
         if (r.j?.via === 'chat') window.FactoryChat?.prefill(r.j.text)
         reload()
       }
     })
   }
 
-  window.FlowHand = { html, fill }
+  window.FlowHand = { html, fill, holdText }
 })()
