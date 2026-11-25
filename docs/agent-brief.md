@@ -138,3 +138,9 @@ When the pipeline has **Security** (config `pipeline.security`), it sits after Q
 What the user sees: the flow as a card on the Flows page (`#/flows`), and each `flow ask` in the **Human review** box on the Agents page with your `--why` under the question and Yes and No; the answer is sent back to the agent as a message. An opened flow lands on **Output**: the result screenshot (or your diagram, or with neither a summary chart the dashboard draws from your steps), the summary with its commits, and the numbered test steps. If the user presses **Request test steps**, a message arrives asking for those steps: drive the app, then record each step with `flow test-step`. **Request visuals** (a flow with no screenshot and no diagram) asks for a screenshot or a diagram first.
 
 The full command list is in the README, under "Agents writing flows".
+
+**Retrospectives.** When the user marks your flow Completed, the dashboard writes a three-line retrospective on it
+(`retro`: what went right, what went wrong, what to do next time). You may read it, and the ones on earlier flows,
+with `flow show <flow>`; it is useful before similar work. You never write one: `flow write` keeps the stored one.
+Rules the user accepts on the Learn page reach you like any other rule, through `flow rules`.
+

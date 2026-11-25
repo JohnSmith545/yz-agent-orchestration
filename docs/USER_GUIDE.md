@@ -679,3 +679,20 @@ On macOS or Linux, use your own service manager (launchd, systemd, or a terminal
 - **The tests fail with "config.json is missing".** The tests read `config.json`. Copy
   `config.example.json` to `config.json` first.
 - **The dashboard stops by itself at a set hour.** That is `stopHour`. Set it to `null` to keep it running.
+
+## Learn: what the work taught
+
+- **Retrospective.** Mark a flow **Completed** and, half a minute later, its Output tab shows three lines under the
+  story: what went right, what went wrong, what to do next time. About 1 cent each. A finished flow without one has
+  **Write the retrospective**. The flow archive row folds them away under **Retrospective**.
+- **Learn** (the light bulb, last in the rail). Press **Run Learn** about once a week. It reads the scores, the QA
+  reports and the retrospectives since the last run and proposes up to 3 rule changes, each with its evidence.
+  **Accept** saves the rule as if you typed it on the Agents page; **Edit then accept** lets you reword it first;
+  **Reject** asks why (optional), and the next run will not propose it again. A settings change is shown as text:
+  apply it yourself. A run costs about 10 to 20 cents.
+- **Verdict due.** Two weeks after any rule change, yours too, a card compares right first time, time, cost and QA
+  failures before and after, and says Better, Worse, No clear change or Too few flows to tell. Choose **Keep**,
+  **Revert** (the old text comes back) or **Wait two more weeks**. Nothing changes by itself.
+- To switch it all off, set `"learn": { "enabled": false }` in `config.json`. `"autoRetro": false` stops only the
+  retrospective on Completed; `"weekly": true` runs Learn by itself when you open the page, once a week at most.
+

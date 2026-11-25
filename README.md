@@ -1778,6 +1778,45 @@ whose tools only read) runs one short headless Claude turn per collection that r
 `data/sources/<id>.json`; see Collections by kind above. Home warns when the newest source is more than
 6 hours old.
 
+## Learn (#/learn): retrospectives, the weekly Learn step, a verdict on every rule change
+
+**Retrospectives.** When you mark a flow **Completed**, one small run (Sonnet at low effort, about 1 cent)
+writes three lines on it: what went right, what went wrong, what to do differently. The server gathers the facts
+first (the story, the route, every QA attempt with its verdict text and the report of each failure, Security and
+Senior verdicts, reworks, the time per stage, the by-hand steps, the questions asked) and the model writes from
+those alone; the server checks the three lines (each at most 200 characters) and keeps them on the flow as `retro`.
+Never for a dropped or unfinished flow. They show on the flow's Output tab under the Story, with **Write the
+retrospective** (or **Write it again**), and folded in its flow archive row. Runs go one at a time; Mark all
+completed queues them. `learn.autoRetro: false` stops the automatic one. An agent may read a retrospective with
+`flow show`; only the server writes one (an agent's `flow write` keeps the stored one).
+
+**The Learn page.** **Run Learn** builds an evidence pack from the dashboard's own records since the last run (7
+days without one; at least 14 when fewer than 5 flows finished): right first time, the median time per job, the
+estimated cost per job, QA failures per flow, the score cells, every flow of the window, reworks per agent, each
+agent's current rules, the open verdicts, ideas you rejected before, every retrospective and the QA, Security and
+Senior failure texts. A source that cannot be read is left out and named. One run (Opus at high effort; about 11
+cents on a week of 16 flows) proposes at most 3 changes, each with its target, the exact rule text, the evidence,
+the expected effect and how to tell in two weeks. The server drops a proposal that names no flow of the pack, an
+unknown agent, a rule the agent already has, a change to a rule it does not have, or an idea you rejected. Each
+proposal is a card: **Accept** saves the rule through the same path as your own edit on the Agents page, marked
+From Learn; **Edit then accept** saves your wording; **Reject** keeps an optional reason for the next run. A
+settings proposal is text you apply by hand: Learn never writes `config.json`. A line reminds you when the last
+run is 7 days old; `learn.weekly: true` runs it by itself on opening the page, at most once a week. Every run is
+kept in `data/learn/<YYYY-MM-DD>.json`.
+
+**A verdict on every rule change.** Every rule change, yours or from Learn, records the four numbers of the 14
+days before it (`data/learn/verdicts.json`; changes made before this existed are worked out later from the stored
+flows, and say so). After `learn.verdictAfterDays` (14) a **Verdict due** card compares them with the days since:
+a number moved when right first time changes by 10 points, the time or the cost by 20 percent, QA failures by a
+quarter per flow. Better: one or more got better and none worse; Worse: the other way; No clear change; or Too few
+flows to tell (fewer than 3 finished on either side). **Keep**, **Revert** (puts back the exact text, through the
+rules path) or **Wait two more weeks**. Nothing reverts by itself. Every change is listed with its verdict.
+
+Routes: `GET /api/learn`; `POST /api/learn/run`, `/api/learn/weekly`, `/api/learn/runs/<id>/<n>`
+`{ do: accept|reject, text?, reason? }`, `/api/learn/retro/<flow>`, `/api/learn/changes/<id>` `{ do: keep|wait|revert }`,
+each POST with the page's own Origin. Spend kinds `retro` and `learn`. Settings (all optional): `learn.enabled`
+(false: no Learn or retrospective runs at all), `autoRetro`, `weekly`, `verdictAfterDays`, `model`, `retroModel`.
+
 ## License
 
 MIT, see `LICENSE`. The bundled fonts in `public/fonts/` keep their own SIL Open Font License.
