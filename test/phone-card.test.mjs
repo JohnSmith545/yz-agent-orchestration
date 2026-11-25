@@ -52,6 +52,11 @@ test('off: why it is off, no Turn off button; not set up: the steps say how', ()
   assert.match(text(none), /No sign-ins yet\./)
 })
 
+test('a PIN from before the 8-digit rule: the card says to set a new one', () => {
+  const h = C.html({ data: { ...ON, remote: { ...ON.remote, enabled: false, newPinNeeded: true, off: 'Set a new phone PIN of 8 digits or more.' } } })
+  assert.match(text(h), /Set a new phone PIN of 8 digits or more: run node tools\/factory\.mjs phone-pin\./)
+})
+
 test('a lock in force says how long is left', () => {
   assert.match(text(C.html({ data: { ...ON, lockedFor: 9 * 60_000 } })), /Phone sign-in is locked for 9 more minutes after 5 wrong PINs\./)
 })

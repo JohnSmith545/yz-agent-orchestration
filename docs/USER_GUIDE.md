@@ -691,7 +691,7 @@ is off until you set it up, and only reachable on your own private network.
    home Wi-Fi. Tailscale is better: it encrypts the link and works away from home.)
 2. Run `node tools/factory.mjs phone-setup`. Pick the address it lists (the Tailscale one says so), read what it
    tells you, and type `yes`.
-3. Run `node tools/factory.mjs phone-pin`. Type a PIN of 6 to 12 digits twice. Pick one you do not use for your
+3. Run `node tools/factory.mjs phone-pin`. Type a PIN of 8 to 12 digits twice. Pick one you do not use for your
    send PIN.
 4. Restart the dashboard.
 5. On the phone, open the address `phone-setup` printed, such as `http://100.101.102.103:4318/phone`. Sign in
@@ -710,7 +710,7 @@ is off until you set it up, and only reachable on your own private network.
   coordinator on your PC, by a short paid turn (a few cents), and it answers when it gets to it. The PC must be
   on. One message at a time: if one is not sent, the phone says why and puts your text back in the box.
 
-A quiet line at the top says when the phone cannot reach the PC. When the session ends (after 12 hours by
+A quiet line at the top says when the phone cannot reach the PC. When the session ends (after 4 hours by
 default), the phone asks for the PIN again.
 
 **On the PC**, Settings has a **Phone** card: on or off, the address to open, when the PIN was set, recent

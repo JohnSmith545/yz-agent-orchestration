@@ -73,9 +73,9 @@ test('a failed message puts its text back in the box, once, and only the one jus
   assert.equal(S.draftBack([], [{ id: 'm1', text: 'hi', state: 'failed' }], 'm1'), 'hi', 'failed before the first poll saw it sending')
 })
 
-test('the PIN must be 6 to 12 digits before it is sent', () => {
-  assert.equal(S.pinProblem('123456'), null)
-  assert.equal(S.pinProblem('12345'), 'At least 6 digits.')
+test('the PIN must be 8 to 12 digits before it is sent', () => {
+  assert.equal(S.pinProblem('12345678'), null)
+  assert.equal(S.pinProblem('1234567'), 'At least 8 digits.')
   assert.equal(S.pinProblem('12a456'), 'Only digits.')
   assert.equal(S.pinProblem('1'.repeat(13)), 'At most 12 digits.')
   assert.equal(S.failureOf(401), 'signedOut')

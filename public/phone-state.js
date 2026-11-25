@@ -9,7 +9,7 @@
 //   threadItems(talk)             the user's messages and the coordinator's replies, one list, oldest first
 //   messageWord(m, label)         'Sending…' | 'Sent to Master' | 'Not sent: <why>'
 //   draftBack(before, after, sentId)   the text to put back in the box when the message just sent failed, else null
-//   pinProblem(pin)               why the typed PIN cannot be sent yet, or null (6 to 12 digits, as phone-auth.mjs)
+//   pinProblem(pin)               why the typed PIN cannot be sent yet, or null (8 to 12 digits, as phone-auth.mjs)
 //   failureOf(status)             'signedOut' (401) | 'offline' (no answer) | 'error'
 ;(() => {
   const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
@@ -74,7 +74,7 @@
   function pinProblem(pin) {
     const p = String(pin ?? '')
     if (!/^[0-9]*$/.test(p)) return 'Only digits.'
-    if (p.length < 6) return 'At least 6 digits.'
+    if (p.length < 8) return 'At least 8 digits.'
     if (p.length > 12) return 'At most 12 digits.'
     return null
   }

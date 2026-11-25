@@ -86,5 +86,5 @@
     "bases": ["dev"],
     "gh": "gh"
   },
-  "remote": { "enabled": false, "bind": "", "port": 4318, "pinHash": "", "sessionHours": 12 }
+  "remote": { "enabled": false, "bind": "", "port": 4318, "pinHash": "", "sessionHours": 4 }
 }

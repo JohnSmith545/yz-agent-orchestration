@@ -30,9 +30,10 @@
 import { readFileSync, statSync } from 'node:fs'
 import os from 'node:os'
 
+import { PIN_MIN } from './phone-auth.mjs'
 import { validPinHash } from './send-pin.mjs'
 
-export const REMOTE_DEFAULTS = Object.freeze({ enabled: false, bind: '', port: 4318, pinHash: '', pinSetAt: null, sessionHours: 12 })
+export const REMOTE_DEFAULTS = Object.freeze({ enabled: false, bind: '', port: 4318, pinHash: '', pinSetAt: null, sessionHours: 4 })
 /** A session lasts 1 hour to 7 days: a phone left signed in for longer should ask for the PIN again. */
 export const SESSION_HOURS = Object.freeze({ min: 1, max: 168 })
 
@@ -107,6 +108,8 @@ export function remoteSettings(raw, { interfaces = os.networkInterfaces(), mainP
     port: isPort(s.port) ? s.port : REMOTE_DEFAULTS.port,
     pinHash,
     pinSetAt: typeof s.pinSetAt === 'string' && !Number.isNaN(Date.parse(s.pinSetAt)) ? s.pinSetAt : null,
+    // phone-pin records how many digits the PIN has; a hash without it predates the 8-digit rule and cannot be told apart
+    newPinNeeded: !!pinHash && !(Number.isInteger(s.pinDigits) && s.pinDigits >= PIN_MIN),
     sessionHours: Number.isInteger(s.sessionHours) && s.sessionHours >= SESSION_HOURS.min && s.sessionHours <= SESSION_HOURS.max ? s.sessionHours : REMOTE_DEFAULTS.sessionHours,
   }
   const why = s.enabled !== true ? 'Phone access is off (remote.enabled is not true).'
@@ -114,6 +117,7 @@ export function remoteSettings(raw, { interfaces = os.networkInterfaces(), mainP
     ?? (!isPort(s.port) ? 'remote.port needs a whole number from 1024 to 65535.'
       : s.port === mainPort ? `remote.port must differ from the desktop port ${mainPort}.`
       : !pinHash ? 'Phone access needs a PIN: run node tools/factory.mjs phone-pin in a terminal.'
+      : !(Number.isInteger(s.pinDigits) && s.pinDigits >= PIN_MIN) ? `Set a new phone PIN of ${PIN_MIN} digits or more: run node tools/factory.mjs phone-pin in a terminal.`
       : !(Number.isInteger(s.sessionHours) && s.sessionHours >= SESSION_HOURS.min && s.sessionHours <= SESSION_HOURS.max) ? `remote.sessionHours needs a whole number from ${SESSION_HOURS.min} to ${SESSION_HOURS.max}.`
       : null)
   if (why) {
@@ -125,7 +129,7 @@ export function remoteSettings(raw, { interfaces = os.networkInterfaces(), mainP
 
 /** What the desktop Settings page may see: everything but the hash. */
 export function remoteSummary(s) {
-  return { configured: !!s.configured, enabled: !!s.enabled, off: s.off || null, bind: s.bind || '', port: s.port, url: s.url || '', hasPin: !!s.pinHash, pinSetAt: s.pinSetAt || null, sessionHours: s.sessionHours }
+  return { configured: !!s.configured, enabled: !!s.enabled, off: s.off || null, bind: s.bind || '', port: s.port, url: s.url || '', hasPin: !!s.pinHash, newPinNeeded: !!s.newPinNeeded, pinSetAt: s.pinSetAt || null, sessionHours: s.sessionHours }
 }
 
 /**

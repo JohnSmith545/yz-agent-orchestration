@@ -3,7 +3,7 @@
 //
 // phone-pin   reads the phone PIN twice from the keyboard with nothing echoed (tools/pr-pin.mjs readHidden) and
 //             REFUSES when stdin is not a terminal: a PIN piped in is what an agent could do, and the PIN exists to
-//             stop exactly that. 6 to 12 digits (phone-auth.mjs), and not the send PIN: a PIN typed on a phone must
+//             stop exactly that. 8 to 12 digits (phone-auth.mjs), and not the send PIN: a PIN typed on a phone must
 //             never be the one that pushes code. It writes only the salted scrypt hash (remote.pinHash) and when it
 //             was set (remote.pinSetAt) into config.json, every other line as it was (config-write.mjs), and signs
 //             every phone out (a new PIN ends the old sessions). The running dashboard picks the hash up without a
@@ -56,7 +56,7 @@ export async function runPhonePin({ io = terminal(), configFile = CONFIG, auth =
   } catch {
     return { out: 'config.json is missing: copy config.example.json to config.json first.', code: 1 }
   }
-  const pin = await io.hidden('New phone PIN (6 to 12 digits, not shown): ')
+  const pin = await io.hidden('New phone PIN (8 to 12 digits, not shown): ')
   if (pin == null) return { out: 'Cancelled: the phone PIN is unchanged.', code: 1 }
   const problem = phonePinProblem(pin)
   if (problem) return { out: problem, code: 1 }
@@ -64,7 +64,7 @@ export async function runPhonePin({ io = terminal(), configFile = CONFIG, auth =
   if (sendHash && verifyPin(pin, sendHash)) return { out: 'Pick a phone PIN that differs from your send PIN: the phone PIN is typed on a phone, the send PIN pushes code.', code: 1 }
   const again = await io.hidden('The same PIN again: ')
   if (again !== pin) return { out: 'The two PINs differ: the phone PIN is unchanged.', code: 1 }
-  writeAtomic(configFile, withRemote(text, { pinHash: hashPin(pin), pinSetAt: now().toISOString() }))
+  writeAtomic(configFile, withRemote(text, { pinHash: hashPin(pin), pinSetAt: now().toISOString(), pinDigits: pin.length }))
   const ended = auth.signOutEverywhere()
   return {
     out: `Phone PIN set in config.json (only its hash is kept).${ended ? ` ${ended} signed-in phone${ended === 1 ? ' was' : 's were'} signed out.` : ''} The dashboard uses it from now on.`,

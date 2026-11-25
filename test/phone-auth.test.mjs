@@ -26,9 +26,10 @@ function fresh({ start = Date.parse('2026-11-25T09:00:00Z') } = {}) {
 }
 const login = (store, pin = PIN, address = '192.168.1.50', sessionHours = 12) => store.login({ pin, pinHash: HASH, address, sessionHours })
 
-test('the phone PIN is 6 to 12 digits, nothing else', () => {
-  for (const p of ['123456', '000000', '123456789012']) assert.equal(A.phonePinProblem(p), null, p)
-  assert.match(A.phonePinProblem('12345'), /at least 6 digits/)
+test('the phone PIN is 8 to 12 digits, nothing else', () => {
+  for (const p of ['12345678', '00000000', '123456789012']) assert.equal(A.phonePinProblem(p), null, p)
+  for (const p of ['12345', '123456', '1234567']) assert.match(A.phonePinProblem(p), /at least 8 digits/, p)
+  assert.equal(A.PIN_MIN, 8)
   assert.match(A.phonePinProblem('1234567890123'), /at most 12 digits/)
   for (const p of ['12345a', 'abcdef', '12 3456', '123456\n', '１２３４５６']) assert.match(A.phonePinProblem(p), /only digits/, p)
   for (const p of [undefined, null, 123456, ['123456']]) assert.ok(A.phonePinProblem(p), String(p))

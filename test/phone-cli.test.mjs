@@ -59,6 +59,7 @@ test('phone-pin writes only the salted scrypt hash and when it was set, never th
   const cfg = JSON.parse(text)
   assert.equal(verifyPin('4829105736', cfg.remote.pinHash), true)
   assert.equal(cfg.remote.pinSetAt, '2026-11-25T10:00:00.000Z')
+  assert.equal(cfg.remote.pinDigits, 10, 'the length is kept, so a PIN from before the 8-digit rule can be told apart')
   assert.equal(cfg.remote.enabled, false, 'a new block starts off: phone-setup turns it on')
   assert.deepEqual(cfg.pr, { enabled: false }, 'the rest of the file as it was')
   assert.equal(auth.session(before.token, 12), null, 'a phone signed in with the old PIN is signed out')
@@ -77,7 +78,8 @@ test('phone-pin refuses a PIN that is short, not digits, typed differently twice
   const send = hashPin('55556666', { N: 1024 })
   const withSend = `{\n  "repo": "C:/work/repo",\n  "pr": { "enabled": true, "pinHash": "${send}" }\n}\n`
   const cases = [
-    [['12345'], /at least 6 digits/],
+    [['12345'], /at least 8 digits/],
+    [['1234567'], /at least 8 digits/],
     [['12ab5678'], /only digits/],
     [['1'.repeat(13)], /at most 12 digits/],
     [['48291057', '48291058'], /differ/],

@@ -91,7 +91,7 @@ test('eligibleAddresses lists each private and Tailscale address, Tailscale mark
 // ═══ the remote block ═══
 
 const HASH = 'scrypt$16384$8$1$c2FsdHNhbHQ=$' + Buffer.alloc(32, 7).toString('base64')
-const GOOD = { enabled: true, bind: '192.168.1.36', port: 4318, pinHash: HASH, sessionHours: 12 }
+const GOOD = { enabled: true, bind: '192.168.1.36', port: 4318, pinHash: HASH, pinDigits: 10, sessionHours: 12 }
 const settings = (raw, extra = {}) => {
   const warned = []
   const s = B.remoteSettings(raw, { interfaces: IFACES, mainPort: 4317, warn: w => warned.push(w), ...extra })
@@ -153,10 +153,10 @@ test('a bad block is OFF with one plain warning, whatever is wrong with it', () 
   }
 })
 
-test('the port and hours fall back to 4318 and 12 when left out', () => {
-  const { s } = settings({ enabled: true, bind: '192.168.1.36', pinHash: HASH })
+test('the port and hours fall back to 4318 and 4 when left out', () => {
+  const { s } = settings({ enabled: true, bind: '192.168.1.36', pinHash: HASH, pinDigits: 8 })
   assert.equal(s.port, 4318)
-  assert.equal(s.sessionHours, 12)
+  assert.equal(s.sessionHours, 4)
   assert.equal(s.enabled, true)
 })
 
@@ -171,11 +171,22 @@ test('the PIN hash never leaves through the summary for the page', () => {
 test('config.example.json has the remote block, off, and it reads as off with no listener', async () => {
   const fs = await import('node:fs')
   const example = JSON.parse(fs.readFileSync(new URL('../config.example.json', import.meta.url), 'utf8'))
-  assert.deepEqual(example.remote, { enabled: false, bind: '', port: 4318, pinHash: '', sessionHours: 12 })
+  assert.deepEqual(example.remote, { enabled: false, bind: '', port: 4318, pinHash: '', sessionHours: 4 })
   assert.equal(settings(example.remote).s.enabled, false)
   const readme = fs.readFileSync(new URL('../README.md', import.meta.url), 'utf8')
-  assert.match(readme, /`"remote": \{ "enabled": false, "bind": "", "port": 4318, "pinHash": "", "sessionHours": 12 \}`/)
+  assert.match(readme, /`"remote": \{ "enabled": false, "bind": "", "port": 4318, "pinHash": "", "sessionHours": 4 \}`/)
   for (const doc of [readme, fs.readFileSync(new URL('../docs/USER_GUIDE.md', import.meta.url), 'utf8')]) {
     for (const s of [/plain HTTP/, /Never forward the port/i, /PIN is the only lock/, /phone-setup/, /phone-pin/, /Tailscale/]) assert.match(doc, s)
   }
+})
+
+test('a PIN from before the 8-digit rule (no pinDigits, or fewer than 8) keeps phone access off and says to set a new one', () => {
+  for (const pinDigits of [undefined, 6, 7, '10']) {
+    const { s, warned } = settings({ ...GOOD, pinDigits })
+    assert.equal(s.enabled, false, String(pinDigits))
+    assert.match(s.off, /new phone PIN of 8 digits or more/)
+    assert.equal(warned.length, 1)
+    assert.equal(B.remoteSummary(s).newPinNeeded, true)
+  }
+  assert.equal(B.remoteSummary(settings(GOOD).s).newPinNeeded, false)
 })

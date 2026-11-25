@@ -1,6 +1,6 @@
 // Who is signed in on a phone: the phone PIN, the five-try lock, the sessions and their CSRF tokens.
 //
-// THE PIN is 6 to 12 digits, set by the person in a terminal (`node tools/factory.mjs phone-pin`,
+// THE PIN is 8 to 12 digits, set by the person in a terminal (`node tools/factory.mjs phone-pin`,
 // tools/phone-cli.mjs) and kept only as its salted scrypt hash in config.json (remote.pinHash). It is checked
 // with send-pin.mjs verifyPin: scrypt, then a constant-time compare. The PIN itself is never stored, logged or
 // returned. It is a different secret from the send PIN on purpose: a phone PIN typed on a phone in a café is
@@ -53,10 +53,13 @@ const COOKIE = 'phone_session'
 const TOKEN = /^[A-Za-z0-9_-]{43}$/
 export const EVENT_KINDS = Object.freeze(['login', 'wrong', 'lockout', 'escalate', 'damaged', 'signout', 'signout-all', 'pin', 'config'])
 
+/** The shortest phone PIN: 8 digits, so the guess budget (ESCALATE) covers a tiny share of the 100 million choices. */
+export const PIN_MIN = 8
+
 export function phonePinProblem(pin) {
   if (typeof pin !== 'string') return 'The phone PIN must be typed as digits.'
   if (!/^[0-9]*$/.test(pin)) return 'The phone PIN is only digits (0 to 9).'
-  if (pin.length < 6) return 'The phone PIN needs at least 6 digits.'
+  if (pin.length < PIN_MIN) return `The phone PIN needs at least ${PIN_MIN} digits.`
   if (pin.length > 12) return 'The phone PIN has at most 12 digits.'
   return null
 }

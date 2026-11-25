@@ -1794,7 +1794,7 @@ dashboard keeps listening on `127.0.0.1` only.
    put both on your home Wi-Fi.
 2. `node tools/factory.mjs phone-setup`: pick one of this PC's addresses (a Tailscale one is marked), read what
    it opens, and type `yes`. It writes `remote.bind` and `remote.enabled` to config.json.
-3. `node tools/factory.mjs phone-pin`: type a phone PIN of 6 to 12 digits, twice, nothing shown. It must differ
+3. `node tools/factory.mjs phone-pin`: type a phone PIN of 8 to 12 digits, twice, nothing shown. It must differ
    from your send PIN. Only its scrypt hash is kept (`remote.pinHash`), and every phone is signed out.
 4. Restart the dashboard. On the phone, open the address it prints (`http://<address>:4318/phone`), sign in,
    and add the page to the home screen.
@@ -1806,15 +1806,15 @@ settings, rules, config, Finish without Senior, Send or Generate on the phone. A
 through the answer relay's short paid turn on your PC, a few cents each (`phone` in Spend today for messages).
 
 The block, in config.json (`config.example.json` has it, off):
-`"remote": { "enabled": false, "bind": "", "port": 4318, "pinHash": "", "sessionHours": 12 }`
+`"remote": { "enabled": false, "bind": "", "port": 4318, "pinHash": "", "sessionHours": 4 }`
 
 | Key | What it does |
 | --- | --- |
 | `enabled` | Only `true` turns it on, and only with a valid `bind`, `port` and `pinHash`. Anything wrong keeps it off with one warning. |
 | `bind` | ONE address of this PC: a private one (10.x, 172.16-31.x, 192.168.x) or Tailscale (100.64-127.x), on a network this PC is on now. `0.0.0.0`, `::`, public, loopback and IPv6 addresses are refused. |
 | `port` | 1024 to 65535, not the desktop `port`. Default 4318. |
-| `pinHash` | Written by `phone-pin`; never type a PIN here. `pinSetAt` says when. |
-| `sessionHours` | How long a phone stays signed in, 1 to 168. Default 12. |
+| `pinHash` | Written by `phone-pin`; never type a PIN here. `pinSetAt` says when and `pinDigits` how long it is: a PIN under 8 digits, or one set before that rule, keeps phone access off until you set a new one. |
+| `sessionHours` | How long a phone stays signed in, 1 to 168. Default 4. |
 
 **The honest limits.** This is plain HTTP on your private network: no TLS, no tunnel, nothing public. Tailscale
 encrypts the link between your devices; on Wi-Fi, anyone on that network can reach the sign-in page, and anyone
