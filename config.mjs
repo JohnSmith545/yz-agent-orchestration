@@ -15,6 +15,7 @@ import { outputSettings } from './completed.mjs'
 import { isBranch } from './flow-merge.mjs'
 import { DEFAULT_PIPELINE, pipelineSettings } from './pipeline.mjs'
 import { CURRENT_PROJECT, PROJECTS, projectRaw } from './project-store.mjs'
+import { qualitySettings } from './quality-config.mjs'
 import { validPinHash } from './send-pin.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -286,6 +287,7 @@ function load() {
   config.levels = levelSettings(raw.levels)
   config.pipeline = pipelineSettings(raw.pipeline)
   config.outputs = outputSettings(raw.outputs) // the sign-off reminders (completed.mjs): { max, warnAfterDays }
+  config.quality = qualitySettings(raw.quality, raw.pipeline) // lessons, the plan critic, risk rules, the self-check switch (quality-config.mjs)
   if (!config.repo) throw new Error('config.json needs "repo": the absolute path of the git repo to watch.')
   config.repo = config.repo.replace(/\\/g, '/')
   if (!config.sessionCwdMatch) config.sessionCwdMatch = path.basename(config.repo)
