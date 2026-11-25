@@ -20,13 +20,16 @@
 // a box is onNode(nodeId). Each box's name is a button, so Tab and Enter reach every node. The Human task box (role
 // human: the user) draws its inside with pipeline-human.js: what waits on you, from the live Human review's counts
 // when `humanReview` is on, and up to three flows standing there; it is redrawn when those counts change.
+// On the live page the Output box draws its inside with pipeline-output.js: how many outputs wait for the user's
+// sign-off (completed-view.js, GET /api/outputs), redrawn on `outputs:change`.
 ;(() => {
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
   const cls = s => String(s ?? '').replace(/[^A-Za-z0-9_-]/g, '')
 
   /** Pure: one box's inside. `list` is the tickets standing on it, `pushes` its pushes outside QA today. */
-  function nodeInner(node, { list = [], labels = {}, pushes = 0, running = 0, counts } = {}) {
+  function nodeInner(node, { list = [], labels = {}, pushes = 0, running = 0, counts, outputs } = {}) {
     if (node.role === 'human' && window.PipelineHuman) return window.PipelineHuman.inner(node, { list, labels, counts })
+    if (node.role === 'outcome' && window.PipelineOutput && outputs !== undefined) return window.PipelineOutput.inner(node, { list, labels, outputs })
     const T = window.PipelineTickets
     const { shown, more } = T.chips(list)
     const n = list.length
@@ -135,7 +138,8 @@
       const human = (graph.nodes || []).some(n => n.role === 'human') && window.PipelineHuman
       // the live page's counts (null while loading); a saved orchestration has none (pipeline-human.js)
       const counts = humanReview ? window.HumanReview?.data?.counts || null : undefined
-      const rows = Math.max(T.chipRows(groups), human ? window.PipelineHuman.rows(groups.human, counts) : 0)
+      const outputs = humanReview && window.PipelineOutput ? window.CompletedView?.data || null : undefined // the live page only
+      const rows = Math.max(T.chipRows(groups), human ? window.PipelineHuman.rows(groups.human, counts) : 0, outputs !== undefined ? window.PipelineOutput.rows(groups.outcome, outputs) : 0)
       const sig = signature(graph)
       let relayout = rows !== st.rows
       st.rows = rows
@@ -151,7 +155,7 @@
         if (!el) continue
         const agent = n.kind === 'agent' ? agents.find(a => a.label === n.label) : null
         const running = window.AgentWindowView?.running(agent).length || 0
-        const html = nodeInner(n, { list: groups[n.id] || [], labels, pushes: window.PipelineDetails.pushes(agent), running, counts })
+        const html = nodeInner(n, { list: groups[n.id] || [], labels, pushes: window.PipelineDetails.pushes(agent), running, counts, outputs })
         if (st.inner.get(n.id) !== html) {
           el.innerHTML = html
           st.inner.set(n.id, html)
@@ -165,6 +169,7 @@
 
     // the live Human review's counts changed (human-review.js): the Human task box says so at once
     if (humanReview) window.document?.addEventListener('humanreview:change', () => st.data && update(st.data))
+    if (humanReview) window.document?.addEventListener('outputs:change', () => st.data && update(st.data)) // the Output box's counts
     if ('ResizeObserver' in window) new ResizeObserver(() => draw(false)).observe(box)
     else window.addEventListener('resize', () => draw(false))
 

@@ -6,7 +6,10 @@
 //   isCompleted(flow)                  the user marked it completed (`completedAt`)
 //   isFinished(flow, graph)            it stands at the end: status done, or its stage is the Output (pipeline.mjs
 //                                      stageOf: QA pushed it while the flow is still open). Dropped never is
-//   waitsForSignOff(flow, graph)       finished, and neither completed nor archived nor deleted: what the reminders count
+//   atOutput(flow, graph)              its stage is the Output (pipeline.mjs stageOf): a done flow still on its way (code
+//                                      QA has not tested, a pass Push still waits for) is finished but not there yet
+//   waitsForSignOff(flow, graph)       at the Output, and neither completed nor archived nor deleted: what the reminders
+//                                      count and the amber mark shows
 //   finishedAt(flow, graph)            when it finished, in ms: the time the scorecard counts it at (score.mjs cellOf),
 //                                      else its last update; null when it has neither
 //   isOverdue(flow, graph, now, s)     it has waited `warnAfterDays` whole days (24 h each) or more since it finished
@@ -64,17 +67,18 @@ export function outputSettings(raw, warn = console.warn) {
 
 export const isCompleted = flow => !!flow?.completedAt
 
-export function isFinished(flow, graph) {
+export const isFinished = (flow, graph) => isObject(flow) && flow.status !== 'dropped' && (flow.status === 'done' || atOutput(flow, graph))
+
+export function atOutput(flow, graph) {
   if (!isObject(flow) || flow.status === 'dropped') return false
-  if (flow.status === 'done') return true
   try {
     return stageOf(flow, graph)?.node === 'outcome'
   } catch {
-    return false // a graph that cannot place the flow: not at the end
+    return false
   }
 }
 
-export const waitsForSignOff = (flow, graph) => isFinished(flow, graph) && !isCompleted(flow) && !flow.archivedAt && !flow.deletedAt
+export const waitsForSignOff = (flow, graph) => atOutput(flow, graph) && !isCompleted(flow) && !flow.archivedAt && !flow.deletedAt
 
 export function finishedAt(flow, graph) {
   let counted = null

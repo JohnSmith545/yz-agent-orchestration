@@ -5,7 +5,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
-  applyComplete, completeRefusal, finishedAt, isCompleted, isFinished, isOverdue, OUTPUT_DEFAULTS, outputSettings,
+  applyComplete, atOutput, completeRefusal, finishedAt, isCompleted, isFinished, isOverdue, OUTPUT_DEFAULTS, outputSettings,
   outputsSummary, reminderLine, waitingLine, waitsForSignOff,
 } from '../completed.mjs'
 import { pipelineGraph } from '../pipeline.mjs'
@@ -71,7 +71,17 @@ test('finished: done, or standing at the Output while still open; never open on 
   assert.equal(isFinished(null, G), false)
 })
 
-test('waiting for sign-off: finished and neither completed, archived nor deleted', () => {
+test('a done flow still on its way (code QA has not tested) can be completed but does not wait at the Output', () => {
+  const untested = flow('done', { nodes: [{ id: 'n1', type: 'step', title: 'Code', status: 'done', evidence: [{ kind: 'commit', ref: 'abc1234' }], verified: null }] })
+  assert.equal(isFinished(untested, G), true, 'done: the user may sign it off')
+  assert.equal(atOutput(untested, G), false)
+  assert.equal(waitsForSignOff(untested, G), false, 'no reminder for work still on its way')
+  assert.equal(atOutput(flow('done'), G), true)
+  assert.equal(atOutput(pushed(), G), true)
+  assert.equal(atOutput(flow('dropped'), G), false)
+})
+
+test('waiting for sign-off: at the Output and neither completed, archived nor deleted', () => {
   assert.equal(waitsForSignOff(flow('done'), G), true)
   assert.equal(waitsForSignOff(flow('done', { completedAt: iso(T0), archivedAt: iso(T0) }), G), false)
   assert.equal(waitsForSignOff(flow('done', { archivedAt: iso(T0) }), G), false, 'put away by the user')

@@ -120,7 +120,7 @@ test('writeFlow { stamp: false } keeps the stored updatedAt; the default still s
 
 // ═══ flow new: the pile-up reminder ═══
 
-const done = id => F.writeFlow(fx(id, f => { f.status = 'done'; f.nodes = []; delete f.route }))
+const done = id => F.writeFlow(fx(id, f => { f.status = 'done'; f.nodes = []; delete f.route; delete f.output.changes; delete f.output.merge }))
 
 test('flow new at 7 outputs waiting prints the reminder on stderr, exits 0 and still creates the flow', () => {
   for (let i = 1; i <= 7; i++) done(`out-${i}`)

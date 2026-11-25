@@ -6,11 +6,14 @@
 //
 // - Tickets: every ticket on /api/pipeline, archived ones behind Show archived; a click on a row selects it
 //   (onSelect), and the page lights its path through the diagram.
-// - Outputs: finished tickets with output or a QA pass, each with Explain (the Flows explanation) and, when
+// - Outputs: the Output box's list. Its head says how many wait for your sign-off and how many are overdue, with
+//   Mark all completed (completed-view.js); each finished ticket waiting for it has its Completed tick, and a
+//   completed one is never listed. `pipeline-outputs` on the page (Show them) opens the panel on this list.
+//   Finished tickets with output or a QA pass, each with Explain (the Flows explanation) and, when
 //   there is something to show, How to test: the QA page for a ticket QA has a record of, else the flow's own
 //   How to test on its Output tab (PipelineTickets.testTarget).
 // - Log: the orchestration log (GET /api/log), newest first, with filter chips (All, Delivered, Caught, Missed,
-//   Slipped through, Rules). It counts over the scorecard's window (ScoreStrip.windowNow, and its `score-window`
+//   Slipped through, Rules, and Completed: the flows you marked completed, which the rest leave out). It counts over the scorecard's window (ScoreStrip.windowNow, and its `score-window`
 //   event), so a filter lists exactly the events behind that count. Read again whenever the page re-reads the
 //   pipeline (a new pipeline object in update), on a chip, and on a window change; a click on an event with a flow
 //   selects that ticket like a Tickets row. The scorecard's See these in the log sends `pipeline-log` { filter }:
@@ -101,7 +104,7 @@
         if (!p) return
         const labels = T.labelsOf(p.graph)
         html = m === 'outputs'
-          ? T.outputsHtml(T.outputList(p.tickets, { archived: st.archived }), { selected: st.selected, steps: st.steps })
+          ? (T.outputsHeadHtml?.(window.CompletedView?.data) || '') + T.outputsHtml(T.outputList(p.tickets, { archived: st.archived }), { selected: st.selected, steps: st.steps })
           : T.ticketsHtml(T.ticketList(p.tickets, { archived: st.archived }), { labels, selected: st.selected })
       }
       if (html !== st.html) {
@@ -192,6 +195,14 @@
       if (!st.open) setOpen(true)
       chipsBox.querySelector(`[data-log-chip="${log.filter}"]`)?.focus()
     })
+    // Show them (completed-view.js): the panel opens on the Output list, its first row focused
+    page?.addEventListener('pipeline-outputs', () => {
+      setMode('outputs')
+      if (!st.open) setOpen(true)
+      ;(list.querySelector('.pl-row') || el.querySelector('[data-mode="outputs"]'))?.focus()
+    })
+    // a sign-off changed what waits: the head and the ticks follow at once
+    document.addEventListener('outputs:change', () => mode() === 'outputs' && paintList())
     paintFrame()
 
     return {

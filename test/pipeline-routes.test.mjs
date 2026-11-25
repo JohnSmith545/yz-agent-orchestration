@@ -110,7 +110,8 @@ test('GET /api/pipeline: the graph from the config, and each flow with its stage
 })
 
 test('GET /api/pipeline: done and dropped flows only from the last 14 days, unless one waits for sign-off; the Trash never; archived flagged', async () => {
-  put('old-done', { status: 'done', updatedAt: ago(15 * DAY) }) // waits for the user to mark it completed: listed however old
+  put('old-done', { status: 'done', updatedAt: ago(15 * DAY), nodes: [], output: {} }) // at the Output, waiting for the user to mark it completed: listed however old
+  put('old-code', { status: 'done', updatedAt: ago(15 * DAY) }) // done with code QA never tested: on its way to QA, not at the Output
   put('old-signed', { status: 'done', updatedAt: ago(15 * DAY), completedAt: ago(DAY), completedBy: 'you', archivedAt: ago(DAY) })
   put('new-done', { status: 'done', updatedAt: ago(DAY) })
   put('old-open', { status: 'blocked', updatedAt: ago(40 * DAY) })

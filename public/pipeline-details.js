@@ -25,7 +25,7 @@
     human: 'You. Work with no code changes passes through here; a flow with steps only you can do (CI/CD, a cloud console, an account setting) waits here until you tick them all.',
     senior: 'Reviews work done by hand that has no code to test: CI/CD, cloud console changes, commands run in a terminal. A pass goes to the Output; a failure goes back to Human task. Always on Opus at high effort.',
     push: 'QA pushes the branch at the exact commit it tested (and Security passed, when there is Security): never forced, never a protected branch.',
-    outcome: 'Where work ends: pushed after a QA pass (and a Security pass, when there is Security), or done with no code changes past Human task (and Senior, when there is one). You open the pull request with Send.',
+    outcome: 'Where work ends: pushed after a QA pass (and a Security pass, when there is Security), or done with no code changes past Human task (and Senior, when there is one). You open the pull request with Send, then mark it completed: it goes to the flow archive and off the boards.',
   }
 
   const pushes = a => Math.max(0, Number(a?.pushesOutsideQa) || 0)

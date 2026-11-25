@@ -52,3 +52,11 @@
 @media (max-width: 600px) {
   .cv-line .link, .cv-box-head .cv-confirm, .pl-out-acts .cv-confirm { margin-left: 0; }
 }
+
+/* the Output box of the diagram (pipeline-output.js): its count lines, like the Human task box's */
+.pl-out-count { flex: none; height: 20px; margin: 0 0 4px; padding: 0 10px; color: var(--ink-2);
+  font-size: 12px; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pl-out-count .cv-dot { margin-right: 6px; vertical-align: 1px; }
+.pl-out-count.is-over { color: var(--warn); }
+.pl-out-count.is-notice { color: var(--warn); font-weight: 600; }
+.pl-outputs .cv-line { margin: 4px 0 10px; }

@@ -4,6 +4,8 @@
 // agent-cards.js, Progress report and all), and a pull-out panel on the right (pipeline-panel.js) whose
 // Tickets and Outputs lists select a ticket and light its path through the diagram. Above the diagram, the
 // pipeline score (score-strip.js), read again with every pipeline read, and under it Pipeline time (time-strip.js).
+// Right over the diagram, one line while finished outputs wait for the user's sign-off (completed-view.js: Show them
+// opens the Output list in the panel); marking one completed re-reads the pipeline at once (`outputs:change`).
 //
 // shell.js calls AgentsPage.open/close; app.js hands every /api/status load to AgentsPage.update(data)
 // (and the same data again every 15 s, to refresh the times). A NEW /api/status load also re-reads
@@ -53,7 +55,11 @@
     'and tickets marked as work for a person. Its head says how many of each; the chips show one kind. The number on Agents in the rail and ' +
     '<b>N waiting on you</b> at the top count questions and by-hand work only: what keeps an agent waiting. Click a title to open it.</p>' +
     '<p>Click an agent for its settings: the model you want it on, its subagents, its specification and rules, and the files and notes it is given. ' +
-    'A green pill on an agent says how many subagents run under it now.</p>'
+    'A green pill on an agent says how many subagents run under it now.</p>' +
+    '<p><b>Completed</b> is your sign-off on a finished output. Only you can give it: tick an output in the Output list (open Outputs on the right), or ' +
+    'press Completed at the end of the Output tab of an opened flow. A completed flow goes to the flow archive and off every board, and still counts in the score. ' +
+    'A finished output you have not marked carries an amber dot; after 2 days the line over the diagram turns into a notice, and once 7 wait the Ask ' +
+    'drawer reminds you before a new request (outputs.warnAfterDays and outputs.max in config.json).</p>'
 
   const reduced = () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
@@ -64,6 +70,7 @@
         <div class="psc" id="plScore"></div>
         <div class="psc ptm" id="plTime"></div>
         <div class="psc ptk" id="plTokens"></div>
+        <div class="pl-outputs" id="plOutputs" data-cv-line hidden></div>
         <div class="pl-wrap" id="plDiagram"></div>
         <div class="pl-details" id="plDetails"></div>
       </div>
@@ -81,6 +88,9 @@
     time = window.TimeStrip?.create(section.querySelector('#plTime')) || null
     // Pipeline tokens under that (token-strip.js), on the same switch and cadence
     tokens = window.TokenStrip?.create(section.querySelector('#plTokens')) || null
+    // the line over the diagram (completed-view.js fills it), and a sign-off re-reads the pipeline: the flow leaves it
+    window.CompletedView?.paint(section)
+    document.addEventListener('outputs:change', () => showing && loadPipeline())
     // Delegated: the agent card's Progress report (agent-cards.js leaves [data-report] to its page), a
     // subagent row (watch it live), the pane's Close, and the ticket rows of Here now.
     details.addEventListener('click', e => {
