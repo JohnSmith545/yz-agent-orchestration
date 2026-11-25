@@ -54,6 +54,31 @@ export function standupSettings(raw, warn = console.warn) {
 /** A ticket's link: `{id}` in the pattern replaced by the id, encoded. */
 export const ticketLink = (pattern, id) => String(pattern).split('{id}').join(encodeURIComponent(id))
 
+/**
+ * The saved ticket list across every collection (factory.mjs `collections()` and `readSource`, injected):
+ * { fetchedAt, tickets }, the first collection that has a ticket wins, and `fetchedAt` is the OLDEST save, since
+ * that is how old the facts can be. Throws when no collection has a saved list (gatherFacts names it as left out).
+ */
+export function savedTicketList({ collections, readSource }) {
+  const tickets = {}
+  let fetchedAt = null
+  let any = false
+  for (const c of collections || []) {
+    let src = null
+    try {
+      src = readSource(c.id)
+    } catch {
+      src = null
+    }
+    if (!src || typeof src.tickets !== 'object') continue
+    any = true
+    if (typeof src.fetchedAt === 'string' && (!fetchedAt || Date.parse(src.fetchedAt) < Date.parse(fetchedAt))) fetchedAt = src.fetchedAt
+    for (const [id, t] of Object.entries(src.tickets)) if (!(id in tickets)) tickets[id] = { ...t, id }
+  }
+  if (!any) throw new Error('No saved ticket list.')
+  return { fetchedAt, tickets }
+}
+
 /** Run a reader; a throw becomes a `skipped` entry and `fallback`. */
 function attempt(fn, title, why, skipped, fallback) {
   try {

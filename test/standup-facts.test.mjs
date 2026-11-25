@@ -215,3 +215,23 @@ test('gatherFacts: the weekly header has a name and a project, from the config o
   const g = await gather({ settings: standupSettings({ name: 'Jo Bloggs', project: 'Flinki' }) })
   assert.deepEqual([g.name, g.project], ['Jo Bloggs', 'Flinki'])
 })
+
+// ═══ the saved ticket list across collections ═══
+
+test('savedTicketList: every collection s saved tickets, the first one seen wins, and the OLDEST save date', async () => {
+  const { savedTicketList } = await import('../standup-facts.mjs')
+  const sources = {
+    prod: { fetchedAt: '2026-11-12T19:32:36.260Z', tickets: { 'FLA-1': { title: 'From prod' } } },
+    beta: { fetchedAt: '2026-11-20T08:00:00.000Z', tickets: { 'FLA-1': { title: 'From beta' }, 'FLIN-2': { title: 'Beta only' } } },
+  }
+  const list = savedTicketList({ collections: [{ id: 'prod' }, { id: 'gone' }, { id: 'beta' }], readSource: id => sources[id] || null })
+  assert.equal(list.fetchedAt, '2026-11-12T19:32:36.260Z', 'the oldest list is how old the facts can be')
+  assert.deepEqual(Object.keys(list.tickets).sort(), ['FLA-1', 'FLIN-2'])
+  assert.equal(list.tickets['FLA-1'].title, 'From prod')
+})
+
+test('savedTicketList: no saved list at all throws, so the Read line says the ticket list was left out', async () => {
+  const { savedTicketList } = await import('../standup-facts.mjs')
+  assert.throws(() => savedTicketList({ collections: [], readSource: () => null }), /No saved ticket list/)
+  assert.throws(() => savedTicketList({ collections: [{ id: 'x' }], readSource: () => { throw new Error('bad') } }), /No saved ticket list/)
+})

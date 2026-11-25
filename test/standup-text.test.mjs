@@ -57,7 +57,7 @@ test('every ticket line goes in exactly as the server built it, and each section
   for (const head of ['TICKETS', 'MERGED PULL REQUESTS', 'NOT MERGED YET', 'WAITING ON SOMEONE OR SOMETHING', 'IN PROGRESS AND YOURS', 'FLOWS TOUCHED', 'COMMITS']) assert.ok(s.includes(head), head)
   assert.match(s, /PR #1174, branch fix\/fla-886-uploads, merged Tue 24 Nov \d\d:\d\d, tickets FLA-886/)
   assert.match(s, /feat\/fla-868-media: 1 commit, pushed, tickets FLA-868/)
-  assert.match(s, /Prod database grant: Needs a production admin to grant access\. Tickets FLA-870/)
+  assert.match(s, /Prod database grant: Needs a production admin to grant access \(tickets FLA-870\)/)
   assert.match(s, /fix\(api\): deleting an account deletes its uploads/)
 })
 
