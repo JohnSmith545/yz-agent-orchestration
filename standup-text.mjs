@@ -53,7 +53,8 @@ export function factsText(f, now = new Date()) {
     section('TICKETS (each ticket s first line, to copy exactly as given)', f.tickets.map(t => `${t.line}${t.state ? ` | state: ${t.state}` : ''}${t.known ? '' : ' | not in the saved ticket list'}`)),
     section(`MERGED PULL REQUESTS into ${f.base} (newest first)`, f.merges.map(m => `- PR #${m.number}, branch ${m.branch}, merged ${when(m.at)}${idsPart(m.ids)}`)),
     section(`NOT MERGED YET (branches with this work that ${f.base} does not have)`, f.unmerged.map(u => `- ${u.branch}: ${plural(u.commits, 'commit')}, ${u.pushed ? 'pushed' : 'not pushed'}${idsPart(u.ids)}`)),
-    section('WAITING ON SOMEONE OR SOMETHING (candidates for Blockers: keep only what needs someone else)', f.waiting.map(i => `- ${i.title}: ${i.reason.replace(/[.\s]+$/, '')}${i.tickets.length ? ` (tickets ${i.tickets.join(', ')})` : ''}`)),
+    // ⚠️ Its own heading, firm words: two runs on the same facts once disagreed on blockers (QA A-6, 2026-11-25).
+    section('BLOCKERS (every item here waits on another person or an outside system: each one IS a blocker)', f.waiting.map(i => `- ${i.title}: ${i.reason.replace(/[.\s]+$/, '')}${i.tickets.length ? ` (tickets ${i.tickets.join(', ')})` : ''}`)),
     section('IN PROGRESS AND YOURS in the ticket list (candidates for What s next)', f.next.map(t => `- ${t.id} [${t.state}]`)),
     section('FLOWS TOUCHED in this time (records of agent work on these tickets)', f.flows.map(x => `- ${x.title}: ${x.status}, agent ${x.agent || 'unknown'}, updated ${when(x.updatedAt)}${idsPart(x.tickets)}`)),
     ...(f.skipped.length ? [section('LEFT OUT', f.skipped.map(s => `- ${s.title}: ${s.why}`))] : []),
