@@ -679,3 +679,33 @@ On macOS or Linux, use your own service manager (launchd, systemd, or a terminal
 - **The tests fail with "config.json is missing".** The tests read `config.json`. Copy
   `config.example.json` to `config.json` first.
 - **The dashboard stops by itself at a set hour.** That is `stopHour`. Set it to `null` to keep it running.
+
+## 11. Lessons, the self-check and risk labels
+
+These four help the agents get work right the first time.
+
+- **Lessons** (the book at the end of the rail, `#/lessons`). When QA, Security or Senior fails a piece of work, a
+  small model run reads what it found and proposes up to 3 short lessons, such as *Write the failing test before the
+  code*. They wait under **Waiting for you**: **Accept** keeps one, **Edit** lets you reword it first, **Reject** drops
+  it. When a proposal repeats a lesson you already have, it says *Counts again as L3*, and accepting it adds one to
+  that lesson's count. You can type your own under **Add a lesson**. **Retire** takes a lesson out of use; **Restore**
+  brings it back. A run costs about $0.015. New failures are read on their own; older ones wait under **Failures not
+  read yet** for **Extract lessons**. To stop the automatic runs, set `"quality": { "autoLessons": false }` in
+  `config.json`.
+- **Lessons in the brief.** When an agent starts a flow, it is shown up to 7 accepted lessons that match the task,
+  most seen first, each with why it was picked.
+- **The self-check.** Before an agent hands its work to QA, it answers a short checklist made of the house rules and
+  those lessons, and says what is missing for any it could not tick. QA reads the answers and tests the claims. An
+  opened flow shows the checklist with its ticks. The **Correctness** tile on the Agents page scorecard shows how often
+  work with a self-check was right the first time, against work without one (it says *Too few to trust* until there
+  are 5 of each). To make the self-check a rule, set `"pipeline": { "requireSelfCheck": true }`: QA then refuses to
+  start testing code that has none.
+- **Second opinion on the plan.** When the Planner hands out a plan, an opened flow shows **Second opinion**. Press it
+  and a cheap model run (about $0.01) lists up to 5 things the plan may have missed, such as a missing test plan or a
+  step that needs you. The builder sees them too. It never blocks anything. `"quality": { "critic": "auto" }` runs it
+  once for every plan; `"off"` hides it.
+- **Risk label.** Each flow gets a label from simple rules on what it touches: sign-in, payments, secrets, the cloud
+  and CI, the database, deleting data, public pages. A card shows **Medium risk** or **High risk**, with the reasons
+  when you hover it, and an opened flow says what the label asks for (a Security review, a Senior review, a deeper QA
+  pass), and says so when that reviewer is not set up. You can write your own rules in `quality.riskRules`; the README
+  shows the shape.
