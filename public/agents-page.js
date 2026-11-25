@@ -4,7 +4,8 @@
 // agent-cards.js, Progress report and all), and a pull-out panel on the right (pipeline-panel.js) whose
 // Tickets and Outputs lists select a ticket and light its path through the diagram. Above the diagram, the
 // pipeline score (score-strip.js), read again with every pipeline read, and under it Pipeline time (time-strip.js).
-// Right over the diagram, one line while finished outputs wait for the user's sign-off (completed-view.js: Show them
+// At the top, above the score, the Alerts line while any alert stands (predict-alerts.js: Show them opens its rows, as
+// does #/agents?alerts). Right over the diagram, one line while finished outputs wait for the user's sign-off (completed-view.js: Show them
 // opens the Output list in the panel); marking one completed re-reads the pipeline at once (`outputs:change`).
 //
 // shell.js calls AgentsPage.open/close; app.js hands every /api/status load to AgentsPage.update(data)
@@ -65,7 +66,8 @@
 
   function mount() {
     const section = document.getElementById('agentsView')
-    section.innerHTML = `<div class="pl-page">
+    section.innerHTML = `<div class="pl-alerts" id="plAlerts" data-pe-alerts hidden></div>
+    <div class="pl-page">
       <div class="pl-main">
         <div class="psc" id="plScore"></div>
         <div class="psc ptm" id="plTime"></div>
@@ -90,6 +92,7 @@
     tokens = window.TokenStrip?.create(section.querySelector('#plTokens')) || null
     // the line over the diagram (completed-view.js fills it), and a sign-off re-reads the pipeline: the flow leaves it
     window.CompletedView?.paint(section)
+    window.PredictAlerts?.paint(section) // the Alerts line at the top of the page (predict-alerts.js)
     document.addEventListener('outputs:change', () => showing && loadPipeline(true))
     // Delegated: the agent card's Progress report (agent-cards.js leaves [data-report] to its page), a
     // subagent row (watch it live), the pane's Close, and the ticket rows of Here now.

@@ -41,6 +41,7 @@
     `<p><b>How to test</b>: try each ${dfn('test step')} and tick I saw this; the ticks stay in this browser only.</p>` +
     '<p><b>Details</b>: the full summary and the commits.</p>' +
     '<p><b>Explain</b> walks through the flow one slide at a time: what and why, before and after, how it works, its path through the agents and the QA result.</p>' +
+    '<p><b>Cost</b>: the tokens this flow used and about what they cost at the configured prices. A reply counts for the flow when its agent was working on it at the time, shared evenly when that agent had several flows open. Beside it, an estimate from similar finished flows, and once it finished, the estimate against what it really took.</p>' +
     '<p><b>Send</b>: when the agent says the work is ready, review it here and send it as a pull request; nothing is sent until you click.</p>' +
     `<p>${dfn('status', 'Status')} lists what is built, what is left and the decisions; ${dfn('process', 'Process')} is the full chart. ` +
     'The mark on a done step says how far it is proven:</p><div class="fl-legend small">' +

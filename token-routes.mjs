@@ -16,6 +16,9 @@
 //   of its first day (All: every line). They ride beside the estimate and are never added to it.
 // - Session names come from `names()` (sessionId -> the name the dashboard has now: a live session or a pin), the
 //   labels from `labelOf` (server.mjs's own: the coordinator, codingAgents, aliases).
+// - `placed({ from, now })` (Predict and warn, predict-routes.mjs) gives the one line of how much of the period is
+//   placed on flows and how much is not: { placed, unplaced } rides in the body as `placed`; null with no provider.
+//   The running index is shared as route.index, so Predict and warn never reads the transcripts a second time.
 
 import path from 'node:path'
 
@@ -37,7 +40,7 @@ function json(res, status, body) {
   res.end(JSON.stringify(body))
 }
 
-export function makeTokenRoute({ claudeDirs = [], match = '', index = makeTokenIndex({ claudeDirs, match, file: TOKEN_INDEX_FILE }), names = async () => new Map(), labelOf = n => n, config = CONFIG, now = () => Date.now(), refreshMs = REFRESH_MS, log = console.error } = {}) {
+export function makeTokenRoute({ claudeDirs = [], match = '', index = makeTokenIndex({ claudeDirs, match, file: TOKEN_INDEX_FILE }), names = async () => new Map(), labelOf = n => n, config = CONFIG, now = () => Date.now(), refreshMs = REFRESH_MS, log = console.error, placed = null } = {}) {
   let kickedAt = null
   const kick = () => {
     kickedAt = now()
@@ -63,9 +66,15 @@ export function makeTokenRoute({ claudeDirs = [], match = '', index = makeTokenI
     const from = days === null || stats.window.from === null ? null : Date.parse(stats.window.from)
     const spend = spendBetween(from, at)
     const given = config.tokens && typeof config.tokens === 'object' && config.tokens.prices && typeof config.tokens.prices === 'object'
+    let onFlows = null // Predict and warn: placed on flows, and not (predict-routes.mjs)
+    try {
+      onFlows = placed ? await placed({ from, now: at }) : null
+    } catch (err) {
+      log(`tokens: could not place the tokens on flows: ${err?.message || err}`)
+    }
     return {
       status: 200,
-      body: { ...stats, spend: { usd: spend.usd, turns: spend.turns }, prices: { source: PRICES_SOURCE, errors, given: Boolean(given) }, builtAt: snap.builtAt, lastRead: snap.lastRead },
+      body: { ...stats, spend: { usd: spend.usd, turns: spend.turns }, prices: { source: PRICES_SOURCE, errors, given: Boolean(given) }, builtAt: snap.builtAt, lastRead: snap.lastRead, placed: onFlows },
     }
   }
 
@@ -78,5 +87,6 @@ export function makeTokenRoute({ claudeDirs = [], match = '', index = makeTokenI
   }
   /** The first build, in the background: called once the server listens. */
   route.start = kick
+  route.index = index // shared with Predict and warn (predict-routes.mjs)
   return route
 }

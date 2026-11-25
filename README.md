@@ -1832,6 +1832,47 @@ Routes: `GET /api/lessons`; `POST /api/lessons`, `/api/lessons/<id>/retire|resto
 the page's own Origin; 409 while a run is going); `GET /api/quality/flow/<flow>`. The Lessons page opens on one area
 with `#/lessons?area=tests`, or on one proposal's Edit form with `#/lessons?edit=<id>`.
 
+## Predict and warn
+
+Estimates, alerts and what each flow really cost, all worked out from what the flow files and the transcripts'
+token counts already record. **No model is run**: nothing here costs anything.
+
+- **What a flow cost.** A flow's Output tab has a **Cost** block: `Tokens: 12.4M, about $4.10`. A reply counts for
+  a flow when its session's label is on the flow and its time falls inside that agent's stretch on it (the
+  producer until QA starts, each QA attempt, each Security review, each fix after a failure, the planner, Senior),
+  shared evenly when the same agent had several flows open at once. Subagents count with the session that started
+  them. The token index keeps per hour totals, so an hour is taken as spent evenly. Pipeline tokens gains one line:
+  how much of the period is on flows and how much is not on any flow (the chat, sessions on no flow, time between
+  flows). `predict-flow-tokens.mjs`, `predict-spans.mjs`.
+- **Estimates.** When a flow starts work the server stores `estimate` on it once (the server's, like
+  `archivedAt` is the user's: an agent rewrite can neither add, change nor drop it): the median time, cost and
+  tokens of the nearest 3 to 8 similar finished flows, with the range. Similar is the same route type first, then
+  shared ticket labels and type, the same agent, the same risk level (when a risk provider gives one) and title words
+  in common. Only flows that finished before it started count. Fewer than 3: `No estimate yet: too few similar
+  flows`, never a number. An open ticket on the Tickets page shows one worked out on the fly. Once a flow finishes,
+  its Cost block sets the estimate against the actual, and **How good the estimates have been** (folded inside
+  Pipeline time) gives the median error, `Too few to trust` under 5. `predict-estimate.mjs`.
+- **Alerts.** One line at the top of the Agents page, above Pipeline score (Home shows the count), the rows folded
+  under it; one agent holding 3 or more flows past their usual time is ONE row with **Dismiss all for today** and
+  its flows folded under it, and a flow alert can be **snoozed for a week** (it returns after 7 days, or at once when
+  the flow moves to another step: for long-lived tracking flows). **Taking long**:
+  an open flow at its step more than `alerts.stuckFactor` (3) times that step's median over 30 days and at least
+  `alerts.stuckMinMinutes` (60); with fewer than 5 past flows for the step, the plain `alerts.stuckHours` (24).
+  A step that waits on you says so. **Token spike**: a session's last hour above `alerts.spikeFactor` (4) times its
+  median active hour over 7 days and above `alerts.spikeMinTokens` (20 million). **Long history**: a live session
+  whose last 10 replies re-read more than `alerts.contextTokens` (400,000) tokens of history each; it says what a
+  turn costs, marks the agent's box on the diagram, and offers **Copy handover request** (it copies a sentence and
+  sends nothing). **Daily limit**: `alerts.dailyUsd` and `alerts.dailyTokens`, off by default. **Dismiss for
+  today** hides one until midnight, or until it gets half as bad again (`data/alerts-state.json`). No sound, no
+  pop-up. `predict-alerts.mjs`, `predict-stage.mjs`, `predict-state.mjs`.
+- **Routes.** `GET /api/alerts`, `POST /api/alerts/dismiss` (the page's own Origin), `GET /api/predict/flow?id=`,
+  `GET /api/predict/ticket?id=`, `GET /api/predict/accuracy?days=7|30|all` (`predict-routes.mjs`). The token
+  index is version 3 (per hour totals and each file's newest replies), so a saved index rebuilds once.
+- **Settings.** `alerts` and `estimates` in `config.json` (see `config.example.json`). A bad value keeps its
+  default with one warning at start.
+- **For other features.** `predict-signals.mjs signals({ since })` lists the alerts raised and the estimate misses
+  in a window; `predict-flow-tokens.mjs flowTokens(flowId)` gives one flow's tokens.
+
 ## License
 
 MIT, see `LICENSE`. The bundled fonts in `public/fonts/` keep their own SIL Open Font License.

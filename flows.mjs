@@ -67,6 +67,7 @@ import { keepSenior, recordHold, seniorHolds, validateSenior } from './flow-seni
 import { CONFIG } from './config.mjs'
 import { pipelineGraph } from './pipeline.mjs'
 import { keepHand, validateHand } from './hand-steps.mjs'
+import { keepEstimate, validateEstimate } from './predict-keep.mjs'
 import { keepRoute, validateRoute } from './flow-route.mjs'
 import { sayShorter, STORY_ID, STORY_MAX, storyOf, YOU } from './flow-story.mjs'
 import { lookup } from './glossary.mjs'
@@ -175,6 +176,7 @@ export function validateFlow(flow) {
   if (flow.plan !== undefined) problems.push(...validatePlan(flow.plan, flow.id))
   if (flow.senior !== undefined) problems.push(...validateSenior(flow.senior))
   problems.push(...validateQuality(flow)) // selfcheck, critic, risk (quality-flow.mjs)
+  if (flow.estimate !== undefined) problems.push(...validateEstimate(flow.estimate)) // the server's (predict-keep.mjs)
   return problems
 }
 
@@ -628,6 +630,7 @@ export function mergeKeepingAnswers(incoming, existing) {
   keepPlan(incoming, existing) // the planner's hand-out: only the plan commands write it
   keepSenior(incoming, existing) // Senior's verdict: only the Senior commands write it
   keepQuality(incoming, existing) // the self-check, the plan critic and the risk label: never from an agent's file
+  keepEstimate(incoming, existing) // the estimate (predict-keep.mjs): only the server writes it
   if (existing?.createdAt) incoming.createdAt = existing.createdAt
   delete incoming.derived
   return incoming

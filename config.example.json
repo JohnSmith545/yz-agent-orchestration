@@ -71,6 +71,18 @@
     }
   },
   "outputs": { "max": 7, "warnAfterDays": 2 },
+  "alerts": {
+    "enabled": true,
+    "stuckFactor": 3,
+    "stuckMinMinutes": 60,
+    "stuckHours": 24,
+    "spikeFactor": 4,
+    "spikeMinTokens": 20000000,
+    "contextTokens": 400000,
+    "dailyUsd": null,
+    "dailyTokens": null
+  },
+  "estimates": { "enabled": true, "nearest": 8 },
   "pipeline": {
     "qa": "QA",
     "producers": null,

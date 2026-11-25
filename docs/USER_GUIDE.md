@@ -709,3 +709,35 @@ These four help the agents get work right the first time.
   when you hover it, and an opened flow says what the label asks for (a Security review, a Senior review, a deeper QA
   pass), and says so when that reviewer is not set up. You can write your own rules in `quality.riskRules`; the README
   shows the shape.
+
+## 12. Predict and warn: estimates, alerts and what a flow cost
+
+Nothing here asks a model or costs anything: every figure comes from what the flow files and the transcripts
+already record.
+
+- **What a flow cost.** Open a flow: its Output tab has a **Cost** block with its tokens and about what they cost at
+  your configured prices (`Tokens so far` while it is open). The ? at the top of the flow says how it is counted.
+  On the Agents page, Pipeline tokens says how much of the period is on flows and how much is not on any flow.
+- **Estimates.** When a flow starts, the dashboard works out how long it will take and what it will cost from the
+  most similar flows that finished before it: `about 1 h 10 min and $40, based on 5 similar flows`, with the range
+  from the fastest to the slowest. With fewer than 3 similar flows it says **No estimate yet: too few similar
+  flows**. Open a ticket on the Tickets page to see one for work not started yet. When the flow finishes, its Cost
+  block sets the estimate against what it really took. **How good the estimates have been**, folded inside Pipeline
+  time, shows how far off they were; under 5 flows it says Too few to trust.
+- **Alerts.** A line at the top of the Agents page, and on Home, says how many there are; **Show them** opens the
+  list. When one agent holds 3 or more flows far past their usual time, they are one alert: **Dismiss all for today**
+  hides them together, and **The N flows** opens them one by one.
+  - **Taking long**: a flow has stood at a step far longer than that step usually takes.
+  - **Waiting on you**: the same for a question, a blocked flow or steps only you can do.
+  - **Token spike**: a session used far more tokens in the last hour than it usually does.
+  - **Long history**: a session re-reads a very long conversation on every turn, so each turn costs more. Its box
+    on the diagram gets a small amber dot. **Copy handover request** copies a sentence you can paste to that agent,
+    asking it to write a short handover note; then start a fresh session from that note.
+  - **Daily limit**: only when you set one.
+
+  **Dismiss for today** hides an alert until midnight; it comes back sooner only if it gets half as bad again.
+  **Snooze for a week** is for a flow meant to stay open a long time, such as a tracking flow for a checklist: it
+  stays quiet for 7 days, and comes back at once if the flow moves to another step.
+- **Settings** (`config.json`): `alerts` (`stuckFactor`, `stuckMinMinutes`, `stuckHours`, `spikeFactor`,
+  `spikeMinTokens`, `contextTokens`, `dailyUsd`, `dailyTokens`, `enabled`) and `estimates` (`enabled`,
+  `nearest`). Restart the dashboard after a change.

@@ -139,6 +139,8 @@ What the user sees: the flow as a card on the Flows page (`#/flows`), and each `
 
 The full command list is in the README, under "Agents writing flows".
 
+A flow may carry an `estimate` the dashboard stored when it started (how long and what similar flows took). It is the server's: leave it out of a `flow write`; whatever you send there is ignored.
+
 ## Lessons, the self-check and the risk label
 
 > `flow new` and `flow rules <flow>` print, after your rules, the **Lessons from earlier work** that match the task:
