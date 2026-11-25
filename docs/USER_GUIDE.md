@@ -169,7 +169,8 @@ The agent writes it out as steps and stops.
   see when it worked. A value to paste sits in a box with a **Copy** button.
 - Tick each step when it is done. Your ticks are saved on the flow, so they survive a reload and the agent
   rewriting the flow. If the agent changes what a step asks, that step waits for you again.
-- When every step is ticked, **Mark the flow done** finishes it.
+- When every step is ticked, **Mark the flow done** finishes it. With Senior on the pipeline it says
+  **Senior reviews it next** instead: the flow is done once Senior passed it.
 - A flow that needs you but has no steps yet says so, with one button: **Ask the agent for steps**. It sends the
   agent a message the same way as Request test steps (about $0.30). The page never makes up a step.
 
@@ -210,7 +211,17 @@ scroll wheel, and click a node for details.
 
 The orchestration as a pipeline diagram, from **Request** to **Output**: the coordinator, each producing
 agent, **QA** and **Push**, with every ticket as a chip on the step it stands at now. Click a step for its
-details below the diagram; for an agent that is its card, with its subagents and a **Progress report**. Click
+details below the diagram; for an agent that is its card, with its subagents and a **Progress report**.
+
+- **Human task** is you. It sits to the right of Agent 1, in the same row. Work with no code changes goes there
+  (the dashed `no code changes` lane). A flow with by-hand steps waits there until you tick them all; anything else
+  passes straight through to the Output. The box says what waits on you (for example **8 questions**, **2 by hand**)
+  and shows up to three flows standing there. Click it, or press Enter on it, to jump to **Human review**.
+- **Senior** (only when config.json sets `pipeline.senior`) sits to the right of Human task. It reviews work with no
+  code to test: CI/CD setup, cloud console changes, commands run in a terminal, account settings. Once you ticked every
+  step, send Senior a message naming the flow. A pass sends the flow to the Output. A failure sends it back to you:
+  its reason shows at the top of the flow's **Do this by hand**, and the steps to redo say **Do again**. Senior always
+  runs on Opus at high effort, and never changes anything itself. Click
 an agent's card on Home, or a subagent row in its details card, for its **live view**: its activity as it happens, each
 edit as a diff, the uncommitted changes in its worktree, and **Draft report**, a Markdown summary of a time
 window built from the transcript and git (no model writes it).
@@ -326,7 +337,7 @@ the repo, with `C:/path/to/yz-agent-orchestration` replaced by the absolute path
 > Every request gets a flow FIRST, before you change anything: `flow new <id> "<title>" --type build|review|ask`
 > (or `flow write` with `"route": { "type": "build" }`). The type sets its route from the Request to the Output:
 > build for a code change (Request, the coordinator, you, QA, Push, Output), review for a code review of a ticket
-> (the chat agent's), ask for a question, an explanation or an investigation (Request, you, Output). Follow that
+> (the chat agent's), ask for a question, an explanation or an investigation (Request, you, Human task, Output). Follow that
 > route. If the plan changes, say so with `flow route <flow> --type ...`: the old route stays visible.
 > Narrate your work on the dashboard as a flow: `node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow …`.
 > Start with `flow new --type` or `flow write` before you change anything, keep statuses current with

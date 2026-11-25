@@ -73,7 +73,7 @@
     const all = done === steps.length
     const senior = atSenior(f)
     const finish = all && f.status !== 'done' && f.status !== 'dropped' && !readonly
-      ? senior ? `<span class="fh-next">${esc(senior.label || 'Senior')} reviews it next.</span>` : '<button type="button" class="primary" data-hand-done>Mark the flow done</button>' : ''
+      ? senior ? `<span class="fh-next">${esc(senior.label || 'Senior')} reviews it next: send ${esc(senior.label || 'Senior')} a message naming flow ${esc(f.id)}.</span>` : '<button type="button" class="primary" data-hand-done>Mark the flow done</button>' : ''
     const back = redoOf(f)
     const redo = back ? `<p class="fh-redo" role="note"><b>${esc(back.by || 'Senior')} sent this back.</b> ${esc(back.summary || 'Do the unticked steps again.')}</p>` : ''
     return `<section class="fh${all ? ' is-all' : ''}" aria-labelledby="fh-h-${esc(f.id)}">${head(` <span class="faint">· ${done} of ${steps.length} done</span>`)}${finish}</div>` +

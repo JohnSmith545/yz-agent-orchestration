@@ -30,7 +30,7 @@ const sentBack = { status: 'failed', by: 'Senior', at: '2026-11-25T11:00:00Z', s
 
 test('the checklist: every step ticked and the flow at Senior says Senior reviews it next, with no Mark the flow done', () => {
   const h = H.html(flow({ progress: atSenior }))
-  assert.match(h, /<span class="fh-next">Senior reviews it next\.<\/span>/)
+  assert.match(h, /<span class="fh-next">Senior reviews it next: send Senior a message naming flow keys\.<\/span>/)
   assert.doesNotMatch(h, /data-hand-done/)
   assert.match(H.html(flow()), /data-hand-done>Mark the flow done</, 'no Senior: as before')
 })

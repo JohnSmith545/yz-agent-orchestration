@@ -175,7 +175,7 @@ refresh themselves; the Refresh button in the page header rebuilds at once.
 | `stopHour` | Local hour to stop at, or null |
 | `ticketPrefixes` | Ticket id prefixes in rank order, such as `["ABC", "XYZ"]` (see Assumptions about your repo and tracker). Left out: taken from the collections and the ticket sources |
 | `pr` | Send to the base branch, off by default: `{ "enabled": false, "remote": "origin", "bases": ["dev"], "gh": "gh" }`. `enabled` must be `true` to turn it on, and is honoured only with a `pinHash` (set it on the Settings page or with `node tools/factory.mjs pr-pin`, never by hand); these keys are read again whenever config.json changes, so no restart; `protect` lists the branches never sent from (default `["main", "master", "stage", "prod", "production", "release/*", "release-*"]`, `*` matches anything); `remote` is the remote to push to; `bases` are the branches a flow may be sent into; `gh` is the GitHub CLI command (signed in with `gh auth login`). A bad value turns the feature off with a warning in the server log |
-| `pipeline` | The orchestration (QA and the pipeline, below): `{ "qa": "QA", "producers": null, "protectedBranches": ["dev", "stage", "main", "master"], "maxReworks": 3 }`. `qa` is the dashboard label of the agent that tests every code change last and is the only one that pushes; `producers` the labels that write code (`null`: every `codingAgents` label but the coordinator's and QA's); `protectedBranches` the branches QA never pushes to (any case, `*` matches anything; `pr.protect` and `pr.bases` are refused too); `maxReworks` how many times a failure goes back to its producer before the flow stops (QA and Security failures together). Two optional keys add agents: `planner` and `security`, each a dashboard label or null (left out is null: the graph is as before; see The planner and Security, below). A bad key keeps its default, with a warning |
+| `pipeline` | The orchestration (QA and the pipeline, below): `{ "qa": "QA", "producers": null, "protectedBranches": ["dev", "stage", "main", "master"], "maxReworks": 3 }`. `qa` is the dashboard label of the agent that tests every code change last and is the only one that pushes; `producers` the labels that write code (`null`: every `codingAgents` label but the coordinator's and QA's); `protectedBranches` the branches QA never pushes to (any case, `*` matches anything; `pr.protect` and `pr.bases` are refused too); `maxReworks` how many times a failure goes back to its producer before the flow stops (QA and Security failures together). Three optional keys add agents: `planner`, `security` and `senior`, each a dashboard label or null (left out is null: no box; see The planner and Security, and Human task and Senior, below). A bad key keeps its default, with a warning |
 | `levels` | The branches the levels compare: `{ "work": "followup", "dev": "origin/dev", "stage": "origin/stage", "prod": "origin/main" }` (these are the defaults). A bad value keeps its default, with a warning |
 | `reminders` | Reminders at a local time, once a day: `[{ "at": "17:55", "days": "weekdays", "text": "Wrap up: commit or park your work." }]`. `days` is `weekdays` (Monday to Friday) or `daily`; `[]` turns them off. Left out, there are none. `at` is a real time, 00:00 to 23:59, and one reminder per time. A bad or repeated entry is left out with a warning in the server log |
 
@@ -853,7 +853,7 @@ Every agent that works in the repo gets the same brief. Paste this paragraph int
 > Every request gets a flow FIRST, before you change anything: `flow new <id> "<title>" --type build|review|ask`
 > (or `flow write` with `"route": { "type": "build" }`). The type sets its route from the Request to the Output:
 > build for a code change (Request, the coordinator, you, QA, Push, Output), review for a code review of a ticket
-> (the chat agent's), ask for a question, an explanation or an investigation (Request, you, Output). Follow that
+> (the chat agent's), ask for a question, an explanation or an investigation (Request, you, Human task, Output). Follow that
 > route. If the plan changes, say so with `flow route <flow> --type ...`: the old route stays visible.
 > Narrate your work on the dashboard as a flow: `node <abs path>/tools/factory.mjs flow …`.
 > Start with `flow new --type` or `flow write` before you change anything, keep
@@ -927,6 +927,9 @@ flow plan-start <flow>                                                          
 flow plan <flow> --file <plan.md> --to "<producer>"                                               # the planner only
 flow security-start <flow> [--commit <sha>]                                                       # Security only
 flow security <flow> --status passed|failed --report <file.md> --commit <sha> [--summary "..."]   # Security only
+flow senior-ask <flow> "<what to review>"                                                         # any agent but Senior
+flow senior-start <flow>                                                                          # Senior only
+flow senior <flow> pass|fail "<what was checked / what to redo>" [--steps h1,h2]                  # Senior only
 term "<word>" "<plain explanation, 1 or 2 sentences, at most 300 characters>" [--more "..."] [--flow <id>]   # not under flow
 ```
 
@@ -1101,7 +1104,8 @@ Request -> Coordinator -> Agent 1 | Agent 2 | Agent 3 -> QA -> Push -> Output
 The coordinator hands each request out; the producers (Agent 1, 2, 3) write the code; **QA** is the last stage
 before the push for every flow that changed code, and the only agent that pushes. A flow changed code when a step
 has commit or diff evidence, its summary lists a commit or diff, or it recorded a pull request (`flow pr`). A flow
-that changed none (an investigation, a plan, an ask) goes straight to the Output. The chat agent (Independent) sits
+that changed none (an investigation, a plan, an ask) goes to the **Human task** box (the user) and on to the
+Output: it waits there only when it has by-hand steps (see Human task and Senior). The chat agent (Independent) sits
 beside the coordinator: it takes questions, explanations and reviews straight from the Request and its work ends at
 the Output. The end node keeps its id `outcome` (stored paths and routes name it); its label reads **Output**.
 
@@ -1174,10 +1178,46 @@ Request -> Coordinator -> Planner -> Agent 1 | Agent 2 | Agent 3 -> QA -> Securi
   Security both passed it, and finished without a Security pass it slipped through. The Log tags Security verdicts
   (`security`) and the planner's hand-outs (`planned`) as their own kinds, with Plans and Security filters.
 
+#### Human task and Senior
+
+The **Human task** box (node id `human`, role `human`) is always drawn: it is the user, not an agent, so it has no
+settings window and no model. Every `no code changes` edge of the coordinator and the producers ends there (one
+label, on the outermost lane); the chat agent's still ends at the Output. With **Senior** (`pipeline.senior`, a
+dashboard label; null or left out is none) the graph goes on:
+
+```
+... -> Agent 1 | Agent 2 | Agent 3 -> Human task -> Senior -> Output      (no code changes)
+                                       ^-- redo --'
+```
+
+Without Senior, Human task goes straight to the Output (`done by hand`). Senior is never a producer, its id is taken
+after every other agent's, and it always runs on Opus at high effort (`docs/senior-agent-brief.md`). It reviews work
+with no code to test: CI/CD setup, cloud console changes, commands run in a terminal, settings in a third-party
+account. It never runs Terraform and never changes a live project itself.
+
+- A no-code flow with **no by-hand steps** passes both boxes and ends at the Output exactly as before: an answer or
+  an investigation never waits on anyone (its route shows them as skipped).
+- A flow **with by-hand steps** (`flow hand-step`) waits at Human task until the user ticked every step; then, with
+  Senior, it waits at Senior (`flow senior-start`, then `flow senior <flow> pass|fail "<text>" [--steps h1,h2]`).
+  A pass finishes the flow. A fail sends it back to Human task: the named steps (all when none is named) are
+  unticked, the text shows at the top of the flow's by-hand checklist and in Human review, and once ticked again it
+  waits at Senior. Senior failures share `pipeline.maxReworks`; past it the flow stops (`senior-failed`, blocked).
+- An agent can send a no-code flow to Senior on purpose: `flow senior-ask <flow> "<what to review>"` (a CI change made
+  through a web console with its own tools, say).
+- The record is `flow.senior = { status: asked|reviewing|passed|failed|senior-failed, by, startedAt, at, ask, summary,
+  redo, history }` (`flow-senior.mjs`), written only by the Senior commands; only the Senior label may record a
+  review. With Senior on, the flow page offers no Mark the flow done for such a flow, and the status route refuses
+  done until Senior passed it.
+- The scorecard counts a flow Senior gates as delivered only at Senior's pass, and each Senior failure as caught;
+  flows finished before Senior existed are judged as before. The Log shows each Senior review start and verdict
+  (kind `senior`, with a Senior filter).
+- Stored routes that go straight from an agent to `outcome` still read and check as before (the graph makes that hop
+  through the by-hand boxes); a new ask route names Human task (and Senior).
+
 Where each flow stands is derived, never stored (`stageOf`): a dropped flow has no node; an open one sits on its
 agent (an agent not in the graph sits on the coordinator; the chat agent's flow sits on the chat agent, straight from
-the Request, and is at the Output once done); a done one that changed no code is at the Output by the
-skip edge, and one that did waits on QA; pending and testing sit on QA; a failure sent back sits on its producer
+the Request, and is at the Output once done); a done one that changed no code is at the Output past Human task (with
+by-hand steps it waits at Human task, then Senior, as above), and one that did waits on QA; pending and testing sit on QA; a failure sent back sits on its producer
 (`rework`); `qa-failed` sits on QA (`failed`); passed and not pushed sits on Push (`failed` when the push was
 refused); passed and pushed is the Output. The path lists every node the flow went through, one QA visit per
 attempt and one producer visit per rework.
@@ -1395,7 +1435,11 @@ The Agents page draws the orchestration as a diagram, from a **Request** node to
 **Output** node, built only from the `pipeline` setting and the chat agent's name (see QA and the pipeline):
 Request, the coordinator and the chat agent (Independent), each producing agent, **QA**, **Push**, Output. Arrows
 follow the real order. The coordinator fans out to the producers. Dashed arrows marked
-`no code changes` skip to Output, the chat agent's included. Return arrows marked `failed` run from QA back to each
+`no code changes` go to the **Human task** box (the user: `pipeline-human.js`), drawn level with Agent 1 in QA's
+column, and on to the Output (`done by hand`), through **Senior** when there is one, level with it in Security's
+column; the chat agent's goes straight to the Output. Human task shows what waits on the user (the Human review
+split, one line per kind) and up to three flows standing there; a click or Enter on it scrolls to Human review and
+focuses its heading. Return arrows marked `failed` run from QA back to each
 producer (rework). It reads left to right when there is room, else top to bottom, and is
 read again with every status refresh without redrawing.
 
@@ -1410,7 +1454,7 @@ read again with every status refresh without redrawing.
 - **Click an agent** (the coordinator, the planner, a producer, QA, Security, the chat agent) and its settings
   open as a WINDOW in the middle of the screen (`agent-window.js`, `agent-window-view.js`, `agent-window.css`):
   its card, then **Model** (a Claude model and an effort, saved and told to the agent; the dashboard cannot switch
-  an editor session, so you switch it there; fixed at Opus, high effort, for the planner and Security; the config
+  an editor session, so you switch it there; fixed at Opus, high effort, for the planner, Security and Senior; the config
   model, read only, for the chat agent), **Subagents** (the ones running under it now, their kind and how long),
   **Specification and rules** (the editor below, moved into the window), **Files and context** (text files picked
   or dropped, and typed notes, each with a switch and Remove) and **Changes**. Esc or Close closes it; a click
