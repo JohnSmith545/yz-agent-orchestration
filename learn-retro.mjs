@@ -49,7 +49,7 @@ export function retroRefusal(flow, graph) {
 }
 
 /** One run, its text gathered: { ok, text, cost } or { error, cost }. Never rejects. */
-async function runOnce(generate, input, turn) {
+export async function runOnce(generate, input, turn) {
   let text = ''
   try {
     const run = generate(input, { turn, onDelta: t => (text += String(t)) })

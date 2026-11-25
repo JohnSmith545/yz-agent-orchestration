@@ -63,7 +63,7 @@ export function deleteRoute(id, b, relay) {
 }
 
 /** One archived flow as the archive lists it: what tells it apart, and when it was put away. */
-const archivedRow = f => ({ id: f.id, title: f.title, agent: f.agent, status: f.status, tickets: f.tickets || [], archivedAt: f.archivedAt, ...(f.completedAt ? { completedAt: f.completedAt } : {}) })
+const archivedRow = f => ({ id: f.id, title: f.title, agent: f.agent, status: f.status, tickets: f.tickets || [], archivedAt: f.archivedAt, ...(f.completedAt ? { completedAt: f.completedAt } : {}), ...(f.retro ? { retro: f.retro } : {}) })
 
 /** Both groups of the flow archive, each the newest first. ⚠️ A Deleted group that cannot be read leaves it empty with `deletedError`, never a failed page. */
 export function archiveList() {
