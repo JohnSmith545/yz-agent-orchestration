@@ -7,8 +7,9 @@
 //     learnSignals(signals)       predict-signals.mjs signals({ since })          -> ({ since }) -> [{ kind, text, flow?, agent? }]
 //   Predict's similarity (predict-routes.mjs makePredictRoute { riskOf })
 //     riskLevelOf(riskOf)         quality-risk.mjs riskOf(flow, facts) -> { level, reasons, needs }  ->  (flow) -> level | null
-//   Routing (routing-providers.mjs setRoutingProviders { riskOf, flowTokens })
-//     wireRouting({ riskOf, flowTokens })   the same level, and predict-flow-tokens.mjs flowTokens(id) as { tokens, usd }
+//   Routing (routing-providers.mjs setRoutingProviders { riskOf, flowTokens, tokensReady })
+//     wireRouting({ riskOf, flowTokens, tokensReady })   the same level, predict-flow-tokens.mjs flowTokens(id) as
+//                                    { tokens, usd }, and (server only) whether the token index is built yet
 //
 // ⚠️ Shapes that differ, and why each adapter exists:
 // - Quality's riskOf answers an OBJECT; Predict and Routing compare a level STRING (`riskOf(flow) === target.risk`).
@@ -86,7 +87,23 @@ export function routingTokens(flowTokens) {
   }
 }
 
-/** Give Routing the risk level (quality) and the tokens (predict). Called once by each entry point. */
-export function wireRouting({ riskOf, flowTokens, ...facts } = {}) {
-  setRoutingProviders({ riskOf: riskLevelOf(riskOf, facts), flowTokens: routingTokens(flowTokens) })
+/** A readiness check that answers false when it throws. */
+const readyOf = check => () => {
+  try {
+    return check() !== false
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Give Routing the risk level (quality) and the tokens (predict). Called once by each entry point. `tokensReady`
+ * (the server's: the token index is no longer building) holds back the outcome lines, each written once.
+ */
+export function wireRouting({ riskOf, flowTokens, tokensReady, ...facts } = {}) {
+  setRoutingProviders({
+    riskOf: riskLevelOf(riskOf, facts),
+    flowTokens: routingTokens(flowTokens),
+    tokensReady: typeof tokensReady === 'function' ? readyOf(tokensReady) : undefined,
+  })
 }

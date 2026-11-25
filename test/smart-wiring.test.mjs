@@ -160,6 +160,47 @@ test('wireRouting: routing reads the level and the tokens; a throwing provider i
   }
 })
 
+// ═══ an outcome line is written ONCE, so it waits until Predict can say what the flow cost ═══
+// Broke at merge: on the first start the token index is still being built, Predict's flowTokens answers null, and
+// Routing wrote every finished flow's one line with tokens and usd marked missing, for good.
+
+test('routing providers: tokens are ready by default; wireRouting passes the readiness on', () => {
+  const before = routingProviders()
+  try {
+    setRoutingProviders({})
+    assert.equal(routingProviders().tokensReady(), true)
+    let building = true
+    wireRouting({ riskOf: () => null, flowTokens: () => null, tokensReady: () => !building })
+    assert.equal(routingProviders().tokensReady(), false)
+    building = false
+    assert.equal(routingProviders().tokensReady(), true)
+    wireRouting({ tokensReady: boom })
+    assert.equal(routingProviders().tokensReady(), false, 'a readiness check that throws is not ready')
+  } finally {
+    setRoutingProviders(before)
+  }
+})
+
+test('the outcome sweep writes nothing while the tokens are not ready, then each line once with its cost', async () => {
+  const { makeRoutingRoute } = await import('../routing-routes.mjs')
+  const { mkdtempSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const path = await import('node:path')
+  const file = path.join(mkdtempSync(path.join(tmpdir(), 'smart-wiring-')), 'out.jsonl')
+  const done = { id: 'a', title: 'Fix the cart', agent: 'Agent 1', status: 'done', nodes: [], createdAt: iso(NOW - 3 * DAY), updatedAt: iso(NOW - 2 * DAY), qa: { status: 'passed', attempt: 1, by: 'QA', startedAt: iso(NOW - 2 * DAY - 1000), at: iso(NOW - 2 * DAY), attempts: [] } }
+  let ready = false
+  const providers = () => ({ riskOf: () => null, flowTokens: () => (ready ? { tokens: 100, usd: 2 } : null), tokensReady: () => ready })
+  const route = makeRoutingRoute({ flows: () => [done], outcomesFile: file, providers, now: () => NOW })
+  assert.equal(route.sweep(), 0)
+  assert.throws(() => readFileSync(file, 'utf8'), 'no line yet')
+  ready = true
+  assert.equal(route.sweep(), 1)
+  const line = JSON.parse(readFileSync(file, 'utf8').trim())
+  assert.equal(line.tokens, 100)
+  assert.equal(line.usd, 2)
+  assert.equal(route.sweep(), 0, 'never twice')
+})
+
 // ═══ the two entry points really wire them ═══
 
 test('server.mjs wires Learn, Predict and Routing through smart-wiring.mjs', () => {
@@ -167,7 +208,7 @@ test('server.mjs wires Learn, Predict and Routing through smart-wiring.mjs', () 
   assert.match(src, /from '\.\/smart-wiring\.mjs'/)
   assert.match(src, /makeLearnServerRoute\(\{[^\n]*lessons: learnLessons\(listLessons\)[^\n]*signals: learnSignals\(signals\)/)
   assert.match(src, /makePredictRoute\(\{[^\n]*riskOf: riskLevelOf\(riskOf\)/)
-  assert.match(src, /wireRouting\(\{ riskOf, flowTokens \}\)/)
+  assert.match(src, /wireRouting\(\{ riskOf, flowTokens, tokensReady: \(\) => !tokenRoute\.snapshot\(\)\.building \}\)/)
 })
 
 test('the CLI entry wires Routing too', () => {

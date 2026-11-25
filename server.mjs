@@ -887,7 +887,8 @@ const agentSettingsRoute = makeAgentSettingsRoute({ port: PORT })
 const tokenRoute = makeTokenRoute({ claudeDirs: CLAUDE_DIRS, match: CONFIG.sessionCwdMatch, names: async () => new Map((await liveSessions()).map(s => [s.sessionId, s.name])), labelOf, placed: o => predictRoute.placed(o) })
 /** Predict and warn (predict-routes.mjs): alerts, estimates and per flow tokens, on Pipeline tokens' own index. No model runs. */
 const predictRoute = makePredictRoute({ index: tokenRoute.index, names: async () => new Map((await liveSessions()).map(s => [s.sessionId, s.name])), live: async () => new Map((await liveSessions()).filter(s => !s.pinned).map(s => [s.sessionId, s.name])), labelOf, riskOf: riskLevelOf(riskOf) })
-wireRouting({ riskOf, flowTokens }) // Routing reads the risk level (quality) and a flow's tokens (predict)
+// Routing reads the risk level (quality) and a flow's tokens (predict); its outcome lines wait for the token index
+wireRouting({ riskOf, flowTokens, tokensReady: () => !tokenRoute.snapshot().building })
 const routingRoute = makeRoutingRoute({ port: PORT }) // the Routing page, ticket intake, a flow task type (routing-routes.mjs)
 /** The Learn page (learn-wiring.mjs): retrospectives, the weekly Learn run and a verdict on every rule change. */
 const learnRoute = makeLearnServerRoute({ port: PORT, tokens: () => tokenRoute.snapshot(), lessons: learnLessons(listLessons), signals: learnSignals(signals) })
