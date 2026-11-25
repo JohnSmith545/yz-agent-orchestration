@@ -235,3 +235,15 @@ test('savedTicketList: no saved list at all throws, so the Read line says the ti
   assert.throws(() => savedTicketList({ collections: [], readSource: () => null }), /No saved ticket list/)
   assert.throws(() => savedTicketList({ collections: [{ id: 'x' }], readSource: () => { throw new Error('bad') } }), /No saved ticket list/)
 })
+
+test('config.example.json s standup block reads with no warning, and the README names every key', async () => {
+  const fs = await import('node:fs')
+  const raw = JSON.parse(fs.readFileSync(new URL('../config.example.json', import.meta.url), 'utf8')).standup
+  const warned = []
+  const s = standupSettings(raw, m => warned.push(m))
+  assert.deepEqual(warned, [])
+  assert.equal(s.ticketUrl, DEFAULT_TICKET_URL)
+  const readme = fs.readFileSync(new URL('../README.md', import.meta.url), 'utf8')
+  const row = readme.split('\n').find(l => l.startsWith('| `standup` |'))
+  for (const k of Object.keys(raw)) assert.ok(row.includes(`\`${k}\``) || row.includes(`"${k}"`), k)
+})
