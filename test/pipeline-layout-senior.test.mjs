@@ -66,6 +66,23 @@ test('on a phone, top to bottom: Human task and Senior in the column of Agent 1 
   assert.equal(b.get('human').y, b.get('qa').y)
 })
 
+// QA B-4 (390 wide): the Human task box read Huma…, 8 qu…, 2 by…. Its name (13 px bold) and its longest count line
+// (12 px, `99 questions`) must fit whole in the box at a phone width, with the box padding (10 px each side).
+const TEXT_12 = 7 // px a character at 12 to 13 px, a little over the real average
+test('on a phone the Human task and Senior boxes are wide enough to read their name and count lines whole', () => {
+  for (const [name, g] of SHAPES) {
+    const b = at(L.layout(g, { width: 358, rows: 3 }))
+    for (const id of ['human', 'senior']) {
+      if (!b.has(id)) continue
+      const need = Math.max('Human task'.length, '99 questions'.length) * TEXT_12 + 20
+      assert.ok(b.get(id).w >= need, `${name}: ${id} is ${b.get(id).w} px, needs ${need}`)
+    }
+    // still under Agent 1: from its left edge, or as far left as the row allows, and under part of it
+    const [h, a] = [b.get('human'), b.get('agent-1')]
+    assert.ok(h.x <= a.x && h.x + h.w > a.x, `${name}: Human task ${h.x}..${h.x + h.w}, Agent 1 ${a.x}..${a.x + a.w}`)
+  }
+})
+
 test('the no code changes arrows of the coordinator and the producers end at Human task, under ONE label on the outermost lane', () => {
   for (const [name, g] of SHAPES) {
     for (const width of WIDTHS) {

@@ -77,14 +77,18 @@
       for (const n of pinned) {
         const src = anchors.get(n.id).map(id => box.get(id)).sort((a, b) => a.c - b.c)[0]
         const b = box.get(n.id)
-        Object.assign(b, { c: src.c, cs: src.cs, mid: src.mid })
+        // top to bottom (a phone) the box keeps its own row's width, starting under its sender: three producers share
+        // a narrow row, and the user's box must read whole (QA B-4: Huma…, 8 qu…)
+        const cs = lr ? src.cs : Math.max(src.cs, crossOf(layer.length))
+        const c = lr ? src.c : Math.max(c0, Math.min(src.c, c0 + crossSpan - cs)) // never past the width a phone has
+        Object.assign(b, { c, cs, mid: c + cs / 2 })
         placed.push(b)
       }
       const rest = layer.filter(n => !anchors.has(n.id))
       const cs = crossOf(layer.length)
       const start = c0 + (crossSpan - (rest.length * cs + Math.max(0, rest.length - 1) * gc)) / 2
       const clash = c => placed.some(p => c < p.c + p.cs + gc && p.c < c + cs + gc)
-      const inside = c => c >= c0 - 0.5 && c + cs <= c0 + crossSpan + 0.5
+      const inside = c => c >= c0 - 0.01 && c + cs <= c0 + crossSpan + 0.01
       let fits = true
       const spots = rest.map((n, i) => {
         const want = start + i * (cs + gc)

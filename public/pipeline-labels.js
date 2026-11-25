@@ -126,11 +126,14 @@
       // QA may be the Human task box, so its right side and the gap under it are tried too), else the nearest free
       const sides = lr
         ? [{ x: box.x + 2, y: box.y - 5, anchor: 'start' }, { x: box.x + 2, y: box.y + box.h + 13, anchor: 'start' }]
-        : [{ x: box.x - 6, y: box.y + 14, anchor: 'end' }, { x: box.x + box.w + 6, y: box.y + 28, anchor: 'start' }, { x: box.x + 2, y: box.y + box.h + 13, anchor: 'start' }]
-      const pick = sides.find(s => free({ ...one, ...s }, s.x, s.y)) || sides[0]
-      Object.assign(one, { x: r1(pick.x), y: r1(pick.y), anchor: pick.anchor })
+        : [{ x: box.x - 6, y: box.y + 14, anchor: 'end' }, { x: box.x + box.w + 6, y: box.y + 28, anchor: 'start' }, { x: box.x + 2, y: box.y - 5, anchor: 'start' },
+          { x: box.x + box.w - 2, y: box.y - 5, anchor: 'end' }, { x: box.x + 2, y: box.y + box.h + 13, anchor: 'start' }]
+      // each spot as it is, or a step or two away from it, before the far search round the first one
+      const tried = sides.map(s => ({ s, at: near({ ...one, ...s }, 3) }))
+      const pick = tried.find(t => t.at) || { s: sides[0], at: null }
+      Object.assign(one, { x: r1(pick.s.x), y: r1(pick.s.y), anchor: pick.s.anchor })
       for (const l of list.slice(1)) labels.splice(labels.indexOf(l), 1)
-      settle(one, near(one, 20))
+      settle(one, pick.at || near(one, 20))
     }
     for (const l of labels) {
       if (l.src) {
