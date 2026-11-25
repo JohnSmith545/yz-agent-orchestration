@@ -1962,10 +1962,6 @@ Each of the four works alone; `smart-wiring.mjs` connects them (in `server.mjs`,
 A feature that fails to answer never breaks the one that reads it: Learn names the section as left out, the others
 carry on without that part.
 
-## License
-
-MIT, see `LICENSE`. The bundled fonts in `public/fonts/` keep their own SIL Open Font License.
-
 ## Phone access
 
 A phone view of the dashboard, so you can see what needs you and talk to the coordinator from your phone. It
@@ -2024,3 +2020,7 @@ The phone listener serves only `/phone`, its own files, sign-in and sign-out, an
 desktop page, `/api/*` route, evidence file and config is a 404 there. Each write needs the session cookie
 (HttpOnly, SameSite=Strict), the page's own Origin and a per-session CSRF token; requests are rate limited per
 session and per address, and every answer is `no-store` with a strict Content-Security-Policy.
+
+## License
+
+MIT, see `LICENSE`. The bundled fonts in `public/fonts/` keep their own SIL Open Font License.
