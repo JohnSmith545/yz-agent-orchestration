@@ -3,7 +3,7 @@
 //
 //   durationText(ms)   '45 min', '3 h 20 min', '2 h', '2.5 days'; under a minute 'under 1 min'
 //   tokensText(n)      '850', '12.4K', '611K', '12.4M', '1.2B'
-//   usdText(n)         '$4.10', '$0.04', '$120'
+//   usdText(n)         '$4.10', '$0.04', '$120', '$1,568'
 
 export function durationText(ms) {
   if (!Number.isFinite(ms) || ms < 0) return ''
@@ -31,5 +31,5 @@ export function tokensText(n) {
 
 export function usdText(n) {
   if (!Number.isFinite(n)) return ''
-  return n >= 100 ? `$${Math.round(n)}` : `$${n.toFixed(2)}`
+  return n >= 100 ? `$${String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}` : `$${n.toFixed(2)}`
 }

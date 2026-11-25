@@ -70,6 +70,7 @@
         <div class="psc" id="plScore"></div>
         <div class="psc ptm" id="plTime"></div>
         <div class="psc ptk" id="plTokens"></div>
+        <div class="pl-alerts" id="plAlerts" data-pe-alerts hidden></div>
         <div class="pl-outputs" id="plOutputs" data-cv-line hidden></div>
         <div class="pl-wrap" id="plDiagram"></div>
         <div class="pl-details" id="plDetails"></div>
@@ -90,6 +91,7 @@
     tokens = window.TokenStrip?.create(section.querySelector('#plTokens')) || null
     // the line over the diagram (completed-view.js fills it), and a sign-off re-reads the pipeline: the flow leaves it
     window.CompletedView?.paint(section)
+    window.PredictAlerts?.paint(section) // the Alerts line over the diagram (predict-alerts.js)
     document.addEventListener('outputs:change', () => showing && loadPipeline(true))
     // Delegated: the agent card's Progress report (agent-cards.js leaves [data-report] to its page), a
     // subagent row (watch it live), the pane's Close, and the ticket rows of Here now.

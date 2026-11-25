@@ -154,6 +154,7 @@
       swap('.ptk-models-box', V.modelsHtml(s))
       swap('.ptk-agents', V.agentsHtml(s))
       swap('.ptk-how', V.howHtml(s))
+      window.PredictFlow?.placed(el, s) // placed on flows and not (predict-flow.js)
     }
 
     paint()

@@ -358,6 +358,7 @@
     $('.fx-table thead th:nth-child(3)').textContent = `Ticket · ${list.length} of ${data.tickets.length}`
     bindRows()
     window.CompletedView?.paint($('#fxRows')) // the pile-up reminder in each open Pass a task (completed-view.js)
+    window.PredictFlow?.paintTickets($('#fxRows')) // an open ticket's estimate (predict-flow.js)
     renderBulk()
   }
   function row(t, pos) {
@@ -384,6 +385,7 @@
           <h4>The plan</h4>
           ${t.plan ? `<p><b>${esc(t.plan.verdict || '—')}</b>${t.plan.section ? ` · <span class="faint">${esc(t.plan.section)}</span>` : ''}</p><p>${esc(t.plan.left || '')}</p>
             <p class="small">Launch: ${esc(t.plan.must || '—')} · Wave: ${esc(t.plan.wave || '—')}</p>` : '<p class="faint">Not in the plan file.</p>'}
+          ${isDone(t) ? '' : `<h4>Estimate</h4><p class="pe-ticket" data-pe-ticket="${esc(t.id)}"></p>`}
           <h4>Code review</h4>
           <p>${m.note ? esc(m.note) : '<span class="faint">No note.</span>'}</p>
           <p class="small faint">${m.by ? `Marked by ${esc(m.by)} · ${window.Shell.ago(m.at)}` : ''}</p>
