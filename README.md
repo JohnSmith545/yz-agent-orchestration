@@ -1349,7 +1349,7 @@ Routes:
   cacheWrite, cacheRead, all, responses }, cost: { usd, unpriced, unpricedTokens, w1hAtWriteRate }, perJob: { jobs,
   tickets, otherJobs, tokens, usd } | null, cacheShare, spend: { usd, turns }, agents: [{ label, sessions, input,
   output, cacheWrite, cacheRead, all, responses, usd, unpriced, share, models, subs: { files, ..., usd } }], models:
-  [{ model, ..., usd, price: { match, input, output, cacheWrite, cacheWrite1h, cacheRead } | null }], bars: [{ day,
+  [{ model, ..., cacheWrite5m, cacheWrite1h, usd, price: { match, input, output, cacheWrite, cacheWrite1h, cacheRead } | null }], bars: [{ day,
   tokens, usd }], skipped, dupes, special, files, building, progress, prices: { source, errors, given }, builtAt,
   lastRead }`. Dollars are null with no price; `building` is true with a `progress` from 0 to 1 until the first read
   of the transcripts is done. A bad window is the score's 400.

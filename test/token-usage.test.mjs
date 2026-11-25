@@ -310,6 +310,16 @@ test('by model: tokens, the estimate and the price used, the unpriced ones named
   assert.equal(s.cost.unpricedTokens, 10)
 })
 
+test('by model: the two cache write lifetimes apart, so tokens times the listed rates gives the cost shown', () => {
+  const s = stats([file('m', 's1', { '2026-11-25': { [OPUS]: vec(10, 20, 300, 4000, 50000) } }, { title: 'Master' })])
+  const m = s.models[0]
+  assert.equal(m.cacheWrite5m, 300)
+  assert.equal(m.cacheWrite1h, 4000)
+  assert.equal(m.cacheWrite, 4300)
+  const p = m.price
+  assert.equal(m.usd, (m.input * p.input + m.output * p.output + m.cacheWrite5m * p.cacheWrite + m.cacheWrite1h * p.cacheWrite1h + m.cacheRead * p.cacheRead) / 1e6)
+})
+
 test('no model with a price: no dollar figure anywhere', () => {
   const s = stats([file('m', 's1', { '2026-11-25': { [HAIKU]: vec(5, 5) } }, { title: 'Master' })])
   assert.equal(s.cost.usd, null)

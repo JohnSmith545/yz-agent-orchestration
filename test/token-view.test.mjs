@@ -35,7 +35,7 @@ const STATS = {
     { label: 'Stand up Creator', sessions: 1, input: 3152, output: 175344, cacheWrite: 3951826, cacheRead: 15812799, all: 19943121, responses: 859, usd: 10.31, unpriced: false, share: 0.012, models: ['claude-opus-5-5'], subs: { files: 0, input: 0, output: 0, cacheWrite: 0, cacheRead: 0, all: 0, usd: null } },
   ],
   models: [
-    { model: 'claude-opus-5-5', input: 11330, output: 4800168, cacheWrite: 22413678, cacheRead: 1575457722, all: 1602682898, responses: 5000, usd: 529.3, price: { match: 'claude-opus-5-5', input: 4, output: 20, cacheWrite: 5, cacheWrite1h: 8, cacheRead: 0.2 } },
+    { model: 'claude-opus-5-5', input: 11330, output: 4800168, cacheWrite: 22413678, cacheWrite5m: 2000000, cacheWrite1h: 20413678, cacheRead: 1575457722, all: 1602682898, responses: 5000, usd: 529.3, price: { match: 'claude-opus-5-5', input: 4, output: 20, cacheWrite: 5, cacheWrite1h: 8, cacheRead: 0.2 } },
     { model: 'claude-opus-5-5-20261201', input: 1, output: 1, cacheWrite: 0, cacheRead: 0, all: 2, responses: 1, usd: 0.0001, price: { match: 'claude-opus-5-5', input: 4, output: 20, cacheWrite: 5, cacheWrite1h: 8, cacheRead: 0.2 } },
     { model: 'claude-haiku-5-5', input: 10, output: 3633, cacheWrite: 44027, cacheRead: 77982, all: 125652, responses: 8, usd: null, price: null },
   ],
@@ -185,7 +185,13 @@ test('by agent: one row per label with the subagents part under it, exact number
 
 test('by model: the price used, a prefix match named, and no price set said plainly', () => {
   const html = V.modelsHtml(STATS)
-  assert.match(html, /\$4 in · \$20 out · \$5 write · \$8 1 hour write · \$0\.20 read/)
+  assert.match(html, /\$4 in · \$20 out · \$5 5 min write · \$8 1 hour write · \$0\.20 read/)
+  // a column for each write lifetime, each with its exact count to hover
+  assert.match(html, /<th scope="col">Writes, 5 min<\/th><th scope="col">Writes, 1 hour<\/th>/)
+  assert.match(html, /title="2,000,000">2M<\/td><td class="num" title="20,413,678">20.4M<\/td>/)
+  // a price with no 1 hour rate says the 5 minute one prices both
+  const one = { ...STATS.models[0], price: { ...STATS.models[0].price, cacheWrite1h: undefined } }
+  assert.match(V.modelsHtml({ ...STATS, models: [one] }), /\$5 write \(5 min and 1 hour\)/)
   assert.match(html, /as claude-opus-5-5/)
   assert.match(html, /no price set/)
   assert.match(V.modelsHtml(EMPTY), /No tokens in this period/)

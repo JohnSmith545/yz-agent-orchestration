@@ -322,7 +322,8 @@ export function tokenStats({ files = [], now = Date.now(), days = 30, prices = {
   const modelRows = [...models]
     .map(([model, s]) => {
       const p = priced(model)
-      return { model, ...kinds(s.vec), responses: s.vec[N], usd: usdOf(s), price: p ? { match: p.match, ...p.price } : null }
+      // the two write lifetimes apart too: they have their own rates, so the page can show tokens times rate = cost
+      return { model, ...kinds(s.vec), cacheWrite5m: s.vec[W5], cacheWrite1h: s.vec[W1], responses: s.vec[N], usd: usdOf(s), price: p ? { match: p.match, ...p.price } : null }
     })
     .sort((a, b) => (b.usd ?? -1) - (a.usd ?? -1) || b.all - a.all || a.model.localeCompare(b.model))
 
