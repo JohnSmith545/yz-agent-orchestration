@@ -165,3 +165,17 @@ test('the PIN hash never leaves through the summary for the page', () => {
   assert.equal(JSON.stringify(sum).includes(HASH), false)
   assert.equal(sum.hasPin, true)
 })
+
+// ═══ the example config and the docs ═══
+
+test('config.example.json has the remote block, off, and it reads as off with no listener', async () => {
+  const fs = await import('node:fs')
+  const example = JSON.parse(fs.readFileSync(new URL('../config.example.json', import.meta.url), 'utf8'))
+  assert.deepEqual(example.remote, { enabled: false, bind: '', port: 4318, pinHash: '', sessionHours: 12 })
+  assert.equal(settings(example.remote).s.enabled, false)
+  const readme = fs.readFileSync(new URL('../README.md', import.meta.url), 'utf8')
+  assert.match(readme, /`"remote": \{ "enabled": false, "bind": "", "port": 4318, "pinHash": "", "sessionHours": 12 \}`/)
+  for (const doc of [readme, fs.readFileSync(new URL('../docs/USER_GUIDE.md', import.meta.url), 'utf8')]) {
+    for (const s of [/plain HTTP/, /Never forward the port/i, /PIN is the only lock/, /phone-setup/, /phone-pin/, /Tailscale/]) assert.match(doc, s)
+  }
+})

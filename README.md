@@ -1781,3 +1781,50 @@ whose tools only read) runs one short headless Claude turn per collection that r
 ## License
 
 MIT, see `LICENSE`. The bundled fonts in `public/fonts/` keep their own SIL Open Font License.
+
+## Phone access
+
+A phone view of the dashboard, so you can see what needs you and talk to the coordinator from your phone. It
+is **off** until you turn it on, and with no `remote` block in `config.json` nothing changes at all: the
+dashboard keeps listening on `127.0.0.1` only.
+
+**Set it up** (each step in your own terminal, in this folder):
+
+1. Install [Tailscale](https://tailscale.com) on this PC and on the phone and sign in to the same account, or
+   put both on your home Wi-Fi.
+2. `node tools/factory.mjs phone-setup`: pick one of this PC's addresses (a Tailscale one is marked), read what
+   it opens, and type `yes`. It writes `remote.bind` and `remote.enabled` to config.json.
+3. `node tools/factory.mjs phone-pin`: type a phone PIN of 6 to 12 digits, twice, nothing shown. It must differ
+   from your send PIN. Only its scrypt hash is kept (`remote.pinHash`), and every phone is signed out.
+4. Restart the dashboard. On the phone, open the address it prints (`http://<address>:4318/phone`), sign in,
+   and add the page to the home screen.
+
+**What the phone can do**, and nothing else: see how many things need you and what each agent is doing; answer
+an open question (once: changing an answer stays on the PC); tick a by-hand step; mark a finished output
+Completed; and send a message to the coordinator and read its newest replies. There is no delete, archive,
+settings, rules, config, Finish without Senior, Send or Generate on the phone. An answer and a message each go
+through the answer relay's short paid turn on your PC, a few cents each (`phone` in Spend today for messages).
+
+The block, in config.json (`config.example.json` has it, off):
+`"remote": { "enabled": false, "bind": "", "port": 4318, "pinHash": "", "sessionHours": 12 }`
+
+| Key | What it does |
+| --- | --- |
+| `enabled` | Only `true` turns it on, and only with a valid `bind`, `port` and `pinHash`. Anything wrong keeps it off with one warning. |
+| `bind` | ONE address of this PC: a private one (10.x, 172.16-31.x, 192.168.x) or Tailscale (100.64-127.x), on a network this PC is on now. `0.0.0.0`, `::`, public, loopback and IPv6 addresses are refused. |
+| `port` | 1024 to 65535, not the desktop `port`. Default 4318. |
+| `pinHash` | Written by `phone-pin`; never type a PIN here. `pinSetAt` says when. |
+| `sessionHours` | How long a phone stays signed in, 1 to 168. Default 12. |
+
+**The honest limits.** This is plain HTTP on your private network: no TLS, no tunnel, nothing public. Tailscale
+encrypts the link between your devices; on Wi-Fi, anyone on that network can reach the sign-in page, and anyone
+who can read the network's traffic can read the page and the session cookie. The phone PIN is the only lock:
+five wrong tries lock phone sign-in for 15 minutes, for every device (kept on disk, so a restart does not reset
+it). **Never forward the port on your router.** The Settings page's **Phone** card shows whether it is on, the
+address, when the PIN was set, recent sign-ins and lockouts, **Sign out everywhere** and **Turn phone access
+off**; turning it on is only ever done in the terminal. Each lockout is also a line in the Log.
+
+The phone listener serves only `/phone`, its own files, sign-in and sign-out, and the phone's own API: every
+desktop page, `/api/*` route, evidence file and config is a 404 there. Each write needs the session cookie
+(HttpOnly, SameSite=Strict), the page's own Origin and a per-session CSRF token; requests are rate limited per
+session and per address, and every answer is `no-store` with a strict Content-Security-Policy.

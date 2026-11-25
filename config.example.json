@@ -85,5 +85,6 @@
     "remote": "origin",
     "bases": ["dev"],
     "gh": "gh"
-  }
+  },
+  "remote": { "enabled": false, "bind": "", "port": 4318, "pinHash": "", "sessionHours": 12 }
 }
