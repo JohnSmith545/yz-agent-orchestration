@@ -1971,6 +1971,34 @@ Each of the four works alone; `smart-wiring.mjs` connects them (in `server.mjs`,
 A feature that fails to answer never breaks the one that reads it: Learn names the section as left out, the others
 carry on without that part.
 
+## Pull requests (the list that fades into fog)
+
+Every pull request an agent opened for a flow and that is still open on GitHub, as a small block titled
+**Pull requests** at the top of the Agents page, under the Alerts line (`#/agents?prs` scrolls to it), and on Home
+under the lines at the top. Nothing shows while there is none.
+
+- **What is on it.** A flow names its pull request by the link Send stored (`output.pr`), or by the branch the agent
+  recorded with `flow pr` (`output.merge`), so one an agent opened itself is found too (`gh pr list --head`). Open
+  and draft ones are listed, newest first; two flows naming the same pull request show it once. An item **leaves**
+  when its pull request is merged or closed on GitHub (within about a minute), or when you mark its flow
+  **Completed**; archiving alone is not enough. `prlist-items.mjs`.
+- **The fog.** No numbers, no bullets. The newest is full size and clear, with a small line under it: the agent, how
+  long ago it opened, its checks (passing, failing, running, none), and whether it needs you (`waiting for your
+  review`, or `ready for you to merge` when it is mergeable and green; a small accent dot marks it). Each one under
+  it is a little smaller, shows less of its title and fades further (opacity 1, 0.62, 0.38, 0.22, 0.12, a mask
+  thinning each line towards its end, fading to the page's own background in light and dark). At most 5 show, then
+  `and 3 more`, which unfolds the rest. Point at a faded one, or reach it with the keyboard, and it comes back into
+  full view. Every title is a real link to the pull request (a new tab), each with **Open the flow**; a screen reader
+  hears a plain list with the full titles. `public/prlist-view.js`, `public/prlist.css`.
+- **The move up.** When the first leaves it fades up and out while the rest slide up one place, each growing to its
+  new step, over about 400 ms; a new one fades in at the top. With reduced motion the list simply redraws.
+  `public/prlist.js`.
+- **Route.** `GET /api/prs` (no-store): `{ items, checkedAt, problem }`, answered at once from memory. The server
+  reads the states in the background with `gh pr view` and `gh pr list` (read only, never anything that writes),
+  at most once a minute, four at a time with an 8 s limit each, and never reads a merged or closed one again. A read
+  that fails keeps the last good state and the block says so under the list. The page asks every 30 s while the tab
+  is visible, and at once when you come back to it. `prlist-store.mjs`, `prlist-routes.mjs`. No setting.
+
 ## Phone access
 
 A phone view of the dashboard, so you can see what needs you and talk to the coordinator from your phone. It

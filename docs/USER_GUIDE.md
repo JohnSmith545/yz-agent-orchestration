@@ -853,3 +853,20 @@ Log. A PIN changed without phone-pin is called out: if that was not you, turn ph
 - Never forward the port on your router. It is not built to face the internet.
 - The phone can do only the five things above. It cannot delete, archive, change settings or rules, send a pull
   request or run a generator.
+
+## 16. Pull requests
+
+When an agent finishes a coding task and opens a pull request, it shows in a small **Pull requests** block at the
+top of the Agents page (under the Alerts line) and on Home. Nothing shows when there are none.
+
+- The newest is clear, with a line under it: which agent, how long ago it opened, whether its checks pass, and
+  whether it needs you: `waiting for your review`, or `ready for you to merge` (green and mergeable). A small dot
+  in the margin marks one that needs you.
+- Each one under it is smaller and fainter, as if fading into fog, so your eye lands on the newest. Point at a
+  faded one, or Tab to it, and it comes back into full view. At most 5 show; `and 3 more` unfolds the rest.
+- Click a title to open the pull request on GitHub in a new tab, or **Open the flow** for the work behind it.
+- A pull request leaves the list when it is merged or closed on GitHub (within about a minute), or when you mark its
+  flow **Completed**. The next one moves up and becomes the clear one.
+- The dashboard only reads GitHub here, through the `gh` command, at most once a minute. If it cannot reach GitHub
+  the list keeps what it knew and says so under it.
+- The address `#/agents?prs` opens the Agents page scrolled to the list.
