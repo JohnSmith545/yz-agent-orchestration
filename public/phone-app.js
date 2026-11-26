@@ -22,7 +22,18 @@
 //   Escape, Close or a tap outside it closes it and gives the focus back to its chip; a poll that redraws it keeps
 //   its scroll. An answer given in it reloads it.
 // - The PC unreachable: a quiet line at the top, and the page keeps trying. The session over (401): back to the PIN.
-;(() => {
+// - BOOT: the page holds a quiet Loading line until the first draw (phone.html), and every object this file needs is
+//   set by a script before it. ⚠️ If one has not run (a script that failed or is late), this file waits ONCE for the
+//   page's load event and starts then, or says the page did not load completely: never a blank page, never a throw
+//   on a missing object (QA, 2026-11-26: one of 40 quick reloads showed an empty body).
+;(function boot(retry = false) {
+  const NEEDS = ['PhoneState', 'PhoneText', 'PhoneChat', 'PhoneView', 'PhoneAgents', 'PhoneComposer', 'PhoneChatLive']
+  if (NEEDS.some(name => !window[name])) {
+    const el = window.document?.getElementById?.('app')
+    if (retry && el) el.innerHTML = '<p class="ph-muted ph-boot" role="status">The page did not load completely. Reload it to try again.</p>'
+    if (!retry) window.addEventListener('load', () => boot(true), { once: true })
+    return
+  }
   const S = window.PhoneState
   const V = window.PhoneView
   const K = window.PhoneComposer
