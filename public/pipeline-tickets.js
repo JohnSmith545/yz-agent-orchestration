@@ -69,7 +69,7 @@
   const chips = list => ({ shown: (list || []).slice(0, MAX), more: Math.max(0, (list || []).length - MAX) })
   const chipRows = groups => Math.min(MAX, Math.max(0, ...Object.values(groups || {}).map(l => l.length)))
 
-  const tipOf = (t, labels) => [t.title || t.id, whereOf(t, labels || {}), word(t), t.waiting ? 'Mark it completed' : ''].filter(Boolean).join(' · ')
+  const tipOf = (t, labels) => [t.title || t.id, whereOf(t, labels || {}), word(t), t.waiting ? 'Mark it completed' : '', window.QualityFlow?.tip(t) || ''].filter(Boolean).join(' · ')
   const C = () => window.CompletedView
 
   function chipHtml(t, labels) {

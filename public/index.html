@@ -40,6 +40,11 @@
 <link rel="stylesheet" href="human.css">
 <link rel="stylesheet" href="projects.css">
 <link rel="stylesheet" href="completed.css">
+<link rel="stylesheet" href="quality.css">
+<link rel="stylesheet" href="predict.css">
+<link rel="stylesheet" href="routing.css">
+<link rel="stylesheet" href="learn.css">
+<link rel="stylesheet" href="phone-card.css">
 </head>
 <body>
 <aside id="rail" aria-label="Navigation"></aside>
@@ -57,6 +62,7 @@
     <div id="homeSince" hidden></div>
     <div id="homeHuman" hidden></div>
     <div id="homeOutputs" data-cv-line hidden></div>
+    <div id="homeAlerts" data-pe-home hidden></div>
 
     <div class="home-zone">
       <div class="section-head"><h2>Agents <span class="faint">· <span class="num" id="agentsCount">–</span></span></h2></div>
@@ -87,6 +93,9 @@
   <section id="scriptView" aria-label="Generators" hidden></section>
   <section id="archiveView" aria-label="Flow archive" hidden></section>
   <section id="bankView" aria-label="Orchestration bank" hidden></section>
+  <section id="lessonsView" aria-label="Lessons" hidden></section>
+  <section id="routingView" aria-label="Routing" hidden></section>
+  <section id="learnView" aria-label="Learn" hidden></section>
 </main>
 
 <aside id="drawer" aria-label="Ask" hidden></aside>
@@ -178,8 +187,11 @@
 <script src="script-page.js"></script>
 <script src="glossary-page.js"></script>
 <script src="settings-page.js"></script>
+<script src="phone-card.js"></script>
+<script src="phone-notice.js"></script>
 <script src="since.js"></script>
 <script src="scroll-keep.js"></script>
+<script src="routing-tickets.js"></script>
 <script src="factory.js"></script>
 <!-- palette.js BEFORE notify.js: both take Escape on window capture, and the palette (on top) must hear it first. -->
 <script src="palette.js"></script>
@@ -191,5 +203,15 @@
 <script src="project-menu.js"></script>
 <script src="bank-page.js"></script>
 <script src="completed-view.js"></script>
+<script src="predict-view.js"></script>
+<script src="predict-alerts.js"></script>
+<script src="predict-flow.js"></script>
+<script src="quality-flow.js"></script>
+<script src="quality-score.js"></script>
+<script src="quality-lessons-page.js"></script>
+<script src="routing-page.js"></script>
+<script src="learn-retro.js"></script>
+<script src="learn-view.js"></script>
+<script src="learn-page.js"></script>
 </body>
 </html>

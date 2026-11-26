@@ -679,3 +679,163 @@ On macOS or Linux, use your own service manager (launchd, systemd, or a terminal
 - **The tests fail with "config.json is missing".** The tests read `config.json`. Copy
   `config.example.json` to `config.json` first.
 - **The dashboard stops by itself at a set hour.** That is `stopHour`. Set it to `null` to keep it running.
+
+## 11. Lessons, the self-check and risk labels
+
+These four help the agents get work right the first time.
+
+- **Lessons** (the book at the end of the rail, `#/lessons`). When QA, Security or Senior fails a piece of work, a
+  small model run reads what it found and proposes up to 3 short lessons, such as *Write the failing test before the
+  code*. They wait under **Waiting for you**: **Accept** keeps one, **Edit** lets you reword it first, **Reject** drops
+  it. When a proposal repeats a lesson you already have, it says *Counts again as L3*, and accepting it adds one to
+  that lesson's count. You can type your own under **Add a lesson**. **Retire** takes a lesson out of use; **Restore**
+  brings it back. A run costs about $0.015. New failures are read on their own; older ones wait under **Failures not
+  read yet** for **Extract lessons**. To stop the automatic runs, set `"quality": { "autoLessons": false }` in
+  `config.json`.
+- **Lessons in the brief.** When an agent starts a flow, it is shown up to 7 accepted lessons that match the task,
+  most seen first, each with why it was picked.
+- **The self-check.** Before an agent hands its work to QA, it answers a short checklist made of the house rules and
+  those lessons, and says what is missing for any it could not tick. QA reads the answers and tests the claims. An
+  opened flow shows the checklist with its ticks. The **Correctness** tile on the Agents page scorecard shows how often
+  work with a self-check was right the first time, against work without one (it says *Too few to trust* until there
+  are 5 of each). To make the self-check a rule, set `"pipeline": { "requireSelfCheck": true }`: QA then refuses to
+  start testing code that has none.
+- **Second opinion on the plan.** When the Planner hands out a plan, an opened flow shows **Second opinion**. Press it
+  and a cheap model run (about $0.01) lists up to 5 things the plan may have missed, such as a missing test plan or a
+  step that needs you. The builder sees them too. It never blocks anything. `"quality": { "critic": "auto" }` runs it
+  once for every plan; `"off"` hides it.
+- **Risk label.** Each flow gets a label from simple rules on what it touches: sign-in, payments, secrets, the cloud
+  and CI, the database, deleting data, public pages. A card shows **Medium risk** or **High risk**, with the reasons
+  when you hover it, and an opened flow says what the label asks for (a Security review, a Senior review, a deeper QA
+  pass), and says so when that reviewer is not set up. You can write your own rules in `quality.riskRules`; the README
+  shows the shape.
+
+## 12. Predict and warn: estimates, alerts and what a flow cost
+
+Nothing here asks a model or costs anything: every figure comes from what the flow files and the transcripts
+already record.
+
+- **What a flow cost.** Open a flow: its Output tab has a **Cost** block with its tokens and about what they cost at
+  your configured prices (`Tokens so far` while it is open). The ? at the top of the flow says how it is counted.
+  On the Agents page, Pipeline tokens says how much of the period is on flows and how much is not on any flow.
+- **Estimates.** When a flow starts, the dashboard works out how long it will take and what it will cost from the
+  most similar flows that finished before it: `about 1 h 10 min and $40, based on 5 similar flows`, with the range
+  from the fastest to the slowest. With fewer than 3 similar flows it says **No estimate yet: too few similar
+  flows**. Open a ticket on the Tickets page to see one for work not started yet. When the flow finishes, its Cost
+  block sets the estimate against what it really took. **How good the estimates have been**, folded inside Pipeline
+  time, shows how far off they were; under 5 flows it says Too few to trust.
+- **Alerts.** A line at the top of the Agents page, and on Home, says how many there are; **Show them** opens the
+  list. When one agent holds 3 or more flows far past their usual time, they are one alert: **Dismiss all for today**
+  hides them together, and **The N flows** opens them one by one.
+  - **Taking long**: a flow has stood at a step far longer than that step usually takes.
+  - **Waiting on you**: the same for a question, a blocked flow or steps only you can do.
+  - **Token spike**: a session used far more tokens in the last hour than it usually does.
+  - **Long history**: a session re-reads a very long conversation on every turn, so each turn costs more. Its box
+    on the diagram gets a small amber dot. **Copy handover request** copies a sentence you can paste to that agent,
+    asking it to write a short handover note; then start a fresh session from that note.
+  - **Daily limit**: only when you set one.
+
+  **Dismiss for today** hides an alert until midnight; it comes back sooner only if it gets half as bad again.
+  **Snooze for a week** is for a flow meant to stay open a long time, such as a tracking flow for a checklist: it
+  stays quiet for 7 days, and comes back at once if the flow moves to another step.
+- **Settings** (`config.json`): `alerts` (`stuckFactor`, `stuckMinMinutes`, `stuckHours`, `spikeFactor`,
+  `spikeMinTokens`, `contextTokens`, `dailyUsd`, `dailyTokens`, `enabled`) and `estimates` (`enabled`,
+  `nearest`). Restart the dashboard after a change.
+
+## 13. Routing: suggestions for who does what
+
+Open **Routing** at the bottom of the rail. Each rule says: when a task is this type, this risk or this size,
+suggest this agent, this model and this effort, because of this reason. The first rule that fits wins, so put the
+narrow ones first. Change a rule in place, move it up or down, add or remove one, then **Save rules** and confirm.
+
+A suggestion is never an order. You see it in **Pass a task** on the Tickets page, and the agents see it when they
+start a flow or the planner hands one out. Nothing is switched by itself. The planner, Security and Senior always
+stay on Opus at high effort.
+
+**What happened** counts the finished flows and shows, per task type and model, how often the work was right the
+first time, the usual time and the usual cost. A row with fewer than 5 flows says Too few to trust. Cost shows only
+when the dashboard records it per flow.
+
+**Latest flows** shows each flow's task type. If it is wrong, pick the right one: your choice always wins.
+
+**Sorting tickets.** On the Tickets page every ticket carries a small tag: Code, No code, Needs a person or Unsure,
+with the reason when you point at it. The Sort chips filter by it. Open a row to correct the sort or the task type,
+or to say a ticket flagged `Looks like FLA-761` is not a duplicate. Human review lists the tickets sorted as no code
+or needs a person, and leaves out the ones sorted as code. To let a cheap model sort the unsure ones, set
+`routing.intakeModel` in config.json (for example `claude-haiku-5-5`) and press **Sort the unsure tickets** on the
+Routing page. One run costs about a cent.
+
+## 14. Learn: what the work taught
+
+- **Retrospective.** Mark a flow **Completed** and, half a minute later, its Output tab shows three lines under the
+  story: what went right, what went wrong, what to do next time. About 1 cent each. A finished flow without one has
+  **Write the retrospective**. The flow archive row folds them away under **Retrospective**.
+- **Learn** (the light bulb, last in the rail). Press **Run Learn** about once a week. It reads the scores, the QA
+  reports and the retrospectives since the last run and proposes up to 3 rule changes, each with its evidence.
+  **Accept** saves the rule as if you typed it on the Agents page; **Edit then accept** lets you reword it first;
+  **Reject** asks why (optional), and the next run will not propose it again. A settings change is shown as text:
+  apply it yourself. A run costs about 10 to 20 cents.
+- **Verdict due.** Two weeks after any rule change, yours too, a card compares right first time, time, cost and QA
+  failures before and after, and says Better, Worse, No clear change or Too few flows to tell. Choose **Keep**,
+  **Revert** (the old text comes back) or **Wait two more weeks**. Nothing changes by itself.
+- To switch it all off, set `"learn": { "enabled": false }` in `config.json`. `"autoRetro": false` stops only the
+  retrospective on Completed; `"weekly": true` runs Learn by itself when you open the page, once a week at most.
+
+## 15. Phone access
+
+Use the dashboard from your phone: see what needs you, answer, tick, sign off, and talk to the coordinator. It
+is off until you set it up, and only reachable on your own private network.
+
+**Set it up once**, at the PC, in a terminal in the dashboard folder:
+
+1. Install Tailscale on the PC and on the phone, and sign in to the same account on both. (Or keep both on your
+   home Wi-Fi. Tailscale is better: it encrypts the link and works away from home.)
+2. Run `node tools/factory.mjs phone-setup`. Pick the address it lists (the Tailscale one says so), read what it
+   tells you, and type `yes`.
+3. Run `node tools/factory.mjs phone-pin`. Type a PIN of 8 to 12 digits twice. Pick one you do not use for your
+   send PIN.
+4. Wait a few seconds: a running dashboard starts listening by itself, no restart needed.
+5. On the phone, open the address `phone-setup` printed, such as `http://100.101.102.103:4318/phone`. Sign in
+   with the PIN. Then add it to the home screen: on an iPhone, Share, then Add to Home Screen; on Android, the
+   browser menu, then Add to Home screen.
+
+**On the phone** there are four tabs at the bottom:
+
+- **Now**: how many things need you (questions, by-hand steps, outputs to sign off), what each agent is doing in
+  one line, and how many flows finished today.
+- **Needs you**: each open question with Yes and No (or a box for a written answer), and each by-hand flow with
+  its steps to tick. An answer reaches the agent through a short paid turn on your PC, a few cents each. A
+  question you have answered cannot be changed from the phone; do that at the PC.
+- **Outputs**: finished work waiting for your sign-off, with its story. **Completed** asks once to confirm.
+- **Master** (your coordinator's name): your messages and its replies. A message is handed to the coordinator on
+  your PC, by a short paid turn (a few cents), and it answers when it gets to it. The PC must be on. One message
+  at a time: if one is not sent, the phone says why and puts your text back in the box. The phone shows only the
+  replies written after your first message from that phone, never the coordinator's other work. Each message
+  arrives with a fixed first line saying it came from your phone, and the coordinator then does nothing
+  destructive, nothing that pushes, deploys or touches a live system, and no settings change until you confirm
+  at the PC.
+
+A quiet line at the top says when the phone cannot reach the PC. When the session ends (after 4 hours by
+default), the phone asks for the PIN again.
+
+**On the PC**, Settings has a **Phone** card: on or off, the address to open, when the PIN was set, recent
+sign-ins and lockouts, **Sign out everywhere** (do this if you lose the phone) and **Turn phone access off**.
+While phone access is on, the rail ends with a small **Phone on** badge that opens the card. Every phone sign-in,
+lockout, PIN change and change to phone access in config.json raises a notice on the desktop, and a line in the
+Log. A PIN changed without phone-pin is called out: if that was not you, turn phone access off.
+
+**What to know about safety:**
+
+- It is plain HTTP on your private network. Over home Wi-Fi the PIN and the session can be read by someone who
+  can see the traffic, and anyone on the same network can reach the sign-in page; Tailscale removes that, because
+  it encrypts the link. Do not turn it on for a shared or public network.
+- It opens only while the PC is on the network it was set up on (the same adapter and subnet), and closes within
+  seconds when the PC moves. Two home routers that use the same subnet cannot be told apart: Tailscale has no
+  such gap.
+- The PIN is the only lock, and it guards the ability to instruct a coding agent: treat it like a password. Five
+  wrong tries lock phone sign-in for 15 minutes, for every device, even after a restart;
+  3 lockouts within 24 hours turn phone access off until you turn it on again at the PC. Someone on your network could cause this;
+  that is the price of a lock they cannot get around.
+- Never forward the port on your router. It is not built to face the internet.
+- The phone can do only the five things above. It cannot delete, archive, change settings or rules, send a pull
+  request or run a generator.

@@ -53,7 +53,9 @@
     return ORDER.map(key => {
       const value = pct(r[key]?.value)
       const fraction = key === 'f' || value === null ? '' : `${r[key].top} of ${r[key].bottom}`
-      const meaning = key === 'f' ? `${MEANING.f} ${F_SAYS[beta]}` : MEANING[key]
+      // beside Correctness, the self-checked split when the quality script is on the page (public/quality-score.js)
+      const split = key === 'correctness' ? window.QualityScore?.line(score.selfCheck) || '' : ''
+      const meaning = key === 'f' ? `${MEANING.f} ${F_SAYS[beta]}` : split ? `${MEANING[key]} ${split}` : MEANING[key]
       return { key, name: NAMES[key], number: value ?? NONE, fraction, meaning, empty: value === null }
     })
   }
@@ -141,7 +143,8 @@
       `<li>Recall: ${num(n.delivered)} ÷ (${num(n.delivered)} + ${num(n.missed)}), right delivered over everything that should have been.</li>` +
       '<li>F-score: precision and recall together. F1 weighs them the same; F4 treats recall as 4 times as important.</li>' +
       `<li>Accuracy: (${num(n.delivered)} + ${num(n.caught)}) ÷ ${num(n.delivered) + num(n.slipped) + num(n.missed) + num(n.caught)}, the right calls over all four counts.</li>` +
-      `<li>Correctness: ${num(c.right)} ÷ ${num(c.judged)}, ${w.correct} with no failure on the way, over flows passed or stopped.</li></ul>` +
+      `<li>Correctness: ${num(c.right)} ÷ ${num(c.judged)}, ${w.correct} with no failure on the way, over flows passed or stopped.</li>` +
+      (score.selfCheck && window.QualityScore ? `<li>${esc(window.QualityScore.HOW)}</li>` : '') + '</ul>' +
       `<h4 class="psc-h">By agent</h4>${agentsTable(score.agents, w.who)}` +
       '<p class="psc-foot">Archived flows count. Deleted flows do not.</p>'
   }

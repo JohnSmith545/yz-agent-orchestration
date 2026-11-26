@@ -141,7 +141,7 @@ test('wired in: the stylesheet and the script on the page, the script in npm run
   assert.match(html, /<script src="script-context\.js"><\/script>/)
   const pkg = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'package.json'), 'utf8'))
   for (const f of ['public/script-context.js', 'script-context.mjs', 'script-context-routes.mjs', 'script-compose.mjs', 'script-brief.mjs', 'script-session.mjs', 'tools/context-cli.mjs', 'script-log.mjs', 'script-log-routes.mjs']) {
-    assert.ok(pkg.scripts.check.includes(`node --check ${f}`), f)
+    assert.ok(pkg.checkList.includes(`node --check ${f}`), f)
   }
 })
 

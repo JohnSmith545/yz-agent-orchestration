@@ -75,7 +75,7 @@ test('index.html holds the section, the stylesheet and the scripts, in dependenc
 test('npm run check covers every new file, and the palette and glossary know the page', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
   for (const f of ['script.mjs', 'script-prompt.mjs', 'script-routes.mjs', 'public/script-text.js', 'public/script-state.js', 'public/script-sound.js', 'public/script-stream.js', 'public/script-page.js', 'public/script-render.js', 'public/script-view.js', 'public/script-markup.js']) {
-    assert.ok(pkg.scripts.check.includes(`node --check ${f}`), f)
+    assert.ok(pkg.checkList.includes(`node --check ${f}`), f)
   }
   assert.match(read('palette.js'), /\['Generators', '#\/generators', \['script', 'prompt', 'brainstorming', 'standup', 'stand up'\]\]/)
   assert.ok(JSON.parse(read('glossary.json')).script?.short?.length > 20)

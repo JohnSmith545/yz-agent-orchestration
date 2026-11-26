@@ -116,5 +116,5 @@ test('wired: flows.js draws the checklist above the views and opens a flow at it
   assert.match(html, /<link rel="stylesheet" href="human.css">/)
   assert.match(read('flows-page.js'), /if \(q\.at === 'hand'\) return window\.FlowsView\.gotoHand\?\.\(id\)/)
   const pkg = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'package.json'), 'utf8'))
-  assert.ok(pkg.scripts.check.includes('node --check public/flow-hand.js'))
+  assert.ok(pkg.checkList.includes('node --check public/flow-hand.js'))
 })

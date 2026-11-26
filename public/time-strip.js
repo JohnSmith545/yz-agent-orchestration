@@ -85,6 +85,7 @@
 
     async function load() {
       const seq = ++st.seq
+      window.PredictFlow?.accuracy(el, st.win) // How good the estimates have been, folded (predict-flow.js)
       el.setAttribute('aria-busy', 'true')
       try {
         const r = await fetch(`/api/time?days=${encodeURIComponent(st.win)}`)

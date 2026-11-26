@@ -14,8 +14,8 @@
 // worktree of the repo counts too. Every claudeDir is read (the second account's sessions as well).
 //
 // THE INDEX, per file by path: its size, modified time and identity (inode and birth time), the byte offset read
-// to, and token-usage.mjs's tally (per day per model totals, every reply it counted with what was counted for it,
-// its title, its skipped and overlapping counts).
+// to, and token-usage.mjs's tally (per day and per hour per model totals, every reply it counted with what was
+// counted for it, its newest replies, its title, its skipped and overlapping counts).
 // - Only whole lines are read: a torn last line (the session is writing it) is left for the next refresh.
 // - A file that grew is read from its offset; one that shrank, or whose identity changed, from the start.
 // - A file that is gone is dropped and gives back the ids it owned; a file that met those ids as overlaps (dupOf)
@@ -35,7 +35,9 @@ import path from 'node:path'
 import { writeAtomic } from './atomic-write.mjs'
 import { newTally, tallyRecord } from './token-usage.mjs'
 
-export const INDEX_VERSION = 2 // 2: a reply keeps what was counted for it (tally.counted), so a larger copy can take it over
+// 2: a reply keeps what was counted for it (tally.counted), so a larger copy can take it over
+// 3: per hour totals and each file's newest replies (tally.hours, tally.recent), for Predict and warn (predict-*.mjs)
+export const INDEX_VERSION = 3
 const SAVE_EVERY_MS = 20_000
 const MARKS = [Buffer.from('"type":"assistant"'), Buffer.from('"type":"custom-title"')]
 const NL = 0x0a
@@ -225,6 +227,7 @@ export function makeTokenIndex({ claudeDirs = [], match = '', file, now = () => 
         files: Object.entries(files).map(([p, e]) => ({
           path: p, sessionId: e.sessionId, sub: e.sub, mtimeMs: e.mtimeMs, title: e.tally.title, days: e.tally.days,
           skipped: e.tally.skipped, dupes: e.tally.dupes, special: e.tally.special,
+          hours: e.tally.hours || {}, recent: e.tally.recent || [], // Predict and warn (predict-*.mjs)
         })),
         building: !complete,
         progress: complete ? 1 : progress.total ? Math.min(progress.done / progress.total, 0.99) : 0,

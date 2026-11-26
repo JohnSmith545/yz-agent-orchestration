@@ -142,7 +142,7 @@ test('the page loads the window files, the address opens it, and npm run check l
     assert.ok(index.indexOf(`src="${f}"`) > index.indexOf('src="agent-rules.js"'), `${f} after agent-rules.js`)
   }
   const pkg = JSON.parse(read('package.json'))
-  for (const f of ['public/agent-window-view.js', 'public/agent-window.js', 'agent-settings.mjs', 'agent-settings-routes.mjs']) assert.ok(pkg.scripts.check.includes(`node --check ${f}`), f)
+  for (const f of ['public/agent-window-view.js', 'public/agent-window.js', 'agent-settings.mjs', 'agent-settings-routes.mjs']) assert.ok(pkg.checkList.includes(`node --check ${f}`), f)
   assert.equal(ctx.window.Shell?.resolve?.('#/agents?agent=Agent%201')?.view ?? 'agents', 'agents')
 })
 

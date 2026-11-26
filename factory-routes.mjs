@@ -57,6 +57,7 @@
 //   GET  /api/since?t=<ISO>            Home's Since you were away digest (since.mjs); a future or bad t is empty
 //   GET  /api/spend                    { today, byKind, recent }: what the dashboard's own turns cost today (spend.mjs), unrounded
 //
+// `onCompleted(id)` (optional) hears each Completed that set the mark: the Learn retrospective (learn-wiring.mjs).
 // `deps` is { git, gh?, push?, pr?, port?, fetched?, relay, explain?, learn?, getStatus }: server.mjs's
 // git, gh and push runners, the Send settings and the port (config.mjs, by default) and when the server
 // last fetched a remote, the answer relay, the explainer and the glossary learner (explain.mjs's and
@@ -156,7 +157,7 @@ const sameOrigin = (req, port) => !req.headers.origin || originAllowed(req.heade
 const USER_ONLY = new Set(['hand', 'senior-release', 'complete'])
 const pageOrigin = (req, port) => !!req.headers.origin && originAllowed(req.headers.origin, port)
 
-export async function factoryRoute(req, res, url, { git, gh, push, pr, port = CONFIG.port, fetched, relay, explain = explainTurn, learn = learnTerms, getStatus, settings, pipelineConfig = null } = {}) {
+export async function factoryRoute(req, res, url, { git, gh, push, pr, port = CONFIG.port, fetched, relay, explain = explainTurn, learn = learnTerms, getStatus, settings, pipelineConfig = null, onCompleted = () => {} } = {}) {
   const p = url.pathname
   const q = url.searchParams
   const post = req.method === 'POST'
@@ -200,7 +201,7 @@ export async function factoryRoute(req, res, url, { git, gh, push, pr, port = CO
     if (post && USER_ONLY.has(action) && !pageOrigin(req, port)) return json(res, 403, { error: 'The user does this, only from the dashboard page.' }), true
     if (action === 'hand' && post) return send(res, handTickRoute(id, await body(req))), true
     if (action === 'senior-release' && post) return send(res, seniorReleaseRoute(id)), true
-    if (action === 'complete' && post) return send(res, completeRoute(id, await body(req))), true
+    if (action === 'complete' && post) return send(res, afterComplete(id, completeRoute(id, await body(req)), onCompleted)), true
     if (p === '/api/outputs' && !post) return send(res, outputsGet()), true
     if (action === 'request-hand' && post) return send(res, handRequestRoute(id, await body(req), relay)), true
     if (p === '/api/human' && !post) return send(res, humanGet()), true
@@ -235,6 +236,18 @@ export async function factoryRoute(req, res, url, { git, gh, push, pr, port = CO
     return json(res, e.status || 400, { error: e.message, ...(e.code ? { code: e.code } : {}) }), true
   }
   return false
+}
+
+/** A Completed press that set the mark is heard by `onCompleted(id)` (the Learn retrospective, learn-wiring.mjs); never fails it. */
+function afterComplete(id, done, onCompleted) {
+  if (done.status === 200 && done.body?.completedAt) {
+    try {
+      onCompleted(id)
+    } catch (err) {
+      console.error(`complete: the listener failed for ${id}: ${err?.message || err}`)
+    }
+  }
+  return done
 }
 
 /** A URL-encoded label, or '' when it does not decode (agent-rules-routes.mjs then answers 404). */

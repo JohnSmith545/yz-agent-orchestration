@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" width="180" height="180">
+  <!-- The phone page's home-screen icon: the dashboard's accent square with a tick, drawn by hand. -->
+  <rect width="180" height="180" rx="40" fill="#4a4ed4"/>
+  <rect x="42" y="42" width="96" height="96" rx="20" fill="none" stroke="#ffffff" stroke-width="10"/>
+  <path d="M66 92l16 16 34-36" fill="none" stroke="#ffffff" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

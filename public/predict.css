@@ -1,0 +1,82 @@
+/* Predict and warn (public/predict-view.js, predict-alerts.js, predict-flow.js): the Alerts line over the Agents
+   diagram and its rows, Home's line, the quiet mark on a diagram box, the Cost block of a flow, a ticket's estimate,
+   the accuracy table and the placed line. The notice look is Completed's (completed.css .cv-line.is-notice): a line,
+   a warn edge on the left. Colours are the page's own tokens, so light and dark both work. Nothing moves. */
+
+.pe-dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--warn); }
+
+/* the line: a notice at the top of the Agents page and on Home */
+.pe-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 0; font-size: 13.5px; color: var(--ink-2); }
+.pe-line b { color: var(--ink); font-weight: 550; }
+.pe-kinds { color: var(--ink-2); }
+.pe-line-end, .pe-line > .link { display: inline-flex; align-items: center; gap: 10px; margin-left: auto; }
+/* boxed like Human review's and the overdue outputs' notices, on the Agents page and on Home alike */
+.pl-alerts, #homeAlerts { margin: 0 0 12px; padding: 10px 14px; border: 1px solid var(--line); border-left: 3px solid var(--warn); border-radius: var(--radius); background: var(--surface); }
+.pl-alerts[hidden], #homeAlerts[hidden] { display: none; }
+#homeAlerts:not([hidden]) { margin-top: 8px; margin-bottom: 0; }
+#homeAlerts:not([hidden]) + .home-zone { margin-top: 32px; }
+
+/* the rows */
+.pe-list[hidden] { display: none; }
+.pe-list-rows { margin: 10px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.pe-row { display: grid; grid-template-columns: 9.5em minmax(0, 1fr) auto; gap: 4px 14px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.pe-row:last-child { border-bottom: 0; }
+.pe-tags { display: flex; flex-direction: column; gap: 2px; }
+.pe-tag { color: var(--muted); font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+.pe-row.is-you .pe-tag:first-child, .pe-tag.is-back { color: var(--warn); }
+.pe-text { color: var(--ink); min-width: 0; overflow-wrap: anywhere; }
+.pe-acts { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px 12px; white-space: nowrap; }
+.pe-acts button:not(.link) { padding: 2px 10px; font-size: 12.5px; }
+.pe-hidden { margin: 8px 0 0; color: var(--muted); font-size: 12.5px; }
+
+/* one agent holding many flows: one row, its flows folded under it across the whole width */
+.pe-fold { grid-column: 1 / -1; margin: 2px 0 0; }
+.pe-fold > summary { width: fit-content; color: var(--muted); font-size: 12.5px; cursor: pointer; }
+.pe-fold > summary:hover { color: var(--ink); }
+.pe-sub { margin: 6px 0 0; padding: 0 0 0 14px; list-style: none; border-left: 2px solid var(--line); }
+/* inside a group every row is Taking long already: the tag would only repeat the group's */
+.pe-sub .pe-row { grid-template-columns: minmax(0, 1fr) auto; padding: 6px 0; }
+.pe-sub .pe-tags { display: none; }
+
+/* the quiet mark on a diagram box whose session re-reads a large history: a warn dot in its bottom corner, clear of
+   the head's counts and the running pill, words in its title */
+.pl-node.pe-ctx::after { content: ''; position: absolute; bottom: 7px; right: 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); pointer-events: none; }
+
+/* a flow's Cost, on its Output tab */
+.pe-cost-line { margin: 8px 0 0; font-size: 14px; color: var(--ink-2); }
+.pe-cost-line b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.pe-est { margin: 6px 0 0; font-size: 13.5px; color: var(--ink-2); }
+.pe-faint { color: var(--muted); font-size: 12.5px; }
+.pe-cost-line .pe-faint, .pe-est .pe-faint { display: block; margin-top: 2px; }
+.pe-scroll { overflow-x: auto; margin: 8px 0 0; }
+.pe-vs, .pe-acc-table { width: auto; border-collapse: collapse; }
+.pe-vs caption { caption-side: top; text-align: left; padding: 0 0 6px; color: var(--muted); font-size: 12.5px; }
+.pe-vs th, .pe-vs td, .pe-acc-table th, .pe-acc-table td { padding: 5px 10px; font-size: 12.5px; text-align: left; border-bottom: 1px solid var(--line); }
+.pe-vs td.num, .pe-acc-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.pe-vs tbody tr:last-child > *, .pe-acc-table tbody tr:last-child > * { border-bottom: 0; }
+.pe-in { color: var(--ok); }
+.pe-out { color: var(--warn); }
+.pe-similar { margin: 8px 0 0; font-size: 12.5px; }
+.pe-similar > summary { width: fit-content; color: var(--muted); cursor: pointer; }
+.pe-similar > summary:hover { color: var(--ink); }
+.pe-similar ul { margin: 4px 0 0; padding: 0 0 0 18px; }
+.pe-similar li { margin: 2px 0; }
+
+/* a ticket's estimate on the Tickets page */
+.pe-ticket { margin: 0 0 10px; color: var(--ink-2); }
+
+/* Pipeline tokens' placed line */
+.pe-placed { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 8px 0 0; font-size: 12.5px; color: var(--ink-2); }
+.pe-placed[hidden] { display: none; }
+
+@media (max-width: 700px) {
+  .pe-row, .pe-sub .pe-row { grid-template-columns: minmax(0, 1fr); }
+  .pe-tags { flex-direction: row; gap: 10px; }
+  .pe-acts { justify-content: flex-start; }
+  .pe-line-end, .pe-line > .link { margin-left: 0; }
+}
+
+/* nothing here animates; said outright so a later transition does not slip in */
+@media (prefers-reduced-motion: reduce) {
+  .pe-line, .pe-row, .pl-node.pe-ctx::after { transition: none; animation: none; }
+}

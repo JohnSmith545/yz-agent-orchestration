@@ -118,7 +118,7 @@
     const s = state(f)
     const line = storyLine(f)
     return `<article class="fl-card${f.derived?.waiting?.length ? ' is-waiting' : ''}" data-open="${esc(f.id)}" tabindex="0">` +
-      `<div class="fl-card-top"><span class="fl-card-title">${esc(f.title)}</span>${s ? `<span class="fl-chip ${s.cls}">${esc(s.word)}</span>` : ''}</div>` +
+      `<div class="fl-card-top"><span class="fl-card-title">${esc(f.title)}</span>${s ? `<span class="fl-chip ${s.cls}">${esc(s.word)}</span>` : ''}${window.QualityFlow?.chip(f) || ''}</div>` + // the risk chip (quality-flow.js)
       (line ? `<p class="fl-card-story" data-line="${esc(rawLine(f))}">${line}</p>` : '') +
       (signOff(f) ? `<p class="fl-card-sign">${signOff(f)}</p>` : '') +
       (window.FlowRoute?.strip(f) || '') + // its route from Request to Output (flow-route.js)

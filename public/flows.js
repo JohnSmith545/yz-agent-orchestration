@@ -190,6 +190,7 @@
           <button type="button" class="help meta-r" aria-label="What the views and marks mean">?</button></div>
         <div class="fl-open-sub"></div>
         <div class="fl-hand" hidden></div>
+        <div class="fl-quality" hidden></div>
         <div class="fl-out" id="flPanelOutput" role="tabpanel" aria-labelledby="flTabOutput"></div>
         <div class="fl-explain" id="flPanelExplain" role="tabpanel" aria-labelledby="flTabExplain"></div>
         <div class="fl-stat" id="flPanelStatus" role="tabpanel" aria-labelledby="flTabStatus"></div>
@@ -330,6 +331,7 @@
     renderReadonly(f)
     renderHead(f)
     window.FlowHand?.fill($('.fl-hand', board), f, { needs: !!window.HumanReview?.needsHand(f.id), readonly: readonly(f) })
+    window.QualityFlow?.fill($('.fl-quality', board), f) // the risk label, the self-check, the second opinion (quality-flow.js)
     window.Glossary?.autoLearn(f) // its unknown marked words, once (glossary-store.js)
     // Only the shown view draws: a hidden chart would fit to a 0 px width. Output and Status gate their own redraw.
     if (view === 'output') return window.FlowOutput.fill($('.fl-out', board), f)

@@ -127,7 +127,7 @@ test('wired in: the Agents page line over the diagram, the panel head and its Sh
   const at = s => html.indexOf(`<script src="${s}"></script>`)
   assert.ok(at('pipeline-output.js') > 0 && at('pipeline-output.js') < at('pipeline-view.js'))
   const pkg = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'package.json'), 'utf8'))
-  assert.match(pkg.scripts.check, /node --check public\/pipeline-output\.js/)
+  assert.match(pkg.checkList, /node --check public\/pipeline-output\.js/)
   assert.match(read('pipeline-details.js'), /mark it completed/i, 'the Output step says what Completed does')
 })
 

@@ -36,7 +36,9 @@ Open http://127.0.0.1:4317. The server listens on 127.0.0.1 only. If
 `stopHour` is set, it stops itself at that hour.
 
 The tests (`npm run check && npm test`) read `config.json` too, so copy the
-example first.
+example first. `npm run check` runs `node --check` on every file listed in `checkList` in
+`package.json` (`tools/check.mjs`); a new source file goes on that list. It is not the `check`
+script itself because the list grew past what a Windows command line can hold.
 
 ## A quick tour
 
@@ -1777,6 +1779,247 @@ The server cannot call a tracker itself. The Refresh button on the Tickets page 
 whose tools only read) runs one short headless Claude turn per collection that rewrites
 `data/sources/<id>.json`; see Collections by kind above. Home warns when the newest source is more than
 6 hours old.
+
+## Quality: lessons, the self-check, the second opinion and risk labels
+
+Right first time was about a third of flows, so most rework was the same few findings again. Four small features aim
+at that. Each model run is ONE short headless turn on Sonnet 5.5 at low effort (the same clean run as the Generators,
+`script.mjs`), one at a time, its cost recorded in the spend chip; a model never changes a lesson, a flow or a setting
+by itself.
+
+**The lessons library** (`#/lessons`, the last link on the rail; `data/lessons.json`, `quality-lessons.mjs`). A
+lesson is one plain sentence of at most 160 characters in one area (tests, ui, routes, data, docs, process, infra,
+general; `quality.areas` adds more), with how often it was seen and the flows that taught it. When QA, Security or
+Senior records a failure, one run (`quality-extract.mjs`) reads its summary and report and proposes up to 3 lessons;
+it sees the lessons you have and says `SAME L3` instead of writing a duplicate. Every proposal waits on the Lessons
+page for **Accept**, **Edit** or **Reject**; a same-as one, accepted, adds one to that lesson's count. You can type a
+lesson too, and **Retire** or **Restore** any. With `quality.autoLessons` on (the default) the server reads each NEW
+failure on its own, one per 30 seconds; failures from before the library started wait for **Extract lessons**.
+Measured on 2026-11-25: $0.013 to $0.014 a run.
+
+**Lessons in the brief.** `flow new`, `flow rules [<flow>]` and the planner's `flow plan` print the active lessons
+that match the task after the agent's rules, under *Lessons from earlier work*: at most 7, those in an area the task's
+title, ticket labels or files (named in the plan, or touched by its commits) point at, most seen first, then the
+general ones, each with its area and why.
+
+**The self-check before QA** (`quality-selfcheck.mjs`, `flow.selfcheck`). `flow self-check <flow>` prints a checklist:
+the house rules (tests first and passing, check and tests run on the last commit, no stray server, no debug output,
+docs updated, and for work with a screen, screenshots looked at) and this flow's lessons.
+`flow self-check <flow> --done "<id>=ok" --done "<id>=no:<what is missing>" ...` records every answer; a no needs a
+note. QA sees it at `flow qa-start`. With `pipeline.requireSelfCheck: true`, QA cannot start a code flow that has
+none. The flow page shows each tick, and the scorecard's Correctness tile shows right first time with and without a
+self-check (Too few to trust under 5 flows a side).
+
+**The second opinion on the plan** (`quality-critic.mjs`, `flow.critic`). After the planner hands out a plan, one run
+reads the plan, the request, the matching lessons and the risk label, and lists up to 5 concrete concerns: a missing
+test plan, an edge the request names, a step that needs a person, a risky area with no Security or Senior step.
+`quality.critic`: `off`, `manual` (the default: a **Second opinion** button on the flow page) or `auto` (once per
+plan). It is shown on the flow page and printed to the producer with `flow rules <flow>` and `flow self-check`. It
+never blocks. Measured on 2026-11-25: $0.008 to $0.010 a run.
+
+**The risk label** (`quality-risk.mjs`, `flow.risk`). Plain rules, no model: the request and plan text, the tickets'
+labels and the files the change touched give low, medium or high, every reason, and what it asks for: a Security
+review, a Senior review, a deeper QA pass. The defaults cover sign-in and user sessions, payments, secrets and
+settings files, infrastructure and CI, the database schema and migrations, deleting data, and public pages;
+`quality.riskRules` replaces them (`{ "match": { "words": [], "paths": [], "labels": [] }, "level", "needs", "why" }`;
+one bad entry keeps the defaults with one warning). A card shows a Medium or High risk chip, the Agents diagram chip's
+tooltip names it, QA reads it at `qa-start` (with one extra line for a deeper pass), and the flow page says when a
+review it asks for is not on the pipeline, or is not one this kind of route passes. When Security or Senior is on the
+pipeline and the label asks for it, the planned route includes it.
+
+Routes: `GET /api/lessons`; `POST /api/lessons`, `/api/lessons/<id>/retire|restore`,
+`/api/lessons/candidates/<id>/accept|reject`, `/api/lessons/extract { key }`, `/api/quality/critic/<flow>` (each needs
+the page's own Origin; 409 while a run is going); `GET /api/quality/flow/<flow>`. The Lessons page opens on one area
+with `#/lessons?area=tests`, or on one proposal's Edit form with `#/lessons?edit=<id>`.
+
+## Predict and warn
+
+Estimates, alerts and what each flow really cost, all worked out from what the flow files and the transcripts'
+token counts already record. **No model is run**: nothing here costs anything.
+
+- **What a flow cost.** A flow's Output tab has a **Cost** block: `Tokens: 12.4M, about $4.10`. A reply counts for
+  a flow when its session's label is on the flow and its time falls inside that agent's stretch on it (the
+  producer until QA starts, each QA attempt, each Security review, each fix after a failure, the planner, Senior),
+  shared evenly when the same agent had several flows open at once. Subagents count with the session that started
+  them. The token index keeps per hour totals, so an hour is taken as spent evenly. Pipeline tokens gains one line:
+  how much of the period is on flows and how much is not on any flow (the chat, sessions on no flow, time between
+  flows). `predict-flow-tokens.mjs`, `predict-spans.mjs`.
+- **Estimates.** When a flow starts work the server stores `estimate` on it once (the server's, like
+  `archivedAt` is the user's: an agent rewrite can neither add, change nor drop it): the median time, cost and
+  tokens of the nearest 3 to 8 similar finished flows, with the range. Similar is the same route type first, then
+  shared ticket labels and type, the same agent, the same risk level (when a risk provider gives one) and title words
+  in common. Only flows that finished before it started count. Fewer than 3: `No estimate yet: too few similar
+  flows`, never a number. An open ticket on the Tickets page shows one worked out on the fly. Once a flow finishes,
+  its Cost block sets the estimate against the actual, and **How good the estimates have been** (folded inside
+  Pipeline time) gives the median error, `Too few to trust` under 5. `predict-estimate.mjs`.
+- **Alerts.** One line at the top of the Agents page, above Pipeline score (Home shows the count), the rows folded
+  under it; one agent holding 3 or more flows past their usual time is ONE row with **Dismiss all for today** and
+  its flows folded under it, and a flow alert can be **snoozed for a week** (it returns after 7 days, or at once when
+  the flow moves to another step: for long-lived tracking flows). **Taking long**:
+  an open flow at its step more than `alerts.stuckFactor` (3) times that step's median over 30 days and at least
+  `alerts.stuckMinMinutes` (60); with fewer than 5 past flows for the step, the plain `alerts.stuckHours` (24).
+  A step that waits on you says so. **Token spike**: a session's last hour above `alerts.spikeFactor` (4) times its
+  median active hour over 7 days and above `alerts.spikeMinTokens` (20 million). **Long history**: a live session
+  whose last 10 replies re-read more than `alerts.contextTokens` (400,000) tokens of history each; it says what a
+  turn costs, marks the agent's box on the diagram, and offers **Copy handover request** (it copies a sentence and
+  sends nothing). **Daily limit**: `alerts.dailyUsd` and `alerts.dailyTokens`, off by default. **Dismiss for
+  today** hides one until midnight, or until it gets half as bad again (`data/alerts-state.json`). No sound, no
+  pop-up. `predict-alerts.mjs`, `predict-stage.mjs`, `predict-state.mjs`.
+- **Routes.** `GET /api/alerts`, `POST /api/alerts/dismiss` (the page's own Origin), `GET /api/predict/flow?id=`,
+  `GET /api/predict/ticket?id=`, `GET /api/predict/accuracy?days=7|30|all` (`predict-routes.mjs`). The token
+  index is version 3 (per hour totals and each file's newest replies), so a saved index rebuilds once.
+- **Settings.** `alerts` and `estimates` in `config.json` (see `config.example.json`). A bad value keeps its
+  default with one warning at start.
+- **For other features.** `predict-signals.mjs signals({ since })` lists the alerts raised and the estimate misses
+  in a window; `predict-flow-tokens.mjs flowTokens(flowId)` gives one flow's tokens.
+
+## Routing (#/routing) and ticket intake
+
+The **Routing** page (last on the rail) holds plain rules that SUGGEST who does a task and on what: the first rule
+that fits the task's type, risk and size names an agent, a model and an effort, with a one-line why. Defaults live
+in `routing-rules.mjs` (small wording fixes go to Sonnet 5.5 at medium effort); the page saves your own list to
+`routing.rules` in `config.json` after a plain confirm, every other line of the file kept. A list with any bad rule
+keeps the defaults and warns once. The planner, Security and Senior always run on Opus at high effort: no rule
+suggests them down.
+
+- **Task type** (`routing-type.mjs`): wording, style, small fix, feature, refactor, tests, docs, data, infra,
+  investigation, review or by hand, from the words, labels and story type, with a confidence (certain, likely,
+  unsure) and the reason. Unsure fits only a rule with Any type. Correct it on the Routing page (a flow) or in an
+  opened ticket row; your correction always wins.
+- **Where the suggestion shows**: Pass a task on the Tickets page; `flow new` and the planner's `plan-start` and
+  `plan` note it on stderr when a rule fits. It is a suggestion, never an order: nothing is switched by itself.
+- **The record** on each flow (`flow.routing`, `routing-flow.mjs`): type, size, risk, the suggestion, what was used
+  (the agent that got the work and the model and effort set for it on the Agents page at that time) and whether the
+  suggestion was followed. An agent rewrite keeps the stored record.
+- **What happened** (`data/routing-outcomes.jsonl`, `routing-outcomes.mjs`): one line per finished flow (delivered,
+  slipped, stopped or dropped, as the scorecard says), written once, from stored records only. The page sums them
+  per task type and model (right first time, median time, median cost) and says Too few to trust under 5 flows,
+  with the count against the 100 a later learning method needs. No learning method is built. Tokens and cost come
+  from another feature's per-flow provider when one is wired; without it they are left out and marked missing.
+- **Ticket intake** (`routing-intake.mjs`): every ticket is sorted into code, no code or needs a person, with the
+  reason, and likely duplicates show as `Looks like FLA-761` with a Not a duplicate button that is remembered. A
+  Sort chip row and facet filter the Tickets page. Human review's Tickets list reads the sure sorts: a ticket sorted
+  as code leaves it, one sorted no code or needs a person joins it. With `routing.intakeModel` set (off by default),
+  the Routing page's **Sort the unsure tickets** runs ONE cheap model turn over up to 30 unsure open tickets (about a
+  cent with Haiku 5.5, recorded as Ticket sorting spend); its answers are stored as the model's and you can correct
+  any. Corrections live in `data/factory-state.json`.
+
+Routes: `GET /api/routing`, `PUT /api/routing/rules`, `POST /api/routing/flows/<id>`, `GET /api/routing/tickets`,
+`POST /api/routing/tickets/<ID>`, `POST /api/routing/intake/run` (writes need the page's own Origin).
+
+## Learn (#/learn): retrospectives, the weekly Learn step, a verdict on every rule change
+
+**Retrospectives.** When you mark a flow **Completed**, one small run (Sonnet at low effort, about 1 cent)
+writes three lines on it: what went right, what went wrong, what to do differently. The server gathers the facts
+first (the story, the route, every QA attempt with its verdict text and the report of each failure, Security and
+Senior verdicts, reworks, the time per stage, the by-hand steps, the questions asked) and the model writes from
+those alone; the server checks the three lines (each at most 200 characters) and keeps them on the flow as `retro`.
+Never for a dropped or unfinished flow. They show on the flow's Output tab under the Story, with **Write the
+retrospective** (or **Write it again**), and folded in its flow archive row. Runs go one at a time; Mark all
+completed queues them. `learn.autoRetro: false` stops the automatic one. An agent may read a retrospective with
+`flow show`; only the server writes one (an agent's `flow write` keeps the stored one).
+
+**The Learn page.** **Run Learn** builds an evidence pack from the dashboard's own records since the last run (7
+days without one; at least 14 when fewer than 5 flows finished): right first time, the median time per job, the
+estimated cost per job, QA failures per flow, the score cells, every flow of the window, reworks per agent, each
+agent's current rules, the open verdicts, ideas you rejected before, every retrospective and the QA, Security and
+Senior failure texts. A source that cannot be read is left out and named. One run (Opus at high effort; about 11
+cents on a week of 16 flows) proposes at most 3 changes, each with its target, the exact rule text, the evidence,
+the expected effect and how to tell in two weeks. The server drops a proposal that names no flow of the pack, an
+unknown agent, a rule the agent already has, a change to a rule it does not have, or an idea you rejected. Each
+proposal is a card: **Accept** saves the rule through the same path as your own edit on the Agents page, marked
+From Learn; **Edit then accept** saves your wording; **Reject** keeps an optional reason for the next run. A
+settings proposal is text you apply by hand: Learn never writes `config.json`. A line reminds you when the last
+run is 7 days old; `learn.weekly: true` runs it by itself on opening the page, at most once a week. Every run is
+kept in `data/learn/<YYYY-MM-DD>.json`.
+
+**A verdict on every rule change.** Every rule change, yours or from Learn, records the four numbers of the 14
+days before it (`data/learn/verdicts.json`; changes made before this existed are worked out later from the stored
+flows, and say so). After `learn.verdictAfterDays` (14) a **Verdict due** card compares them with the days since:
+a number moved when right first time changes by 10 points, the time or the cost by 20 percent, QA failures by a
+quarter per flow. Better: one or more got better and none worse; Worse: the other way; No clear change; or Too few
+flows to tell (fewer than 3 finished on either side). **Keep**, **Revert** (puts back the exact text, through the
+rules path) or **Wait two more weeks**. Nothing reverts by itself. Every change is listed with its verdict.
+
+Routes: `GET /api/learn`; `POST /api/learn/run`, `/api/learn/weekly`, `/api/learn/runs/<id>/<n>`
+`{ do: accept|reject, text?, reason? }`, `/api/learn/retro/<flow>`, `/api/learn/changes/<id>` `{ do: keep|wait|revert }`,
+each POST with the page's own Origin. Spend kinds `retro` and `learn`. Settings (all optional): `learn.enabled`
+(false: no Learn or retrospective runs at all), `autoRetro`, `weekly`, `verdictAfterDays`, `model`, `retroModel`.
+
+## How Quality, Predict, Routing and Learn feed each other
+
+Each of the four works alone; `smart-wiring.mjs` connects them (in `server.mjs`, and for Routing in
+`tools/factory.mjs` too):
+
+- **Learn's evidence pack** gets the active lessons (Quality) and the alerts and estimate misses (Predict) of its
+  window, as the LESSONS LEARNED and ALERTS AND ESTIMATES sections.
+- **Estimates** count the same risk level as one more point of likeness (Quality's label stored on the flow, else
+  worked out from the flow).
+- **Routing** reads the same risk level for its rules (so high-risk work is suggested the strongest model) and each
+  finished flow's tokens and cost (Predict) for its outcome line. A command-line process has no token index, so
+  there the tokens are left out.
+
+A feature that fails to answer never breaks the one that reads it: Learn names the section as left out, the others
+carry on without that part.
+
+## Phone access
+
+A phone view of the dashboard, so you can see what needs you and talk to the coordinator from your phone. It
+is **off** until you turn it on, and with no `remote` block in `config.json` nothing changes at all: the
+dashboard keeps listening on `127.0.0.1` only.
+
+**Set it up** (each step in your own terminal, in this folder):
+
+1. Install [Tailscale](https://tailscale.com) on this PC and on the phone and sign in to the same account, or
+   put both on your home Wi-Fi.
+2. `node tools/factory.mjs phone-setup`: pick one of this PC's addresses (a Tailscale one is listed first and
+   recommended: it encrypts the link and follows you between networks), read what it opens, and type `yes`. It
+   writes `remote.enabled`, `remote.bind` and the network it was set up on (`iface`, `mac`, `cidr`).
+3. `node tools/factory.mjs phone-pin`: type a phone PIN of 8 to 12 digits, twice, nothing shown. It must differ
+   from your send PIN. Only its scrypt hash is kept (`remote.pinHash`), and every phone is signed out.
+4. Within a few seconds a running dashboard listens (no restart needed). On the phone, open the address it prints (`http://<address>:4318/phone`), sign in,
+   and add the page to the home screen.
+
+**What the phone can do**, and nothing else: see how many things need you and what each agent is doing; answer
+an open question (once: changing an answer stays on the PC); tick a by-hand step; mark a finished output
+Completed; and send a message to the coordinator and read its replies written after your first message from that
+phone (never its other work). Each message reaches the coordinator after a fixed first line, the same rule
+`docs/agent-brief.md` gives it under Phone messages: it came from the phone, so nothing destructive, pushed,
+deployed or live, and no settings change, until you confirm at the PC. There is no delete, archive,
+settings, rules, config, Finish without Senior, Send or Generate on the phone. An answer and a message each go
+through the answer relay's short paid turn on your PC, a few cents each (`phone` in Spend today for messages).
+
+The block, in config.json (`config.example.json` has it, off):
+`"remote": { "enabled": false, "bind": "", "port": 4318, "pinHash": "", "sessionHours": 4 }`
+
+| Key | What it does |
+| --- | --- |
+| `enabled` | Only `true` turns it on, and only with a valid `bind`, `port` and `pinHash`. Anything wrong keeps it off with one warning. |
+| `bind` | ONE address of this PC: a private one (10.x, 172.16-31.x, 192.168.x) or Tailscale (100.64-127.x), on a network this PC is on now. `0.0.0.0`, `::`, public, loopback and IPv6 addresses are refused. |
+| `port` | 1024 to 65535, not the desktop `port`. Default 4318. |
+| `pinHash` | Written by `phone-pin`; never type a PIN here. `pinSetAt` says when and `pinDigits` how long it is: a PIN under 8 digits, or one set before that rule, keeps phone access off until you set a new one. |
+| `sessionHours` | How long a phone stays signed in, 1 to 168. Default 4. |
+| `iface`, `mac`, `cidr` | Written by `phone-setup`: the network it was set up on. The listener opens only while the bind address is on that interface, adapter and subnet, and closes within 5 s when it is not. |
+
+**The honest limits.** This is plain HTTP on your private network: no TLS, no tunnel, nothing public. Over home
+Wi-Fi the PIN and the session can be read by someone who can see the traffic, and anyone on that network can reach
+the sign-in page; Tailscale removes that, because it encrypts the link. The phone PIN is the only lock, and it
+guards the ability to instruct a coding agent: treat it like a password. Five wrong tries lock phone sign-in for 15
+minutes for every device (kept on disk, so a restart does not reset it), and 3 lockouts within 24 hours turn phone
+access off until you turn it on at the PC. It opens only on the network it was set up on; two home routers that
+hand out the same subnet cannot be told apart, which Tailscale avoids. **Never forward the port on your router.**
+
+Nothing about it happens quietly: the Settings page's **Phone** card shows whether it is on, the address, when the
+PIN was set, recent sign-ins and lockouts, **Sign out everywhere** and **Turn phone access off**; while it is on,
+the rail ends with a **Phone on** badge. Every sign-in, lockout, PIN change and change of `remote.enabled`,
+`bind` or the PIN hash in config.json raises a desktop notice and a line in the Log, and a PIN that `phone-pin`
+did not write is called out as changed outside the setup command. Turning it on is only ever done in a terminal,
+which is no wall against a local agent that can write config.json: these notices are how you would see it.
+
+The phone listener serves only `/phone`, its own files, sign-in and sign-out, and the phone's own API: every
+desktop page, `/api/*` route, evidence file and config is a 404 there. Each write needs the session cookie
+(HttpOnly, SameSite=Strict), the page's own Origin and a per-session CSRF token; requests are rate limited per
+session and per address, and every answer is `no-store` with a strict Content-Security-Policy.
 
 ## License
 

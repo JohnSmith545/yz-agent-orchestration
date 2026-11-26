@@ -34,7 +34,7 @@ test('every new file is in index.html before script-page.js, and in npm run chec
   }
   assert.ok(at('script-render.js') < at('script-questions.js'), 'the questions split uses the renderer')
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
-  for (const f of NEW) assert.ok(pkg.scripts.check.includes(`node --check public/${f}`), f)
+  for (const f of NEW) assert.ok(pkg.checkList.includes(`node --check public/${f}`), f)
 })
 
 test('no new DOM file writes text as HTML or opens a browser dialog', () => {

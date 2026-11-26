@@ -43,6 +43,9 @@
 //   only the plan commands (tools/plan-cli.mjs) write it, and mergeKeepingAnswers takes it from the stored file only.
 // - `senior` (optional) is Senior's review of work with no code to test (flow-senior.mjs): only the Senior commands
 //   (tools/senior-cli.mjs) write it, and mergeKeepingAnswers takes it from the stored file only (keepSenior).
+// - `selfcheck`, `critic` and `risk` (optional) are the producer's self-check before QA, the second opinion on the plan
+//   and the risk label (quality-flow.mjs): only the quality commands and the server write them, and
+//   mergeKeepingAnswers takes them from the stored file only (keepQuality).
 // - ⚠️ THE SENIOR GATE lives HERE, in writeFlow, the one door every writer goes through (the agent CLI's set and
 //   write, the dashboard's status route, anything added later): while Senior holds a flow (flow-senior.mjs
 //   seniorHolds), a write that moves it to done is refused with that one sentence. Only Senior's own pass, which
@@ -59,11 +62,15 @@ import { hasBefore, validateChange } from './flow-change.mjs'
 import { mergeReady, validateSend } from './flow-merge.mjs'
 import { keepPlan, validatePlan } from './flow-plan.mjs'
 import { keepQa, validateQa } from './flow-qa.mjs'
+import { keepQuality, validateQuality } from './quality-flow.mjs'
 import { keepSenior, recordHold, seniorHolds, validateSenior } from './flow-senior.mjs'
 import { CONFIG } from './config.mjs'
 import { pipelineGraph } from './pipeline.mjs'
 import { keepHand, validateHand } from './hand-steps.mjs'
+import { keepEstimate, validateEstimate } from './predict-keep.mjs'
 import { keepRoute, validateRoute } from './flow-route.mjs'
+import { keepRouting, validateRouting } from './routing-flow.mjs'
+import { keepRetro, validateRetro } from './learn-retro-text.mjs'
 import { sayShorter, STORY_ID, STORY_MAX, storyOf, YOU } from './flow-story.mjs'
 import { lookup } from './glossary.mjs'
 import { DATA_DIR } from './project-store.mjs'
@@ -129,6 +136,7 @@ export function validateFlow(flow) {
   if (flow.completedAt !== undefined && !isIsoTime(flow.completedAt)) problems.push('completedAt must be a time')
   if (flow.signoff !== undefined) problems.push(...validateSignoff(flow.signoff, isIsoTime))
   if (flow.completedBy !== undefined && flow.completedBy !== 'you') problems.push('completedBy must be you')
+  if (flow.retro !== undefined) problems.push(...validateRetro(flow.retro)) // the server's retrospective (learn-retro-text.mjs)
   if (!Array.isArray(flow.nodes)) return [...problems, 'nodes must be a list']
 
   const allIds = new Set(flow.nodes.map(n => n?.id))
@@ -170,6 +178,9 @@ export function validateFlow(flow) {
   if (flow.hand !== undefined) problems.push(...validateHand(flow.hand))
   if (flow.plan !== undefined) problems.push(...validatePlan(flow.plan, flow.id))
   if (flow.senior !== undefined) problems.push(...validateSenior(flow.senior))
+  problems.push(...validateQuality(flow)) // selfcheck, critic, risk (quality-flow.mjs)
+  if (flow.estimate !== undefined) problems.push(...validateEstimate(flow.estimate)) // the server's (predict-keep.mjs)
+  if (flow.routing !== undefined) problems.push(...validateRouting(flow.routing))
   return problems
 }
 
@@ -622,6 +633,10 @@ export function mergeKeepingAnswers(incoming, existing) {
   keepHand(incoming, existing) // the user's ticks on the by-hand steps: only ever from the stored file
   keepPlan(incoming, existing) // the planner's hand-out: only the plan commands write it
   keepSenior(incoming, existing) // Senior's verdict: only the Senior commands write it
+  keepQuality(incoming, existing) // the self-check, the plan critic and the risk label: never from an agent's file
+  keepEstimate(incoming, existing) // the estimate (predict-keep.mjs): only the server writes it
+  keepRouting(incoming, existing) // the routing record: only the dashboard writes it (routing-flow.mjs)
+  keepRetro(incoming, existing) // the retrospective: only the server writes it (learn-retro.mjs)
   if (existing?.createdAt) incoming.createdAt = existing.createdAt
   delete incoming.derived
   return incoming

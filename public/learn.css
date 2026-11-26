@@ -1,0 +1,107 @@
+/* The Learn page (#/learn, learn-view.js) and a flow's Retrospective (learn-retro.js: the Output tab block, the flow
+   archive row). Only the page's own tokens (styles.css): the dark theme comes with them. The one moving thing, the
+   running dot, stops under prefers-reduced-motion. */
+
+/* every grid here is minmax(0, 1fr): an auto column would grow to the widest table or rule and push the page past a phone */
+.ln-page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; max-width: 980px; min-width: 0; }
+.ln-sec { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; min-width: 0; }
+.ln-card { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 14px 16px; min-width: 0; }
+.ln-h { margin: 0; font-size: 15px; font-weight: 600; color: var(--ink); }
+.ln-h3 { margin: 0; font-size: 14px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.ln-p { margin: 0; font-size: 13.5px; line-height: 1.55; color: var(--ink-2); }
+.ln-meta { margin: 0; font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+.ln-left { color: var(--warn); }
+.ln-note { margin: 0; font-size: 12.5px; color: var(--muted); }
+.ln-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin: 0; padding: 0; list-style: none; }
+.ln-card-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+.ln-tag { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.ln-tag-you { background: var(--surface-2); color: var(--ink-2); }
+.ln-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 2px; }
+.ln-status { margin: 0; font-size: 13px; color: var(--ok); }
+.ln-error { margin: 0; font-size: 13px; color: var(--bad); }
+.ln-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* the Run card: text on the left, the button on the right; stacked on a phone */
+.ln-run { grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px 20px; }
+.ln-run-text { display: grid; gap: 6px; min-width: 0; }
+.ln-run-act button { white-space: nowrap; }
+.ln-remind { margin: 0; font-size: 13px; color: var(--warn); font-weight: 550; }
+.ln-running { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; color: var(--ink-2); }
+.ln-dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--accent); animation: ln-breathe 1.6s ease-in-out infinite; }
+@keyframes ln-breathe { 50% { opacity: .3; } }
+@media (prefers-reduced-motion: reduce) { .ln-dot { animation: none; } }
+
+/* a proposal */
+.ln-rule { margin: 0; padding: 8px 12px; border-left: 3px solid var(--accent); background: var(--surface-2); border-radius: 0 var(--radius) var(--radius) 0; font-size: 13.5px; line-height: 1.5; color: var(--ink); overflow-wrap: anywhere; }
+.ln-old { margin: 0; font-size: 13px; color: var(--ink-2); overflow-wrap: anywhere; }
+.ln-why { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 14px; margin: 0; font-size: 13px; line-height: 1.5; }
+.ln-why dt { color: var(--muted); }
+.ln-why dd { margin: 0; color: var(--ink-2); overflow-wrap: anywhere; }
+.ln-flows { display: block; color: var(--muted); }
+.ln-flow { color: var(--accent); }
+.ln-form { display: grid; gap: 6px; font-size: 13px; color: var(--ink-2); }
+.ln-form .set-input { width: 100%; box-sizing: border-box; font-family: inherit; resize: vertical; }
+.ln-done { margin: 0; font-size: 13px; color: var(--muted); }
+.ln-done-ok { color: var(--ok); }
+.ln-prop-accepted, .ln-prop-rejected { opacity: .92; }
+.ln-dropped { font-size: 12.5px; color: var(--muted); }
+.ln-dropped summary { cursor: pointer; }
+.ln-dropped ul { margin: 6px 0 0; padding-left: 18px; }
+.ln-earlier summary { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; cursor: pointer; font-size: 13.5px; color: var(--ink); }
+
+/* a verdict */
+.ln-rules { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: 13px; }
+.ln-rules li { padding: 4px 10px; border-radius: var(--radius); overflow-wrap: anywhere; }
+.ln-add { background: var(--add-bg); color: var(--add-ink); }
+.ln-del { background: var(--del-bg); color: var(--del-ink); }
+.ln-spec { background: var(--surface-2); color: var(--ink-2); }
+.ln-sign { display: inline-block; width: 1em; font-weight: 700; }
+.ln-table-wrap { overflow-x: auto; }
+.ln-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.ln-table th, .ln-table td { padding: 6px 10px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+.ln-table thead th { font-size: 12px; font-weight: 600; color: var(--muted); }
+.ln-table tbody th { font-weight: 500; color: var(--ink-2); }
+.ln-table tbody tr:last-child > * { border-bottom: 0; }
+.ln-chg { font-weight: 600; }
+.ln-chg-better { color: var(--ok); }
+.ln-chg-worse { color: var(--bad); }
+.ln-chg-same, .ln-chg-few, .ln-chg-none { color: var(--muted); font-weight: 500; }
+.ln-sentence { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--ink); }
+.ln-overall-better b { color: var(--ok); }
+.ln-overall-worse b { color: var(--bad); }
+
+/* Rule changes */
+.ln-rows { display: grid; margin: 0; padding: 4px 0; list-style: none; }
+.ln-row { display: grid; grid-template-columns: 64px minmax(90px, 160px) minmax(0, 1fr) max-content; align-items: baseline; gap: 4px 14px; padding: 8px 16px; border-bottom: 1px solid var(--line); font-size: 13px; }
+.ln-row:last-child { border-bottom: 0; }
+.ln-row-when { color: var(--muted); font-variant-numeric: tabular-nums; }
+.ln-row-who { color: var(--ink); font-weight: 550; }
+.ln-row-what { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ln-row-state { color: var(--muted); text-align: right; }
+.ln-state-due { color: var(--warn); font-weight: 600; }
+.ln-state-kept { color: var(--ok); }
+
+@media (max-width: 640px) {
+  .ln-run { grid-template-columns: minmax(0, 1fr); }
+  .ln-why { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .ln-why dd { margin-bottom: 6px; }
+  .ln-row { grid-template-columns: 56px minmax(0, 1fr); }
+  .ln-row-what { grid-column: 1 / -1; white-space: normal; }
+  .ln-row-state { grid-column: 1 / -1; text-align: left; }
+}
+
+/* the Retrospective on a flow's Output tab, and folded in its archive row */
+.lr-lines { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 16px; margin: 0; font-size: 14px; line-height: 1.5; }
+.lr-lines dt { color: var(--muted); font-size: 13px; }
+.lr-lines dd { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
+.lr-meta, .lr-none { margin: 10px 0 0; font-size: 12.5px; color: var(--muted); }
+.lr-none { margin: 0; }
+.lr-busy { font-size: 12.5px; color: var(--muted); }
+.lr-error { margin: 8px 0 0; font-size: 13px; color: var(--bad); }
+.lr-row { margin-top: 2px; font-size: 12.5px; color: var(--muted); }
+.lr-row summary { cursor: pointer; width: max-content; }
+.lr-row .lr-lines { margin-top: 6px; font-size: 13px; }
+@media (max-width: 640px) {
+  .lr-lines { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .lr-lines dd { margin-bottom: 6px; }
+}

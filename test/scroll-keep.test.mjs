@@ -89,5 +89,5 @@ test('wired: the Tickets page lands a ticket with ScrollKeep, finding the row by
   assert.doesNotMatch(f, /block: 'center'/)
   const html = read('index.html')
   assert.ok(html.indexOf('<script src="scroll-keep.js"></script>') < html.indexOf('<script src="factory.js"></script>'))
-  assert.ok(JSON.parse(fs.readFileSync(path.join(HERE, '..', 'package.json'), 'utf8')).scripts.check.includes('node --check public/scroll-keep.js'))
+  assert.ok(JSON.parse(fs.readFileSync(path.join(HERE, '..', 'package.json'), 'utf8')).checkList.includes('node --check public/scroll-keep.js'))
 })

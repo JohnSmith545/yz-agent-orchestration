@@ -34,9 +34,11 @@ import { isTrashed } from '../trash.mjs'
 import { changeBlock, changeCommands } from './change-cli.mjs'
 import { handBlock, handCommands } from './hand-cli.mjs'
 import { planBlock, planCommands } from './plan-cli.mjs'
+import { qualityCommands } from './quality-cli.mjs'
 import { prBlock, prCommands } from './pr-cli.mjs'
 import { qaBlock, qaCommands } from './qa-cli.mjs'
 import { newRoute, routeBlock, routeCommands, settleRoute } from './route-cli.mjs'
+import { withRoutingNew, withRoutingPlan } from './routing-cli.mjs'
 import { rulesCommands, withQaRules, withRules } from './rules-cli.mjs'
 import { securityCommands } from './security-cli.mjs'
 import { seniorCommands } from './senior-cli.mjs'
@@ -99,7 +101,10 @@ export const USAGE = `usage: flow <command>
    a new flow needs "route": { "type": "build" } (or review, ask), and a rewrite keeps the stored route
   show <flow>           the JSON with derived, to read back answers (stdout); what its Output holds (stderr)
   list [--open] [--waiting] [--agent X] [--ticket ABC-1] [--archived]   archived flows only with --archived
-  rules [--by "<label>"]   your specification and rules, set by the user on the dashboard (new and qa-start print them too)
+  rules [--by "<label>"] [<flow>]   your specification and rules, set by the user on the dashboard (new and qa-start print them too),
+   then the lessons from earlier work that match the flow
+  self-check <flow> [--done "<id>=ok|no:<what is missing>"]...   before you hand a code flow to QA: without --done the
+   checklist for this flow; answer every item at once, a no needs a note. QA reads it at qa-start
   Only the user archives, completes or deletes a flow. A command refused with "deleted" means stop work on that flow.
   new may note on stderr that finished flows wait for the user to mark them completed: tell the user once, calmly.
 The Output, what the user sees first: when a piece of work is finished, record
@@ -495,7 +500,7 @@ function cmdList(f) {
 }
 
 const COMMANDS = {
-  new: withRules(cmdNew),
+  new: withRules(withRoutingNew(cmdNew)),
   step: addCmd('step'),
   check: addCmd('check'),
   ask: addCmd('ask'),
@@ -518,12 +523,15 @@ const COMMANDS = {
   ...routeCommands(NO_NAME),
   ...withQaRules(qaCommands({ noName: NO_NAME, evidenceTarget, copyEvidence, shotExt: SHOT_EXT, shotError: SHOT_ERROR })),
   ...rulesCommands(NO_NAME),
-  ...plannerCommands(planCommands({ noName: NO_NAME, copyEvidence })),
+  ...plannerCommands(withRoutingPlan(planCommands({ noName: NO_NAME, copyEvidence }))),
   ...reviewerCommands(securityCommands({ noName: NO_NAME, copyEvidence })),
   ...seniorWithRules(seniorCommands({ noName: NO_NAME })),
 }
 
 /** The Senior commands, with `senior-start` printing its rules and settings (it refuses anyone but Senior). */
+// the self-check, the lessons after the rules, the risk label (tools/quality-cli.mjs): over new, rules, plan and qa-start
+Object.assign(COMMANDS, qualityCommands(COMMANDS, { noName: NO_NAME }))
+
 function seniorWithRules(commands) {
   return { ...commands, 'senior-start': withRules(commands['senior-start']) }
 }
