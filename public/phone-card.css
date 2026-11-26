@@ -16,6 +16,6 @@
 .pc-steps { display: grid; gap: 6px; margin: 0; padding-left: 20px; font-size: 13.5px; color: var(--ink-2); }
 .pc-steps code { font: 12.5px var(--mono); color: var(--ink); overflow-wrap: anywhere; }
 
-/* The rail's Phone on badge (phone-notice.js): at the end of the rail while phone access is on, a small dot on the icon. */
+/* The rail's Phone on badge (phone-notice.js): in the bottom block above Settings while phone access is on, a small dot on the icon. */
 .rail-phone .rail-icon { position: relative; }
 .rail-phone-dot { position: absolute; top: 2px; right: 2px; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 2px var(--surface); }

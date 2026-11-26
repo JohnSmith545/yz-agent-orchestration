@@ -96,7 +96,11 @@ test('empty groups are one calm line each; a deleted group that could not be rea
 
 test('reached like the other pages: a rail link, #/archive with an optional ?q=, its own section, script and stylesheet', () => {
   const shell = read('shell.js')
-  assert.match(shell, /link\('archive', '#\/archive', 'Flow archive'\)/)
+  const rail = { window: {} }
+  for (const f of ['rail-groups.js', 'shell.js']) vm.runInNewContext(read(f), rail)
+  const history = rail.window.RailGroups.groups().find(g => g.id === 'history')
+  assert.equal(history.entries.find(e => e.view === 'archive')?.href, '#/archive', 'a rail link in the History group')
+  assert.equal(rail.window.RailGroups.linkFor('archive').label, 'Flow archive')
   assert.match(shell, /archive: 'archiveView'/)
   assert.match(shell, /archive: 'ArchivePage'/)
   const window = {}

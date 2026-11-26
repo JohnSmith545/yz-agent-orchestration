@@ -161,8 +161,11 @@ test('the shell: #/settings is a route, the rail has Settings above Theme, the p
   assert.deepEqual(JSON.parse(JSON.stringify(w.Shell.resolve('#/settings'))), { view: 'settings', params: {}, redirect: null })
   const shell = read('shell.js')
   assert.match(shell, /settings: 'SettingsPage'/)
-  assert.ok(shell.indexOf("link('settings', '#/settings', 'Settings')") < shell.indexOf('id="themeToggle"'), 'above Theme')
-  assert.match(shell, /settings: svg\(/)
+  assert.ok(shell.indexOf("R.linkHtml(R.linkFor('settings'))") < shell.indexOf('id="themeToggle"'), 'above Theme')
+  const rail = { window: {} }
+  vm.runInNewContext(read('rail-groups.js'), rail)
+  assert.equal(rail.window.RailGroups.linkFor('settings').href, '#/settings')
+  assert.match(rail.window.RailGroups.linkFor('settings').icon, /<circle/, 'the gear')
   assert.match(read('palette.js'), /\['Settings', '#\/settings'\]/)
   const html = read('index.html')
   assert.match(html, /<section id="settingsView" aria-label="Settings" hidden><\/section>/)

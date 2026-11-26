@@ -15,7 +15,8 @@ const w = {}
 vm.runInNewContext(read('bank-page.js'), { window: w })
 const P = w.BankPage
 const shellWindow = {}
-vm.runInNewContext(read('shell.js'), { window: shellWindow })
+const shellCtx = { window: shellWindow }
+for (const f of ['rail-groups.js', 'shell.js']) vm.runInNewContext(read(f), shellCtx) // as index.html loads them
 const resolve = h => JSON.parse(JSON.stringify(shellWindow.Shell.resolve(h)))
 
 const ENTRIES = [
@@ -44,13 +45,17 @@ test('the routes: #/bank, one entry, its Use confirmation', () => {
   assert.deepEqual(resolve('#/bank/o00000001/use'), { view: 'bank', params: { id: 'o00000001', mode: 'use' }, redirect: null })
 })
 
-test('the shell wires it: a title, a section, the page object, an icon, a rail link after Agents, and the palette', () => {
+test('the shell wires it: a title, a section, the page object, an icon, a rail link after Subagents in the Agents group, and the palette', () => {
   const shell = read('shell.js')
   assert.match(shell, /bank: 'Orchestration bank'/)
   assert.match(shell, /bank: 'bankView'/)
   assert.match(shell, /bank: 'BankPage'/)
-  assert.match(shell, /bank: svg\(/)
-  assert.match(shell, /a\.rail-item\[data-view="agents"\]'\)\?\.insertAdjacentHTML\?\.\('afterend', link\('bank', '#\/bank', 'Orchestration bank'\)\)/)
+  const agents = shellWindow.RailGroups.groups().find(g => g.id === 'agents').entries
+  assert.equal(agents.map(e => e.view).join(' '), 'agents subagents bank routing')
+  const bank = shellWindow.RailGroups.linkFor('bank')
+  assert.equal(bank.href, '#/bank')
+  assert.equal(bank.label, 'Orchestration bank')
+  assert.match(bank.icon, /<path/, 'its icon: three stacked layers')
   assert.match(read('index.html'), /<section id="bankView" aria-label="Orchestration bank" hidden><\/section>/)
   assert.match(read('index.html'), /<script src="bank-page\.js"><\/script>/)
   assert.match(read('palette.js'), /\['Orchestration bank', '#\/bank'\]/)

@@ -222,10 +222,14 @@ test('#/subagents is a route with its own section, and the rail links to it afte
   vm.runInNewContext(read('shell.js'), { window })
   assert.deepEqual(JSON.parse(JSON.stringify(window.Shell.resolve('#/subagents'))), { view: 'subagents', params: {}, redirect: null })
   const shell = read('shell.js')
-  assert.match(shell, /link\('agents', '#\/agents', 'Agents'\)\}\$\{link\('subagents', '#\/subagents', 'Subagents'\)\}/)
+  const rail = { window: {} }
+  for (const f of ['rail-groups.js', 'shell.js']) vm.runInNewContext(read(f), rail)
+  const agents = rail.window.RailGroups.groups().find(g => g.id === 'agents').entries
+  assert.equal(agents.slice(0, 2).map(e => e.view).join(' '), 'agents subagents', 'right after Agents, in the Agents group')
+  assert.equal(agents[1].href, '#/subagents')
+  assert.match(agents[1].icon, /<circle/, 'the rail icon')
   assert.match(shell, /subagents: 'subagentsView'/)
   assert.match(shell, /subagents: 'SubagentsPage'/)
-  assert.match(shell, /^\s+subagents: svg\(/m, 'the rail icon')
 })
 
 test('index.html holds the section, the script after the shell and the stylesheet', () => {

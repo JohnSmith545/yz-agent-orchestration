@@ -158,10 +158,14 @@ test('the card chip and the diagram tooltip: medium and high only', () => {
   assert.equal(Q.tip({}), '')
 })
 
-test('wiring: the rail link at the end, the route, the section, the scripts, the stylesheet, the check list', () => {
+test('wiring: the rail link after QA in the Quality group, the route, the section, the scripts, the stylesheet, the check list', () => {
   const shell = read('shell.js')
   assert.match(shell, /VIEWS\.push\('lessons'\)/)
-  assert.match(shell, /link\('lessons', '#\/lessons', 'Lessons'\)/)
+  const rail = { window: {} }
+  for (const f of ['rail-groups.js', 'shell.js']) vm.runInNewContext(read(f), rail)
+  const quality = rail.window.RailGroups.groups().find(g => g.id === 'quality').entries
+  assert.equal(quality.findIndex(e => e.view === 'lessons'), 1, 'right after QA')
+  assert.equal(rail.window.RailGroups.linkFor('lessons').href, '#/lessons')
   const index = read('index.html')
   assert.match(index, /<section id="lessonsView" aria-label="Lessons" hidden><\/section>/)
   assert.match(index, /<script src="quality-lessons-page\.js"><\/script>/)
