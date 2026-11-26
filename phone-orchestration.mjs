@@ -7,7 +7,9 @@
 //              the producers, the chat agent, QA, Security, Human task, Senior, Push, Output, only those the config
 //              draws), each { id, label, role, kind, state, flows, more }. `state` is the agent's: busy, idle or none
 //              (no session open), null for a fixed step or while the PC still builds the agent list (agentsKnown
-//              false). `flows` are the flows standing there, at most CHIPS_MAX: { id, title (cut), word, tone },
+//              false). `flows` are the flows standing there, at most FLOWS_MAX (the phone shows CHIPS_MAX of them
+//              and a +N more button for the rest, public/phone-agents.js), each { id, title (cut), word, tone },
+//              and `more` how many past FLOWS_MAX (said in words on the phone);
 //              found as the desktop finds them (pipeline-routes.mjs pipelineGet, the current step of each flow's
 //              progress, else its stage); archived and completed ones are not on the board, as on the desktop.
 //     others   running sessions that are no box, { label, state }; a raw session id is an Unnamed session
@@ -45,6 +47,8 @@ import './public/predict-group.js'
 const PredictGroup = globalThis.PredictGroup
 
 export const CHIPS_MAX = 6
+/** Flows a box sends: the phone unfolds them behind +N more (QA, 2026-11-26: +N more was plain text). */
+export const FLOWS_MAX = 40
 export const CHIP_TITLE_MAX = 60
 export const ALERT_LINES = 2
 export const ALERT_LINE_MAX = 160
@@ -163,8 +167,8 @@ export function makeOrchestration({ getStatus, alerts = async () => null, prs = 
       return {
         id: n.id, label: n.label, role: n.role, kind: n.kind,
         state: n.kind === 'agent' && states ? states.get(n.label) || 'none' : null,
-        flows: list.slice(0, CHIPS_MAX).map(t => ({ id: t.id, title: cut(t.title || t.id, CHIP_TITLE_MAX), word: WORD[statusOf(t)] || 'Unknown', tone: toneOf(t) })),
-        more: Math.max(0, list.length - CHIPS_MAX),
+        flows: list.slice(0, FLOWS_MAX).map(t => ({ id: t.id, title: cut(t.title || t.id, CHIP_TITLE_MAX), word: WORD[statusOf(t)] || 'Unknown', tone: toneOf(t) })),
+        more: Math.max(0, list.length - FLOWS_MAX),
       }
     })
     const onBoard = new Set(graph.nodes.filter(n => n.kind === 'agent').map(n => n.label))

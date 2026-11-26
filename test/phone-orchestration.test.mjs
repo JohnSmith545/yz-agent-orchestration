@@ -88,10 +88,11 @@ test('the flows standing at each box are its chips: archived and completed ones 
   assert.equal(JSON.stringify(body).includes('signed'), false)
 })
 
-test('at most CHIPS_MAX chips per box, and how many more', async () => {
-  for (let i = 0; i < O.CHIPS_MAX + 3; i++) put(`f${i}`)
+test('a box sends up to FLOWS_MAX flows (the phone shows CHIPS_MAX, then +N more), and how many more past that', async () => {
+  for (let i = 0; i < O.FLOWS_MAX + 3; i++) put(`f${i}`)
   const { body } = await make().orchestration()
-  assert.equal(box(body, 'Agent 1').flows.length, O.CHIPS_MAX)
+  assert.ok(O.FLOWS_MAX > O.CHIPS_MAX)
+  assert.equal(box(body, 'Agent 1').flows.length, O.FLOWS_MAX)
   assert.equal(box(body, 'Agent 1').more, 3)
 })
 

@@ -101,7 +101,8 @@
     st.sheet = { id, loading: true }
     window.history?.replaceState?.(null, '', `#flow=${encodeURIComponent(id)}`)
     draw()
-    root.querySelector('.ph-sheet')?.focus()
+    // the heading (the flow's name, tabindex -1) takes the focus, so a screen reader starts there; a redraw keeps it
+    root.querySelector('#phSheetTitle')?.focus()
     return loadSheet()
   }
 
@@ -173,14 +174,16 @@
     if (drafts.talk !== undefined) st.ui.talkDraft = drafts.talk
     const focus = selectorOf(doc.activeElement)
     const sheetTop = root.querySelector('.ph-sheet-body')?.scrollTop || 0
+    const label = st.summary?.coordinator || st.thread?.label || 'Master'
+    // the browser tab and the home-screen switcher say where the user is: Sign in before the PIN, else the tab
+    doc.title = st.signedIn ? V.tabTitle(st.tab, label) : 'Sign in'
     if (!st.signedIn) {
       root.innerHTML = V.signIn(st.signIn)
     } else {
-      const label = st.summary?.coordinator || st.thread?.label || 'Master'
       const body = st.tab === 'needs' ? V.needs(st.summary, st.ui)
         : st.tab === 'outputs' ? V.outputs(st.summary, st.ui)
         : st.tab === 'talk' ? V.talk(st.thread, st.ui)
-        : A.view(st.orch, st.summary)
+        : A.view(st.orch, st.summary, Date.now(), st.ui)
       root.innerHTML = '<div class="ph-app">' +
         `<header class="ph-top"><span class="ph-brand">${V.esc(V.tabTitle(st.tab, label))}</span><span class="ph-notice" role="status">${V.esc(st.notice)}</span>` +
         '<button type="button" class="link ph-out" data-ph-signout>Sign out</button></header>' +
@@ -307,6 +310,16 @@
     if (tab) return go(tab.getAttribute('data-ph-tab'))
     const chip = t.closest('[data-ph-flow]')
     if (chip) return openSheet(chip.getAttribute('data-ph-flow'))
+    // a box's +N more: the rest of its flows in the box, Show fewer folds them (the focus stays on the button)
+    const boxMore = t.closest('[data-ph-box-more]')
+    if (boxMore) {
+      const id = boxMore.getAttribute('data-ph-box-more')
+      const open = new Set(st.ui.openBoxes || [])
+      if (open.has(id)) open.delete(id)
+      else open.add(id)
+      st.ui.openBoxes = [...open]
+      return draw()
+    }
     const again = t.closest('[data-ph-retry]')
     if (again) return chat.retry(again.getAttribute('data-ph-retry'))
     if (t.closest('[data-ph-newreply]')) {

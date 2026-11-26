@@ -54,11 +54,11 @@ test('the pipeline: one row per box in the order given, each agent with a dot an
   assert.match(text(h), /Other sessions Helper Idle/)
 })
 
-test('each flow standing at a box is a chip that opens its sheet; a long list says how many more', () => {
+test('each flow standing at a box is a chip that opens its sheet; flows past what the phone was sent are said in words', () => {
   const h = A.view(ORCH, SUMMARY)
   assert.match(h, /<button type="button" class="ph-chip" data-ph-flow="login"><span class="ph-chip-title">Login page<\/span><span class="ph-chip-word">Working<\/span><\/button>/)
   assert.match(h, /class="ph-chip t-bad" data-ph-flow="pay"/)
-  assert.match(text(h), /\+2 more/)
+  assert.match(text(h), /2 more at the PC/)
 })
 
 test('while the PC still gathers the agents, no state is guessed; with nothing loaded yet, Loading', () => {
@@ -83,7 +83,7 @@ test('the flow sheet: title, tickets, where it stands, the route line, its quest
   const h = A.sheet({ data: SHEET }, {})
   assert.match(h, /role="dialog" aria-modal="true" aria-labelledby="phSheetTitle"/)
   assert.match(text(h), /Payments/)
-  assert.match(text(h), /FLA-12 · FLA-13 · build/)
+  assert.match(text(h), /FLA-12 · FLA-13 · Code change/, 'the kind in words, never the internal route type')
   assert.match(text(h), /Sent back at Agent 1/)
   assert.deepEqual([...h.matchAll(/<li class="ph-step-(\w+)"/g)].map(m => m[1]), ['done', 'done', 'current', 'upcoming', 'skipped'])
   assert.match(h, /data-ph-answer="yes" data-flow="pay" data-node="a1">Yes</, 'the same answer buttons as Needs you')
@@ -137,4 +137,35 @@ test('the bottom bar: Agents first (Now folded into it), then Needs you, Outputs
   assert.match(text(h), /^Agents Needs you 2 Outputs 1 Master$/)
   assert.equal(V.tabTitle('agents', 'Master'), 'Agents')
   assert.deepEqual([...ctx.window.PhoneState.TABS], ['agents', 'needs', 'outputs', 'talk'])
+})
+
+// ═══ the nits QA found (2026-11-26) ═══
+
+test('the sheet says what kind of request in words: Code change, Question, Review; an unknown type is left out', () => {
+  const kick = type => text(A.sheet({ data: { ...SHEET, type } }, {}))
+  assert.ok(kick('build').includes('FLA-12 · FLA-13 · Code change'))
+  assert.ok(kick('ask').includes('FLA-12 · FLA-13 · Question'))
+  assert.ok(kick('review').includes('FLA-12 · FLA-13 · Review'))
+  assert.ok(kick('odd').includes('FLA-12 · FLA-13 Sent back'), 'an unknown type: nothing after the tickets')
+  assert.doesNotMatch(text(A.sheet({ data: { ...SHEET, type: 'odd' } }, {})), /odd/)
+  assert.doesNotMatch(text(A.sheet({ data: { ...SHEET, type: 'build' } }, {})), /· build/)
+})
+
+test('the sheet heading takes the focus: it can be focused by script, not by Tab', () => {
+  assert.match(A.sheet({ data: SHEET }, {}), /<h2 id="phSheetTitle" class="ph-sheet-title" tabindex="-1">/)
+  assert.match(A.sheet({ loading: true }, {}), /id="phSheetTitle"[^>]*tabindex="-1"/)
+})
+
+test('a box with more than six flows: six chips and a +N more button that shows the rest in the box, and back', () => {
+  const many = Array.from({ length: 9 }, (_, i) => ({ id: 'f' + i, title: 'Flow ' + i, word: 'Working', tone: '' }))
+  const orch = { ...ORCH, boxes: [box('Agent 1', 'producer', 'agent', 'busy', many, 0)] }
+  const shut = A.view(orch, SUMMARY, Date.now(), {})
+  assert.equal((shut.match(/data-ph-flow=/g) || []).length, 6)
+  assert.ok(shut.includes('<button type="button" class="ph-more" data-ph-box-more="agent-1" aria-expanded="false">+3 more</button>'))
+  const open = A.view(orch, SUMMARY, Date.now(), { openBoxes: ['agent-1'] })
+  assert.equal((open.match(/data-ph-flow=/g) || []).length, 9)
+  assert.ok(open.includes('data-ph-box-more="agent-1" aria-expanded="true">Show fewer</button>'))
+  const beyond = A.view({ ...orch, boxes: [box('Agent 1', 'producer', 'agent', 'busy', many, 4)] }, SUMMARY, Date.now(), { openBoxes: ['agent-1'] })
+  assert.match(text(beyond), /4 more at the PC/, 'past what the phone was sent: said in words')
+  assert.doesNotMatch(A.view(ORCH, SUMMARY), /data-ph-box-more/, 'six or fewer: no button')
 })

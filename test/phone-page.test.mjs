@@ -227,3 +227,11 @@ test('the header names the tab: Agents, Needs you, Outputs, or the coordinator',
   assert.equal(V.tabTitle('talk'), 'Master')
   assert.match(read('phone-app.js'), /V\.tabTitle\(st\.tab, label\)/)
 })
+
+test('opening a flow sheet puts the focus on its heading; Close gives it back to the chip; the sign-in screen is titled Sign in', () => {
+  const app = read('phone-app.js')
+  assert.ok(app.includes("root.querySelector('#phSheetTitle')?.focus()"), 'the heading takes the focus')
+  assert.ok(app.includes('chipOf(id)?.focus()'), 'Close gives it back to the chip')
+  assert.ok(app.includes("doc.title = st.signedIn ? V.tabTitle(st.tab, label) : 'Sign in'"))
+  assert.ok(app.includes('data-ph-box-more'))
+})

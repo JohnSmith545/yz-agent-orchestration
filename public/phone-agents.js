@@ -23,6 +23,8 @@
   const cls = s => String(s ?? '').replace(/[^a-z0-9-]/g, '')
 
   const STATE_WORD = { busy: 'Busy', idle: 'Idle', none: 'No session' }
+  /** A flow's route type (flow-route.mjs ROUTE_TYPES) as the user says it. */
+  const KIND = { build: 'Code change', ask: 'Question', review: 'Review' }
   const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
   const link = (url, label) => (X.isGithub(url) ? `<a class="ph-pr-link"${attr('href', url)} target="_blank" rel="noopener noreferrer">${esc(label)}</a>` : `<span>${esc(label)}</span>`)
 
@@ -37,12 +39,27 @@
       `<span class="ph-chip-title">${esc(f.title)}</span><span class="ph-chip-word">${esc(f.word)}</span></button>`
   }
 
-  function boxRow(b) {
+  /** Chips a box shows before its +N more button (the server sends up to FLOWS_MAX, phone-orchestration.mjs). */
+  const CHIPS = 6
+
+  /**
+   * A box: its name, its agent's state, and its flows as chips. Over CHIPS flows, the first CHIPS and a +N more
+   * BUTTON that shows the rest in the box (Show fewer folds them again); flows past what the server sent are said in
+   * words, `N more at the PC`. `open` is the set of box ids the user unfolded (phone-app.js st.ui.openBoxes).
+   */
+  function boxRow(b, open) {
     const flows = Array.isArray(b.flows) ? b.flows : []
     const kind = cls(b.kind)
+    const unfolded = open.has(b.id)
+    const shown = unfolded ? flows : flows.slice(0, CHIPS)
+    const hidden = flows.length - shown.length
+    const toggle = flows.length > CHIPS
+      ? `<button type="button" class="ph-more"${attr('data-ph-box-more', b.id)} aria-expanded="${unfolded}">${unfolded ? 'Show fewer' : `+${hidden} more`}</button>`
+      : ''
+    const past = Number(b.more) > 0 && (unfolded || flows.length <= CHIPS) ? `<span class="ph-faint ph-more-pc">${Number(b.more)} more at the PC</span>` : ''
     return `<li class="ph-box${kind ? ` is-${kind}` : ''}${flows.length ? ' has-flows' : ''}">` +
       `<div class="ph-box-head"><span class="ph-box-name">${esc(b.label)}</span>${stateOf(b.state)}</div>` +
-      (flows.length ? `<div class="ph-chips">${flows.map(chip).join('')}${b.more > 0 ? `<span class="ph-more">+${Number(b.more) || 0} more</span>` : ''}</div>` : '') +
+      (flows.length ? `<div class="ph-chips">${shown.map(chip).join('')}${toggle}${past}</div>` : '') +
       '</li>'
   }
 
@@ -67,7 +84,8 @@
       `<ul class="ph-prs">${list.map(p => `<li>${link(p.url, p.title)}</li>`).join('')}</ul>`
   }
 
-  function view(orch, sum, nowMs = Date.now()) {
+  function view(orch, sum, nowMs = Date.now(), ui = {}) {
+    const open = new Set(Array.isArray(ui?.openBoxes) ? ui.openBoxes : [])
     const counts = sum ? S.countParts(sum.needs).map(p =>
       `<button type="button" class="ph-count"${attr('data-ph-tab', p.tab)}><span class="ph-count-n">${p.n}</span><span class="ph-count-l">${esc(p.label)}</span></button>`).join('') : ''
     const head = sum
@@ -79,7 +97,7 @@
     return '<section class="ph-sec" aria-label="Agents">' + head + alertsBlock(orch.alerts) + prsBlock(orch.prs) +
       '<h2 class="ph-h">Pipeline</h2>' +
       (orch.agentsKnown === false ? '<p class="ph-muted">Your PC is still gathering what the agents are doing. It shows here in a moment.</p>' : '') +
-      `<ol class="ph-pipe">${boxes.map(boxRow).join('')}</ol>` +
+      `<ol class="ph-pipe">${boxes.map(b => boxRow(b, open)).join('')}</ol>` +
       (others.length ? `<h2 class="ph-h">Other sessions</h2><ul class="ph-others">${others.map(o => `<li><span class="ph-other-name">${esc(o.label)}</span>${stateOf(o.state)}</li>`).join('')}</ul>` : '') +
       (sum ? `<p class="ph-line">Finished today: <b>${Number(sum.finishedToday) || 0}</b></p>` : '') +
       `<p class="ph-faint">Updated ${esc(S.when(orch.builtAt, nowMs))}</p></section>`
@@ -89,12 +107,14 @@
     const close = '<button type="button" class="link ph-sheet-close" data-ph-sheet-close>Close</button>'
     const frame = (title, body) => '<div class="ph-sheet-back" data-ph-sheet-close></div>' +
       '<section class="ph-sheet" role="dialog" aria-modal="true" aria-labelledby="phSheetTitle" tabindex="-1">' +
-      `<header class="ph-sheet-head"><h2 id="phSheetTitle" class="ph-sheet-title">${esc(title)}</h2>${close}</header>` +
+      // the heading takes the focus when the sheet opens (phone-app.js), so a screen reader starts at the flow's name
+      `<header class="ph-sheet-head"><h2 id="phSheetTitle" class="ph-sheet-title" tabindex="-1">${esc(title)}</h2>${close}</header>` +
       `<div class="ph-sheet-body">${body}</div></section>`
     if (sh.loading && !sh.data) return frame('Flow', '<p class="ph-muted">Loading…</p>')
     if (!sh.data) return frame('Flow', `<p class="ph-muted">${esc(sh.error || 'That flow could not be read.')}</p>`)
     const f = sh.data
-    const kicker = [...(Array.isArray(f.tickets) ? f.tickets : []), f.type].filter(Boolean).join(' · ')
+    // the kind of request in words; the internal route type (build, ask, review) never shows, an unknown one is left out
+    const kicker = [...(Array.isArray(f.tickets) ? f.tickets : []), KIND[f.type]].filter(Boolean).join(' · ')
     const route = (Array.isArray(f.route) ? f.route : []).map(s =>
       `<li class="ph-step-${cls(s.state) || 'upcoming'}"><span>${esc(s.label)}</span></li>`).join('')
     const asks = Array.isArray(f.asks) ? f.asks : []

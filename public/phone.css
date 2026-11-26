@@ -280,6 +280,9 @@ textarea.ph-compose-box { min-height: 44px; resize: none; }
 .ph-chip.t-bad .ph-chip-word { color: var(--bad); }
 .ph-chip.t-ok .ph-chip-word { color: var(--ok); }
 .ph-more { align-self: center; font-size: 13px; color: var(--muted); }
+/* +N more is a button (phone-agents.js): a chip's height for the thumb, no fill, so it reads as an action, not a flow */
+button.ph-more { min-height: 40px; padding: 8px 12px; border: 1px dashed var(--line-strong); border-radius: 20px; background: none; color: var(--accent); font: inherit; font-size: 13px; cursor: pointer; }
+.ph-more-pc { align-self: center; font-size: 12.5px; }
 
 /* ═══ the flow sheet: a modal bottom sheet over the tab (phone-app.js keeps the focus in it) ═══ */
 .sheet-open body { overflow: hidden; }
