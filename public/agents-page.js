@@ -67,6 +67,7 @@
   function mount() {
     const section = document.getElementById('agentsView')
     section.innerHTML = `<div class="pl-alerts" id="plAlerts" data-pe-alerts hidden></div>
+    <div class="pl-prs" id="plPrs" data-prl hidden></div>
     <div class="pl-page">
       <div class="pl-main">
         <div class="psc" id="plScore"></div>
@@ -93,6 +94,7 @@
     // the line over the diagram (completed-view.js fills it), and a sign-off re-reads the pipeline: the flow leaves it
     window.CompletedView?.paint(section)
     window.PredictAlerts?.paint(section) // the Alerts line at the top of the page (predict-alerts.js)
+    window.PrList?.paint(section) // the Pull requests list under it, fading into fog (prlist.js)
     document.addEventListener('outputs:change', () => showing && loadPipeline(true))
     // Delegated: the agent card's Progress report (agent-cards.js leaves [data-report] to its page), a
     // subagent row (watch it live), the pane's Close, and the ticket rows of Here now.

@@ -1,0 +1,112 @@
+/* The Pull requests list (prlist-view.js, prlist.js): a list that fades into fog, at the top of the Agents page and
+   on Home. No box, no bullets, no numbers: text on the page itself, so the fog is the page's own background. Each
+   place down the list is one [data-fog] step: the type a little smaller, less of the title shown, the text fainter,
+   and a mask that thins the title out towards the end of its line. A mask fades to TRANSPARENT, never to a colour,
+   so light and dark both work with nothing to keep in step. Hover or keyboard focus clears an item. The first
+   item's text is var(--ink) on var(--bg) at full opacity: well over the AA ratio in both themes.
+   ⚠️ The steps MUST CHANGE IN LOCKSTEP with FOG in prlist-view.js (test/prlist-view.test.mjs checks both).
+   Class prefix prl-. */
+
+/* the slot carries the easing too: prlist.js eases the slot height during a move */
+[data-prl] { --prl-ease: cubic-bezier(.2, .7, .2, 1); }
+.prl { margin: 0; max-width: 980px; }
+.prl-head { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
+.prl-h { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: -0.005em; color: var(--ink); }
+
+/* the slots: under the Alerts line on the Agents page, under the lines on Home */
+.pl-prs { margin: 0 0 22px; }
+.pl-prs[hidden], #homePrs[hidden] { display: none; }
+#homePrs:not([hidden]) { margin-top: 20px; }
+#homePrs:not([hidden]) + .home-zone { margin-top: 32px; }
+#homePrs .prl-h { font-size: 16px; font-weight: 650; letter-spacing: -0.01em; }
+
+/* ─── the list and its steps ─── */
+
+.prl-list { position: relative; margin: 0; padding: 0; list-style: none; }
+.prl-item {
+  position: relative; opacity: var(--fog-o); transform-origin: 0 50%;
+  transition: opacity .22s ease, filter .22s ease;
+}
+.prl-item[data-fog="0"] { --fog-o: 1; --fog-fs: 15px; --fog-ch: none; --fog-blur: 0px; }
+.prl-item[data-fog="1"] { --fog-o: 0.62; --fog-fs: 14px; --fog-ch: 58ch; --fog-blur: 0px; }
+.prl-item[data-fog="2"] { --fog-o: 0.38; --fog-fs: 13.5px; --fog-ch: 44ch; --fog-blur: 0px; }
+.prl-item[data-fog="3"] { --fog-o: 0.22; --fog-fs: 13px; --fog-ch: 32ch; --fog-blur: .3px; }
+.prl-item[data-fog="4"] { --fog-o: 0.12; --fog-fs: 12.5px; --fog-ch: 22ch; --fog-blur: .5px; }
+.prl-item:not([data-fog="0"]) { filter: blur(var(--fog-blur)); }
+
+.prl-line { display: flex; align-items: baseline; gap: 4px 12px; min-width: 0; }
+.prl-title {
+  flex: 0 1 auto; min-width: 0; max-width: var(--fog-ch);
+  font-size: var(--fog-fs); line-height: 1.45; color: var(--ink); text-decoration: none;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+a.prl-title:hover { text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+.prl-tag { flex: none; font-family: var(--mono); font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+
+/* the first: clear, a touch heavier, the whole title (it may wrap on a narrow screen), the small line under it */
+.prl-item[data-fog="0"] { margin: 0 0 9px; }
+/* the first line flows as text: the tag follows the title's last word, and wraps under it on a narrow screen */
+.prl-item[data-fog="0"] .prl-line { display: block; }
+.prl-item[data-fog="0"] .prl-title { display: inline; font-weight: 560; white-space: normal; overflow-wrap: anywhere; }
+.prl-item[data-fog="0"] .prl-tag { display: inline-block; margin-left: 10px; }
+.prl-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 14px; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+.prl-item[data-fog="0"] .prl-meta { margin: 2px 0 0; }
+.prl-sep { margin: 0 7px; color: var(--faint); }
+.prl-w { white-space: nowrap; } /* one word group never breaks inside: ready for you to merge stays whole */
+.prl-meta .dot { font-size: 12.5px; color: var(--muted); gap: 6px; }
+.prl-needs { color: var(--accent); font-weight: 550; }
+.prl-flow { font-size: 12.5px; }
+
+/* a pull request that needs you: one small accent dot in the margin, so the titles stay in line */
+.prl-item.is-needs .prl-line::before {
+  content: ''; position: absolute; left: -14px; top: calc(var(--fog-fs) * .62); width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+}
+
+/* the fogged ones: one line each, the title thinning out towards its end; the small line waits, invisible, at the
+   end of the row (it takes its room already, so revealing it moves nothing) */
+.prl-item:not([data-fog="0"]) { display: flex; align-items: baseline; gap: 0 16px; padding: 1px 0; overflow: hidden; }
+/* the mask is on the whole line, title and tag, so the line dissolves towards its end */
+.prl-item:not([data-fog="0"]) .prl-line {
+  flex: 0 1 auto;
+  -webkit-mask-image: linear-gradient(to right, #000 38%, rgb(0 0 0 / .22));
+  mask-image: linear-gradient(to right, #000 38%, rgb(0 0 0 / .22));
+}
+.prl-item:not([data-fog="0"]) .prl-meta { flex: none; flex-wrap: nowrap; white-space: nowrap; font-size: 12px; visibility: hidden; opacity: 0; transition: opacity .22s ease, visibility 0s linear .22s; }
+.prl-item:not([data-fog="0"]) .prl-meta .dot { font-size: 12px; }
+
+/* hover or keyboard focus: out of the fog, the whole title as far as the line allows, the small line shown */
+.prl-item:is(:hover, :focus-within) { opacity: 1; filter: none; }
+.prl-item:is(:hover, :focus-within) .prl-title { max-width: 100%; }
+.prl-item:is(:hover, :focus-within) .prl-line { -webkit-mask-image: none; mask-image: none; }
+.prl-item:not([data-fog="0"]):is(:hover, :focus-within) .prl-meta { visibility: visible; opacity: 1; transition: opacity .22s ease; }
+.prl-title:focus-visible, .prl-flow:focus-visible, .prl-more:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+
+/* `and 3 more`: in the same fog, a button that unfolds the rest */
+.prl-more {
+  margin: 4px 0 0; padding: 2px 0; border: 0; background: none; border-radius: 0;
+  font-size: 12.5px; color: var(--muted); opacity: .5; cursor: pointer; transition: opacity .22s ease;
+}
+.prl-more:hover, .prl-more:focus-visible { opacity: 1; color: var(--ink); }
+.prl-note { margin: 10px 0 0; font-size: 12.5px; color: var(--muted); }
+.prl-note::before { content: ''; display: inline-block; width: 7px; height: 7px; margin: 0 8px 1px 0; border-radius: 50%; background: var(--warn); }
+
+/* ─── the move up (prlist.js) ─── */
+
+/* the one that leaves: drawn where it was, over the list, as it fades up and out */
+.prl-ghost { position: absolute; left: 0; right: 0; margin: 0; pointer-events: none; transition: opacity .26s ease-out, transform .4s var(--prl-ease); }
+.prl-ghost.is-gone { opacity: 0; transform: translateY(-10px); }
+/* a new one at the top: a short fade in */
+.prl-item.prl-entering { animation: prl-in .26s var(--prl-ease) both; }
+@keyframes prl-in { from { opacity: 0; transform: translateY(-4px); } }
+
+/* a phone: the fogged rows keep only Open the flow on reveal, so the title keeps its room */
+@media (max-width: 600px) {
+  .prl-item:not([data-fog="0"]) .prl-words { display: none; }
+  .prl-item:not([data-fog="0"]) .prl-tag { display: none; }
+  .prl-item.is-needs .prl-line::before { left: -10px; width: 5px; height: 5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prl-item, .prl-more, .prl-item:not([data-fog="0"]) .prl-meta, .prl-ghost { transition: none; }
+  .prl-item.prl-entering { animation: none; }
+}
