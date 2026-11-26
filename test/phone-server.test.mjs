@@ -129,7 +129,7 @@ test('only GET and POST, each on its own paths: any other method is 404', async 
 test('the phone page and its own assets are served, each with its type', async () => {
   for (const [p, type] of Object.entries({
     '/phone': 'text/html', '/phone/': 'text/html', '/phone/phone.css': 'text/css', '/phone/phone-state.js': 'text/javascript', '/phone/phone-view.js': 'text/javascript',
-    '/phone/phone-app.js': 'text/javascript', '/phone/manifest.webmanifest': 'application/manifest+json', '/phone/icon.svg': 'image/svg+xml', '/phone/icon-180.png': 'image/png', '/phone/inter.woff2': 'font/woff2',
+    '/phone/phone-app.js': 'text/javascript', '/phone/phone-text.js': 'text/javascript', '/phone/phone-chat.js': 'text/javascript', '/phone/phone-composer.js': 'text/javascript', '/phone/manifest.webmanifest': 'application/manifest+json', '/phone/icon.svg': 'image/svg+xml', '/phone/icon-180.png': 'image/png', '/phone/inter.woff2': 'font/woff2',
   })) {
     const r = await request('GET', p)
     assert.equal(r.status, 200, p)

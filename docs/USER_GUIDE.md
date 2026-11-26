@@ -807,10 +807,14 @@ is off until you set it up, and only reachable on your own private network.
   its steps to tick. An answer reaches the agent through a short paid turn on your PC, a few cents each. A
   question you have answered cannot be changed from the phone; do that at the PC.
 - **Outputs**: finished work waiting for your sign-off, with its story. **Completed** asks once to confirm.
-- **Master** (your coordinator's name): your messages and its replies. A message is handed to the coordinator on
-  your PC, by a short paid turn (a few cents), and it answers when it gets to it. The PC must be on. One message
-  at a time: if one is not sent, the phone says why and puts your text back in the box. The phone shows only the
-  replies written after your first message from that phone, never the coordinator's other work. Each message
+- **Master** (your coordinator's name): a chat. Your messages are on the right, its replies under each one on the
+  left, newest at the bottom. A message is handed to the coordinator on your PC by a short paid turn (the line
+  under the box says about how much), and it answers when it gets to it. The PC must be on. Each message says
+  Sending, then Delivered to Master, or Not delivered with the reason and a **Try again** that puts your text back
+  in the box. After delivery, **Master is working…** shows until a reply comes (for up to 10 minutes). One message
+  at a time. The thread is the same on every phone signed in with your PIN: the last 30 messages, each with the
+  replies that followed it, so it is still there after you sign in again. Replies written before your first phone
+  message are never shown, and only its written words reach the phone, never its tools or files. Each message
   arrives with a fixed first line saying it came from your phone, and the coordinator then does nothing
   destructive, nothing that pushes, deploys or touches a live system, and no settings change until you confirm
   at the PC.

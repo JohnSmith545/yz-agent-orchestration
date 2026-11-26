@@ -1,5 +1,5 @@
 // The phone page's live half (public/phone.html): it signs in, fetches, polls and binds the clicks; the words come
-// from phone-state.js and the markup from phone-view.js. Everything it calls is on the phone listener
+// from phone-state.js and the markup from phone-view.js and phone-chat.js. Everything it calls is on the phone listener
 // (phone-server.mjs): /phone/login, /phone/logout and /phone/api/*. Every POST carries the session's CSRF token in
 // X-Phone-CSRF; the session itself is an HttpOnly cookie this script never sees.
 //
@@ -7,30 +7,37 @@
 // - The PIN is read once from its field when the user signs in, sent once and the field emptied. Nothing here
 //   stores it, or anything else, in the browser (no web storage, no cookie it can read, no cache): there is no service worker.
 // - Polling only while the page is visible: the summary every SUMMARY_MS and, on the coordinator's tab, the thread
-//   every TALK_MS (10 s). Hidden, it stops; visible again, it refreshes at once.
+//   on PhoneChat.pollMs (5 s while a message is on its way or the coordinator works, else 15 s). Hidden, it stops;
+//   visible again, it refreshes at once.
 // - A redraw keeps what the user is typing (every [data-draft] field) and where the focus is, so a poll never eats
 //   an answer half written.
-// - One message to the coordinator at a time: Send is off while one is on its way, a failed one puts its text
-//   back in the box (PhoneState.draftBack), and the text stays in the box until the server has taken it.
+// - The chat: one message at a time (Send is off while the box is empty or one is in flight); the box empties once
+//   the server has the message; a message that was not delivered has Try again, which puts its text back in the box
+//   and sends nothing by itself. A new reply is followed down only when the reader is near the bottom, else the
+//   New reply pill shows. The composer stays above the on-screen keyboard (phone-composer.js).
+// - The address names the tab (#talk, #needs …), so a reload or a home-screen icon opens where the user was.
 // - The PC unreachable: a quiet line at the top, and the page keeps trying. The session over (401): back to the PIN.
 ;(() => {
   const S = window.PhoneState
   const V = window.PhoneView
+  const C = window.PhoneChat
+  const K = window.PhoneComposer
   const doc = window.document
   const root = doc.getElementById('app')
   if (!root) return
 
   const SUMMARY_MS = 15_000
-  const TALK_MS = 10_000
   const OFFLINE = 'Cannot reach your PC. It may be off or asleep; trying again.'
   const OFF = 'Phone access is off on your PC.'
 
+  const first = S.routeOf(window.location.hash)
   const st = {
-    signedIn: false, csrf: '', tab: 'now', summary: null, thread: null, notice: '', sentId: null,
-    signIn: { status: '', busy: false }, ui: { status: {}, busy: {}, confirm: null },
+    signedIn: false, csrf: '', tab: first.tab, summary: null, thread: null, notice: '', pill: false,
+    signIn: { status: '', busy: false }, ui: { status: {}, busy: {}, confirm: null, talkDraft: '' },
   }
   let timers = []
-  let talkSeen = -1 // how many thread items were on screen at the last draw of the Master tab
+  let talkTimer = null
+  let talkSeen = -1 // how many replies were on screen at the last draw of the chat (-1: none yet, open at the bottom)
 
   // ═══ the network ═══
 
@@ -54,7 +61,7 @@
 
   function signedOut(why) {
     stop()
-    Object.assign(st, { signedIn: false, csrf: '', summary: null, thread: null, sentId: null })
+    Object.assign(st, { signedIn: false, csrf: '', summary: null, thread: null, pill: false })
     st.signIn = { status: why || '', busy: false }
     draw()
   }
@@ -65,20 +72,83 @@
     draw()
   }
 
-  async function loadThread() {
-    const before = st.thread?.messages || []
+  // ═══ the chat ═══
+
+  const visible = () => doc.visibilityState !== 'hidden'
+  const pcNow = () => Date.parse(st.thread?.now) || Date.now()
+  const scrollState = () => ({ scrollTop: window.scrollY || 0, clientHeight: window.innerHeight || 0, scrollHeight: doc.documentElement.scrollHeight || 0 })
+  const toBottom = () => window.scrollTo(0, doc.documentElement.scrollHeight)
+
+  /** The next read of the thread, on the chat tab only: 5 s while something is on its way, else 15 s. */
+  function scheduleTalk() {
+    window.clearTimeout(talkTimer)
+    talkTimer = null
+    if (!st.signedIn || st.tab !== 'talk') return
+    const ms = C.pollMs(st.thread, pcNow(), visible())
+    if (ms) talkTimer = window.setTimeout(loadThread, ms)
+  }
+
+  async function loadThread({ follow = false } = {}) {
+    const near = C.nearBottom(scrollState()) // measured BEFORE the redraw makes the page taller
     const r = await call('GET', '/phone/api/talk')
-    if (r.status === 200) {
-      st.thread = r.json
-      const back = S.draftBack(before, r.json.messages, st.sentId)
-      if (back !== null) {
-        st.sentId = null
-        draw({ talk: back })
-        return
+    if (r.status === 200) st.thread = r.json
+    if (st.tab === 'talk' && st.thread) {
+      const count = C.replyCount(st.thread)
+      const what = follow ? 'follow' : C.onNewReplies(talkSeen, count, near)
+      talkSeen = count
+      if (what === 'pill') st.pill = true
+      draw()
+      if (what === 'follow') {
+        st.pill = false
+        showPill()
+        toBottom()
       }
-      if (st.sentId && !(r.json.messages || []).some(m => m.id === st.sentId && m.state === 'sending')) st.sentId = null
-    }
+    } else draw()
+    scheduleTalk()
+  }
+
+  function showPill() {
+    const pill = root.querySelector('[data-ph-newreply]')
+    if (pill) pill.hidden = !st.pill
+  }
+
+  /** Send on or off for the text in the box now (the server's own one-at-a-time refusal still stands behind it). */
+  function updateSend() {
+    const box = root.querySelector('#phTalk')
+    const btn = root.querySelector('.ph-send-btn')
+    if (!box || !btn) return
+    const sending = !!st.thread?.busy || C.status(st.thread, pcNow()).kind === 'sending' || !!st.ui.busy.talk
+    btn.disabled = !C.canSend(box.value, sending)
+  }
+
+  async function sendTalk(form) {
+    const box = form.querySelector('[data-draft="talk"]')
+    const text = box?.value || ''
+    if (!text.trim()) return say('talk', 'Type a message first.')
+    st.ui.busy.talk = true
+    st.ui.status.talk = ''
     draw()
+    const r = await call('POST', '/phone/api/talk', { text })
+    delete st.ui.busy.talk
+    if (r.status === 202) {
+      st.ui.status.talk = ''
+      draw({ talk: '' }) // the server has it now: the box empties
+      return loadThread({ follow: true })
+    }
+    if (r.status !== 401) say('talk', r.status ? r.json.error || 'Not sent.' : `${OFFLINE} Your text is still in the box.`)
+  }
+
+  /** Try again: the message's text back in the box, ready to send; nothing is sent until the user presses Send. */
+  function retry(id) {
+    const m = (st.thread?.messages || []).find(x => x.id === id)
+    const box = root.querySelector('#phTalk')
+    if (!m || !box) return
+    box.value = m.text
+    st.ui.talkDraft = m.text
+    K.grow(box)
+    K.measure(root)
+    updateSend()
+    box.focus()
   }
 
   // ═══ polling, only while visible ═══
@@ -86,15 +156,17 @@
   function stop() {
     for (const t of timers) window.clearInterval(t)
     timers = []
+    window.clearTimeout(talkTimer)
+    talkTimer = null
   }
   function start() {
     stop()
-    if (!st.signedIn || doc.visibilityState === 'hidden') return
+    if (!st.signedIn || !visible()) return
     timers.push(window.setInterval(loadSummary, SUMMARY_MS))
-    timers.push(window.setInterval(() => { if (st.tab === 'talk') loadThread() }, TALK_MS))
+    scheduleTalk()
   }
   doc.addEventListener('visibilitychange', () => {
-    if (doc.visibilityState === 'hidden') return stop()
+    if (!visible()) return stop()
     if (!st.signedIn) return
     loadSummary()
     if (st.tab === 'talk') loadThread()
@@ -115,6 +187,7 @@
     const drafts = {}
     for (const f of root.querySelectorAll('[data-draft]')) drafts[f.getAttribute('data-draft')] = f.value
     Object.assign(drafts, put)
+    if (drafts.talk !== undefined) st.ui.talkDraft = drafts.talk
     const focus = selectorOf(doc.activeElement)
     if (!st.signedIn) {
       root.innerHTML = V.signIn(st.signIn)
@@ -127,17 +200,18 @@
       root.innerHTML = '<div class="ph-app">' +
         `<header class="ph-top"><span class="ph-brand">${V.esc(V.tabTitle(st.tab, label))}</span><span class="ph-notice" role="status">${V.esc(st.notice)}</span>` +
         '<button type="button" class="link ph-out" data-ph-signout>Sign out</button></header>' +
-        `<main class="ph-main" id="phMain">${body}</main>${V.nav(st.tab, st.summary, label)}</div>`
+        `<main class="ph-main${st.tab === 'talk' ? ' is-chat' : ''}" id="phMain">${body}</main>${V.nav(st.tab, st.summary, label)}</div>`
     }
     for (const f of root.querySelectorAll('[data-draft]')) {
       const k = f.getAttribute('data-draft')
       if (drafts[k] !== undefined) f.value = drafts[k]
     }
+    if (st.tab === 'talk') {
+      K.grow(root.querySelector('#phTalk'))
+      K.measure(root)
+      showPill()
+    }
     if (focus) root.querySelector(focus)?.focus?.({ preventScroll: true })
-    // the thread reads newest at the bottom: open it there, and follow it when something new arrives
-    const count = st.signedIn && st.tab === 'talk' && st.thread ? S.threadItems(st.thread).length : -1
-    if (count >= 0 && count !== talkSeen) window.scrollTo(0, doc.body.scrollHeight)
-    talkSeen = count
   }
 
   const say = (key, text) => { st.ui.status[key] = text; draw() }
@@ -157,10 +231,8 @@
       st.signIn = { status: r.status ? r.json.error || 'Sign-in failed.' : OFFLINE, busy: false }
       return draw()
     }
-    Object.assign(st, { signedIn: true, csrf: r.json.csrf, tab: 'now', signIn: { status: '', busy: false } })
-    draw()
-    await loadSummary()
-    start()
+    Object.assign(st, { signedIn: true, csrf: r.json.csrf, signIn: { status: '', busy: false } })
+    opened()
   }
 
   async function act(key, url, body, done) {
@@ -200,31 +272,25 @@
     draw()
   }
 
-  async function sendTalk(form) {
-    const box = form.querySelector('[data-draft="talk"]')
-    const text = box?.value || ''
-    if (!text.trim()) return say('talk', 'Type a message first.')
-    st.ui.busy.talk = true
-    st.ui.status.talk = ''
-    draw()
-    const r = await call('POST', '/phone/api/talk', { text })
-    delete st.ui.busy.talk
-    if (r.status === 202) {
-      st.sentId = r.json.message?.id || null
-      st.ui.status.talk = ''
-      draw({ talk: '' }) // the server has it now: the box empties
-      return loadThread()
-    }
-    if (r.status !== 401) say('talk', r.status ? r.json.error || 'Not sent.' : `${OFFLINE} Your text is still in the box.`)
-  }
-
   function go(tab) {
     st.tab = tab
     st.ui.confirm = null
+    st.pill = false
+    talkSeen = -1
+    window.history?.replaceState?.(null, '', S.hashOf(tab))
     draw()
-    root.querySelector('#phMain')?.scrollTo?.(0, 0)
+    window.scrollTo(0, 0)
+    scheduleTalk()
     if (tab === 'talk') loadThread()
     else loadSummary()
+  }
+
+  /** Signed in (or a session already open): the summary, the tab the address named, and the polls. */
+  async function opened() {
+    draw()
+    await loadSummary()
+    if (st.tab === 'talk') await loadThread()
+    start()
   }
 
   root.addEventListener('click', e => {
@@ -240,6 +306,13 @@
     }
     const tab = t.closest('[data-ph-tab]')
     if (tab) return go(tab.getAttribute('data-ph-tab'))
+    const again = t.closest('[data-ph-retry]')
+    if (again) return retry(again.getAttribute('data-ph-retry'))
+    if (t.closest('[data-ph-newreply]')) {
+      st.pill = false
+      showPill()
+      return toBottom()
+    }
     const yn = t.closest('[data-ph-answer]')
     if (yn) return answer(yn, yn.getAttribute('data-ph-answer'))
     const txt = t.closest('[data-ph-answer-text]')
@@ -266,6 +339,13 @@
   root.addEventListener('change', e => {
     if (e.target?.matches?.('[data-ph-tick]')) tick(e.target)
   })
+  root.addEventListener('input', e => {
+    if (e.target?.id !== 'phTalk') return
+    st.ui.talkDraft = e.target.value
+    K.grow(e.target)
+    K.measure(root)
+    updateSend()
+  })
   root.addEventListener('submit', e => {
     e.preventDefault()
     if (e.target.matches('[data-ph-login]')) return signIn(e.target)
@@ -279,15 +359,20 @@
       root.querySelector(`[data-ph-complete][data-flow="${id}"]`)?.focus()
     }
   })
+  window.addEventListener('scroll', () => {
+    if (st.pill && C.nearBottom(scrollState())) {
+      st.pill = false
+      showPill()
+    }
+  }, { passive: true })
+  K.watchKeyboard()
 
   // ═══ start: a session already open (the cookie) goes straight in ═══
   ;(async () => {
     const r = await call('GET', '/phone/api/me')
     if (r.status === 200) {
       Object.assign(st, { signedIn: true, csrf: r.json.csrf })
-      draw()
-      await loadSummary()
-      start()
+      await opened()
     } else {
       st.signedIn = false
       st.signIn.status = r.status === 0 ? OFFLINE : r.status === 503 ? OFF : ''
