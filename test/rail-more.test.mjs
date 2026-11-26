@@ -137,3 +137,16 @@ test('the live half: the slots move into the sheet and back, Escape closes it, t
   assert.match(src, /setAttribute\('aria-expanded'/)
   assert.doesNotMatch(src, /insertAdjacentHTML/)
 })
+
+test('under 720 px the toast stack sits above the bar, offset by the bar height from the same variable, plus a gap', () => {
+  const css = read('rail-more.css')
+  const phone = css.slice(css.indexOf('@media (max-width: 720px)'))
+  assert.match(phone, /\.nt-stack \{ bottom: calc\(var\(--rail-w\) \+ 8px\); \}/)
+  const shell = read('shell.css')
+  const bar = shell.slice(shell.indexOf('@media (max-width: 720px)'))
+  assert.match(bar, /height: var\(--rail-w\)/, 'the bar is var(--rail-w) high: the stack follows it if it ever changes')
+  // rail-more.css loads after orchestration.css (where the stack is placed), so its rule wins at equal weight
+  const html = read('index.html')
+  assert.ok(html.indexOf('href="rail-more.css"') > html.indexOf('href="orchestration.css"'))
+  assert.match(read('orchestration.css'), /\.nt-stack \{ position: fixed; right: 16px; bottom: 16px;/, 'wide windows keep their place')
+})

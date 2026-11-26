@@ -19,6 +19,9 @@
   .rail-nav .rail-item:not(.in-bar) { display: none; }
   .rail-bottom > :not(#railAsk):not(#railMore) { display: none; }
   #railMore { display: flex; }
+  /* the toasts (notify.js, orchestration.css) stand above the bar, never over it: a tap on More once hit a toast
+     (QA, 390 px). The bar is var(--rail-w) high (shell.css), so the stack follows it if that ever changes. */
+  .nt-stack { bottom: calc(var(--rail-w) + 8px); }
   #railMore.is-lit { color: var(--ink); }
   #railMore.is-lit .rail-icon { background: var(--surface-3); }
   #railMore.is-lit::before {
