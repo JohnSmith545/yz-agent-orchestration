@@ -394,6 +394,7 @@ test('server.mjs keeps its one 127.0.0.1 listener and starts the phone through s
   assert.equal((src.match(/\.listen\(|listenWhenFree\(/g) || []).length, 1)
   assert.match(src, /listenWhenFree\(server, PORT, '127\.0\.0\.1'\)/)
   assert.match(src, /startPhone\(\{[^}]*alerts: \(\) => predictRoute\.alerts\(\)/, 'the Agents tab reads the same alerts as the desktop')
+  assert.match(src, /startPhone\(\{[^}]*prs: \(\) => prListRoute\.list\.snapshot\(\)\.items/, 'and the same Pull requests list as the fog block')
   assert.equal((src.match(/startPhone\(/g) || []).length, 1)
   assert.doesNotMatch(src, /0\.0\.0\.0/)
 })

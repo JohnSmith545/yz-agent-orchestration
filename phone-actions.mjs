@@ -19,8 +19,9 @@
 // Send, Generate, Request test steps, Ask for steps, the chat. A phone that is lost while signed in can do only
 // what is above until the session expires or the desktop signs it out.
 //
-// Each action takes the parsed JSON body and resolves { status, body }. `relay`, `talk`, `getStatus` and `alerts` are
-// injected (server.mjs passes its own), so the tests stub every side effect.
+// Each action takes the parsed JSON body and resolves { status, body }. `relay`, `talk`, `getStatus`, `alerts` and
+// `prs` (the desktop's Pull requests list, prlist-store.mjs, read only) are injected (server.mjs passes its own), so
+// the tests stub every side effect.
 
 import { CONFIG } from './config.mjs'
 import { completeRoute, outputsGet } from './completed-routes.mjs'
@@ -61,8 +62,8 @@ const startOfToday = now => {
 /** How long the Agents tab waits for the agent list (phone-orchestration.mjs): a cold status build can take far longer. */
 export const AGENTS_WAIT_MS = 3000
 
-export function makePhoneActions({ relay, talk, getStatus, alerts = async () => null, config = CONFIG, now = Date.now, agentsWaitMs = AGENTS_WAIT_MS, cost = phoneCost }) {
-  const orch = makeOrchestration({ getStatus, alerts, config, now, agentsWaitMs })
+export function makePhoneActions({ relay, talk, getStatus, alerts = async () => null, prs = () => [], config = CONFIG, now = Date.now, agentsWaitMs = AGENTS_WAIT_MS, cost = phoneCost }) {
+  const orch = makeOrchestration({ getStatus, alerts, prs, config, now, agentsWaitMs })
   // the agents themselves are on the Agents tab (orchestration): the summary no longer waits for the status build
   async function summary() {
     const graph = pipelineGraph(config)

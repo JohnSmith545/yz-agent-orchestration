@@ -107,13 +107,42 @@ test('the alerts: the count and the first two in one line each; none when off or
   assert.ok(long.body.alerts.lines[0].length <= O.ALERT_LINE_MAX + 1)
 })
 
-test('the open pull requests: only open ones, only github.com addresses, titles only', async () => {
-  put('open-pr', { status: 'done', output: { pr: { url: 'https://github.com/o/r/pull/12', number: 12, state: 'open' }, merge: { title: 'Add the login page', head: 'feat/login', base: 'dev', body: 'The login page.' } } })
-  put('merged-pr', { status: 'done', output: { pr: { url: 'https://github.com/o/r/pull/11', number: 11, state: 'merged' } } })
-  put('odd-pr', { status: 'done', output: { pr: { url: 'javascript:alert(1)//github.com/o/r/pull/1', number: 1, state: 'open' } } })
-  put('elsewhere', { status: 'done', output: { pr: { url: 'https://gitlab.example/o/r/pull/3', number: 3, state: 'open' } } })
-  const { body } = await make().orchestration()
-  assert.deepEqual(body.prs, [{ title: 'Add the login page', url: 'https://github.com/o/r/pull/12', number: 12 }])
+// The pull requests come from the desktop's own Pull requests list (prlist-store.mjs, the `prs` provider), never from a
+// second reading of the flows or a second gh poll: what the fog block shows, the phone shows, in the same order.
+const item = (n, over = {}) => ({ key: `https://github.com/o/r/pull/${n}`, url: `https://github.com/o/r/pull/${n}`, repo: 'o/r', number: n, label: `o/r #${n}`, title: `Pull ${n}`, flow: { id: `f${n}`, title: `Flow ${n}` }, agent: 'Agent 1', openedAt: ago(0.1), draft: false, checks: 'passing', needs: false, stale: false, ...over })
+
+test('the open pull requests are the Pull requests list as given, in its order, titles and links only', async () => {
+  const { body } = await make({ prs: () => [item(14, { title: 'Add the login page' }), item(12)] }).orchestration()
+  assert.deepEqual(body.prs, [
+    { title: 'Add the login page', url: 'https://github.com/o/r/pull/14', number: 14 },
+    { title: 'Pull 12', url: 'https://github.com/o/r/pull/12', number: 12 },
+  ])
+  // a provider that answers with a promise works the same
+  assert.equal((await make({ prs: async () => [item(3)] }).orchestration()).body.prs.length, 1)
+})
+
+test('the phone never reads pull requests off the flows itself: with no provider the list is empty', async () => {
+  put('open-pr', { status: 'done', output: { pr: { url: 'https://github.com/o/r/pull/12', number: 12, state: 'open' } } })
+  assert.deepEqual((await make().orchestration()).body.prs, [])
+})
+
+test('the pull requests provider fails safe: a throw, a rejection, a hang or junk is an empty list, the page still answers', async () => {
+  for (const prs of [() => { throw new Error('x') }, async () => { throw new Error('y') }, () => null, () => 'junk', () => ({ items: [] }), () => [null, 7, 'x', {}]]) {
+    const r = await make({ prs }).orchestration()
+    assert.equal(r.status, 200)
+    assert.deepEqual(r.body.prs, [])
+  }
+  const hung = await make({ prs: () => new Promise(() => {}), agentsWaitMs: 20 }).orchestration()
+  assert.deepEqual(hung.body.prs, [])
+})
+
+test('the pull requests: only github.com pull request links, a hostile title cut, at most ten', async () => {
+  const odd = [item(1, { url: 'javascript:alert(1)//github.com/o/r/pull/1' }), item(2, { url: 'https://gitlab.example/o/r/pull/2' }), item(3, { title: 'x'.repeat(500) })]
+  const { body } = await make({ prs: () => odd }).orchestration()
+  assert.deepEqual(body.prs.map(p => p.number), [3])
+  assert.ok(body.prs[0].title.length <= 201)
+  const many = Array.from({ length: 15 }, (_, i) => item(i + 1))
+  assert.equal((await make({ prs: () => many }).orchestration()).body.prs.length, 10)
 })
 
 // ═══ the flow sheet ═══

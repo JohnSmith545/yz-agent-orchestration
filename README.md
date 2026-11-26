@@ -2019,7 +2019,8 @@ dashboard keeps listening on `127.0.0.1` only.
 
 **What the phone can do**, and nothing else: see how many things need you, and on the Agents tab the pipeline from
 Request to Output with each agent's state, the flows standing at each box (a tap opens a read-only sheet), the
-alerts and the open pull requests (`GET /phone/api/orchestration` and `/phone/api/flow?id=`, read only); answer
+alerts and the open pull requests (the same list as the desktop Pull requests block, read from its memory, so the
+phone adds no GitHub read) (`GET /phone/api/orchestration` and `/phone/api/flow?id=`, read only); answer
 an open question (once: changing an answer stays on the PC); tick a by-hand step; mark a finished output
 Completed; and chat with the coordinator. The chat is one thread shared by every phone signed in with the PIN (they
 are all you): the last 30 messages, each with the coordinator's written replies that followed it, so it survives a

@@ -13,8 +13,12 @@
 //     others   running sessions that are no box, { label, state }; a raw session id is an Unnamed session
 //     alerts   { count, lines: the first ALERT_LINES alerts' text, cut } from Predict and warn (predict-routes.mjs
 //              alertsGet, injected), or null when it is off or cannot be read
-//     prs      the open pull requests the dashboard recorded (a flow's output.pr, written by Send): { title, url,
-//              number }, only https://github.com/<owner>/<repo>/pull/<n> addresses, at most PRS_MAX
+//     prs      the open pull requests: the desktop's OWN Pull requests list (prlist-store.mjs, the fog block on the
+//              Agents page and Home, given here as the `prs` provider), in its order, trimmed to { title, url,
+//              number }, only https://github.com/<owner>/<repo>/pull/<n> addresses, at most PRS_MAX. ⚠️ The phone
+//              never reads pull requests off the flows or asks gh itself: one list, one gh cadence (at most once a
+//              minute), so the phone and the desktop never disagree. With no provider, or one that throws, hangs or
+//              answers junk, the list is empty and the tab still answers.
 //   flow({ id })      one flow's sheet: { id, title, tickets, where, type, route, story, qa, asks, pr }. The id is
 //              checked against the flow id pattern BEFORE any lookup (400); a flow that is not there (deleted, in
 //              the Trash) is a 404, and so is one that is archived or completed (put away: the PC has it). `asks`
@@ -28,7 +32,7 @@
 import { CONFIG } from './config.mjs'
 import { qaView } from './flow-qa.mjs'
 import { withRoute } from './flow-route.mjs'
-import { listFlows, readFlow, storyOf } from './flows.mjs'
+import { readFlow, storyOf } from './flows.mjs'
 import { pipelineGet } from './pipeline-routes.mjs'
 import { pipelineGraph, stageOf } from './pipeline.mjs'
 
@@ -94,7 +98,7 @@ const toneOf = t => {
   return s === 'passed' ? 'ok' : ''
 }
 
-export function makeOrchestration({ getStatus, alerts = async () => null, config = CONFIG, now = Date.now, agentsWaitMs = WAIT_MS }) {
+export function makeOrchestration({ getStatus, alerts = async () => null, prs = () => [], config = CONFIG, now = Date.now, agentsWaitMs = WAIT_MS }) {
   /** label -> busy | idle for every session running now, or null while the PC still builds the list. */
   async function agentStates() {
     const st = await within(getStatus(false), agentsWaitMs, null)
@@ -115,17 +119,19 @@ export function makeOrchestration({ getStatus, alerts = async () => null, config
     return { count: b.alerts.length, lines: b.alerts.slice(0, ALERT_LINES).map(a => cut(a?.text, ALERT_LINE_MAX)) }
   }
 
-  function openPrs() {
-    return listFlows({ archived: 'any' }).flows
-      .filter(f => f?.output?.pr?.state === 'open' && GITHUB_PR.test(String(f.output.pr.url || '')))
-      .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))
+  /** The Pull requests list's items (open only, newest first, as the fog block shows them), each re-checked here:
+   *  the provider's text came from GitHub and the agents, so it is hostile too. */
+  async function openPrs() {
+    const items = await within(Promise.resolve().then(prs), agentsWaitMs, [])
+    return (Array.isArray(items) ? items : [])
+      .filter(p => p && typeof p === 'object' && GITHUB_PR.test(String(p.url || '')))
       .slice(0, PRS_MAX)
-      .map(f => ({ title: cut(f.output.merge?.title || f.title, TITLE_MAX), url: f.output.pr.url, number: Number(f.output.pr.number) || null }))
+      .map(p => ({ title: cut(p.title || p.url, TITLE_MAX), url: p.url, number: Number(p.number) || null }))
   }
 
   async function orchestration() {
     const { graph, tickets } = pipelineGet({ config, now: now() }).body
-    const [states, alertSummary] = await Promise.all([agentStates(), alertLines()])
+    const [states, alertSummary, openList] = await Promise.all([agentStates(), alertLines(), openPrs()])
     const byNode = new Map()
     for (const t of tickets) {
       const node = nodeOf(t)
@@ -145,7 +151,7 @@ export function makeOrchestration({ getStatus, alerts = async () => null, config
     })
     const onBoard = new Set(graph.nodes.filter(n => n.kind === 'agent').map(n => n.label))
     const others = states ? [...states].filter(([label]) => !onBoard.has(label)).map(([label, state]) => ({ label, state })) : []
-    return ok({ builtAt: new Date(now()).toISOString(), agentsKnown: states !== null, boxes, others, alerts: alertSummary, prs: openPrs() })
+    return ok({ builtAt: new Date(now()).toISOString(), agentsKnown: states !== null, boxes, others, alerts: alertSummary, prs: openList })
   }
 
   async function flow(b) {

@@ -196,6 +196,13 @@ test('orchestration and flow are the read-only builders, with the alerts passed 
   assert.deepEqual(calls, [], 'nothing relayed, nothing written')
 })
 
+test('the Pull requests list is passed through to the orchestration (one list for the desktop and the phone)', async () => {
+  const prs = () => [{ url: 'https://github.com/o/r/pull/9', number: 9, title: 'Nine' }]
+  const o = await makePhoneActions({ relay, talk, getStatus: async () => ({ agents }), prs }).orchestration()
+  assert.deepEqual(o.body.prs, [{ title: 'Nine', url: 'https://github.com/o/r/pull/9', number: 9 }])
+  assert.deepEqual((await makePhoneActions({ relay, talk, getStatus: async () => ({ agents }) }).orchestration()).body.prs, [])
+})
+
 // ═══ talk ═══
 
 test('talk reads the one thread with its cost line, and sends through phone-talk.mjs, the text as given', async () => {

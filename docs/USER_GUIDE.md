@@ -816,7 +816,8 @@ is off until you set it up, and only reachable on your own private network.
 **On the phone** there are four tabs at the bottom:
 
 - **Agents**: how many things need you (questions, by-hand steps, outputs to sign off), the alerts (how many, and
-  the first two), the open pull requests (a tap opens GitHub), and the pipeline as a list from Request to Output:
+  the first two), the open pull requests (the same list as the Pull requests block on the PC; a tap opens GitHub),
+  and the pipeline as a list from Request to Output:
   each box with its agent's state (a green dot for busy, grey for idle, a ring for no session) and the flows standing
   there. Tap a flow to see its tickets, where it stands, its route, its open questions (with Yes and No), its last
   QA result, its story and its pull request. Close it with Close, Escape or a tap outside. Read only, apart from
