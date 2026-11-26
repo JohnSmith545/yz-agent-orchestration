@@ -58,7 +58,8 @@ test('the shell wires it: a title, a section, the page object, an icon, a rail l
   assert.match(bank.icon, /<path/, 'its icon: three stacked layers')
   assert.match(read('index.html'), /<section id="bankView" aria-label="Orchestration bank" hidden><\/section>/)
   assert.match(read('index.html'), /<script src="bank-page\.js"><\/script>/)
-  assert.match(read('palette.js'), /\['Orchestration bank', '#\/bank'\]/)
+  vm.runInNewContext(read('palette.js'), shellCtx)
+  assert.equal(shellWindow.Palette.gather({}).find(i => i.kind === 'page' && i.label === 'Orchestration bank')?.hint, '#/bank', 'the palette lists it')
 })
 
 test('the list: each saved style with its name, time, project and summary, newest first as given, escaped', () => {

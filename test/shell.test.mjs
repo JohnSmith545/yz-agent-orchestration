@@ -97,7 +97,9 @@ test('the rail: the brand mark still opens #/home, and the Work group starts Hom
 
 test('no link still sends a reader Home by #/ (that is Flows now): the palette and the Since card use #/home', () => {
   const pub = f => fs.readFileSync(path.join(HERE, '..', 'public', f), 'utf8')
-  assert.match(pub('palette.js'), /\['Home', '#\/home'\]/)
+  const ctx = { window: {} }
+  for (const f of ['rail-groups.js', 'palette.js']) vm.runInNewContext(pub(f), ctx)
+  assert.equal(ctx.window.Palette.gather({}).find(i => i.label === 'Home')?.hint, '#/home')
   assert.doesNotMatch(pub('since.js'), /'#\/'|"#\/"/)
 })
 

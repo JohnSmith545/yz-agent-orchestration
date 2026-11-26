@@ -83,7 +83,7 @@ test('npm run check covers every new file, and the palette and glossary know the
   for (const f of ['script.mjs', 'script-prompt.mjs', 'script-routes.mjs', 'public/script-text.js', 'public/script-state.js', 'public/script-sound.js', 'public/script-stream.js', 'public/script-page.js', 'public/script-render.js', 'public/script-view.js', 'public/script-markup.js']) {
     assert.ok(pkg.checkList.includes(`node --check ${f}`), f)
   }
-  assert.match(read('palette.js'), /\['Generators', '#\/generators', \['script', 'prompt', 'brainstorming', 'standup', 'stand up'\]\]/)
+  assert.match(read('palette.js'), /script: \['script', 'prompt', 'brainstorming', 'standup', 'stand up'\]/, 'the old names and the two tools, as hidden keys')
   assert.ok(JSON.parse(read('glossary.json')).script?.short?.length > 20)
 })
 

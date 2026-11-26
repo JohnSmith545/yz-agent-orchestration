@@ -138,15 +138,17 @@ test('archived and deleted flows are left off the board', () => {
 
 // ═══ the palette and the wiring ═══
 
-test('the palette: Flow archive opens #/archive, and an archived flow is not among the flows', () => {
+test('the palette: Flow archive opens #/archive (one page entry, no second action), and an archived flow is not among the flows', () => {
   const window = {}
-  vm.runInNewContext(read('palette.js'), { window })
+  const ctx = { window }
+  for (const f of ['rail-groups.js', 'palette.js']) vm.runInNewContext(read(f), ctx)
   const calls = []
   const w = { Shell: { go: h => calls.push(h) }, FlowsView: { data: { flows: [{ id: 'a', title: 'Kept', status: 'open' }, { id: 'b', title: 'Put away', status: 'open', archivedAt: '2026-11-14T09:00:00Z' }] } } }
   const items = window.Palette.gather(w)
   assert.deepEqual(plain(items.filter(i => i.kind === 'flow').map(i => i.label)), ['Kept'])
   assert.equal(items.filter(i => /^(Trash|Archived)$/.test(i.label)).length, 0)
-  items.find(i => i.label === 'Flow archive' && i.kind === 'action').run()
+  assert.equal(items.filter(i => i.label === 'Flow archive').length, 1)
+  items.find(i => i.label === 'Flow archive' && i.kind === 'page').run()
   assert.deepEqual(calls, ['#/archive'])
 })
 

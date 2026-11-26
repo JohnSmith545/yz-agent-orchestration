@@ -241,7 +241,8 @@ test('index.html holds the section, the script after the shell and the styleshee
 
 test('the command palette lists Subagents with the pages', () => {
   const window = {}
-  vm.runInNewContext(read('palette.js'), { window })
+  const ctx = { window }
+  for (const f of ['rail-groups.js', 'palette.js']) vm.runInNewContext(read(f), ctx) // the palette reads the rail's groups
   let went = null
   const items = window.Palette.gather({ Shell: { go: h => { went = h } } })
   const item = items.find(i => i.kind === 'page' && i.label === 'Subagents')

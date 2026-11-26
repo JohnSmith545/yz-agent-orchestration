@@ -76,7 +76,9 @@ test('index.html holds the section, the scripts after flows-page.js and the styl
 test('npm run check covers the new scripts, and the palette and glossary know the page', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
   for (const f of ['flow-qa-line.js', 'qa-view.js', 'qa-page.js', 'flow-explain.js', 'flow-explain-view.js']) assert.ok(pkg.checkList.includes(`node --check public/${f}`), f)
-  assert.match(read('palette.js'), /\['QA', '#\/qa'\]/)
+  const pal = { window: {} }
+  for (const f of ['rail-groups.js', 'palette.js']) vm.runInNewContext(read(f), pal)
+  assert.equal(pal.window.Palette.gather({}).find(i => i.kind === 'page' && i.label === 'QA')?.hint, '#/qa', 'the palette lists it')
   assert.ok(JSON.parse(read('glossary.json')).qa?.short?.length > 20)
 })
 

@@ -3,14 +3,18 @@
 // keyboard. Type to filter, Up and Down to choose, Enter to go, Escape to
 // close. No network: it searches what the pages ALREADY loaded, gathered
 // fresh on each open:
-//   pages    the shell routes (Home, Flows, QA, Tickets, Timeline, Agents, Subagents, Glossary, Settings)
+//   pages    EVERY rail link, in the rail's groups and order (rail-groups.js: Work, Agents, Quality, History),
+//            then Settings; the same list the rail draws, so a new page is in both or in neither
 //   flows    FlowsView.data.flows (flows.js), opened with FlowsView.gotoFlow
 //   tickets  FactoryView.tickets() (the Tickets collection, once it loaded),
 //            opened with FactoryView.gotoTicket
 //   agents   App.agents() (the last /api/status build), opened at #/agent/<sessionId>
 //   actions  Ask, Refresh, Theme: light / dark / system, Mark read (only
-//            while the Since card shows on Home), Flow archive (#/archive,
-//            archive-page.js)
+//            while the Since card shows on Home)
+//
+// The empty list shows every page and every action under a small label per group (listHtml); typing ranks
+// everything, at most 12, with no labels. ⚠️ The empty list had a cap of 12 too, which left Learn, Lessons and
+// Routing out of the palette altogether (QA, 2026-11-26): it has no cap now, and the list scrolls.
 //
 // Keys: ONE keydown listener on window, CAPTURE, added before notify.js adds
 // its own (index.html loads this file first, pinned by test/palette.test.mjs;
@@ -29,19 +33,10 @@
 // run them in a vm with a bare window.
 ;(() => {
   const MAX = 12
-  const PAGES = [
-    ['Home', '#/home'],
-    ['Flows', '#/flows'],
-    ['QA', '#/qa'],
-    ['Generators', '#/generators', ['script', 'prompt', 'brainstorming', 'standup', 'stand up']], // its old names and its two tools, as hidden keys
-    ['Tickets', '#/tickets'],
-    ['Timeline', '#/timeline'],
-    ['Agents', '#/agents'],
-    ['Subagents', '#/subagents'],
-    ['Glossary', '#/glossary'],
-    ['Settings', '#/settings'],
-    ['Orchestration bank', '#/bank'],
-  ]
+  // Words a page is also found by, never shown: Generators keeps its old names and its two tools.
+  const KEYS = { script: ['script', 'prompt', 'brainstorming', 'standup', 'stand up'] }
+  // The label over Settings and the actions in the empty list (the rail's own groups name the rest).
+  const LAST_GROUP = 'Settings and actions'
   const KIND = { page: 'Page', flow: 'Flow', ticket: 'Ticket', agent: 'Agent', action: 'Action' }
   // Live flows first, then the finished ones; a dropped flow is still findable, last.
   const FLOW_RANK = { open: 0, blocked: 0, done: 1, dropped: 2 }
@@ -58,16 +53,16 @@
   }
 
   /**
-   * Pure: the items shown for `query`, at most 12. An empty query lists the
-   * pages, then the actions. Otherwise, case-insensitive: the items whose
-   * label (or one of its `keys`, such as a ticket number) STARTS with the
+   * Pure: the items shown for `query`. An empty query lists EVERY page, then
+   * every action, uncapped. Otherwise, at most 12, case-insensitive: the items
+   * whose label (or one of its `keys`, such as a ticket number) STARTS with the
    * query come first, then the ones whose label or hint CONTAINS it, each
    * group in the order the items came.
    */
   function search(query, items) {
     const all = list(items)
     const q = lower(query).trim()
-    if (!q) return [...all.filter(i => i.kind === 'page'), ...all.filter(i => i.kind === 'action')].slice(0, MAX)
+    if (!q) return [...all.filter(i => i.kind === 'page'), ...all.filter(i => i.kind === 'action')]
     const prefix = []
     const within = []
     for (const i of all) {
@@ -85,7 +80,13 @@
   function gather(w) {
     const doc = w.document
     const byId = id => doc?.getElementById?.(id) || null
-    const items = PAGES.map(([label, hash, keys]) => ({ kind: 'page', label, hint: hash, ...(keys ? { keys } : {}), run: () => w.Shell?.go(hash) }))
+    // The pages: the rail's groups as rail-groups.js holds them (the shell has registered its later links by now).
+    const rail = w.RailGroups || window.RailGroups
+    const pages = [
+      ...safe(() => rail?.groups()).flatMap(g => list(g?.entries).map(e => [e, g.label])),
+      ...safe(() => rail?.foot()).map(e => [e, LAST_GROUP]),
+    ]
+    const items = pages.map(([e, group]) => ({ kind: 'page', label: e.label, hint: e.href, group, ...(KEYS[e.view] ? { keys: KEYS[e.view] } : {}), run: () => w.Shell?.go(e.href) }))
 
     // an archived flow is only in the page's data while it is open by link: not a palette item (the Archived action lists them)
     const flows = safe(() => w.FlowsView?.data?.flows).filter(f => f && f.id && !f.archivedAt)
@@ -131,12 +132,39 @@
     }
     const since = byId('homeSince')
     if (since && !since.hidden) items.push({ kind: 'action', label: 'Mark read', hint: 'Clear Since you were away', run: () => w.Since?.markRead() })
-    // last, so the empty query's twelve stay as they were: typing finds it (archive-page.js draws the archive)
-    items.push({ kind: 'action', label: 'Flow archive', hint: 'Archived and deleted flows', run: () => w.Shell?.go('#/archive') })
+    // (The Flow archive was an action here while the page list was capped; it is a page now, in History.)
+    for (const i of items) if (i.kind === 'action') i.group = LAST_GROUP
     return items
   }
 
-  let api = { search, gather, open() {}, close() {}, isOpen: false }
+  const row = (it, i, sel) =>
+    `<li class="pl-item" role="option" id="pl-o-${i}" data-i="${i}" aria-selected="${i === sel}">` +
+    `<span class="pl-kind">${esc(KIND[it.kind] || it.kind)}</span><span class="pl-label">${esc(it.label)}</span>` +
+    `${it.hint ? `<span class="pl-hint">${esc(it.hint)}</span>` : ''}</li>`
+
+  /**
+   * Pure: the list's markup for `shown`, with option `sel` chosen. `grouped` (the empty list) puts each run of
+   * one group in a labelled role=group under a small label; a typed list is ranked, so it has no labels. Every
+   * option keeps its index in `shown` (pl-o-<i>), so Up, Down and Enter count through the whole list either way.
+   */
+  function listHtml(shown, sel, grouped) {
+    const all = list(shown)
+    if (!all.length) return '<li class="pl-empty" role="presentation">Nothing matches.</li>'
+    if (!grouped) return all.map((it, i) => row(it, i, sel)).join('')
+    const out = []
+    for (let i = 0, g = 0; i < all.length; ) {
+      const label = all[i].group || ''
+      let end = i
+      while (end < all.length && (all[end].group || '') === label) end++
+      const rows = all.slice(i, end).map((it, k) => row(it, i + k, sel)).join('')
+      out.push(label ? `<li class="pl-sec" role="group" aria-labelledby="pl-g-${g}"><div class="pl-group" id="pl-g-${g}">${esc(label)}</div><ul class="pl-sub" role="none">${rows}</ul></li>` : rows)
+      if (label) g++
+      i = end
+    }
+    return out.join('')
+  }
+
+  let api = { search, gather, listHtml, open() {}, close() {}, isOpen: false }
   window.Palette = api
   if (!window.document) return
 
@@ -178,15 +206,10 @@
     })
   }
 
-  const row = (it, i) =>
-    `<li class="pl-item" role="option" id="pl-o-${i}" data-i="${i}" aria-selected="${i === sel}">` +
-    `<span class="pl-kind">${esc(KIND[it.kind] || it.kind)}</span><span class="pl-label">${esc(it.label)}</span>` +
-    `${it.hint ? `<span class="pl-hint">${esc(it.hint)}</span>` : ''}</li>`
-
   function render() {
     shown = search(input.value, items)
     if (sel >= shown.length) sel = 0
-    box.innerHTML = shown.length ? shown.map(row).join('') : '<li class="pl-empty" role="presentation">Nothing matches.</li>'
+    box.innerHTML = listHtml(shown, sel, !input.value.trim())
     if (shown.length) input.setAttribute('aria-activedescendant', `pl-o-${sel}`)
     else input.removeAttribute('aria-activedescendant')
   }
@@ -275,6 +298,7 @@
   api = {
     search,
     gather,
+    listHtml,
     open,
     close,
     get isOpen() {
