@@ -9,11 +9,14 @@
 // GitHub at most once a minute in the background, so a poll never waits on GitHub).
 //
 // ═══ THE MOVE UP ═══ When the keys change (prlist-view.js motionPlan), the slot is redrawn and then animated FLIP
-// style: the one that left is drawn as a GHOST copy where it was (inert: no focus, not read out) and fades out,
-// lifting a few pixels, in plan.leaveMs; each kept item starts where it was, at its old size (a scale) and its old
-// opacity, waits plan.delay (until the ghost is gone, so no title is ever drawn over another) and then eases to its
-// new place and step, the whole move in plan.ms; a new one fades in at the top. Under reduced motion, or for a slot not on show, the list
-// simply redraws. A paint asked for while a move runs waits for it to end.
+// style: the one that left is drawn as a GHOST copy where it was (inert: no focus, not read out) and fades out in
+// plan.leaveMs, lifting a few pixels only from the first row (lower down a lift would cross the row above); each
+// kept item starts where it was, at its old size (a scale) and its old opacity, waits plan.delay (until the ghost is
+// gone, so no title is ever drawn over another) and then eases to its new place and step, the whole move in
+// plan.ms; an item that ENTERS (at the top, or at the tail from behind `and N more`) stays invisible until
+// plan.enterAt, when every kept item has arrived, then fades in over plan.enterMs (prlist-view.js frameAt models
+// these frames and the tests check that no two visible titles ever share a row). Clean-up at plan.endMs. Under
+// reduced motion, or for a slot not on show, the list simply redraws. A paint asked for while a move runs waits.
 //
 // Rules: no sound, no toast; the more line's open state lives in memory only; the focus stays on the same control
 // across a redraw.
@@ -95,6 +98,7 @@
       ghost.removeAttribute('data-prl-key')
       ghost.setAttribute('inert', '')
       ghost.classList.add('prl-ghost')
+      if (was.i === 0) ghost.classList.add('is-top') // only the first row lifts as it fades
       ghost.style.top = `${was.top}px`
       list.appendChild(ghost)
     }
@@ -116,7 +120,14 @@
       }
       moving.push(li)
     }
-    for (const key of plan.entered) list.querySelector(`:scope > [data-prl-key="${CSS.escape(key)}"]`)?.classList.add('prl-entering')
+    for (const key of plan.entered) {
+      const li = list.querySelector(`:scope > [data-prl-key="${CSS.escape(key)}"]`)
+      if (!li) continue
+      // invisible until every kept item has arrived, then a short fade (the animation fills backwards: 0 until then)
+      li.style.animationDelay = `${plan.enterAt}ms`
+      li.style.animationDuration = `${plan.enterMs}ms`
+      li.classList.add('prl-entering')
+    }
     void list.offsetHeight // the start positions are laid out before the transitions begin
     window.requestAnimationFrame(() => {
       const rise = ms - plan.delay
@@ -143,9 +154,13 @@
       for (const li of moving) li.style.transition = ''
       for (const meta of lines) meta.style.transition = ''
       for (const p of ['height', 'overflow', 'transition']) el.style[p] = ''
-      list.querySelectorAll('.prl-entering').forEach(li => li.classList.remove('prl-entering'))
+      list.querySelectorAll('.prl-entering').forEach(li => {
+        li.classList.remove('prl-entering')
+        li.style.animationDelay = ''
+        li.style.animationDuration = ''
+      })
       done()
-    }, ms + 40)
+    }, plan.endMs + 40)
   }
 
   /** Fill every slot under `root` whose HTML changed: moving what moved, unless motion is reduced. */

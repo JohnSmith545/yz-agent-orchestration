@@ -251,7 +251,8 @@ test('a clean leave: the one that leaves has faded out fully before any item sta
 
 test('the leaving copy only fades and lifts a little: its own transition, no long slide over the next one', () => {
   const css = read('public/prlist.css')
-  assert.match(css, /\.prl-ghost\.is-gone\s*\{[^}]*opacity:\s*0[^}]*translateY\(-[1-8]px\)/)
+  assert.match(css, /\.prl-ghost\.is-top\.is-gone\s*\{[^}]*opacity:\s*0[^}]*translateY\(-[1-8]px\)/, 'from the first row it lifts a little')
+  assert.match(css, /\.prl-ghost\.is-gone \{ opacity: 0; \}/, 'lower down it only fades: a lift would cross the row above')
   const js = read('public/prlist.js')
   assert.match(js, /plan\.leaveMs/)
   assert.match(js, /plan\.delay/)

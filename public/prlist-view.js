@@ -22,15 +22,23 @@
 // ═══ THE MOVE UP ═══ When the first leaves (merged, closed or Completed), it fades up and out in LEAVE_MS, and only
 // then do the rest slide up one place, each growing to its new step: the whole move takes MOVE_MS. ⚠️ The rest wait
 // for the leave on purpose: rising while the old one still shows drew its title across the new first one (QA,
-// 2026-11-26). A new pull request arrives at the top with a short fade in. change() and motionPlan() say what moves; prlist.js does it. Reduced motion: no slide, no fade.
+// 2026-11-26). An item that ENTERS (a new pull request at the top, or the one behind `and N more` that moves up into
+// the 5th row) fades in only once every kept item has arrived (enterAt, then ENTER_MS): ⚠️ entering at once drew it
+// in the very row the old 5th item was still leaving, and the titles overprinted, plainly so with that row hovered
+// or focused (QA, frame by frame, 2026-11-26). The fade is opacity only, so it never slides into the row above.
+// frameAt() says where each item is and how visible at any moment of the move, so the tests can walk it frame by
+// frame and check that no two visible items ever overlap. change() and motionPlan() say what moves; prlist.js does
+// it with the same numbers. Reduced motion: no slide, no fade.
 //
 //   FOG, fogStep(i), plan(items, { open, max }), blockHtml(data, { open, now, where }), metaWords(item, now),
-//   change(prevKeys, nextKeys), motionPlan(prevKeys, nextKeys, { reduced }), scaleFrom(fromIndex, toIndex), HELP
+//   change(prevKeys, nextKeys), motionPlan(prevKeys, nextKeys, { reduced }), scaleFrom(fromIndex, toIndex), HELP,
+//   frameAt(plan, before, after, t, { focus })
 ;(() => {
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
   const MAX = 5
   const MOVE_MS = 420
   const LEAVE_MS = 140
+  const ENTER_MS = 200
 
   /** The steps, first to last: opacity, type size (px) and how much of the title shows (ch, 0 for all of it). */
   const FOG = Object.freeze([
@@ -134,11 +142,71 @@
     // the rise: drawn at once, it lay across the item under it while both still stood at their old places.
     const delay = c.left.length ? LEAVE_MS : 0
     const half = Math.round((MOVE_MS - delay) / 2)
-    return { mode: 'animate', ms: MOVE_MS, leaveMs: LEAVE_MS, delay, metaAt: delay + half, metaMs: MOVE_MS - delay - half, ...c }
+    // enterAt and enterMs: an item that enters waits until the kept ones have all arrived (or, when none moves, until
+    // the leaving copy is gone), then fades in; endMs: when the whole move is over (prlist.js cleans up then)
+    const anyMoves = c.kept.some(k => k.from !== k.to)
+    const enterAt = c.entered.length ? (anyMoves ? MOVE_MS : delay) : 0
+    const enterMs = c.entered.length ? ENTER_MS : 0
+    return {
+      mode: 'animate', ms: MOVE_MS, leaveMs: LEAVE_MS, delay, metaAt: delay + half, metaMs: MOVE_MS - delay - half,
+      enterAt, enterMs, endMs: Math.max(MOVE_MS, enterAt + enterMs), ...c,
+    }
   }
 
   /** The scale a kept item starts from so it seems to grow (or shrink) from its old step to its new one. */
   const scaleFrom = (from, to) => fogStep(from).size / fogStep(to).size
 
-  window.PrListView = { FOG, fogStep, plan, blockHtml, metaWords, change, motionPlan, scaleFrom, HELP, MOVE_MS }
+  /** The page's easing (prlist.css --prl-ease, cubic-bezier(.2, .7, .2, 1)): progress for a share of the time. */
+  function ease(x) {
+    if (x <= 0) return 0
+    if (x >= 1) return 1
+    const curve = (a, b, s) => 3 * a * s * (1 - s) ** 2 + 3 * b * s * s * (1 - s) + s ** 3
+    let lo = 0
+    let hi = 1
+    for (let i = 0; i < 30; i++) {
+      const mid = (lo + hi) / 2
+      if (curve(0.2, 0.2, mid) < x) lo = mid
+      else hi = mid
+    }
+    return curve(0.7, 1, (lo + hi) / 2)
+  }
+  const lerp = (a, b, q) => a + (b - a) * q
+
+  /**
+   * Where every item is, and how visible, `t` ms into a move: [{ key, top, bottom, opacity }], from the rows before
+   * and after ({ key: { top, height, fog } }). The leaving copy fades and lifts in leaveMs; a kept item waits `delay`
+   * and then eases from its old row to its new one; an entering item is invisible until enterAt and fades in over
+   * enterMs. `focus` is an item under the pointer or the keyboard: it is shown in full (opacity 1) while visible.
+   */
+  function frameAt(p, before, after, t, { focus } = {}) {
+    const seen = (key, o) => (key === focus && o > 0 ? 1 : o)
+    const out = []
+    // the leaving copy lifts a little only from the FIRST row (nothing above it); lower down it fades where it is,
+    // since lifting would carry it into the row above (prlist.css .prl-ghost.is-top)
+    const firstTop = Math.min(...Object.values(before).map(r => r.top))
+    for (const key of p.left || []) {
+      const b = before[key]
+      if (!b) continue
+      const q = Math.min(1, t / p.leaveMs)
+      const top = b.top - (b.top === firstTop ? 6 * q : 0)
+      out.push({ key, top, bottom: top + b.height, opacity: t >= p.leaveMs ? 0 : seen(key, fogStep(b.fog).opacity * (1 - q)) })
+    }
+    for (const k of p.kept || []) {
+      const b = before[k.key]
+      const a = after[k.key]
+      if (!a || !b) continue
+      const q = t <= p.delay ? 0 : ease((t - p.delay) / (p.ms - p.delay))
+      const top = lerp(b.top, a.top, q)
+      out.push({ key: k.key, top, bottom: top + lerp(b.height, a.height, q), opacity: seen(k.key, lerp(fogStep(b.fog).opacity, fogStep(a.fog).opacity, q)) })
+    }
+    for (const key of p.entered || []) {
+      const a = after[key]
+      if (!a) continue
+      const q = t < p.enterAt ? 0 : Math.min(1, (t - p.enterAt) / (p.enterMs || 1))
+      out.push({ key, top: a.top, bottom: a.top + a.height, opacity: q > 0 ? seen(key, fogStep(a.fog).opacity * q) : 0 })
+    }
+    return out
+  }
+
+  window.PrListView = { FOG, fogStep, plan, blockHtml, metaWords, change, motionPlan, scaleFrom, frameAt, HELP, MOVE_MS }
 })()

@@ -92,13 +92,16 @@ a.prl-title:hover { text-decoration: underline; text-decoration-color: var(--lin
 
 /* ─── the move up (prlist.js) ─── */
 
-/* the one that leaves: drawn where it was, over the list, as it fades up and out */
+/* the one that leaves: drawn where it was, over the list, as it fades out; from the first row it also lifts a
+   little (lower down a lift would cross the row above) */
 /* (prlist.js sets its timing: it is gone before the rest start to rise, so it is never drawn over the next one) */
 .prl-ghost { position: absolute; left: 0; right: 0; margin: 0; pointer-events: none; transition: opacity .14s ease-out, transform .14s ease-out; }
-.prl-ghost.is-gone { opacity: 0; transform: translateY(-6px); }
-/* a new one at the top: a short fade in */
-.prl-item.prl-entering { animation: prl-in .26s var(--prl-ease) both; }
-@keyframes prl-in { from { opacity: 0; transform: translateY(-4px); } }
+.prl-ghost.is-gone { opacity: 0; }
+.prl-ghost.is-top.is-gone { opacity: 0; transform: translateY(-6px); }
+/* one that enters, at the top or at the tail: a short fade, opacity only (no slide into the row above); prlist.js
+   delays it until every kept item has arrived, and the animation fills backwards, so it is invisible until then */
+.prl-item.prl-entering { animation: prl-in .2s ease-out both; }
+@keyframes prl-in { from { opacity: 0; } }
 
 /* a phone: the fogged rows keep only Open the flow on reveal, so the title keeps its room */
 @media (max-width: 600px) {
