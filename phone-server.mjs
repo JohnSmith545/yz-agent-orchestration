@@ -83,6 +83,8 @@ export const ASSETS = Object.freeze({
   '/phone/phone-composer.js': ['phone-composer.js', 'text/javascript; charset=utf-8'],
   '/phone/phone-agents.js': ['phone-agents.js', 'text/javascript; charset=utf-8'],
   '/phone/phone-chat-live.js': ['phone-chat-live.js', 'text/javascript; charset=utf-8'],
+  '/phone/phone-pr.js': ['phone-pr.js', 'text/javascript; charset=utf-8'],
+  '/phone/phone-pr-live.js': ['phone-pr-live.js', 'text/javascript; charset=utf-8'],
   '/phone/phone-app.js': ['phone-app.js', 'text/javascript; charset=utf-8'],
   '/phone/manifest.webmanifest': ['phone-manifest.webmanifest', 'application/manifest+json; charset=utf-8'],
   '/phone/icon.svg': ['phone-icon.svg', 'image/svg+xml'],

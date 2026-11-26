@@ -240,7 +240,7 @@ test('opening a flow sheet puts the focus on its heading; Close gives it back to
 // the by-hand checkbox. The second replaced the first, so start() called the checkbox one with no box, threw, and
 // neither the 15 s summary poll nor the chat poll was ever scheduled.
 test('no live file declares a function name twice: one would silently replace the other', () => {
-  for (const f of ['phone-app.js', 'phone-chat-live.js', 'phone-composer.js']) {
+  for (const f of ['phone-app.js', 'phone-chat-live.js', 'phone-pr-live.js', 'phone-composer.js']) {
     const names = [...read(f).matchAll(/^\s*(?:async\s+)?function\s+([A-Za-z0-9_$]+)\s*\(/gm)].map(m => m[1])
     const twice = names.filter((n, i) => names.indexOf(n) !== i)
     assert.deepEqual(twice, [], `${f}: ${twice.join(', ')}`)
