@@ -53,7 +53,9 @@
     const lines = Array.isArray(a.lines) ? a.lines : []
     const rest = n - lines.length
     return '<section class="ph-alerts" aria-label="Alerts">' +
-      `<p class="ph-alerts-head"><span class="ph-alert-mark" aria-hidden="true"></span>${esc(plural(n, 'alert', 'alerts'))}</p>` +
+      // the count and the kinds in words, as the desktop Alerts line (one grouping for both: public/predict-group.js)
+      `<p class="ph-alerts-head"><span class="ph-alert-mark" aria-hidden="true"></span>${esc(plural(n, 'alert', 'alerts'))}` +
+      `${a.kinds ? `<span class="ph-faint"> · ${esc(a.kinds)}</span>` : ''}</p>` +
       `<ul class="ph-alert-lines">${lines.map(l => `<li>${esc(l)}</li>`).join('')}</ul>` +
       (rest > 0 ? `<p class="ph-faint">${esc(`${rest} more at the PC.`)}</p>` : '') + '</section>'
   }

@@ -107,12 +107,18 @@ test('a draft pull request on the sheet says so', () => {
   assert.doesNotMatch(A.sheet({ data: SHEET }, {}), /a draft/)
 })
 
+test('the alerts head says the kinds in words, as the desktop line does', () => {
+  const h = A.view({ ...ORCH, alerts: { count: 3, kinds: 'Master holds 8 flows longer than usual · 1 flow far past its usual time', lines: ['Master holds 8 flows longer than usual for their step.'] } }, SUMMARY)
+  assert.match(text(h), /3 alerts · Master holds 8 flows longer than usual · 1 flow far past its usual time Master holds 8 flows/)
+  assert.doesNotMatch(text(A.view(ORCH, SUMMARY)), /alerts ·/, 'no kinds, no dot')
+})
+
 test('hostile text in every field of the tab and the sheet is escaped; no inline style, handler or script', () => {
   const evil = '"><script>alert(1)</script><img src=x onerror=alert(1)>'
   const orch = {
     ...ORCH,
     boxes: ORCH.boxes.map(b => ({ ...b, id: evil, label: evil, flows: [{ id: evil, title: evil, word: evil, tone: evil }] })),
-    others: [{ label: evil, state: evil }], alerts: { count: 1, lines: [evil] },
+    others: [{ label: evil, state: evil }], alerts: { count: 1, kinds: evil, lines: [evil] },
     prs: [{ title: evil, url: 'javascript:alert(1)', number: 1 }, { title: evil, url: `https://github.com/o/r/pull/1"${evil}`, number: 1 }],
   }
   const sheet = { ...SHEET, id: evil, title: evil, tickets: [evil], where: evil, type: evil, route: [{ label: evil, state: evil }], story: [{ who: evil, did: evil, why: evil }], qa: { word: evil, attempt: evil, at: evil, summary: evil },

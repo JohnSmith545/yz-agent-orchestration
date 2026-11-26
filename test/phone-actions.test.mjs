@@ -189,7 +189,7 @@ test('orchestration and flow are the read-only builders, with the alerts passed 
   const o = await a.orchestration()
   assert.equal(o.status, 200)
   assert.equal(asked, 1)
-  assert.deepEqual(o.body.alerts, { count: 1, lines: ['One.'] })
+  assert.deepEqual(o.body.alerts, { count: 1, kinds: '', lines: ['One.'] })
   put('seen', { title: 'Seen flow' })
   assert.equal((await a.flow({ id: 'seen' })).body.title, 'Seen flow')
   assert.equal((await a.flow({ id: '../x' })).status, 400)

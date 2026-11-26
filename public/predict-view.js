@@ -5,7 +5,9 @@
 //   lineHtml(data, { open })            the Alerts line at the top of the Agents page: how many, what kinds, Show
 //                                       them, the ? (a group counts as one)
 //   groupAlerts(list)                   GROUP_MIN or more Taking long alerts of ONE agent become one group item
-//                                       { kind: 'group', key, agent, alerts }, in the place of its first member
+//                                       { kind: 'group', key, agent, alerts }, in the place of its first member:
+//                                       ⚠️ from public/predict-group.js (window.PredictGroup, loaded first), the SAME
+//                                       file the phone's Agents tab counts with, so the two never disagree
 //   listHtml(data)                      its rows: the alert in words, Open the flow, Copy handover request (a context
 //                                       alert), Snooze for a week (a flow alert), Dismiss for today; a group's row
 //                                       with Dismiss all for today and its flows folded under it; how many were
@@ -63,48 +65,8 @@
 
   const alertsOf = data => (data?.enabled !== false && Array.isArray(data?.alerts) ? data.alerts : [])
 
-  /**
-   * One agent holding many flows past their usual time is one fact, not many: GROUP_MIN or more Taking long alerts
-   * (never Waiting on you, which is the user's own, one by one) of the same agent become one group item, placed where
-   * its first member was. Each member keeps its own buttons inside the group.
-   */
-  const GROUP_MIN = 3
-  function groupAlerts(list) {
-    const by = new Map()
-    for (const a of list) if (a.kind === 'stuck' && !a.onYou && a.agent) by.set(a.agent, [...(by.get(a.agent) || []), a])
-    const out = []
-    const placed = new Set()
-    for (const a of list) {
-      const members = a.kind === 'stuck' && !a.onYou && a.agent ? by.get(a.agent) : null
-      if (!members || members.length < GROUP_MIN) {
-        out.push(a)
-        continue
-      }
-      if (placed.has(a.agent)) continue
-      placed.add(a.agent)
-      out.push({ kind: 'group', key: `group:${a.agent}`, agent: a.agent, alerts: members })
-    }
-    return out
-  }
-  const groupText = g => `${g.agent} holds ${g.alerts.length} flows longer than usual`
-
-  /** What kinds of alert there are, in words: `1 flow waiting on you · 2 sessions re-reading a large history`. */
-  function kindsText(items) {
-    const list = items.filter(a => a.kind !== 'group')
-    const n = pred => list.filter(pred).length
-    const parts = items.filter(a => a.kind === 'group').map(groupText)
-    const you = n(a => a.kind === 'stuck' && a.onYou)
-    const slow = n(a => a.kind === 'stuck' && !a.onYou)
-    const spike = n(a => a.kind === 'spike')
-    const ctx = n(a => a.kind === 'context')
-    const daily = n(a => a.kind === 'daily')
-    if (you) parts.push(`${plural(you, 'flow')} waiting on you`)
-    if (slow) parts.push(`${plural(slow, 'flow')} far past ${slow === 1 ? 'its' : 'their'} usual time`)
-    if (spike) parts.push(`${plural(spike, 'session')} using tokens much faster than usual`)
-    if (ctx) parts.push(`${plural(ctx, 'session')} re-reading a large history`)
-    if (daily) parts.push(daily === 1 ? 'a daily limit passed' : `${daily} daily limits passed`)
-    return parts.join(' · ')
-  }
+  // The grouping, the count and the kinds in words: public/predict-group.js, shared with the phone (see its head).
+  const { groupAlerts, lineOf, kindsText } = window.PredictGroup
 
   function lineHtml(data, { open = false } = {}) {
     const list = groupAlerts(alertsOf(data))
@@ -121,7 +83,7 @@
     const keys = g.alerts.map(a => a.key).join(' ')
     return `<li class="pe-row pe-group k-stuck" data-pe-row="${esc(g.key)}">` +
       `<span class="pe-tags"><span class="pe-tag">${TAG.stuck}</span></span>` +
-      `<span class="pe-text">${esc(groupText(g))} for their step. Each is far past the usual time for where it stands.</span>` +
+      `<span class="pe-text">${esc(lineOf(g))} Each is far past the usual time for where it stands.</span>` +
       `<span class="pe-acts"><button type="button" class="link" data-pe-dismiss-all="${esc(keys)}" aria-label="Dismiss all ${g.alerts.length} for today">Dismiss all for today</button></span>` +
       `<details class="pe-fold" data-pe-fold="${esc(g.key)}"><summary>The ${g.alerts.length} flows</summary><ul class="pe-sub">${g.alerts.map(rowHtml).join('')}</ul></details></li>`
   }

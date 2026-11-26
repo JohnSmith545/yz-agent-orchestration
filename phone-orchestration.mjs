@@ -11,8 +11,10 @@
 //              found as the desktop finds them (pipeline-routes.mjs pipelineGet, the current step of each flow's
 //              progress, else its stage); archived and completed ones are not on the board, as on the desktop.
 //     others   running sessions that are no box, { label, state }; a raw session id is an Unnamed session
-//     alerts   { count, lines: the first ALERT_LINES alerts' text, cut } from Predict and warn (predict-routes.mjs
-//              alertsGet, injected), or null when it is off or cannot be read
+//     alerts   { count, kinds, lines: the first ALERT_LINES in one line each, cut } from Predict and warn
+//              (predict-routes.mjs alertsGet, injected), or null when it is off or cannot be read. ⚠️ Grouped,
+//              counted and worded by public/predict-group.js, the SAME file the desktop Alerts line uses: an agent
+//              holding 8 flows longer than usual is ONE alert on both (the phone once said 10 where the PC said 3).
 //     prs      the open pull requests: the desktop's OWN Pull requests list (prlist-store.mjs, the fog block on the
 //              Agents page and Home, given here as the `prs` provider), in its order, trimmed to { title, url,
 //              number }, only https://github.com/<owner>/<repo>/pull/<n> addresses, at most PRS_MAX. ⚠️ The phone
@@ -37,6 +39,10 @@ import { withRoute } from './flow-route.mjs'
 import { readFlow, storyOf } from './flows.mjs'
 import { pipelineGet } from './pipeline-routes.mjs'
 import { pipelineGraph, stageOf } from './pipeline.mjs'
+// a plain browser script that puts PredictGroup on globalThis when imported (it has no exports): the page's own
+import './public/predict-group.js'
+
+const PredictGroup = globalThis.PredictGroup
 
 export const CHIPS_MAX = 6
 export const CHIP_TITLE_MAX = 60
@@ -114,11 +120,13 @@ export function makeOrchestration({ getStatus, alerts = async () => null, prs = 
     return states
   }
 
+  /** Counted and worded as the desktop Alerts line does, with the very same function (public/predict-group.js). */
   async function alertLines() {
     const r = await within(alerts(), agentsWaitMs, null)
     const b = r?.body
     if (!b || b.enabled === false || !Array.isArray(b.alerts)) return null
-    return { count: b.alerts.length, lines: b.alerts.slice(0, ALERT_LINES).map(a => cut(a?.text, ALERT_LINE_MAX)) }
+    const list = PredictGroup.groupAlerts(b.alerts)
+    return { count: list.length, kinds: cut(PredictGroup.kindsText(list), ALERT_LINE_MAX * 2), lines: list.slice(0, ALERT_LINES).map(a => cut(PredictGroup.lineOf(a), ALERT_LINE_MAX)) }
   }
 
   /** The Pull requests list's items (open only, newest first, as the fog block shows them), each re-checked here:

@@ -100,7 +100,7 @@ test('at most CHIPS_MAX chips per box, and how many more', async () => {
 test('the alerts: the count and the first two in one line each; none when off or when they cannot be read', async () => {
   const alerts = [{ text: 'Login page has stood at QA for 3 hours, about 4 times its usual.' }, { text: 'Agent 2 used tokens fast in the last hour.' }, { text: 'Third.' }]
   const { body } = await make({ alerts: async () => ({ status: 200, body: { enabled: true, alerts } }) }).orchestration()
-  assert.deepEqual(body.alerts, { count: 3, lines: [alerts[0].text, alerts[1].text] })
+  assert.deepEqual(body.alerts, { count: 3, kinds: '', lines: [alerts[0].text, alerts[1].text] }) // no kind given: no kinds words
   assert.equal((await make({ alerts: async () => ({ status: 200, body: { enabled: false, alerts: [] } }) }).orchestration()).body.alerts, null)
   assert.equal((await make({ alerts: async () => { throw new Error('x') } }).orchestration()).body.alerts, null)
   const long = await make({ alerts: async () => ({ status: 200, body: { enabled: true, alerts: [{ text: 'y'.repeat(500) }] } }) }).orchestration()
