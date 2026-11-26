@@ -1,8 +1,11 @@
 // Rate limits for the phone listener (phone-server.mjs), in memory: a fixed window per key.
 //
 //   session  60 requests a minute per signed-in session on /phone/api/* (the page polls every 10 s)
-//   address  120 requests a minute per network address on anything the phone listener serves
-//   login    10 sign-in tries a minute per address, before the PIN is even checked (scrypt is slow on purpose;
+//   address  120 requests a minute per network address on anything the phone listener serves, except a 304
+//   revalidate  1200 a minute per address: the 304s (a page file the browser already holds, phone-assets.mjs), kept
+//            OFF the address limit so reloading the page never uses it up (a 429 on a script was a blank page). A
+//            304 costs a stat and a compare; this ceiling only bounds a flood. Past it, a request counts as before.
+//   login   10 sign-in tries a minute per address, before the PIN is even checked (scrypt is slow on purpose;
 //            this keeps a flood from tying the server up, while the five-try lock in phone-auth.mjs is what
 //            stops guessing)
 //
@@ -14,6 +17,7 @@
 export const PHONE_LIMITS = Object.freeze({
   session: Object.freeze({ max: 60, ms: 60_000 }),
   address: Object.freeze({ max: 120, ms: 60_000 }),
+  revalidate: Object.freeze({ max: 1200, ms: 60_000 }),
   login: Object.freeze({ max: 10, ms: 60_000 }),
 })
 

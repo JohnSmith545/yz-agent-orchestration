@@ -21,15 +21,20 @@
 //   1. Phone access is still on, for THIS address and port (the block is re-read when config.json changes), else
 //      a 503 to that request and the listener closes (onOff): turning it off shuts the door without a restart.
 //   2. The Host is exactly <bind>:<port> (a website that rebinds its name to this address is refused), else 403.
-//   3. The address has not passed its rate limit (phone-limits.mjs), else 429.
-//   4. The path and method are on the list above, else 404.
-//   5. /phone/api/* and logout: a live session cookie (else 401, and the cookie is cleared), then the session's
+//   3. A GET of one of the page's own files whose If-None-Match names its ETag now is a 304 here, counted only
+//      against the revalidate ceiling (phone-limits.mjs), NOT the address limit: a reload costs nothing
+//      (phone-assets.mjs says why). Past that ceiling it goes on to 4 like any request.
+//   4. The address has not passed its rate limit (phone-limits.mjs), else 429.
+//   5. The path and method are on the list above, else 404.
+//   6. /phone/api/* and logout: a live session cookie (else 401, and the cookie is cleared), then the session's
 //      rate limit (429).
-//   6. Every POST: an Origin equal to http://<bind>:<port> and, when the browser says, Sec-Fetch-Site same-origin
+//   7. Every POST: an Origin equal to http://<bind>:<port> and, when the browser says, Sec-Fetch-Site same-origin
 //      (403); every POST but sign-in: the session's CSRF token in X-Phone-CSRF (403); a JSON content type (415); a
 //      body of at most BODY_MAX bytes (413) that is a JSON object (400).
-// Every answer, a 404 included, carries no-store, a self-only Content-Security-Policy with no inline script or
-// style, nosniff, no referrer and no framing (SECURITY_HEADERS).
+// Every answer, a 404 and a 304 included, carries a self-only Content-Security-Policy with no inline script or
+// style, nosniff, no referrer and no framing (SECURITY_HEADERS), and no-store, with ONE exception: the page's own
+// files (ASSETS) carry an ETag and either a year-long immutable cache (asked for with their current ?v= version)
+// or no-cache (kept, but asked again first). The API and every error stay no-store.
 //
 // ⚠️ Plain HTTP on a private network, on purpose (README, Phone access): no TLS, no tunnel, nothing public. The
 // PIN, the cookie and the pages cross the network as they are; Tailscale encrypts that link, and home Wi-Fi with
@@ -39,10 +44,10 @@
 //   startPhoneListener({ settings, handler, createServer?, log? })   the server, or null when nothing should listen
 
 import { createServer as httpCreateServer } from 'node:http'
-import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { cachePolicy, etagMatches, makePhoneAssets } from './phone-assets.mjs'
 import { clearCookie, csrfOk, sessionCookie, tokensFromCookie } from './phone-auth.mjs'
 import { makeLimiter, PHONE_LIMITS } from './phone-limits.mjs'
 
@@ -123,6 +128,8 @@ async function jsonBody(req) {
 export function makePhoneHandler({ settings, own, auth, actions, limits = PHONE_LIMITS, now = Date.now, publicDir = PUBLIC, onOff = () => {}, onEscalate = () => {} }) {
   let closing = false
   const byAddress = makeLimiter({ ...limits.address, now })
+  const byRevalidate = makeLimiter({ ...(limits.revalidate || PHONE_LIMITS.revalidate), now })
+  const files = makePhoneAssets({ assets: ASSETS, publicDir })
   const bySession = makeLimiter({ ...limits.session, now })
   const byLogin = makeLimiter({ ...limits.login, now })
   const tooMany = (res, r, what = 'Too many requests') => send(res, 429, { error: `${what}. Wait ${r.retryAfter} seconds.` }, { 'retry-after': String(r.retryAfter) })
@@ -159,16 +166,24 @@ export function makePhoneHandler({ settings, own, auth, actions, limits = PHONE_
       const ownHost = `${me.bind}:${me.port}`
       if (req.headers.host !== ownHost) return send(res, 403, 'Unknown host.')
       const address = String(req.socket?.remoteAddress || '')
+      const [pathname, query = ''] = String(req.url || '').split('?')
+      const isAsset = req.method === 'GET' && Object.hasOwn(ASSETS, pathname)
+      // a file the browser already holds: a 304 that the address limit never sees (only its own ceiling)
+      if (isAsset && req.headers['if-none-match']) {
+        const file = await files.get(pathname)
+        if (file && etagMatches(req.headers['if-none-match'], file.etag) && byRevalidate.hit(address).ok) {
+          res.writeHead(304, { ...SECURITY_HEADERS, 'cache-control': cachePolicy(query, file.version), etag: file.etag })
+          return res.end()
+        }
+      }
       const limited = byAddress.hit(address)
       if (!limited.ok) return tooMany(res, limited)
 
-      const [pathname, query = ''] = String(req.url || '').split('?')
       const route = `${req.method} ${pathname}`
-      const asset = req.method === 'GET' ? ASSETS[pathname] : undefined
-      if (asset) {
-        const data = await readFile(path.join(publicDir, asset[0]))
-        res.writeHead(200, { ...SECURITY_HEADERS, 'content-type': asset[1] })
-        return res.end(data)
+      if (isAsset) {
+        const file = await files.get(pathname)
+        res.writeHead(200, { ...SECURITY_HEADERS, 'content-type': file.type, 'cache-control': cachePolicy(query, file.version), etag: file.etag })
+        return res.end(file.body)
       }
       const ownOrigin = `http://${ownHost}`
       if (route === 'POST /phone/login') return await login(req, res, s, ownOrigin, address)

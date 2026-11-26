@@ -2061,7 +2061,10 @@ which is no wall against a local agent that can write config.json: these notices
 The phone listener serves only `/phone`, its own files, sign-in and sign-out, and the phone's own API: every
 desktop page, `/api/*` route, evidence file and config is a 404 there. Each write needs the session cookie
 (HttpOnly, SameSite=Strict), the page's own Origin and a per-session CSRF token; requests are rate limited per
-session and per address, and every answer is `no-store` with a strict Content-Security-Policy.
+session and per address, and every answer carries a strict Content-Security-Policy. The API is `no-store`. The
+page's own files are cacheable: the page links each with a version of its content (`?v=`), which the browser keeps
+for a year, and the page itself is checked with its ETag. A `304` (nothing changed) does not count against the
+per-address limit, so reloading the page never uses it up (it used to: a `429` on one script left a blank page).
 
 ## License
 

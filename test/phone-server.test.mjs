@@ -137,15 +137,17 @@ test('the phone page and its own assets are served, each with its type', async (
   }
 })
 
-test('every answer carries the security headers: no-store, a self-only CSP with no inline script, nosniff, no referrer, no frames', async () => {
+test('every answer carries the security headers: no-store (the page files: revalidated), a self-only CSP with no inline script, nosniff, no referrer, no frames', async () => {
   const user = await signIn()
+  const files = [await request('GET', '/phone'), await request('GET', '/phone/phone-app.js')]
   const answers = [
-    await request('GET', '/phone'), await request('GET', '/phone/phone-app.js'), await request('GET', '/nope'), await request('GET', '/phone/api/summary'),
+    ...files, await request('GET', '/nope'), await request('GET', '/phone/api/summary'),
     await request('GET', '/phone/api/summary', { headers: asUser(user) }), await write('/phone/api/answer', {}, { cookie: user.cookie }),
     await write('/phone/login', { pin: '000000' }), await request('GET', '/phone', { headers: { host: 'evil.example' } }),
   ]
   for (const r of answers) {
-    assert.equal(r.headers['cache-control'], 'no-store')
+    // the page's own files are cacheable on purpose (phone-assets.mjs, tested in phone-assets.test.mjs); nothing else
+    assert.equal(r.headers['cache-control'], files.includes(r) ? 'no-cache' : 'no-store')
     const csp = r.headers['content-security-policy']
     assert.match(csp, /default-src 'none'/)
     assert.match(csp, /script-src 'self'(;|$)/)
