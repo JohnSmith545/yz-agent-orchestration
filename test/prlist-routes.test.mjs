@@ -241,3 +241,11 @@ test('a pull request on the branch older than the agent record is the one before
   assert.equal(calls.length, 2, 'the old merged one did not stop the lookup')
   assert.deepEqual(list.snapshot().items.map(i => i.number), [30])
 })
+
+test('an OPEN pull request on the branch is the record s own even when opened before the agent recorded it', async () => {
+  const world = { 'head:feat/first': pr(URL2, { createdAt: '2026-11-20T08:00:00Z' }) }
+  const flows = [flow('d', { merge: { head: 'feat/first', base: 'dev', title: 't', body: 'b', at: '2026-11-26T07:00:00Z' } })]
+  const list = makePrList({ gh: fakeGh(world).gh, flows: () => flows, repo: async () => '' })
+  await list.refresh()
+  assert.deepEqual(list.snapshot().items.map(i => i.number), [14])
+})

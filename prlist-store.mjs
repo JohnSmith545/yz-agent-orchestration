@@ -70,9 +70,10 @@ export function makePrList({ gh, flows, repo, now = Date.now, everyMs = EVERY_MS
     if (!Array.isArray(j)) return undefined
     const found = j.length ? readOf(j[0]) : null
     if (j.length && !found) return undefined
-    // ⚠️ opened BEFORE the agent recorded this branch: that is the pull request before (merged, say), not this
-    // record's. Treated as none yet, so it is looked for again, and a merged one does not end the lookup for good.
-    if (found && look.at && Date.parse(found.openedAt || '') < Date.parse(look.at)) return null
+    // ⚠️ merged or closed, and opened BEFORE the agent recorded this branch: that is the pull request before, not
+    // this record's. Treated as none yet, so it is looked for again, and it does not end the lookup for good. An
+    // OPEN one is this record's whatever its age: an agent may open the pull request first and record it after.
+    if (found && found.state !== 'open' && look.at && Date.parse(found.openedAt || '') < Date.parse(look.at)) return null
     return found
   }
 
