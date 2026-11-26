@@ -89,6 +89,20 @@ export function readSpend(now = new Date()) {
 }
 
 /**
+ * The newest `n` costs of one `kind`, oldest first, as plain numbers: what the phone's message box says a message
+ * costs (phone-cost.mjs). A file that is not there is no cost.
+ */
+export function recentCosts(kind, n = RECENT) {
+  let text = ''
+  try {
+    text = readFileSync(SPEND_FILE, 'utf8')
+  } catch {
+    return []
+  }
+  return text.split(/\r?\n/).map(parseLine).filter(l => l && l.kind === kind).slice(-n).map(l => l.usd)
+}
+
+/**
  * The spend from `fromMs` (null: the first line) to `toMs`, both inclusive: { usd, turns, byKind }. Pipeline tokens
  * (token-routes.mjs) shows it beside its estimate for the same period, as the exact part, never added to it.
  */

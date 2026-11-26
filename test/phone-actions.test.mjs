@@ -28,9 +28,9 @@ const STEP = { id: 'h1', do: 'Add the deploy secret', where: 'GitHub › Setting
 
 let calls
 let relay
-const talk = { send: async (t, sid) => ({ status: 202, body: { ok: true, text: t, sid } }), threadWithReplies: async sid => ({ label: 'Master', messages: [], replies: [], busy: false, running: true, sid }) }
+const talk = { send: async (t, sid) => ({ status: 202, body: { ok: true, text: t, sid } }), threadWithReplies: async (...a) => ({ label: 'Master', messages: [], busy: false, running: true, args: a.length }) }
 const agents = [{ label: 'Agent 1', state: 'active', status: 'busy' }, { label: 'QA', state: 'idle', status: 'idle' }]
-const actions = () => makePhoneActions({ relay, talk, getStatus: async () => ({ agents }) })
+const actions = () => makePhoneActions({ relay, talk, getStatus: async () => ({ agents }), cost: () => 'Each message costs about 14 cents.' })
 
 beforeEach(() => {
   calls = []
@@ -190,9 +190,11 @@ test('complete refuses an unfinished flow with the desktop sentence, and writes 
 
 // ═══ talk ═══
 
-test('talk reads the thread and sends through phone-talk.mjs, the text as given', async () => {
+test('talk reads the one thread with its cost line, and sends through phone-talk.mjs, the text as given', async () => {
   const a = actions()
-  assert.equal((await a.talk({}, { session: 'abc' })).body.sid, 'abc', 'the thread of THIS phone session')
+  const th = (await a.talk({}, { session: 'abc' })).body
+  assert.equal(th.args, 0, 'the same thread for every phone session: no session is passed')
+  assert.equal(th.cost, 'Each message costs about 14 cents.')
   const r = await a.talkSend({ text: 'hello' }, { session: 'abc' })
   assert.equal(r.status, 202)
   assert.equal(r.body.text, 'hello')
