@@ -94,7 +94,25 @@
       : ''
     return `<li class="hr-row k-${esc(i.kind)}"><div class="hr-top"><button type="button" class="link hr-title" ${open} title="${label}">${esc(i.title)}</button>` +
       `<span class="hr-meta">${meta.join('<span aria-hidden="true">·</span>')}</span></div>` +
-      (ask ? `${ask}<p class="hr-why"><span class="hr-why-k">Why?</span> ${esc(i.reason)}</p>` : `<p class="hr-why">${esc(i.reason)}</p>`) + steps + '</li>'
+      (ask ? `${ask}<p class="hr-why"><span class="hr-why-k">Why?</span> ${esc(i.reason)}</p>` : `<p class="hr-why">${esc(i.reason)}</p>`) + steps + replyHtml(i) + '</li>'
+  }
+
+  /**
+   * Pure: what a waiting session's row offers. A question: a reply box (Send), and how the last reply went (Sending,
+   * Sent, or Not delivered with Retry). A permission prompt: only VS Code can press Approve or Deny, so it says so.
+   */
+  function replyHtml(i) {
+    if (i?.kind !== 'session') return ''
+    if (i.wait !== 'question') return '<p class="hr-reply-note">Approve or deny it in VS Code: a message cannot press the button.</p>'
+    const id = esc(i.sessionId)
+    const r = i.reply
+    const sending = r?.status === 'sending'
+    const state = !r ? ''
+      : sending ? '<p class="hr-reply-state">Sending your reply…</p>'
+      : r.status === 'sent' ? `<p class="hr-reply-state is-sent">Sent ${esc(window.Shell?.ago(r.sentAt) || '')}. This clears once the session picks it up.</p>`
+      : `<p class="hr-reply-state is-failed">Not delivered: ${esc(r.error || 'the message did not go out')}. <button type="button" class="link" data-hr-retry="${id}">Retry</button></p>`
+    return `<form class="hr-reply" data-hr-reply="${id}"><textarea name="reply" rows="2" maxlength="2000" data-key="reply:${id}" aria-label="Your reply to ${esc(i.title)}" placeholder="Your reply. Enter sends, Shift+Enter adds a line."${sending ? ' disabled' : ''}></textarea>` +
+      `<button type="submit" class="primary"${sending ? ' disabled' : ''}>Send</button></form>${state}`
   }
 
   const EMPTY = { session: 'No session is waiting on you.', ask: 'No questions wait on you.', hand: 'No work waits for you to do by hand.', blocked: 'No flow is blocked.', ticket: 'No ticket waits on you.' }
@@ -138,7 +156,7 @@
     return (next || []).filter(i => i.kind === 'session' && !seen.has(`${i.key}@${i.since}`))
   }
 
-  const api = { FILTERS, filterOf, newWaits, splitText, waiting, spot, rowHtml, html, homeHtml, data: null, place() {}, refresh() {}, show() {}, needsHand: () => false }
+  const api = { FILTERS, filterOf, newWaits, replyHtml, sendReply() {}, splitText, waiting, spot, rowHtml, html, homeHtml, data: null, place() {}, refresh() {}, show() {}, needsHand: () => false }
   window.HumanReview = api
   if (!window.document) return
 
@@ -159,13 +177,13 @@
 
   /** Keep what was typed in an answer field (and the focus) across a redraw. */
   function paintBox() {
-    const vals = new Map([...box.querySelectorAll('input[data-key]')].map(i => [i.dataset.key, i.value]))
+    const vals = new Map([...box.querySelectorAll('input[data-key], textarea[data-key]')].map(i => [i.dataset.key, i.value]))
     const a = doc.activeElement
     const keep = a && box.contains(a) ? ['data-key', 'data-hr-open', 'data-hr-agent', 'data-hr-chip', 'data-hr-steps'].find(k => a.hasAttribute(k)) : null
     const focus = keep ? `[${keep}="${CSS.escape(a.getAttribute(keep))}"]` : null
     const scroll = box.querySelector('.hr-rows')?.scrollTop || 0
     box.innerHTML = html(data, filterOf(store.get(), data?.counts))
-    for (const i of box.querySelectorAll('input[data-key]')) if (vals.has(i.dataset.key)) i.value = vals.get(i.dataset.key)
+    for (const i of box.querySelectorAll('input[data-key], textarea[data-key]')) if (vals.has(i.dataset.key)) i.value = vals.get(i.dataset.key)
     const rows = box.querySelector('.hr-rows')
     if (rows) rows.scrollTop = scroll
     if (focus) box.querySelector(focus)?.focus()
@@ -244,6 +262,52 @@
     box.querySelector('.hr-h')?.focus({ preventScroll: true })
   }
 
+  /** Send a reply (or Retry the last one) to a waiting session; the page shows how it went on the next refresh. */
+  async function sendReply(sessionId, text, { retry = false } = {}) {
+    try {
+      const r = await fetch(`/api/sessions/${enc(sessionId)}/reply`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(retry ? { retry: true } : { text }) })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(j.error || 'Could not send the reply. Try again.')
+      return true
+    } catch (e) {
+      // the server's message is written for the user; a network failure gets a plain next step
+      const msg = e instanceof TypeError ? 'Could not reach the dashboard. Check it is running, then try again.' : e.message
+      window.Notifier?.toast(esc(msg), { kind: 'info', keep: false })
+      return false
+    } finally {
+      refresh()
+    }
+  }
+
+  /** A reply form submitted, or Retry clicked, anywhere (the box or the session page): true when it was one. */
+  function onReply(e) {
+    const retry = e.target.closest?.('[data-hr-retry]')
+    if (e.type === 'click' && retry) {
+      retry.disabled = true
+      sendReply(retry.dataset.hrRetry, '', { retry: true })
+      return true
+    }
+    const form = e.type === 'submit' && e.target.closest?.('form[data-hr-reply]')
+    if (!form) return false
+    e.preventDefault()
+    const area = form.querySelector('textarea')
+    const text = area.value.trim()
+    if (!text) return area.focus(), true
+    form.querySelectorAll('textarea, button').forEach(x => (x.disabled = true))
+    sendReply(form.dataset.hrReply, text).then(ok => {
+      if (ok) area.value = ''
+    })
+    return true
+  }
+  doc.addEventListener('submit', onReply)
+  doc.addEventListener('click', onReply)
+  // Enter sends, Shift+Enter adds a line
+  doc.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' || e.shiftKey || e.isComposing || !e.target.closest?.('form[data-hr-reply] textarea')) return
+    e.preventDefault()
+    e.target.closest('form').requestSubmit()
+  })
+
   /** Ask for steps on a ticket with no flow: the server starts its flow and relays the request (human-routes.mjs). */
   async function askSteps(btn) {
     btn.disabled = true
@@ -266,6 +330,7 @@
   // a node (pipeline-view.js listens on the whole diagram, and an ask button carries data-node).
   box.addEventListener('click', async e => {
     e.stopPropagation()
+    if (onReply(e)) return
     const t = e.target
     const chip = t.closest('[data-hr-chip]')
     if (chip) {
@@ -313,7 +378,7 @@
     if (r.view === 'agents' && r.params?.query && 'human' in r.params.query) window.Shell.whenReady('#agentsView .hr-box', () => setTimeout(show, 50), 4000)
   })
 
-  Object.assign(api, { place, refresh, show, needsHand: id => !!data?.items?.some(i => i.kind === 'hand' && i.flowId === id) })
+  Object.assign(api, { place, refresh, show, sendReply, needsHand: id => !!data?.items?.some(i => i.kind === 'hand' && i.flowId === id) })
   Object.defineProperty(api, 'data', { get: () => data })
   doc.addEventListener('DOMContentLoaded', refresh)
   setInterval(refresh, POLL_MS)

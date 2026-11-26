@@ -104,3 +104,16 @@
 @media (max-width: 600px) {
   .hr-acts .fl-text input { width: 100%; }
 }
+
+/* Replying to a waiting session (human-review.js replyHtml): a box and Send, then how it went */
+.hr-reply { display: flex; align-items: flex-end; gap: 8px; margin-top: 8px; }
+.hr-reply textarea { flex: 1; min-width: 0; resize: vertical; min-height: 40px; font: inherit; font-size: 13px; line-height: 1.45;
+  padding: 6px 10px; color: var(--ink); background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius); }
+.hr-reply textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.hr-reply-state, .hr-reply-note { margin: 6px 0 0; font-size: 12.5px; color: var(--muted); }
+.hr-reply-state.is-failed { color: var(--warn); }
+@media (max-width: 640px) { .hr-reply { flex-direction: column; align-items: stretch; } }
+/* the session page's copy of it, above Live activity (agent.js) */
+.agent-reply { margin: 0 0 16px; padding: 12px 16px; background: var(--surface); border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--line)); border-left: 3px solid var(--warn); border-radius: var(--radius); }
+.agent-reply-q { margin: 0; font-size: 13.5px; color: var(--ink); }
+.agent-reply-q b { color: var(--warn); font-weight: 600; }
