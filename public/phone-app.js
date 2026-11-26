@@ -264,8 +264,9 @@
     return act(key, '/phone/api/answer', { flowId, nodeId, answer: value }, 'Answered. The agent hears it shortly.')
   }
 
-  /** A refused tick redraws from the summary as it was, so the box goes back to what is stored. */
-  function tick(box) {
+  /** A refused tick redraws from the summary as it was, so the box goes back to what is stored.
+   *  ⚠️ NOT named tick: that is the poll above, and a second function tick in this scope replaced it (no poll ran). */
+  function tickStep(box) {
     const flowId = box.getAttribute('data-flow')
     const on = !!box.checked
     return act(`hand:${flowId}`, '/phone/api/tick', { flowId, step: box.getAttribute('data-step'), done: on }, on ? 'Ticked.' : 'Unticked.')
@@ -362,7 +363,7 @@
     }
   })
   root.addEventListener('change', e => {
-    if (e.target?.matches?.('[data-ph-tick]')) tick(e.target)
+    if (e.target?.matches?.('[data-ph-tick]')) tickStep(e.target)
   })
   root.addEventListener('input', e => {
     if (e.target?.id !== 'phTalk') return
