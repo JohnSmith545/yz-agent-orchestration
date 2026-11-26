@@ -52,10 +52,16 @@ test('the old addresses #/script and #/brainstorming still land on the same page
   assert.equal(r('#/scripts').redirect, '#/', 'only the exact old address')
 })
 
-test('the rail links to Generators right after QA, with its own icon, and the shell opens ScriptPage in #scriptView', () => {
+test('the rail links to Generators in the Work group, after Tickets, with its own icon, and the shell opens ScriptPage in #scriptView', () => {
   const shell = read('shell.js')
-  assert.match(shell, /\$\{link\('qa', '#\/qa', 'QA'\)\}\$\{link\('script', '#\/generators', 'Generators'\)\}/)
-  assert.match(shell, /^\s+script: svg\(/m, 'the rail icon, drawn like the others')
+  const rail = { window: {} }
+  for (const f of ['rail-groups.js', 'shell.js']) vm.runInNewContext(read(f), rail)
+  const work = rail.window.RailGroups.groups().find(g => g.id === 'work').entries
+  assert.equal(work.findIndex(e => e.view === 'script'), work.findIndex(e => e.view === 'tickets') + 1, 'right after Tickets')
+  const gen = rail.window.RailGroups.linkFor('script')
+  assert.equal(gen.href, '#/generators')
+  assert.equal(gen.label, 'Generators')
+  assert.match(gen.icon, /<path/, 'the rail icon, drawn like the others')
   assert.match(shell, /script: 'scriptView'/)
   assert.match(shell, /script: 'ScriptPage'/)
   assert.match(shell, /script: 'Generators'/, 'the page title')
@@ -77,7 +83,7 @@ test('npm run check covers every new file, and the palette and glossary know the
   for (const f of ['script.mjs', 'script-prompt.mjs', 'script-routes.mjs', 'public/script-text.js', 'public/script-state.js', 'public/script-sound.js', 'public/script-stream.js', 'public/script-page.js', 'public/script-render.js', 'public/script-view.js', 'public/script-markup.js']) {
     assert.ok(pkg.checkList.includes(`node --check ${f}`), f)
   }
-  assert.match(read('palette.js'), /\['Generators', '#\/generators', \['script', 'prompt', 'brainstorming', 'standup', 'stand up'\]\]/)
+  assert.match(read('palette.js'), /script: \['script', 'prompt', 'brainstorming', 'standup', 'stand up'\]/, 'the old names and the two tools, as hidden keys')
   assert.ok(JSON.parse(read('glossary.json')).script?.short?.length > 20)
 })
 

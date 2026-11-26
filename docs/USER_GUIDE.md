@@ -74,11 +74,28 @@ repo and it appears within a minute.
 
 ## 4. A tour of the pages
 
-The rail on the left holds the pages. Hover it (or press Tab) to see the labels; the pin keeps it open.
+The rail on the left holds the pages, in four groups. A thin line marks where each group starts; hover the rail
+(or press Tab) to see the labels and the group names; the pin keeps it open.
+
+| Group | Pages | What they are for |
+| --- | --- | --- |
+| **Work** | Home, Flows, Tickets, Generators | what you hand out and follow |
+| **Agents** | Agents, Subagents, Orchestration bank, Routing | who does the work, and how it is shared out |
+| **Quality** | QA, Lessons, Learn | checking the work, and learning from it |
+| **History** | Timeline, Flow archive, Glossary | what happened, and the words for it |
+
+At the foot, always in view: **Ask**, the **Alerts** bell, **Spend today**, **Phone on** (only while phone access
+is on), **Settings** and the theme switch. On a short window the groups scroll inside the rail and the foot stays
+put. **Ctrl+K** lists the same pages under the same group names.
+
+On a narrow window (under 720 px, such as a phone) the rail becomes a bar along the bottom with only the pages
+used most: Home, Flows, Tickets and Agents, then Ask and **More**. More opens a sheet with every other page in its
+group, then Alerts, Spend today, Phone on, Settings and the theme switch. Escape, Close or a tap outside closes it.
 
 ### Home
 
-Home is at `#/home` (the brand mark at the top of the rail); the dashboard opens on Flows.
+Home is at `#/home` (the first link in Work; the brand mark at the top of the rail opens it too); the dashboard
+opens on Flows.
 
 - **Since** (only when something happened since you last pressed **Mark read**): flows that changed status,
   answers delivered, tickets that reached a new level or changed in the tracker, and commits per agent.
@@ -422,6 +439,7 @@ the code, read your tracker, message other agents, write flows and drive a brows
 - **Click to explain:** click any underlined term for a short explanation, or select any text and press
   **Explain**. Terms in the built-in glossary cost nothing; anything else is one small paid turn.
 - **Ctrl+K** (Cmd+K on a Mac) opens the command palette: jump to a page, flow, ticket or agent, or run an action.
+  Before you type, it lists every page under the rail's group names.
 - **Spend today** (above Theme in the rail) shows what the dashboard's own headless turns cost today. Click it
   for the breakdown.
 - **Reminders** pop up at the times in `reminders`, once a day.
@@ -684,7 +702,7 @@ On macOS or Linux, use your own service manager (launchd, systemd, or a terminal
 
 These four help the agents get work right the first time.
 
-- **Lessons** (the book at the end of the rail, `#/lessons`). When QA, Security or Senior fails a piece of work, a
+- **Lessons** (the open book in the rail's Quality group, `#/lessons`). When QA, Security or Senior fails a piece of work, a
   small model run reads what it found and proposes up to 3 short lessons, such as *Write the failing test before the
   code*. They wait under **Waiting for you**: **Accept** keeps one, **Edit** lets you reword it first, **Reject** drops
   it. When a proposal repeats a lesson you already have, it says *Counts again as L3*, and accepting it adds one to
@@ -744,7 +762,7 @@ already record.
 
 ## 13. Routing: suggestions for who does what
 
-Open **Routing** at the bottom of the rail. Each rule says: when a task is this type, this risk or this size,
+Open **Routing** in the rail's Agents group. Each rule says: when a task is this type, this risk or this size,
 suggest this agent, this model and this effort, because of this reason. The first rule that fits wins, so put the
 narrow ones first. Change a rule in place, move it up or down, add or remove one, then **Save rules** and confirm.
 
@@ -770,7 +788,7 @@ Routing page. One run costs about a cent.
 - **Retrospective.** Mark a flow **Completed** and, half a minute later, its Output tab shows three lines under the
   story: what went right, what went wrong, what to do next time. About 1 cent each. A finished flow without one has
   **Write the retrospective**. The flow archive row folds them away under **Retrospective**.
-- **Learn** (the light bulb, last in the rail). Press **Run Learn** about once a week. It reads the scores, the QA
+- **Learn** (the light bulb, last in the rail's Quality group). Press **Run Learn** about once a week. It reads the scores, the QA
   reports and the retrospectives since the last run and proposes up to 3 rule changes, each with its evidence.
   **Accept** saves the rule as if you typed it on the Agents page; **Edit then accept** lets you reword it first;
   **Reject** asks why (optional), and the next run will not propose it again. A settings change is shown as text:
@@ -801,16 +819,25 @@ is off until you set it up, and only reachable on your own private network.
 
 **On the phone** there are four tabs at the bottom:
 
-- **Now**: how many things need you (questions, by-hand steps, outputs to sign off), what each agent is doing in
-  one line, and how many flows finished today.
+- **Agents**: how many things need you (questions, by-hand steps, outputs to sign off), the alerts (how many, and
+  the first two), the open pull requests (the same list as the Pull requests block on the PC; a tap opens GitHub),
+  and the pipeline as a list from Request to Output:
+  each box with its agent's state (a green dot for busy, grey for idle, a ring for no session) and the flows standing
+  there. Tap a flow to see its tickets, where it stands, its route, its open questions (with Yes and No), its last
+  QA result, its story and its pull request. Close it with Close, Escape or a tap outside. Read only, apart from
+  answering. At the bottom, how many flows finished today.
 - **Needs you**: each open question with Yes and No (or a box for a written answer), and each by-hand flow with
   its steps to tick. An answer reaches the agent through a short paid turn on your PC, a few cents each. A
   question you have answered cannot be changed from the phone; do that at the PC.
 - **Outputs**: finished work waiting for your sign-off, with its story. **Completed** asks once to confirm.
-- **Master** (your coordinator's name): your messages and its replies. A message is handed to the coordinator on
-  your PC, by a short paid turn (a few cents), and it answers when it gets to it. The PC must be on. One message
-  at a time: if one is not sent, the phone says why and puts your text back in the box. The phone shows only the
-  replies written after your first message from that phone, never the coordinator's other work. Each message
+- **Master** (your coordinator's name): a chat. Your messages are on the right, its replies under each one on the
+  left, newest at the bottom. A message is handed to the coordinator on your PC by a short paid turn (the line
+  under the box says about how much), and it answers when it gets to it. The PC must be on. Each message says
+  Sending, then Delivered to Master, or Not delivered with the reason and a **Try again** that puts your text back
+  in the box. After delivery, **Master is working…** shows until a reply comes (for up to 10 minutes). One message
+  at a time. The thread is the same on every phone signed in with your PIN: the last 30 messages, each with the
+  replies that followed it, so it is still there after you sign in again. Replies written before your first phone
+  message are never shown, and only its written words reach the phone, never its tools or files. Each message
   arrives with a fixed first line saying it came from your phone, and the coordinator then does nothing
   destructive, nothing that pushes, deploys or touches a live system, and no settings change until you confirm
   at the PC.
@@ -820,7 +847,7 @@ default), the phone asks for the PIN again.
 
 **On the PC**, Settings has a **Phone** card: on or off, the address to open, when the PIN was set, recent
 sign-ins and lockouts, **Sign out everywhere** (do this if you lose the phone) and **Turn phone access off**.
-While phone access is on, the rail ends with a small **Phone on** badge that opens the card. Every phone sign-in,
+While phone access is on, the foot of the rail shows a small **Phone on** badge, above Settings, that opens the card. Every phone sign-in,
 lockout, PIN change and change to phone access in config.json raises a notice on the desktop, and a line in the
 Log. A PIN changed without phone-pin is called out: if that was not you, turn phone access off.
 
@@ -839,3 +866,20 @@ Log. A PIN changed without phone-pin is called out: if that was not you, turn ph
 - Never forward the port on your router. It is not built to face the internet.
 - The phone can do only the five things above. It cannot delete, archive, change settings or rules, send a pull
   request or run a generator.
+
+## 16. Pull requests
+
+When an agent finishes a coding task and opens a pull request, it shows in a small **Pull requests** block at the
+top of the Agents page (under the Alerts line) and on Home. Nothing shows when there are none.
+
+- The newest is clear, with a line under it: which agent, how long ago it opened, whether its checks pass, and
+  whether it needs you: `waiting for your review`, or `ready for you to merge` (green and mergeable). A small dot
+  in the margin marks one that needs you.
+- Each one under it is smaller and fainter, as if fading into fog, so your eye lands on the newest. Point at a
+  faded one, or Tab to it, and it comes back into full view. At most 5 show; `and 3 more` unfolds the rest.
+- Click a title to open the pull request on GitHub in a new tab, or **Open the flow** for the work behind it.
+- A pull request leaves the list when it is merged or closed on GitHub (within about a minute), or when you mark its
+  flow **Completed**. The next one moves up and becomes the clear one.
+- The dashboard only reads GitHub here, through the `gh` command, at most once a minute. If it cannot reach GitHub
+  the list keeps what it knew and says so under it.
+- The address `#/agents?prs` opens the Agents page scrolled to the list.

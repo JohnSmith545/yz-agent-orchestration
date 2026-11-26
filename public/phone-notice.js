@@ -1,7 +1,8 @@
 // Phone access, visible on every desktop page (review point 3: turning it on from a terminal is no boundary against
 // a local agent that can write config.json, so nothing about it may happen quietly).
 //
-// - While phone access is on, the rail ends with a small **Phone on** badge that links to the Phone card on Settings.
+// - While phone access is on, the rail's bottom block shows a small **Phone on** badge, just above Settings, that
+//   links to the Phone card on Settings (its slot is #railPhone, drawn by shell.js).
 // - Every phone sign-in, lockout, escalation, damaged sign-in file, PIN change and change of remote.enabled or
 //   remote.bind (phone-auth.mjs events, noted by the server's watcher) raises a toast. The ones that may mean someone
 //   else is at work (a lockout, an escalation, a damaged file, a config change, a PIN changed outside phone-pin) stay
@@ -72,11 +73,12 @@
   /** key -> the toast element this tab shows for an urgent event */
   const shown = new Map()
 
+  /** The badge lives in its own slot in the rail's bottom block (shell.js, above Settings), never among the page links. */
   function badge(on) {
-    const nav = doc.querySelector('#rail .rail-nav')
-    const had = doc.querySelector('[data-phone-badge]')
-    if (on && !had && nav) nav.insertAdjacentHTML('beforeend', badgeHtml(true)) // a new rail entry goes at the END
-    if (!on && had) had.remove()
+    const slot = doc.getElementById('railPhone')
+    if (!slot || slot.hidden === !on) return // already as it should be: no redraw, so a focused badge keeps its focus
+    slot.innerHTML = badgeHtml(on)
+    slot.hidden = !on
   }
 
   async function poll() {

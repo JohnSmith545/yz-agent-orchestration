@@ -19,6 +19,15 @@
   VIEWS.push('lessons') // the Lessons page (quality-lessons-page.js): #/lessons[?area=tests|edit=<candidate>]
   VIEWS.push('routing') // the Routing page (routing-page.js): #/routing, #/routing?flow=<id>
   VIEWS.push('learn') // Learn (learn-page.js): #/learn[?run=<id>], retrospectives and a verdict on every rule change
+  // Their rail links, by group and by name (rail-groups.js decides the rest; a new page adds its link the same way).
+  // The bank: three stacked layers (saved ways of working), after Subagents.
+  window.RailGroups?.add('agents', { view: 'bank', href: '#/bank', label: 'Orchestration bank', icon: '<path d="m12 3.5 8.5 4.25L12 12 3.5 7.75Z"/><path d="m3.5 12 8.5 4.25L20.5 12"/><path d="m3.5 16.25 8.5 4.25 8.5-4.25"/>' }, { after: 'subagents' })
+  // Routing: a signpost, one way splitting in two (who gets a task), after the bank.
+  window.RailGroups?.add('agents', { view: 'routing', href: '#/routing', label: 'Routing', icon: '<path d="M12 21v-7.5"/><path d="m12 13.5-5.5-5.5"/><path d="m12 13.5 5.5-5.5"/><path d="M5 11.5V6.5h5"/><path d="M19 11.5V6.5h-5"/>' }, { after: 'bank' })
+  // Lessons: an open book with a tick on its right page (what earlier work taught), after QA.
+  window.RailGroups?.add('quality', { view: 'lessons', href: '#/lessons', label: 'Lessons', icon: '<path d="M3 5.5c3-1.2 6-1 9 1 3-2 6-2.2 9-1V19c-3-1.2-6-1-9 1-3-2-6-2.2-9-1Z"/><path d="M12 6.5V20"/><path d="m14.8 12.2 1.7 1.7 3-3.4"/>' }, { after: 'qa' })
+  // Learn: a light bulb (an idea, from what the work taught), after Lessons.
+  window.RailGroups?.add('quality', { view: 'learn', href: '#/learn', label: 'Learn', icon: '<path d="M9.5 18h5M10.5 21h3"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.4 1.1 2.2v.5h5V16c0-.8.4-1.6 1.1-2.2A6 6 0 0 0 12 3Z"/>' }, { after: 'lessons' })
   const OLD = { factory: 'tickets', flow: 'timeline' }
   const route = (view, params = {}, redirect = null) => ({ view, params, redirect })
   const decode = s => {
@@ -120,6 +129,7 @@
   window.Shell = {
     resolve,
     railFor,
+    views: VIEWS.slice(), // every view this shell routes (test/rail-groups.test.mjs: each but `agent` has one rail link)
     whenReady,
     ago,
     chatState,
@@ -158,69 +168,47 @@
   Object.assign(TITLE, { routing: 'Routing' }), Object.assign(SECTION, { routing: 'routingView' }), Object.assign(PAGE, { routing: 'RoutingPage' })
   Object.assign(TITLE, { learn: 'Learn' }), Object.assign(SECTION, { learn: 'learnView' }), Object.assign(PAGE, { learn: 'LearnPage' })
 
-  // ─── icons: 24-unit boxes drawn at 20 px, 1.75 stroke (shell.css) ───
+  // ─── icons: 24-unit boxes drawn at 20 px, 1.75 stroke (shell.css); the pages' own are in rail-groups.js ───
   const svg = d => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`
+  const R = window.RailGroups
   const ICON = {
-    home: svg('<path d="M4 11 12 4l8 7"/><path d="M6 9.5V20h12V9.5"/><path d="M10 20v-5h4v5"/>'),
-    flows: svg('<circle cx="6" cy="5" r="2.2"/><circle cx="6" cy="19" r="2.2"/><circle cx="18" cy="7" r="2.2"/><path d="M6 7.2v9.6"/><path d="M18 9.2c0 5-6 4.6-10.6 8.3"/>'),
-    // QA: a circle with a tick in it (a test passed)
-    qa: svg('<circle cx="12" cy="12" r="8.5"/><path d="m8.4 12.3 2.5 2.5 4.8-5.2"/>'),
-    // Generators: a page with three lines of writing and a small spark (a prompt or a stand-up, written for you)
-    script: svg('<path d="M14 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V11"/><path d="M8.5 10h5M8.5 13.5h7M8.5 17h5"/><path d="M18.5 2.5v5M16 5h5"/>'),
-    tickets: svg('<path d="M3 7h18v3a2 2 0 0 0 0 4v3H3v-3a2 2 0 0 0 0-4Z"/><path d="M14.5 8v1.5M14.5 11.25v1.5M14.5 14.5V16"/>'),
-    timeline: svg('<path d="M3 12h4l3-7 4 14 3-7h4"/>'),
-    agents: svg('<circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8"/><path d="M18 14.8c1.8.6 3 2.5 3 5.2"/>'),
-    // a subagent: one small figure with a spark beside it (work handed to it)
-    subagents: svg('<circle cx="10" cy="8" r="3.5"/><path d="M4 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M18.5 3v4M16.5 5h4"/><path d="M19.5 10.5v2M18.5 11.5h2"/>'),
-    glossary: svg('<path d="M5 5a2 2 0 0 1 2-2h12v14H7a2 2 0 0 0-2 2Z"/><path d="M5 19a2 2 0 0 0 2 2h12v-4"/><path d="M9 7.5h6M9 11h4"/>'),
-    // the flow archive: a box with its lid and a slot to pull it open by
-    archive: svg('<path d="M3.5 4.5h17v4h-17Z"/><path d="M5 8.5V19a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19V8.5"/><path d="M10 12.5h4"/>'),
-    // a gear: a ring with eight short teeth around a small hub
-    settings: svg('<circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2.2"/><path d="M12 3.5v2.5M12 18v2.5M3.5 12H6M18 12h2.5M6 6l1.8 1.8M16.2 16.2 18 18M6 18l1.8-1.8M16.2 7.8 18 6"/>'),
-    // the Orchestration bank: three stacked layers (saved ways of working)
-    bank: svg('<path d="m12 3.5 8.5 4.25L12 12 3.5 7.75Z"/><path d="m3.5 12 8.5 4.25L20.5 12"/><path d="m3.5 16.25 8.5 4.25 8.5-4.25"/>'),
     ask: svg('<path d="M12 3.5a8.5 8.5 0 0 0-7.4 12.7L3.5 20.5l4.3-1.1A8.5 8.5 0 1 0 12 3.5Z"/>'),
     sun: svg('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>'),
     moon: svg('<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>'),
     pin: svg('<path d="M9 3h6l-1 6 3 4H7l3-4Z"/><path d="M12 13v8"/>'),
     close: svg('<path d="M6 6l12 12M18 6 6 18"/>'),
+    // More: three dots in a row (the rest of the pages, in the phone-width bar)
+    more: svg('<circle cx="5.5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="18.5" cy="12" r="1.4"/>'),
   }
 
   // ─── the rail ───
   // The command palette shortcut (palette.js), named in the Ask tooltip: Cmd on a Mac, Ctrl elsewhere.
   const PALETTE_KEY = /Mac|iPhone|iPad/.test(window.navigator?.platform || window.navigator?.userAgent || '') ? '⌘K' : 'Ctrl K'
   const ASK_TIP = `Ask · ${PALETTE_KEY} goes to anything`
-  const link = (view, hash, label) =>
-    `<a class="rail-item" href="${hash}" data-view="${view}" title="${label}"><span class="rail-icon">${ICON[view]}</span><span class="rail-label">${label}</span></a>`
   const rail = $('rail')
+  // Top to bottom: the brand and the pin, the Project menu's slot (project-menu.js fills it), the page links in their
+  // groups (rail-groups.js, the ONE place that orders them), then the bottom block, which never scrolls away.
+  // ⚠️ The brand is a mouse shortcut Home, not a second Home entry: Home's one link is in Work, so the brand is out
+  // of the Tab order and hidden from screen readers (a reader would otherwise hear Home twice).
+  // The Phone on slot is phone-notice.js's: it fills it while phone access is on.
   rail.innerHTML = `
     <div class="rail-top">
-      <a class="rail-item rail-brand" href="#/home" data-view="home" title="Home"><span class="rail-icon"><span class="rail-mark">${ICON.home}</span></span><span class="rail-label">Home</span></a>
+      <a class="rail-item rail-brand" href="#/home" tabindex="-1" aria-hidden="true" title="Home"><span class="rail-icon"><span class="rail-mark">${svg(R.linkFor('home').icon)}</span></span><span class="rail-label">Orchestration</span></a>
       <button type="button" class="rail-pin" id="railPin" aria-pressed="false" title="Keep the rail open">${ICON.pin}</button>
     </div>
-    <nav class="rail-nav" aria-label="Pages">
-      ${link('flows', '#/flows', 'Flows')}${link('qa', '#/qa', 'QA')}${link('script', '#/generators', 'Generators')}${link('tickets', '#/tickets', 'Tickets')}${link('timeline', '#/timeline', 'Timeline')}${link('agents', '#/agents', 'Agents')}${link('subagents', '#/subagents', 'Subagents')}${link('glossary', '#/glossary', 'Glossary')}${link('archive', '#/archive', 'Flow archive')}
-    </nav>
+    <div class="rail-project" id="railProject"></div>
+    <nav class="rail-nav" aria-label="Pages">${R.navHtml(R.groups())}</nav>
     <div class="rail-bottom">
       <button type="button" class="rail-item" id="railAsk" aria-controls="drawer" aria-expanded="false" title="${ASK_TIP}"><span class="rail-icon">${ICON.ask}</span><span class="rail-label">Ask</span></button>
       <div class="rail-item rail-slot" id="railAlerts"></div>
       <div class="rail-item rail-slot" id="railSpend" hidden></div>
-      ${link('settings', '#/settings', 'Settings')}
+      <div class="rail-slot" id="railPhone" hidden></div>
+      ${R.linkHtml(R.linkFor('settings'))}
       <button type="button" class="rail-item" id="themeToggle" title="Theme"><span class="rail-icon"><span class="theme-sun">${ICON.sun}</span><span class="theme-moon">${ICON.moon}</span><i class="theme-dot" aria-hidden="true"></i></span><span class="rail-label">Theme</span></button>
+      <button type="button" class="rail-item rail-more-btn" id="railMore" aria-haspopup="dialog" aria-controls="railMoreSheet" aria-expanded="false" title="More"><span class="rail-icon">${ICON.more}</span><span class="rail-label">More</span></button>
     </div>`
-  // The Project menu's slot under the brand (project-menu.js fills it), and the Orchestration bank after Agents.
-  // (Added after the template, not in it, so the rail's one long line stays as it was; ?. for the tests' bare DOM.)
-  rail.querySelector('.rail-top')?.insertAdjacentHTML?.('afterend', '<div class="rail-project" id="railProject"></div>')
-  rail.querySelector('a.rail-item[data-view="agents"]')?.insertAdjacentHTML?.('afterend', link('bank', '#/bank', 'Orchestration bank'))
-  // Learn: a light bulb (an idea, from what the work taught), at the END of the page list
-  ICON.learn = svg('<path d="M9.5 18h5M10.5 21h3"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.4 1.1 2.2v.5h5V16c0-.8.4-1.6 1.1-2.2A6 6 0 0 0 12 3Z"/>')
-  rail.querySelector('.rail-nav')?.insertAdjacentHTML?.('beforeend', link('learn', '#/learn', 'Learn'))
-  // Lessons, at the END of the page links: an open book with a tick on its right page (what earlier work taught)
-  ICON.lessons = svg('<path d="M3 5.5c3-1.2 6-1 9 1 3-2 6-2.2 9-1V19c-3-1.2-6-1-9 1-3-2-6-2.2-9-1Z"/><path d="M12 6.5V20"/><path d="m14.8 12.2 1.7 1.7 3-3.4"/>')
-  rail.querySelector('.rail-nav')?.insertAdjacentHTML?.('beforeend', link('lessons', '#/lessons', 'Lessons'))
-  // Routing (routing-page.js): a signpost, one way splitting in two; its link goes at the END of the rail's list
-  ICON.routing = svg('<path d="M12 21v-7.5"/><path d="m12 13.5-5.5-5.5"/><path d="m12 13.5 5.5-5.5"/><path d="M5 11.5V6.5h5"/><path d="M19 11.5V6.5h-5"/>')
-  rail.querySelector('.rail-nav')?.insertAdjacentHTML?.('beforeend', link('routing', '#/routing', 'Routing'))
+  // ⚠️ More (rail-more.js, rail-more.css) shows only in the phone-width bar, under 720 px: the bar keeps the most used
+  // pages (RailGroups.bar) with Ask and More, and More opens a sheet with the rest in their groups.
 
   // Labels as tooltips by default; after a 300 ms hover the rail opens to
   // 200 px over the page. Pinned, it stays open and pushes the page instead.
@@ -400,7 +388,12 @@
     else if (r.view === 'bank') page?.open?.(r.params.id, r.params.mode)
     else page?.open?.(r.params.query || {})
     const lit = railFor(r)
-    rail.querySelectorAll('a.rail-item').forEach(a => (a.dataset.view === lit ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')))
+    // On a short window the groups scroll inside the rail: the lit link scrolls into view there (the page never moves).
+    rail.querySelectorAll('a.rail-item[data-view]').forEach(a => {
+      if (a.dataset.view !== lit) return a.removeAttribute('aria-current')
+      a.setAttribute('aria-current', 'page')
+      a.scrollIntoView?.({ block: 'nearest' })
+    })
     for (const fn of listeners) fn(r)
   }
   window.addEventListener('hashchange', show)

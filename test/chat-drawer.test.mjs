@@ -186,7 +186,8 @@ function loadShell(localStorage) {
     FactoryChat: { mount: (body, head) => mounts.push([body, head]), name: 'Independent' },
   }
   Object.defineProperty(window, 'localStorage', { get: localStorage })
-  vm.runInNewContext(source('shell.js'), { window, setTimeout, clearTimeout })
+  const ctx = { window, setTimeout, clearTimeout }
+  for (const name of ['rail-groups.js', 'shell.js']) vm.runInNewContext(source(name), ctx) // the shell draws the rail from RailGroups
   for (const fn of document.listeners.DOMContentLoaded || []) fn()
   return { shell: window.Shell, document, mounts }
 }
@@ -234,7 +235,7 @@ function loadPage({ hash = '#/', drawer = '1', pages = [] } = {}) {
     localStorage: { getItem: k => saved.get(k) ?? null, setItem: (k, v) => saved.set(k, v), removeItem: k => saved.delete(k) },
   }
   const ctx = vm.createContext({ window, document, setTimeout, clearTimeout, fetch: () => new Promise(() => {}) })
-  for (const name of ['shell.js', ...pages]) vm.runInContext(source(name), ctx)
+  for (const name of ['rail-groups.js', 'shell.js', ...pages]) vm.runInContext(source(name), ctx)
   for (const fn of document.listeners.DOMContentLoaded || []) fn()
   /** A key pressed on the page: the document's bubble listeners, then the window's, in the order they were added. */
   const press = key => {

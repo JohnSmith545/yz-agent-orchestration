@@ -3,11 +3,12 @@
 // Content-Security-Policy allows neither): phone-app.js binds the clicks by data- attributes.
 //
 //   signIn({ status, busy })            the PIN pad
-//   nav(tab, summary, label)            the bottom bar: Now, Needs you, Outputs, the coordinator; thumb reach
-//   now(summary, nowMs)                 N things need you, the counts, each agent in one line, finished today
+//   nav(tab, summary, label)            the bottom bar: Agents, Needs you, Outputs, the coordinator; thumb reach
+//                                       (the Agents tab itself, with the old Now folded in, is public/phone-agents.js)
 //   needs(summary, ui)                  each question (Yes / No, or a text box) and each by-hand flow with its ticks
+//   askCard(ask, ui)                    one question with its answer buttons (the flow sheet shows them too)
 //   outputs(summary, ui)                each output waiting for sign-off, its story lines, Completed with an inline confirm
-//   talk(thread, ui)                    the thread with the coordinator, what happens to a message, the box
+//   talk(thread, ui)                    the chat with the coordinator: public/phone-chat.js, on the PC's clock
 // `ui` is { status: { key: text }, busy: { key: true }, confirm: flowId | null }.
 ;(() => {
   const S = window.PhoneState
@@ -17,8 +18,6 @@
     const t = ui?.status?.[key]
     return `<p class="ph-status" role="status"${attr('data-status', key)}>${t ? esc(t) : ''}</p>`
   }
-  /** A reply's text with its Markdown bold and code shown as such, AFTER escaping: nothing else becomes markup. */
-  const marks = s => esc(s).replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>').replace(/`([^`\n]+)`/g, '<code>$1</code>')
   const busy = (ui, key) => (ui?.busy?.[key] ? ' disabled' : '')
   /** A story line as plain words: the glossary's [term] marks dropped (QA, 2026-11-26). */
   const plain = s => String(s ?? '').replace(/\[([^\[\]\n]{1,80})\]/g, '$1')
@@ -29,7 +28,7 @@
     return w && d.toLowerCase().startsWith(w.toLowerCase() + ' ') ? d.slice(w.length + 1) : d
   }
   /** The header's name for a tab (QA, 2026-11-26: it said Agents on every tab). */
-  const tabTitle = (tab, label) => ({ now: 'Now', needs: 'Needs you', outputs: 'Outputs' })[tab] || label || 'Master'
+  const tabTitle = (tab, label) => ({ agents: 'Agents', needs: 'Needs you', outputs: 'Outputs' })[tab] || label || 'Master'
 
   const ICON = '<svg class="ph-logo" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><rect x="6" y="6" width="36" height="36" rx="9"/><path d="M16 25.5l5.5 5.5L32 19"/></svg>'
 
@@ -56,29 +55,8 @@
       `<button type="button" class="ph-tab"${attr('data-ph-tab', key)}${tab === key ? ' aria-current="page"' : ''}>` +
       `<span class="ph-tab-label">${esc(text)}</span>${count ? `<span class="ph-badge" aria-label="${esc(`${count} waiting`)}">${count}</span>` : ''}</button>`
     return '<nav class="ph-nav" aria-label="Sections">' +
-      item('now', 'Now', 0) + item('needs', 'Needs you', (n.asks || 0) + (n.hands || 0)) + item('outputs', 'Outputs', n.outputs || 0) + item('talk', label || 'Master', 0) +
+      item('agents', 'Agents', 0) + item('needs', 'Needs you', (n.asks || 0) + (n.hands || 0)) + item('outputs', 'Outputs', n.outputs || 0) + item('talk', label || 'Master', 0) +
       '</nav>'
-  }
-
-  function now(sum, nowMs = Date.now()) {
-    if (!sum) return '<p class="ph-muted ph-pad-top">Loading…</p>'
-    const counts = S.countParts(sum.needs).map(p =>
-      `<button type="button" class="ph-count"${attr('data-ph-tab', p.tab)}><span class="ph-count-n">${p.n}</span><span class="ph-count-l">${esc(p.label)}</span></button>`).join('')
-    const agents = sum.agents === null
-      ? '<p class="ph-muted">Your PC is still gathering what the agents are doing. It shows here in a moment.</p>'
-      : (sum.agents || []).length
-      ? `<ul class="ph-agents">${sum.agents.map(a =>
-        `<li class="ph-agent"><span class="ph-dot${a.busy ? ' is-busy' : ''}" aria-hidden="true"></span><span class="ph-agent-name">${esc(a.label)}</span>` +
-        `<span class="ph-agent-state">${esc(S.agentWord(a))}</span>` +
-        `<span class="ph-agent-flow">${a.flow ? esc(a.flow) : '<span class="ph-faint">no open flow</span>'}</span></li>`).join('')}</ul>`
-      : '<p class="ph-muted">No agents are running on your PC now.</p>'
-    return '<section class="ph-sec" aria-labelledby="phNowH">' +
-      `<h1 id="phNowH" class="ph-big">${esc(S.needsLine(sum.needs?.total))}</h1>` +
-      `<div class="ph-counts">${counts}</div>` +
-      `<h2 class="ph-h">Agents</h2>${agents}` +
-      `<p class="ph-line">Finished today: <b>${Number(sum.finishedToday) || 0}</b></p>` +
-      `<p class="ph-faint">Updated ${esc(S.when(sum.builtAt, nowMs))}</p>` +
-      '</section>'
   }
 
   function askCard(a, ui) {
@@ -145,27 +123,8 @@
     }).join('') + '</section>'
   }
 
-  function talk(th, ui = {}) {
-    if (!th) return '<p class="ph-muted ph-pad-top">Loading…</p>'
-    const label = th.label || 'Master'
-    const items = S.threadItems(th)
-    const list = items.length
-      ? `<ol class="ph-thread">${items.map(x =>
-        `<li class="ph-msg ${x.who === 'you' ? 'is-you' : 'is-them'}${x.state === 'failed' ? ' is-failed' : ''}">` +
-        `<p class="ph-msg-text">${x.who === 'you' ? esc(x.text) : marks(x.text)}</p>` +
-        `<span class="ph-meta">${esc(x.who === 'you' ? 'You' : label)}${S.clock(x.at) ? ` · ${esc(S.clock(x.at))}` : ''}${x.who === 'you' ? ` · ${esc(S.messageWord(x, label))}` : ''}</span></li>`).join('')}</ol>`
-      : `<p class="ph-faint">Replies from ${esc(label)} show here once you write: only what it says after your first message from this phone.</p>`
-    const sending = !!th.busy || !!ui.busy?.talk
-    return '<section class="ph-sec ph-talk" aria-label="' + esc(`Talk to ${label}`) + '">' +
-      `<p class="ph-note">Your message is handed to ${esc(label)} on your PC by a short paid turn (a few cents). ${esc(label)} answers when it gets to it. Your PC must be on.</p>` +
-      (th.running === false ? `<p class="ph-note ph-warn-text">${esc(label)} is not running on your PC now: a message waits until it is.</p>` : '') +
-      list +
-      '<form class="ph-send" data-ph-talk novalidate>' +
-      `<label class="ph-sr" for="phTalk">${esc(`Message to ${label}`)}</label>` +
-      `<textarea id="phTalk" class="ph-input" rows="3" maxlength="2000" data-draft="talk"${attr('placeholder', `Message ${label}`)}></textarea>` +
-      `<button type="submit" class="primary"${sending ? ' disabled' : ''}>${sending ? 'Sending…' : 'Send'}</button></form>` +
-      status(ui, 'talk') + '</section>'
-  }
+  /** The chat (public/phone-chat.js), on the PC clock the thread carries, so its 10 minute wait is the PC one. */
+  const talk = (th, ui = {}) => window.PhoneChat.view(th, ui, Date.parse(th?.now) || Date.now())
 
-  window.PhoneView = { tabTitle, esc, signIn, nav, now, needs, outputs, talk }
+  window.PhoneView = { tabTitle, esc, signIn, nav, needs, askCard, outputs, talk }
 })()

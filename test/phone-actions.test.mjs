@@ -28,9 +28,9 @@ const STEP = { id: 'h1', do: 'Add the deploy secret', where: 'GitHub › Setting
 
 let calls
 let relay
-const talk = { send: async (t, sid) => ({ status: 202, body: { ok: true, text: t, sid } }), threadWithReplies: async sid => ({ label: 'Master', messages: [], replies: [], busy: false, running: true, sid }) }
+const talk = { send: async (t, sid) => ({ status: 202, body: { ok: true, text: t, sid } }), threadWithReplies: async (...a) => ({ label: 'Master', messages: [], busy: false, running: true, args: a.length }) }
 const agents = [{ label: 'Agent 1', state: 'active', status: 'busy' }, { label: 'QA', state: 'idle', status: 'idle' }]
-const actions = () => makePhoneActions({ relay, talk, getStatus: async () => ({ agents }) })
+const actions = () => makePhoneActions({ relay, talk, getStatus: async () => ({ agents }), cost: () => 'Each message costs about 14 cents.' })
 
 beforeEach(() => {
   calls = []
@@ -39,14 +39,14 @@ beforeEach(() => {
   fs.mkdirSync(F.FLOWS_DIR, { recursive: true })
 })
 
-test('the allowlist is exactly: read the summary, answer, tick, complete, and talk to the coordinator', () => {
-  assert.deepEqual([...ACTIONS].sort(), ['answer', 'complete', 'summary', 'talk', 'talkSend', 'tick'])
+test('the allowlist is exactly: read the summary, the orchestration and a flow sheet, answer, tick, complete, and talk to the coordinator', () => {
+  assert.deepEqual([...ACTIONS].sort(), ['answer', 'complete', 'flow', 'orchestration', 'summary', 'talk', 'talkSend', 'tick'])
   assert.deepEqual(Object.keys(actions()).sort(), [...ACTIONS].sort())
 })
 
 // ═══ the summary ═══
 
-test('the summary: what needs the user, each agent in one line, and the questions, by-hand steps and outputs', async () => {
+test('the summary: what needs the user, and the questions, by-hand steps and outputs; no agent lines (the Agents tab has them)', async () => {
   put('asker', { nodes: [ask('a1'), ask('a2', 'text')] })
   put('hands', { agent: 'Agent 2', hand: { steps: [STEP] } })
   put('shipped', { status: 'done', output: { summary: 'Done.', story: [{ id: 's1', who: 'Agent 1', did: 'Built the login page.', why: 'You asked.' }] } })
@@ -54,7 +54,7 @@ test('the summary: what needs the user, each agent in one line, and the question
   const { status, body } = await actions().summary()
   assert.equal(status, 200)
   assert.deepEqual(body.needs, { total: 4, asks: 2, hands: 1, outputs: 1 })
-  assert.deepEqual(body.agents, [{ label: 'Agent 1', busy: true, flow: 'Flow asker' }, { label: 'QA', busy: false, flow: '' }])
+  assert.equal('agents' in body, false)
   assert.equal(body.finishedToday, 0, 'shipped finished a day ago')
   const a = body.asks.find(x => x.nodeId === 'a1')
   assert.deepEqual({ flowId: a.flowId, question: a.question, why: a.why, kind: a.kind, yes: a.yes, no: a.no }, { flowId: 'asker', question: 'Ship a1?', why: 'Because it is ready.', kind: 'yesno', yes: 'ship it', no: 'hold it' })
@@ -70,19 +70,12 @@ test('finished today counts flows finished since local midnight', async () => {
   assert.equal((await actions().summary()).body.finishedToday, 1)
 })
 
-test('a cold status build does not hold the summary: agents is null and the rest comes at once', async () => {
+test('the summary never waits for the status build: it answers at once even when the agents never come', async () => {
   put('asker', { nodes: [ask('a1')] })
   const started = Date.now()
-  const r = await makePhoneActions({ relay, talk, getStatus: () => new Promise(() => {}), agentsWaitMs: 50 }).summary()
-  assert.ok(Date.now() - started < 2000)
-  assert.equal(r.body.agents, null)
+  const r = await makePhoneActions({ relay, talk, getStatus: () => new Promise(() => {}) }).summary()
+  assert.ok(Date.now() - started < 1000)
   assert.equal(r.body.needs.asks, 1)
-})
-
-test('the agents line degrades quietly when the status cannot be built', async () => {
-  const r = await makePhoneActions({ relay, talk, getStatus: async () => { throw new Error('git broke') } }).summary()
-  assert.equal(r.status, 200)
-  assert.deepEqual(r.body.agents, [])
 })
 
 // ═══ answer ═══
@@ -188,19 +181,38 @@ test('complete refuses an unfinished flow with the desktop sentence, and writes 
   assert.equal((await actions().complete({ flowId: 'a/b' })).status, 400)
 })
 
+// ═══ the orchestration (phone-orchestration.mjs, tested on its own) ═══
+
+test('orchestration and flow are the read-only builders, with the alerts passed through', async () => {
+  let asked = 0
+  const a = makePhoneActions({ relay, talk, getStatus: async () => ({ agents }), alerts: async () => (asked++, { status: 200, body: { enabled: true, alerts: [{ text: 'One.' }] } }) })
+  const o = await a.orchestration()
+  assert.equal(o.status, 200)
+  assert.equal(asked, 1)
+  assert.deepEqual(o.body.alerts, { count: 1, kinds: '', lines: ['One.'] })
+  put('seen', { title: 'Seen flow' })
+  assert.equal((await a.flow({ id: 'seen' })).body.title, 'Seen flow')
+  assert.equal((await a.flow({ id: '../x' })).status, 400)
+  assert.deepEqual(calls, [], 'nothing relayed, nothing written')
+})
+
+test('the Pull requests list is passed through to the orchestration (one list for the desktop and the phone)', async () => {
+  const prs = () => [{ url: 'https://github.com/o/r/pull/9', number: 9, title: 'Nine' }]
+  const o = await makePhoneActions({ relay, talk, getStatus: async () => ({ agents }), prs }).orchestration()
+  assert.deepEqual(o.body.prs, [{ title: 'Nine', url: 'https://github.com/o/r/pull/9', number: 9 }])
+  assert.deepEqual((await makePhoneActions({ relay, talk, getStatus: async () => ({ agents }) }).orchestration()).body.prs, [])
+})
+
 // ═══ talk ═══
 
-test('talk reads the thread and sends through phone-talk.mjs, the text as given', async () => {
+test('talk reads the one thread with its cost line, and sends through phone-talk.mjs, the text as given', async () => {
   const a = actions()
-  assert.equal((await a.talk({}, { session: 'abc' })).body.sid, 'abc', 'the thread of THIS phone session')
+  const th = (await a.talk({}, { session: 'abc' })).body
+  assert.equal(th.args, 0, 'the same thread for every phone session: no session is passed')
+  assert.equal(th.cost, 'Each message costs about 14 cents.')
   const r = await a.talkSend({ text: 'hello' }, { session: 'abc' })
   assert.equal(r.status, 202)
   assert.equal(r.body.text, 'hello')
   assert.equal(r.body.sid, 'abc')
 })
 
-test('an agent line never shows a raw session id: an unmapped session is an Unnamed session (QA, 2026-11-26)', async () => {
-  const raw = [{ label: '3f2a9c1e-7b4d-4e21-9a0b-6c5d4e3f2a1b', state: 'idle' }, { label: '', state: 'idle' }, { label: 'Agent 2', state: 'idle' }]
-  const { body } = await makePhoneActions({ relay, talk, getStatus: async () => ({ agents: raw }) }).summary()
-  assert.deepEqual(body.agents.map(a => a.label), ['Unnamed session', 'Unnamed session', 'Agent 2'])
-})

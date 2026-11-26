@@ -20,9 +20,15 @@
 </head>
 <body>
 <!-- The phone page (phone-server.mjs serves it on the phone listener only). phone-app.js draws everything into #app. -->
-<div id="app" class="ph-root"><noscript><p class="ph-muted">This page needs JavaScript.</p></noscript></div>
+<!-- A quiet Loading line from the first paint: the page draws nothing else until its first answer from the PC. -->
+<div id="app" class="ph-root"><p class="ph-muted ph-boot" role="status">Loading…</p><noscript><p class="ph-muted">This page needs JavaScript.</p></noscript></div>
 <script src="/phone/phone-state.js"></script>
+<script src="/phone/phone-text.js"></script>
+<script src="/phone/phone-chat.js"></script>
 <script src="/phone/phone-view.js"></script>
+<script src="/phone/phone-agents.js"></script>
+<script src="/phone/phone-composer.js"></script>
+<script src="/phone/phone-chat-live.js"></script>
 <script src="/phone/phone-app.js"></script>
 </body>
 </html>

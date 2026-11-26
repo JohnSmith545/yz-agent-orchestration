@@ -18,10 +18,10 @@ const dir = process.env.FACTORY_DATA_DIR
 let n = 0
 const SENT = JSON.stringify({ type: 'result', result: 'SENT', total_cost_usd: 0.031, is_error: false })
 
-function talk({ run = async () => ({ ok: true, out: SENT, err: '' }), transcript = async () => null, running = async () => true, now } = {}) {
+function talk({ run = async () => ({ ok: true, out: SENT, err: '' }), transcript = async () => null, running = async () => true, now, log = () => {} } = {}) {
   const file = path.join(dir, `talk-${n++}.json`)
   const prompts = []
-  const t = T.makeTalk({ file, agent: 'Coordinator', label: 'Master', run: async p => (prompts.push(p), run(p)), transcript, running, ...(now ? { now } : {}) })
+  const t = T.makeTalk({ file, agent: 'Coordinator', label: 'Master', run: async p => (prompts.push(p), run(p)), transcript, running, log, ...(now ? { now } : {}) })
   return { t, file, prompts }
 }
 
@@ -58,12 +58,12 @@ test('a failed delivery says so and keeps the text; a turn that throws fails the
   const m = failed.t.thread().messages[0]
   assert.equal(m.state, 'failed')
   assert.equal(m.text, 'are you there')
-  assert.match(m.error, /no session named Coordinator/)
+  assert.equal(m.error, 'Master has no session open. Open it on the PC, then send again.', 'in plain words')
   const threw = talk({ run: async () => { throw new Error('spawn ENOENT') } })
   await threw.t.send('again')
   await threw.t.settled()
   assert.equal(threw.t.thread().messages[0].state, 'failed')
-  assert.match(threw.t.thread().messages[0].error, /ENOENT/)
+  assert.equal(threw.t.thread().messages[0].error, T.REASONS.start)
 })
 
 test('one message in flight at a time: a second send while the first is on its way is refused, not queued', async () => {
@@ -136,9 +136,9 @@ test('replies are the coordinator text only: no tool calls, results, thinking, s
   const { t } = talk({ transcript: async () => file, now: () => new Date('2026-11-25T07:00:00Z') })
   await t.send('before all of them', 's1')
   await t.settled()
-  const th = await t.threadWithReplies('s1')
-  assert.deepEqual(th.replies.map(r => r.text), ['On it.', 'Done: the page is up.', 'Next I will test it.'])
-  assert.equal(th.replies[0].at, '2026-11-25T08:00:05Z')
+  const th = await t.threadWithReplies()
+  assert.deepEqual(th.messages[0].replies.map(r => r.text), ['On it.', 'Done: the page is up.', 'Next I will test it.'])
+  assert.equal(th.messages[0].replies[0].at, '2026-11-25T08:00:05Z')
   const all = JSON.stringify(th)
   for (const s of ['rm -rf', 'secret output', 'private thought', 'subagent speaking', 'API Error']) assert.equal(all.includes(s), false, s)
   assert.equal(th.label, 'Master')
@@ -150,12 +150,10 @@ test('consecutive text records are one reply', () => {
   assert.deepEqual(r, [{ at: 'a', text: 'one\n\ntwo' }])
 })
 
-test('the newest replies that fit are kept, and a long one is cut at its start', () => {
+test('a long reply is cut at its start to the per-reply cap; repliesOf keeps every reply', () => {
   // a tool result between each, so each is its own reply (consecutive text records are one reply)
   const recs = Array.from({ length: 40 }, (_, i) => [{ type: 'assistant', timestamp: `2026-11-25T08:${String(i).padStart(2, '0')}:00Z`, message: { content: [{ type: 'text', text: `reply ${i} ` + 'x'.repeat(400) }] } }, { type: 'user', message: { content: [{ type: 'tool_result' }] } }]).flat()
-  const out = T.repliesOf(recs)
-  assert.ok(out.length < 40)
-  assert.match(out.at(-1).text, /^reply 39/)
+  assert.equal(T.repliesOf(recs).length, 40)
   const long = T.repliesOf([{ type: 'assistant', timestamp: '2026-11-25T08:00:00Z', message: { content: [{ type: 'text', text: 'y'.repeat(T.REPLY_MAX * 3) }] } }])
   assert.ok(long[0].text.length <= T.REPLY_MAX + 2)
   assert.ok(long[0].text.startsWith('…'))
@@ -164,12 +162,14 @@ test('the newest replies that fit are kept, and a long one is cut at its start',
 test('no transcript, or one that cannot be read: no replies and no error', async () => {
   for (const transcript of [async () => null, async () => path.join(dir, 'missing.jsonl'), async () => { throw new Error('boom') }]) {
     const { t } = talk({ transcript })
+    await t.send('hello')
+    await t.settled()
     const th = await t.threadWithReplies()
-    assert.deepEqual(th.replies, [])
+    assert.deepEqual(th.messages[0].replies, [])
   }
 })
 
-// ═══ review round: the marker, and only this phone's conversation ═══
+// ═══ review round: the marker ═══
 
 test('the phone marker is a fixed first line with the limits, and message text can neither forge nor remove it', async () => {
   assert.match(T.PHONE_MARKER, /^\[From the user's phone, signed in with the phone PIN\./)
@@ -186,35 +186,94 @@ test('the phone marker is a fixed first line with the limits, and message text c
   assert.ok(lines[2].includes(JSON.stringify(forged)))
 })
 
-test('before this phone session sends anything, the thread shows no replies at all', async () => {
+// ═══ the chat: one thread for every signed-in phone, each reply under the message it followed ═══
+
+test('before the first phone message ever, the thread is empty: no reply at all', async () => {
   const file = path.join(dir, 'coord2.jsonl')
   fs.writeFileSync(file, LINES.join('\n'))
   const { t } = talk({ transcript: async () => file })
-  const th = await t.threadWithReplies('s1')
-  assert.deepEqual(th.replies, [])
+  const th = await t.threadWithReplies()
   assert.deepEqual(th.messages, [])
+  assert.equal(JSON.stringify(th).includes('On it.'), false)
 })
 
-test('after a message, only the replies written AFTER this session first wrote', async () => {
+test('only the replies written AFTER the first phone message are shown', async () => {
   const file = path.join(dir, 'coord3.jsonl')
   fs.writeFileSync(file, LINES.join('\n'))
   const { t } = talk({ transcript: async () => file, now: () => new Date('2026-11-25T08:00:30Z') })
   await t.send('how is it going', 's1')
   await t.settled()
-  const th = await t.threadWithReplies('s1')
-  assert.deepEqual(th.replies.map(r => r.text), ['Done: the page is up.', 'Next I will test it.'])
+  const th = await t.threadWithReplies()
+  assert.deepEqual(th.messages[0].replies.map(r => r.text), ['Done: the page is up.', 'Next I will test it.'])
 })
 
-test('another phone session sees neither the messages nor the replies of this one', async () => {
+test('every signed-in phone sees the same thread: messages from any session, each reply under the message before it', async () => {
   const file = path.join(dir, 'coord4.jsonl')
   fs.writeFileSync(file, LINES.join('\n'))
-  const { t } = talk({ transcript: async () => file, now: () => new Date('2026-11-25T07:00:00Z') })
-  await t.send('mine', 's1')
+  const times = ['2026-11-25T07:59:00Z', '2026-11-25T08:00:30Z', '2026-11-25T08:02:30Z']
+  let i = 0
+  const { t } = talk({ transcript: async () => file, now: () => new Date(times[Math.min(i, 2)]) })
+  for (const [text, sid] of [['first, from phone A', 'sA'], ['second, from phone B', 'sB'], ['third, from phone A', 'sA']]) {
+    await t.send(text, sid)
+    await t.settled()
+    i++
+  }
+  const th = await t.threadWithReplies()
+  assert.deepEqual(th.messages.map(m => [m.text, m.replies.map(r => r.text)]), [
+    ['first, from phone A', ['On it.']],
+    ['second, from phone B', ['Done: the page is up.']],
+    ['third, from phone A', ['Next I will test it.']],
+  ])
+  assert.equal(JSON.stringify(th).includes('sA'), false, 'which phone session sent a message never leaves the PC')
+  assert.equal(JSON.stringify(th).includes('"sid"'), false)
+})
+
+test('matchReplies: a reply at the very time of a message, before the first, or with no time is never shown', () => {
+  const msgs = [{ id: 'a', at: '2026-11-25T10:00:00Z' }, { id: 'b', at: '2026-11-25T11:00:00Z' }]
+  const out = T.matchReplies(msgs, [
+    { at: '2026-11-25T09:59:59Z', text: 'before' }, { at: '2026-11-25T10:00:00Z', text: 'same time' }, { at: null, text: 'no time' },
+    { at: '2026-11-25T10:30:00Z', text: 'to a' }, { at: '2026-11-25T11:00:00Z', text: 'still a' }, { at: '2026-11-25T11:00:01Z', text: 'to b' },
+  ])
+  assert.deepEqual(out.map(m => m.replies.map(r => r.text)), [['to a', 'still a'], ['to b']])
+  assert.deepEqual(T.matchReplies([], [{ at: '2026-11-25T10:30:00Z', text: 'x' }]), [])
+})
+
+test('each exchange keeps its newest replies that fit EXCHANGE_MAX; the thread keeps the last 30 messages', () => {
+  const replies = Array.from({ length: 12 }, (_, i) => ({ at: `2026-11-25T10:${String(i + 1).padStart(2, '0')}:00Z`, text: `r${i} ` + 'x'.repeat(T.REPLY_MAX - 10) }))
+  const [one] = T.matchReplies([{ id: 'a', at: '2026-11-25T10:00:00Z' }], replies)
+  const size = one.replies.reduce((k, r) => k + r.text.length, 0)
+  assert.ok(size <= T.EXCHANGE_MAX)
+  assert.match(one.replies.at(-1).text, /^r11 /, 'the newest stays')
+  assert.ok(one.replies.length >= 1 && one.replies.length < 12)
+  assert.equal(T.KEEP, 30)
+})
+
+test('a delivered message carries when it was delivered; a failed one does not', async () => {
+  const good = talk({ now: () => new Date('2026-11-25T10:00:00Z') })
+  await good.t.send('hi')
+  await good.t.settled()
+  assert.equal(good.t.thread().messages[0].deliveredAt, '2026-11-25T10:00:00.000Z')
+  const bad = talk({ run: async () => ({ ok: true, out: 'FAILED: nope', err: '' }) })
+  await bad.t.send('hi')
+  await bad.t.settled()
+  assert.equal(bad.t.thread().messages[0].deliveredAt, undefined)
+})
+
+test('the transcript is read again only when it changed (size or time), so a 5 s poll costs little', async () => {
+  const file = path.join(dir, 'coord5.jsonl')
+  fs.writeFileSync(file, LINES.join('\n'))
+  const { readTail } = await import('../script-session.mjs')
+  let reads = 0
+  const t = T.makeTalk({ file: path.join(dir, `talk-${n++}.json`), agent: 'Coordinator', label: 'Master', run: async () => ({ ok: true, out: 'SENT' }), transcript: async () => file, now: () => new Date('2026-11-25T07:00:00Z'), readRecords: async (f, b) => (reads++, readTail(f, b)) })
+  await t.send('x')
   await t.settled()
-  const other = await t.threadWithReplies('s2')
-  assert.deepEqual(other.messages, [])
-  assert.deepEqual(other.replies, [])
-  assert.equal((await t.threadWithReplies('s1')).messages.length, 1)
+  await t.threadWithReplies()
+  await t.threadWithReplies()
+  assert.equal(reads, 1)
+  fs.appendFileSync(file, '\n' + rec({ type: 'assistant', message: { content: [{ type: 'text', text: 'Later, and a bit longer.' }] } }, '2026-11-25T08:05:00Z'))
+  const th = await t.threadWithReplies()
+  assert.equal(reads, 2)
+  assert.match(th.messages[0].replies.at(-1).text, /Later, and a bit longer.$/)
 })
 
 test('docs/agent-brief.md gives the coordinator the same rule, word for word, under Phone messages', async () => {
@@ -232,4 +291,43 @@ test('a message while the coordinator has no session open runs no paid turn: fai
   const m = t.thread().messages.at(-1)
   assert.equal(m.state, 'failed')
   assert.equal(m.error, 'Master has no session open. Open it on the PC, then send again.')
+})
+
+// ═══ the reason, in plain words (QA, 2026-11-26: a failed message said Not delivered: ENOENT) ═══
+
+test('relay and spawn errors become plain words; the raw code goes to the server log only', async () => {
+  const cases = [
+    [{ ok: false, out: '', err: 'ENOENT' }, T.REASONS.start],
+    [{ ok: false, out: '', err: 'no claude binary: not found on PATH' }, T.REASONS.start],
+    [{ ok: false, out: '', err: 'failed to start' }, T.REASONS.start],
+    [{ ok: false, out: '', err: 'spawn EACCES' }, T.REASONS.start],
+    [{ ok: false, out: '', err: 'timed out after 120 s' }, T.REASONS.busy],
+    [{ ok: false, out: '', err: 'API Error: 529 Overloaded' }, T.REASONS.busy],
+    [{ ok: false, out: '', err: 'rate limit reached, 429' }, T.REASONS.busy],
+    [{ ok: true, out: 'FAILED: no session named Coordinator', err: '' }, 'Master has no session open. Open it on the PC, then send again.'],
+    [{ ok: true, out: 'FAILED: no agent called Coordinator is running', err: '' }, 'Master has no session open. Open it on the PC, then send again.'],
+    [{ ok: false, out: '', err: 'exited with code 3' }, T.REASONS.other],
+    [{ ok: true, out: 'something odd', err: '' }, T.REASONS.other],
+  ]
+  for (const [answer, words] of cases) {
+    const logged = []
+    const { t } = talk({ run: async () => answer, log: l => logged.push(l) })
+    await t.send('hello')
+    await t.settled()
+    const m = t.thread().messages[0]
+    assert.equal(m.state, 'failed')
+    assert.equal(m.error, words, JSON.stringify(answer))
+    assert.doesNotMatch(JSON.stringify(t.thread()), /ENOENT|EACCES|spawn|exited with code|429|529|FAILED:/, 'no raw code reaches the page')
+    assert.equal(logged.length, 1)
+    assert.match(logged[0], /^phone: a message to Master was not delivered: /)
+  }
+})
+
+test('an old raw reason kept in the file is shown in plain words too; a plain reason stays as it is', () => {
+  const { file } = talk()
+  fs.writeFileSync(file, JSON.stringify({ messages: [{ id: 'a1', at: '2026-11-25T09:00:00.000Z', text: 'x', state: 'failed', error: 'spawn ENOENT' }, { id: 'a2', at: '2026-11-25T09:01:00.000Z', text: 'y', state: 'failed', error: T.REASONS.busy }] }))
+  const t = T.makeTalk({ file, agent: 'Coordinator', label: 'Master', run: async () => ({ ok: true, out: 'SENT' }), transcript: async () => null })
+  assert.deepEqual(t.thread().messages.map(m => m.error), [T.REASONS.start, T.REASONS.busy])
+  for (const plain of Object.values(T.REASONS)) assert.equal(T.plainReason(plain, 'Master'), plain, 'idempotent')
+  assert.equal(T.plainReason(T.plainReason('spawn ENOENT', 'Master'), 'Master'), T.REASONS.start)
 })

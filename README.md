@@ -167,8 +167,9 @@ rail adds up what these turns cost.
 
 ## Configuration
 
-Six pages sit in a rail on the left: **Home**, **Flows**, **Tickets**,
-**Timeline**, **Agents** and **Subagents** (one agent's live view opens from Agents or Subagents). Pages
+The pages sit in a rail on the left, in four groups: **Work** (Home, Flows, Tickets, Generators), **Agents**
+(Agents, Subagents, Orchestration bank, Routing), **Quality** (QA, Lessons, Learn) and **History** (Timeline,
+Flow archive, Glossary), with Settings at the foot (one agent's live view opens from Agents or Subagents). Pages
 refresh themselves; the Refresh button in the page header rebuilds at once.
 
 `config.json` stays on your machine (it is in `.gitignore`):
@@ -227,10 +228,20 @@ mode is `:root[data-theme="dark"]`.
 
 `public/shell.js` and `shell.css` draw the frame every page shares.
 
-- **The rail** (56 px, icons only): the brand mark (Home), then Flows first, QA, Generators, Tickets,
-  Timeline, Agents, Subagents, Glossary, and at the foot Ask, Alerts, Spend and Theme. Hover it for 300 ms,
+- **The rail** (56 px, icons only): the brand mark and the Project menu, then the pages in four groups,
+  Work (Home, Flows, Tickets, Generators), Agents (Agents, Subagents, Orchestration bank, Routing), Quality
+  (QA, Lessons, Learn) and History (Timeline, Flow archive, Glossary), and at the foot Ask, Alerts, Spend,
+  Phone on (while phone access is on), Settings and Theme. A thin line marks each group; open, the group's
+  name sits on it, and a screen reader hears it as a heading. Hover it for 300 ms,
   or Tab into it, and it opens to 200 px with labels; the pin at the top keeps
-  it open (remembered). Under 720 px wide the rail is a bar along the bottom.
+  it open (remembered). On a short window only the groups scroll, inside the rail; the foot stays put.
+  Under 720 px wide the rail is a bar along the bottom with only Home, Flows, Tickets, Agents, Ask and
+  **More**; More opens a sheet with every other page in its group, then Alerts, Spend today, Phone on,
+  Settings and Theme (`public/rail-more.js`, the bar's pages in `RailGroups.bar`).
+  **One place orders the pages:** `public/rail-groups.js`. A new page adds its link by group and by name,
+  `RailGroups.add('agents', { view, href, label, icon }, { after: 'subagents' })`, never by appending to the
+  rail; a group that does not exist puts it in a final More group with a console warning, and
+  `test/rail-groups.test.mjs` fails while a page in the shell has no rail link. The palette lists the same groups.
   The routes are `#/` (Flows, the landing page), `#/flows` (the same page, so old links keep working),
   `#/home`, `#/qa` (and `#/qa/<flow id>` for one ticket), `#/generators` (and `#/generators?tool=standup` for the Standup creator; `#/brainstorming` and `#/script` still land there),
   `#/tickets`, `#/timeline`, `#/agents`, `#/subagents`, `#/glossary`, `#/settings`
@@ -311,7 +322,8 @@ mode is `:root[data-theme="dark"]`.
   (`reminder.<date>.<HH:MM>`), so a reload the same day stays quiet and a page
   left open overnight fires again the next day. A page opened after the time
   still shows that day's reminder once.
-- **Spend today** (`public/spend.js`, `spend.mjs`): above Theme, `$12.40 today`
+- **Spend today** (`public/spend.js`, `spend.mjs`): above Theme, the amount (its
+  label, Spend today, beside it when the rail is open; the exact sum in its tooltip)
   is what the dashboard's OWN headless turns cost today: the chat, the answer
   relay, the explainer, the ticket refreshes, the Prompt generator and the Standup creator. It is hidden while today is
   zero, and the closed rail shows the short amount (`$4.20`, `$12`). Click it
@@ -331,7 +343,7 @@ mode is `:root[data-theme="dark"]`.
   hint), `Theme: light`, `Theme: dark`, `Theme: system` and Mark read (while
   the Since card shows). It never opens over the report modal. Prefix matches
   come first, then text found anywhere in the name or its hint, 12 at most;
-  an empty box lists the pages and the actions. Up and Down choose, Enter
+  an empty box lists every page under the rail's group names, then Settings and the actions. Up and Down choose, Enter
   opens, Escape closes. It makes no request: it searches what the pages
   already loaded, so tickets show once the Tickets page has loaded them, and
   flows once Home or Flows has. `Ctrl+K` while you type in another field is
@@ -392,7 +404,7 @@ story, the rules and the costs are in the user guide: [Plain story, marked words
 
 ### Home (#/home)
 
-Home moved from `#/` to `#/home` when Flows became the landing page; the brand mark at the top of the rail opens it.
+Home moved from `#/` to `#/home` when Flows became the landing page; it is the first link of the rail's Work group, and the brand mark at the top opens it too.
 
 Zones, top to bottom: **Since 23:10** (only when something happened since you
 last pressed its `Mark read`: flows that changed status, answers delivered,
@@ -1787,7 +1799,7 @@ at that. Each model run is ONE short headless turn on Sonnet 5.5 at low effort (
 `script.mjs`), one at a time, its cost recorded in the spend chip; a model never changes a lesson, a flow or a setting
 by itself.
 
-**The lessons library** (`#/lessons`, the last link on the rail; `data/lessons.json`, `quality-lessons.mjs`). A
+**The lessons library** (`#/lessons`, in the rail's Quality group; `data/lessons.json`, `quality-lessons.mjs`). A
 lesson is one plain sentence of at most 160 characters in one area (tests, ui, routes, data, docs, process, infra,
 general; `quality.areas` adds more), with how often it was seen and the flows that taught it. When QA, Security or
 Senior records a failure, one run (`quality-extract.mjs`) reads its summary and report and proposes up to 3 lessons;
@@ -1875,7 +1887,7 @@ token counts already record. **No model is run**: nothing here costs anything.
 
 ## Routing (#/routing) and ticket intake
 
-The **Routing** page (last on the rail) holds plain rules that SUGGEST who does a task and on what: the first rule
+The **Routing** page (in the rail's Agents group) holds plain rules that SUGGEST who does a task and on what: the first rule
 that fits the task's type, risk and size names an agent, a model and an effort, with a one-line why. Defaults live
 in `routing-rules.mjs` (small wording fixes go to Sonnet 5.5 at medium effort); the page saves your own list to
 `routing.rules` in `config.json` after a plain confirm, every other line of the file kept. A list with any bad rule
@@ -1962,6 +1974,34 @@ Each of the four works alone; `smart-wiring.mjs` connects them (in `server.mjs`,
 A feature that fails to answer never breaks the one that reads it: Learn names the section as left out, the others
 carry on without that part.
 
+## Pull requests (the list that fades into fog)
+
+Every pull request an agent opened for a flow and that is still open on GitHub, as a small block titled
+**Pull requests** at the top of the Agents page, under the Alerts line (`#/agents?prs` scrolls to it), and on Home
+under the lines at the top. Nothing shows while there is none.
+
+- **What is on it.** A flow names its pull request by the link Send stored (`output.pr`), or by the branch the agent
+  recorded with `flow pr` (`output.merge`), so one an agent opened itself is found too (`gh pr list --head`). Open
+  and draft ones are listed, newest first; two flows naming the same pull request show it once. An item **leaves**
+  when its pull request is merged or closed on GitHub (within about a minute), or when you mark its flow
+  **Completed**; archiving alone is not enough. `prlist-items.mjs`.
+- **The fog.** No numbers, no bullets. The newest is full size and clear, with a small line under it: the agent, how
+  long ago it opened, its checks (passing, failing, running, none), and whether it needs you (`waiting for your
+  review`, or `ready for you to merge` when it is mergeable and green; a small accent dot marks it). Each one under
+  it is a little smaller, shows less of its title and fades further (opacity 1, 0.62, 0.38, 0.22, 0.12, a mask
+  thinning each line towards its end, fading to the page's own background in light and dark). At most 5 show, then
+  `and 3 more`, which unfolds the rest. Point at a faded one, or reach it with the keyboard, and it comes back into
+  full view. Every title is a real link to the pull request (a new tab), each with **Open the flow**; a screen reader
+  hears a plain list with the full titles. `public/prlist-view.js`, `public/prlist.css`.
+- **The move up.** When the first leaves it fades up and out while the rest slide up one place, each growing to its
+  new step, over about 400 ms; a new one fades in at the top. With reduced motion the list simply redraws.
+  `public/prlist.js`.
+- **Route.** `GET /api/prs` (no-store): `{ items, checkedAt, problem }`, answered at once from memory. The server
+  reads the states in the background with `gh pr view` and `gh pr list` (read only, never anything that writes),
+  at most once a minute, four at a time with an 8 s limit each, and never reads a merged or closed one again. A read
+  that fails keeps the last good state and the block says so under the list. The page asks every 30 s while the tab
+  is visible, and at once when you come back to it. `prlist-store.mjs`, `prlist-routes.mjs`. No setting.
+
 ## Phone access
 
 A phone view of the dashboard, so you can see what needs you and talk to the coordinator from your phone. It
@@ -1980,10 +2020,15 @@ dashboard keeps listening on `127.0.0.1` only.
 4. Within a few seconds a running dashboard listens (no restart needed). On the phone, open the address it prints (`http://<address>:4318/phone`), sign in,
    and add the page to the home screen.
 
-**What the phone can do**, and nothing else: see how many things need you and what each agent is doing; answer
+**What the phone can do**, and nothing else: see how many things need you, and on the Agents tab the pipeline from
+Request to Output with each agent's state, the flows standing at each box (a tap opens a read-only sheet), the
+alerts and the open pull requests (the same list as the desktop Pull requests block, read from its memory, so the
+phone adds no GitHub read) (`GET /phone/api/orchestration` and `/phone/api/flow?id=`, read only); answer
 an open question (once: changing an answer stays on the PC); tick a by-hand step; mark a finished output
-Completed; and send a message to the coordinator and read its replies written after your first message from that
-phone (never its other work). Each message reaches the coordinator after a fixed first line, the same rule
+Completed; and chat with the coordinator. The chat is one thread shared by every phone signed in with the PIN (they
+are all you): the last 30 messages, each with the coordinator's written replies that followed it, so it survives a
+new sign-in. Replies written before the first phone message are never shown, nor anything but its written words
+(no tool calls, results or thinking). Each message reaches the coordinator after a fixed first line, the same rule
 `docs/agent-brief.md` gives it under Phone messages: it came from the phone, so nothing destructive, pushed,
 deployed or live, and no settings change, until you confirm at the PC. There is no delete, archive,
 settings, rules, config, Finish without Senior, Send or Generate on the phone. An answer and a message each go
@@ -2011,7 +2056,7 @@ hand out the same subnet cannot be told apart, which Tailscale avoids. **Never f
 
 Nothing about it happens quietly: the Settings page's **Phone** card shows whether it is on, the address, when the
 PIN was set, recent sign-ins and lockouts, **Sign out everywhere** and **Turn phone access off**; while it is on,
-the rail ends with a **Phone on** badge. Every sign-in, lockout, PIN change and change of `remote.enabled`,
+the rail's foot shows a **Phone on** badge above Settings. Every sign-in, lockout, PIN change and change of `remote.enabled`,
 `bind` or the PIN hash in config.json raises a desktop notice and a line in the Log, and a PIN that `phone-pin`
 did not write is called out as changed outside the setup command. Turning it on is only ever done in a terminal,
 which is no wall against a local agent that can write config.json: these notices are how you would see it.
@@ -2019,7 +2064,10 @@ which is no wall against a local agent that can write config.json: these notices
 The phone listener serves only `/phone`, its own files, sign-in and sign-out, and the phone's own API: every
 desktop page, `/api/*` route, evidence file and config is a 404 there. Each write needs the session cookie
 (HttpOnly, SameSite=Strict), the page's own Origin and a per-session CSRF token; requests are rate limited per
-session and per address, and every answer is `no-store` with a strict Content-Security-Policy.
+session and per address, and every answer carries a strict Content-Security-Policy. The API is `no-store`. The
+page's own files are cacheable: the page links each with a version of its content (`?v=`), which the browser keeps
+for a year, and the page itself is checked with its ETag. A `304` (nothing changed) does not count against the
+per-address limit, so reloading the page never uses it up (it used to: a `429` on one script left a blank page).
 
 ## License
 

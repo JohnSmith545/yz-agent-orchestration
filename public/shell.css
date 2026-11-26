@@ -27,13 +27,36 @@ body.drawer-open { padding-right: var(--drawer-w); }
    (:has(:focus-visible), not :focus-within, so a mouse click on an item does not
    leave the rail open). */
 #rail.open, #rail:has(:focus-visible), .rail-pinned #rail { width: var(--rail-w-open); }
-.rail-top { position: relative; margin-bottom: 8px; }
-.rail-nav, .rail-bottom { display: flex; flex-direction: column; gap: 2px; }
-.rail-bottom { margin-top: auto; }
+.rail-top { position: relative; flex: none; margin-bottom: 4px; }
+.rail-nav, .rail-bottom { display: flex; flex-direction: column; gap: 0; }
+.rail-bottom { flex: none; margin-top: auto; }
+
+/* The page links in their groups (rail-groups.js). ONLY this middle part scrolls, inside the rail, when the window
+   is too short for all of it: the brand, the project and the bottom block stay where they are. No scrollbar while
+   the rail is closed (it would eat into the 56 px); a thin one while it is open. */
+.rail-nav { flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+#rail.open .rail-nav, #rail:has(:focus-visible) .rail-nav, .rail-pinned #rail .rail-nav { scrollbar-width: thin; }
+.rail-group { flex: none; display: flex; flex-direction: column; }
+/* A group's head: closed, a short hairline where the group starts; open, the group's name sits on that line at the
+   left, its background cutting the line (the type of the other block heads: 11 px, 600, upper case, faint). The head
+   is the same 16 px either way, so nothing moves when the rail opens under the pointer. */
+.rail-group-head { position: relative; flex: none; height: 16px; margin-top: 4px; }
+.rail-group:first-child .rail-group-head { margin-top: 0; }
+.rail-group-head::before { content: ""; position: absolute; left: 14px; right: 14px; top: 50%; border-top: 1px solid var(--line); }
+.rail-group-label {
+  position: absolute; left: 10px; top: 50%; margin: 0; padding: 0 6px; transform: translateY(-50%);
+  background: var(--bg); color: var(--faint); font-size: 11px; font-weight: 600; line-height: 1; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap;
+  opacity: 0; transition: opacity .15s ease; pointer-events: none;
+}
+#rail.open .rail-group-label, #rail:has(:focus-visible) .rail-group-label, .rail-pinned #rail .rail-group-label { opacity: 1; }
+/* The bottom block (Ask, Alerts, Spend, Phone on, Settings, Theme) starts with the same hairline. */
+.rail-bottom::before { content: ""; flex: none; height: 1px; margin: 4px 14px; background: var(--line); }
+/* The Phone on slot (phone-notice.js) is no box of its own: its badge is one more item of the bottom block. */
+#railPhone { display: contents; }
 
 .rail-item {
   position: relative; display: flex; align-items: center; gap: 4px;
-  width: 100%; height: 40px; padding: 0; border: 0; border-radius: 0; background: none;
+  width: 100%; height: 36px; padding: 0; border: 0; border-radius: 0; background: none;
   color: var(--muted); text-decoration: none; font: inherit; font-size: 13.5px; font-weight: 500;
   cursor: pointer; white-space: nowrap;
 }
@@ -42,11 +65,14 @@ body.drawer-open { padding-right: var(--drawer-w); }
 .rail-item[aria-current="page"] { color: var(--ink); }
 .rail-item[aria-current="page"] .rail-icon { background: var(--surface-3); }
 .rail-item[aria-current="page"]::before {
-  content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 2px; border-radius: 0 2px 2px 0; background: var(--accent);
+  content: ""; position: absolute; left: 0; top: 9px; bottom: 9px; width: 2px; border-radius: 0 2px 2px 0; background: var(--accent);
 }
+/* 36 px rows with no gap between them and a 32 px icon box (they were 40 px, 2 px apart, with a 36 px box): the hover
+   boxes keep 4 px between them, and the group heads cost no height overall, so the whole rail still fits a 900 px
+   high window without scrolling (on a shorter one the groups scroll, above). */
 .rail-icon {
   position: relative; flex: none; display: grid; place-items: center;
-  width: 36px; height: 36px; margin-left: 10px; border-radius: var(--radius);
+  width: 32px; height: 32px; margin-left: 12px; border-radius: var(--radius);
   transition: background-color .15s ease, transform .12s ease;
 }
 /* The Dock (spec 8): the hovered icon at 1.1, its neighbours at 1.03. Transform
@@ -78,7 +104,7 @@ body.drawer-open { padding-right: var(--drawer-w); }
 
 /* The pin: only reachable once the rail is open. */
 .rail-pin {
-  position: absolute; right: 8px; top: 4px; width: 32px; height: 32px; padding: 0; border: 0; border-radius: var(--radius);
+  position: absolute; right: 8px; top: 2px; width: 32px; height: 32px; padding: 0; border: 0; border-radius: var(--radius);
   display: grid; place-items: center; background: none; color: var(--faint);
   opacity: 0; pointer-events: none; transition: opacity .15s ease;
 }
@@ -91,10 +117,10 @@ body.drawer-open { padding-right: var(--drawer-w); }
 /* Alerts: notify.js puts its bell in this slot; the bell opens the alert panel below. */
 #railAlerts { cursor: default; }
 #railAlerts .nt-bell {
-  display: flex; align-items: center; gap: 4px; width: 100%; height: 40px; padding: 0 0 0 10px;
+  display: flex; align-items: center; gap: 4px; width: 100%; height: 36px; padding: 0 0 0 12px;
   border: 0; border-radius: 0; background: none; color: var(--muted); font-size: 13.5px; font-weight: 500;
 }
-#railAlerts .nt-bell svg { flex: none; box-sizing: content-box; padding: 8px; border-radius: var(--radius); transition: background-color .15s ease, transform .12s ease; }
+#railAlerts .nt-bell svg { flex: none; box-sizing: content-box; padding: 6px; border-radius: var(--radius); transition: background-color .15s ease, transform .12s ease; }
 #railAlerts .nt-bell:hover { color: var(--ink); }
 #railAlerts .nt-bell:hover svg { background: var(--surface-2); }
 #railAlerts .nt-bell.on { color: var(--accent); }
@@ -102,8 +128,8 @@ body.drawer-open { padding-right: var(--drawer-w); }
 #rail.open #railAlerts .nt-bell::after, #rail:has(:focus-visible) #railAlerts .nt-bell::after, .rail-pinned #rail #railAlerts .nt-bell::after { opacity: 1; transform: none; }
 #railAlerts .nt-count { top: 2px; left: 34px; right: auto; }
 
-/* Spend today (spend.js, spec F4): the short amount in the icon box, `$12.40 today` as the
-   label. The slot is a .rail-item, so the Dock hover and the label fade come from above;
+/* Spend today (spend.js, spec F4): the short amount in the icon box, `Spend today` as the
+   label (the amount shows once). The slot is a .rail-item, so the Dock hover and the label fade come from above;
    the button fills it and resets the global button look. Its ? popover is help.js's. */
 #railSpend { cursor: default; }
 #railSpend .sp-chip {
@@ -278,7 +304,9 @@ body.drawer-open { padding-right: var(--drawer-w); }
     flex-direction: row; align-items: center; justify-content: space-around; gap: 0;
     padding: 0 4px; border-right: 0; border-top: 1px solid var(--line);
   }
-  .rail-top, .rail-nav, .rail-bottom { display: contents; }
+  .rail-top, .rail-nav, .rail-bottom, .rail-group { display: contents; }
+  /* one bar, no group heads; Home is in the bar already, so the brand mark is not shown twice */
+  .rail-group-head, .rail-bottom::before, .rail-brand { display: none; }
   /* every entry takes an equal share and may shrink, so the bar fits a phone however many entries it has */
   .rail-item, #railAlerts, #railAlerts .nt-bell { flex: 1 1 0; min-width: 0; width: auto; height: var(--rail-w); padding: 0; justify-content: center; }
   .rail-icon { flex: 0 1 36px; min-width: 0; margin: 0; }
@@ -294,7 +322,7 @@ body.drawer-open { padding-right: var(--drawer-w); }
 @media (prefers-reduced-motion: reduce) {
   #drawer, #railAsk.busy .rail-icon::after, .nt-panel, .help-pop { animation: none; }
   #railAsk .rail-icon::after { transition: none; }
-  .rail-label, .rail-pin, .theme-dot, #railAlerts .nt-bell::after { transition: none; }
+  .rail-label, .rail-pin, .theme-dot, #railAlerts .nt-bell::after, .rail-group-label { transition: none; }
   /* no Dock, no sheen, no spotlight, lists appear at once */
   .rail-item:hover .rail-icon, .rail-item:has(+ .rail-item:hover) .rail-icon, .rail-item:hover + .rail-item .rail-icon,
   #railAlerts .nt-bell svg, #railAlerts:hover .nt-bell svg, #railAlerts:has(+ .rail-item:hover) .nt-bell svg,

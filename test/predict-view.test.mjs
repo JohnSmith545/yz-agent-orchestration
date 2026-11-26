@@ -17,6 +17,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.join(HERE, '..')
 const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8')
 const ctx = vm.createContext({ window: {} })
+vm.runInContext(read('public/predict-group.js'), ctx) // the grouping the page and the phone share
 vm.runInContext(read('public/predict-view.js'), ctx)
 const V = ctx.window.PredictView
 
