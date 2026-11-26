@@ -13,17 +13,28 @@
 // - A message is `sending`, then `sent` or `failed` (with the reason). The thread is kept in
 //   data/phone-talk.json (the project's data folder), newest KEEP. A message still `sending` when the server
 //   stopped is MARKED failed at startup (sweep), never re-sent: the turn may have gone out before the stop.
+// - A delivered message carries `deliveredAt`, so the page can say the coordinator is working from then on.
 // - REPLIES are read from the coordinator session's transcript, the last TAIL_BYTES of it (script-session.mjs
 //   readTail): its text parts only. No tool call, tool result, thinking, subagent (side chain) or API error ever
-//   leaves the PC through here. The newest replies that fit REPLIES_MAX characters are kept, each cut to
-//   REPLY_MAX from its end (the newest words are the answer).
+//   leaves the PC through here. Each reply is cut to REPLY_MAX from its end (the newest words are the answer).
+//   The transcript is read again only when its size or time changed (the page polls every 5 s while it waits).
+// - ONE THREAD FOR EVERY SIGNED-IN PHONE (the chat, 2026-11-26): every phone session is the user behind the same
+//   PIN, so each sees the last KEEP messages from any of them, and under each the coordinator replies written after
+//   it and no later than the next one (matchReplies). A reply written at or before the oldest kept message is never
+//   shown, so the coordinator's work from before the first phone message stays on the PC. Which session sent a
+//   message (sid) is kept in the file and never returned. Each exchange keeps its newest replies that fit
+//   EXCHANGE_MAX characters. ⚠️ It used to be one thread per phone session (a39d9c2); the user asked for the history
+//   to survive a new sign-in. ⚠️ Replies older than the transcript's last TAIL_BYTES, or in a coordinator session
+//   that has since been replaced by a new one, are not found: the message stays, with no reply under it.
 // - `run` is injected (server.mjs passes relay.mjs claudeRun), so tests never start a model.
 //
-//   makeTalk({ file, agent, label, run, transcript, running, now }) ->
-//     { send(text, sid), thread(sid), threadWithReplies(sid), sweep(), settled() }   sid: the phone session
-//   repliesOf(records)    the coordinator's text replies, oldest first: [{ at, text }]
+//   makeTalk({ file, agent, label, run, transcript, running, now, readRecords }) ->
+//     { send(text, sid), thread(), threadWithReplies(), sweep(), settled() }   sid: the phone session that sends
+//   repliesOf(records)               the coordinator's text replies, oldest first: [{ at, text }]
+//   matchReplies(messages, replies)  each message with the replies that followed it: [{ ...message, replies }]
 
 import { readFileSync } from 'node:fs'
+import { stat } from 'node:fs/promises'
 import path from 'node:path'
 
 import { writeAtomic } from './atomic-write.mjs'
@@ -35,8 +46,9 @@ export const TALK_FILE = path.join(DATA_DIR, 'phone-talk.json')
 export const TALK_MAX = 2000
 export const KEEP = 30
 export const REPLY_MAX = 1500
-export const REPLIES_MAX = 6000
-const TAIL_BYTES = 1024 * 1024
+/** One exchange (a message and the replies after it) keeps its newest replies that fit, so a busy hour stays light. */
+export const EXCHANGE_MAX = 6000
+const TAIL_BYTES = 2 * 1024 * 1024
 const ERROR_MAX = 300
 const STATES = ['sending', 'sent', 'failed']
 
@@ -68,15 +80,36 @@ export function repliesOf(records) {
     else turns.push({ at: typeof r.timestamp === 'string' ? r.timestamp : null, text })
     joined = true
   }
-  const kept = []
-  let size = 0
-  for (let i = turns.length - 1; i >= 0; i--) {
-    const t = turns[i].text.length > REPLY_MAX ? `…${turns[i].text.slice(-REPLY_MAX)}` : turns[i].text
-    if (kept.length && size + t.length > REPLIES_MAX) break
-    kept.unshift({ at: turns[i].at, text: t })
-    size += t.length
+  return turns.map(t => ({ at: t.at, text: t.text.length > REPLY_MAX ? `…${t.text.slice(-REPLY_MAX)}` : t.text }))
+}
+
+/**
+ * Each message (oldest first) with the replies written AFTER it and no later than the next message, the newest that
+ * fit EXCHANGE_MAX (always at least the newest one). A reply at or before the first message, or with no readable
+ * time, belongs to none and is dropped: that is the line that keeps the coordinator's other work off the phone.
+ */
+export function matchReplies(messages, replies) {
+  const list = Array.isArray(messages) ? messages : []
+  const starts = list.map(m => Date.parse(m?.at))
+  const groups = list.map(() => [])
+  for (const r of Array.isArray(replies) ? replies : []) {
+    const t = Date.parse(r?.at)
+    if (Number.isNaN(t)) continue
+    let k = -1
+    for (let i = 0; i < starts.length; i++) if (t > starts[i]) k = i
+    if (k >= 0) groups[k].push({ at: r.at, text: String(r.text ?? '') })
   }
-  return kept
+  return list.map((m, i) => {
+    const kept = []
+    let size = 0
+    for (let j = groups[i].length - 1; j >= 0; j--) {
+      const r = groups[i][j]
+      if (kept.length && size + r.text.length > EXCHANGE_MAX) break
+      kept.unshift(r)
+      size += r.text.length
+    }
+    return { ...m, replies: kept }
+  })
 }
 
 const isTime = v => typeof v === 'string' && !Number.isNaN(Date.parse(v))
@@ -84,13 +117,18 @@ function clean(raw) {
   const list = Array.isArray(raw?.messages) ? raw.messages : []
   return list
     .filter(m => m && typeof m.id === 'string' && isTime(m.at) && typeof m.text === 'string' && STATES.includes(m.state))
-    .map(m => ({ id: m.id, at: m.at, sid: typeof m.sid === 'string' ? m.sid : '', text: m.text.slice(0, TALK_MAX), state: m.state, ...(typeof m.error === 'string' ? { error: m.error.slice(0, ERROR_MAX) } : {}) }))
+    .map(m => ({
+      id: m.id, at: m.at, sid: typeof m.sid === 'string' ? m.sid : '', text: m.text.slice(0, TALK_MAX), state: m.state,
+      ...(typeof m.error === 'string' ? { error: m.error.slice(0, ERROR_MAX) } : {}),
+      ...(m.state === 'sent' && isTime(m.deliveredAt) ? { deliveredAt: m.deliveredAt } : {}),
+    }))
     .slice(-KEEP)
 }
 
-export function makeTalk({ file = TALK_FILE, agent, label, run, transcript, running = async () => true, now = () => new Date() }) {
+export function makeTalk({ file = TALK_FILE, agent, label, run, transcript, running = async () => true, now = () => new Date(), readRecords = readTail }) {
   let busy = null // the delivery promise while one is on its way
   let seq = 0
+  let cache = { key: '', replies: [] } // the transcript's replies, read again only when the file changed
 
   const read = () => {
     try {
@@ -113,13 +151,13 @@ export function makeTalk({ file = TALK_FILE, agent, label, run, transcript, runn
       outcome = { ok: false, error: String(err?.message || err).slice(0, ERROR_MAX) }
     }
     try {
-      update(message.id, outcome.ok ? { state: 'sent' } : { state: 'failed', error: outcome.error || 'not sent' })
+      update(message.id, outcome.ok ? { state: 'sent', deliveredAt: now().toISOString() } : { state: 'failed', error: outcome.error || 'not sent' })
     } catch (err) {
       console.error(`phone: could not record a message outcome: ${err?.message || err}`)
     }
   }
 
-  /** `sid` is the phone session that sends it (phone-server.mjs): each phone session sees only its own conversation. */
+  /** `sid` is the phone session that sends it (phone-server.mjs): kept in the file, never shown. */
   async function send(text, sid = '') {
     if (typeof text !== 'string' || !text.trim()) return { status: 400, body: { error: 'Type a message first.' } }
     if (text.length > TALK_MAX) return { status: 400, body: { error: `A message is at most ${TALK_MAX} characters.` } }
@@ -128,28 +166,36 @@ export function makeTalk({ file = TALK_FILE, agent, label, run, transcript, runn
     const message = { id: `m${at.getTime().toString(36)}${(seq++).toString(36)}`, at: at.toISOString(), sid: String(sid), text: text.trim(), state: 'sending' }
     write([...read(), message])
     busy = deliver(message).finally(() => { busy = null })
-    return { status: 202, body: { ok: true, message } }
+    return { status: 202, body: { ok: true, message: shown(message) } }
   }
 
-  const thread = (sid = '') => ({ label, busy: !!busy, messages: read().filter(m => m.sid === String(sid)) })
+  /** A message as a phone sees it: never which session sent it. */
+  const shown = ({ sid, ...m }) => m
+  const thread = () => ({ label, busy: !!busy, messages: read().map(shown) })
 
-  /**
-   * The thread of ONE phone session: its own messages, and only the coordinator replies written AFTER its first
-   * message. Before it writes anything there are no replies at all, so a phone never reads the coordinator's other
-   * work (the page says replies appear once you write).
-   */
-  async function threadWithReplies(sid = '') {
-    const own = thread(sid)
-    const since = own.messages.length ? Date.parse(own.messages[0].at) : null
-    if (since === null) return { ...own, replies: [], running: await isRunning() }
-    let replies = []
+  /** The coordinator's text replies from the transcript's tail; the same answer while the file has not changed. */
+  async function replies() {
     try {
       const f = await transcript()
-      if (f) replies = repliesOf(await readTail(f, TAIL_BYTES)).filter(r => Date.parse(r.at) > since)
+      if (!f) return []
+      const st = await stat(f)
+      const key = `${f}\0${st.size}\0${st.mtimeMs}`
+      if (cache.key !== key) cache = { key, replies: repliesOf(await readRecords(f, TAIL_BYTES)) }
+      return cache.replies
     } catch {
-      replies = [] // not running, no transcript yet, or unreadable: the page says so quietly
+      return [] // not running, no transcript yet, or unreadable: the page says so quietly
     }
-    return { ...own, replies, running: await isRunning() }
+  }
+
+  /**
+   * The one thread every phone sees: the last KEEP messages from any phone session, each with the coordinator
+   * replies written after it (matchReplies), and the PC's time (the page judges its 10 minute wait by it, not by
+   * the phone's own clock). No message yet: no transcript is even read.
+   */
+  async function threadWithReplies() {
+    const all = thread()
+    const messages = all.messages.length ? matchReplies(all.messages, await replies()) : []
+    return { ...all, messages, running: await isRunning(), now: now().toISOString() }
   }
 
   async function isRunning() {

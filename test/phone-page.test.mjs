@@ -1,6 +1,7 @@
 // Tests for the phone page (public/phone.html): its pure words (phone-state.js) and markup (phone-view.js), run in a
 // vm like the other browser files, plus what the live half (phone-app.js), the stylesheet and the manifest must hold:
-// the desktop's colour tokens in light and dark, no stored data, the CSRF header on every write, a 10 s poll.
+// the desktop's colour tokens in light and dark, no stored data, the CSRF header on every write, the chat's poll.
+// The chat itself (phone-chat.js, phone-text.js) has its own tests: test/phone-chat.test.mjs.
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -15,8 +16,7 @@ const PUBLIC = path.join(HERE, '..', 'public')
 // looks for a block head with a newline in it. It passed where the files were written by hand with LF only.
 const read = f => fs.readFileSync(path.join(PUBLIC, f), 'utf8').replace(/\r\n/g, '\n')
 const ctx = vm.createContext({ window: {} })
-vm.runInContext(read('phone-state.js'), ctx)
-vm.runInContext(read('phone-view.js'), ctx)
+for (const f of ['phone-state.js', 'phone-text.js', 'phone-chat.js', 'phone-view.js']) vm.runInContext(read(f), ctx)
 const S = ctx.window.PhoneState
 const V = ctx.window.PhoneView
 const plain = v => JSON.parse(JSON.stringify(v))
@@ -54,27 +54,6 @@ test('when: a clock time today, a day and month before today; a bad time is empt
   assert.equal(S.when('nope', now), '')
 })
 
-test('the thread is the user messages and the replies in time order; each message says where it is', () => {
-  const items = plain(S.threadItems({
-    messages: [{ id: 'm1', at: '2026-11-25T10:00:00Z', text: 'Status?', state: 'sent' }, { id: 'm2', at: '2026-11-25T10:05:00Z', text: 'And now?', state: 'failed', error: 'no session' }],
-    replies: [{ at: '2026-11-25T10:01:00Z', text: 'All green.' }],
-  }))
-  assert.deepEqual(items.map(i => [i.who, i.text]), [['you', 'Status?'], ['them', 'All green.'], ['you', 'And now?']])
-  assert.equal(S.messageWord({ state: 'sending' }, 'Master'), 'Sending…')
-  assert.equal(S.messageWord({ state: 'sent' }, 'Master'), 'Sent to Master')
-  assert.equal(S.messageWord({ state: 'failed', error: 'no session' }, 'Master'), 'Not sent: no session')
-  assert.deepEqual(plain(S.threadItems(null)), [])
-})
-
-test('a failed message puts its text back in the box, once, and only the one just sent', () => {
-  const sending = [{ id: 'm1', text: 'hi', state: 'sending' }]
-  assert.equal(S.draftBack(sending, [{ id: 'm1', text: 'hi', state: 'failed' }], 'm1'), 'hi')
-  assert.equal(S.draftBack(sending, [{ id: 'm1', text: 'hi', state: 'sent' }], 'm1'), null)
-  assert.equal(S.draftBack([{ id: 'm1', text: 'hi', state: 'failed' }], [{ id: 'm1', text: 'hi', state: 'failed' }], 'm1'), null, 'already put back')
-  assert.equal(S.draftBack(sending, [{ id: 'm1', text: 'hi', state: 'failed' }], null), null)
-  assert.equal(S.draftBack([], [{ id: 'm1', text: 'hi', state: 'failed' }], 'm1'), 'hi', 'failed before the first poll saw it sending')
-})
-
 test('the PIN must be 8 to 12 digits before it is sent', () => {
   assert.equal(S.pinProblem('12345678'), null)
   assert.equal(S.pinProblem('1234567'), 'At least 8 digits.')
@@ -85,11 +64,19 @@ test('the PIN must be 8 to 12 digits before it is sent', () => {
   assert.equal(S.failureOf(500), 'error')
 })
 
+test('the address opens a tab, and a flow sheet by its id; anything else is the first tab', () => {
+  assert.deepEqual(plain(S.routeOf('#talk')), { tab: 'talk', flow: null })
+  assert.deepEqual(plain(S.routeOf('#needs')), { tab: 'needs', flow: null })
+  assert.deepEqual(plain(S.routeOf('#flow=login-page')), { tab: S.TABS[0], flow: 'login-page' })
+  for (const bad of ['', '#', '#nope', '#flow=../x', '#flow=A B', '#flow=<img>', null, '#talk?x', `#flow=${'a'.repeat(81)}`]) assert.deepEqual(plain(S.routeOf(bad)), { tab: S.TABS[0], flow: null }, String(bad))
+  assert.equal(S.hashOf('talk'), '#talk')
+})
+
 // ═══ the markup ═══
 
-const ALL = () => [V.signIn({ status: 'Wrong PIN. 4 tries left before a 15 minute lock.' }), V.nav('now', SUMMARY, 'Master'), V.now(SUMMARY, Date.parse('2026-11-25T12:00:00Z')),
+const ALL = () => [V.signIn({ status: 'Wrong PIN. 4 tries left before a 15 minute lock.' }), V.nav('agents', SUMMARY, 'Master'),
   V.needs(SUMMARY, {}), V.outputs(SUMMARY, { confirm: 'shipped' }), V.outputs(SUMMARY, {}),
-  V.talk({ label: 'Master', running: false, busy: false, messages: [{ id: 'm1', at: '2026-11-25T10:00:00Z', text: '<b>hi</b>', state: 'failed', error: 'x' }], replies: [{ at: '2026-11-25T10:01:00Z', text: 'ok "fine"' }] }, {})]
+  V.talk({ label: 'Master', running: false, busy: false, messages: [{ id: 'm1', at: '2026-11-25T10:00:00Z', text: '<b>hi</b>', state: 'failed', error: 'x', replies: [{ at: '2026-11-25T10:01:00Z', text: 'ok "fine"' }] }] }, {})]
 
 test('no markup holds an inline style or an inline handler (the CSP allows neither)', () => {
   for (const h of ALL()) {
@@ -100,8 +87,8 @@ test('no markup holds an inline style or an inline handler (the CSP allows neith
 })
 
 test('everything from the server is escaped', () => {
-  assert.match(V.now(SUMMARY), /Login page &lt;beta&gt;/)
-  const t = V.talk({ label: 'Master', messages: [{ id: 'm1', at: '2026-11-25T10:00:00Z', text: '<img src=x onerror=alert(1)>', state: 'sent' }], replies: [] }, {})
+  assert.match(V.needs({ ...SUMMARY, asks: [{ ...SUMMARY.asks[0], flowTitle: 'Login page <beta>' }] }, {}), /Login page &lt;beta&gt;/)
+  const t = V.talk({ label: 'Master', messages: [{ id: 'm1', at: '2026-11-25T10:00:00Z', text: '<img src=x onerror=alert(1)>', state: 'sent', replies: [] }] }, {})
   assert.doesNotMatch(t, /<img/)
   assert.match(t, /&lt;img src=x onerror=alert\(1\)&gt;/)
 })
@@ -112,25 +99,6 @@ test('sign in: a PIN field for digits that is never shown, the number pad, and t
   assert.deepEqual([...h.matchAll(/data-ph-key="([^"]+)"/g)].map(m => m[1]), ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'clear', '0', 'back'])
   assert.match(text(h), /Wrong PIN\./)
   assert.match(V.signIn({ busy: true }), /disabled>Signing in…/)
-})
-
-test('the bottom bar: Now, Needs you with its count, Outputs with its count, and the coordinator', () => {
-  const h = V.nav('needs', SUMMARY, 'Master')
-  assert.deepEqual([...h.matchAll(/data-ph-tab="([^"]+)"/g)].map(m => m[1]), ['now', 'needs', 'outputs', 'talk'])
-  assert.match(h, /data-ph-tab="needs" aria-current="page"/)
-  assert.match(text(h), /^Now Needs you 3 Outputs 1 Master$/)
-})
-
-test('Now: N things need you, the counts that go to their tab, each agent in one line, finished today', () => {
-  const h = V.now(SUMMARY)
-  assert.match(text(h), /4 things need you/)
-  assert.match(h, /data-ph-tab="needs"><span class="ph-count-n">2<\/span><span class="ph-count-l">questions/)
-  assert.match(h, /data-ph-tab="outputs"><span class="ph-count-n">1<\/span><span class="ph-count-l">output to sign off/)
-  assert.match(text(h), /Agent 1 Busy Login page &lt;beta&gt;/)
-  assert.match(text(h), /QA Idle no open flow/)
-  assert.match(text(h), /Finished today: 3/)
-  assert.match(V.now({ ...SUMMARY, agents: [] }), /No agents are running/)
-  assert.match(text(V.now({ ...SUMMARY, agents: null })), /still gathering what the agents are doing/)
 })
 
 test('Needs you: Yes and No with what each means, a text box for a text question, the cost said once, by-hand ticks', () => {
@@ -158,33 +126,20 @@ test('Outputs: the story, Completed, and an inline confirm in its place', () => 
   assert.match(text(V.outputs({ ...SUMMARY, outputs: [] }, {})), /No outputs to sign off/)
 })
 
-test('a reply shows its bold and code, escaped first; the user text is never marked up', () => {
-  const h = V.talk({ label: 'Master', messages: [{ id: 'm1', at: '2026-11-25T10:00:00Z', text: '**mine**', state: 'sent' }], replies: [{ at: '2026-11-25T10:01:00Z', text: '**Done**: run `npm test` <b>x</b>' }] }, {})
+test('the chat tab: a reply shows its bold and code, escaped first; your own text is never marked up', () => {
+  const h = V.talk({ label: 'Master', now: '2026-11-25T10:02:00Z', messages: [{ id: 'm1', at: '2026-11-25T10:00:00Z', text: '**mine**', state: 'sent', replies: [{ at: '2026-11-25T10:01:00Z', text: '**Done**: run `npm test` <b>x</b>' }] }] }, {})
   assert.ok(h.includes('<b>Done</b>: run <code>npm test</code> &lt;b&gt;x&lt;/b&gt;'))
   assert.ok(h.includes('**mine**'))
 })
 
-test('Talk: what happens to a message in plain words, the thread, a warning when the coordinator is not running, one Send', () => {
-  const th = { label: 'Master', running: false, busy: false, messages: [{ id: 'm1', at: '2026-11-25T10:00:00Z', text: 'Hi', state: 'sent' }], replies: [{ at: '2026-11-25T10:01:00Z', text: 'Hello.' }] }
-  const h = V.talk(th, {})
-  assert.match(text(h), /Your message is handed to Master on your PC by a short paid turn \(a few cents\)\. Master answers when it gets to it\. Your PC must be on\./)
-  assert.match(text(h), /Master is not running on your PC now/)
-  assert.match(h, /class="ph-msg is-you">/)
-  assert.match(h, /class="ph-msg is-them">/)
-  assert.match(text(h), /Sent to Master/)
-  assert.match(h, /<textarea id="phTalk" class="ph-input" rows="3" maxlength="2000" data-draft="talk" placeholder="Message Master"><\/textarea>/)
-  assert.match(h, /<button type="submit" class="primary">Send<\/button>/)
-  assert.match(V.talk({ ...th, busy: true }, {}), /disabled>Sending…/, 'one message in flight')
-  assert.doesNotMatch(V.talk({ ...th, running: true }, {}), /not running/)
-})
-
 // ═══ the live half, the stylesheet, the manifest ═══
 
-test('phone-app.js stores nothing in the browser, registers no service worker, and sends the CSRF header', () => {
+test('the live files store nothing in the browser, register no service worker, and send the CSRF header', () => {
   const app = read('phone-app.js')
-  for (const s of ['localStorage', 'sessionStorage', 'indexedDB', 'serviceWorker', 'caches.', 'document.cookie']) assert.equal(app.includes(s), false, s)
+  const live = ['phone-app.js', 'phone-chat-live.js', 'phone-composer.js'].map(read).join('\n')
+  for (const s of ['localStorage', 'sessionStorage', 'indexedDB', 'serviceWorker', 'caches.', 'document.cookie', 'innerHTML +=', '.setAttribute(\'style\'']) assert.equal(live.includes(s), false, s)
   assert.match(app, /'x-phone-csrf': st\.csrf/)
-  assert.match(app, /const TALK_MS = 10_000/)
+  assert.match(read('phone-chat-live.js'), /C\.pollMs\(st\.thread/, 'the chat polls on PhoneChat.pollMs: 5 s while a message is in flight, else 15 s')
   assert.match(app, /visibilitychange/)
   assert.match(app, /if \(field\) field\.value = '' \/\/ read once, never kept/)
 })
@@ -225,10 +180,6 @@ test('a by-hand flow with no steps says where to ask for them: the PC, since the
   assert.match(text(V.needs({ ...SUMMARY, asks: [], hands: [{ ...SUMMARY.hands[0], steps: [] }] }, {})), /No steps yet\. Asking the agent for them is done at the PC\./)
 })
 
-test('an empty thread says replies show once you write, and only from then on', () => {
-  assert.match(text(V.talk({ label: 'Master', messages: [], replies: [] }, {})), /Replies from Master show here once you write: only what it says after your first message from this phone\./)
-})
-
 // QA 2026-11-26: story lines showed the glossary brackets ([quota project]) and repeated the agent (Master Master
 // gave...); every Completed button read the same to a screen reader; the header said Agents on every tab.
 test('Outputs: story lines lose the glossary brackets and never repeat the agent; Completed names its flow', () => {
@@ -240,8 +191,8 @@ test('Outputs: story lines lose the glossary brackets and never repeat the agent
   assert.match(V.outputs(sum, {}), /aria-label="Completed: Quota fix"/)
 })
 
-test('the header names the tab: Now, Needs you, Outputs, or the coordinator', () => {
-  assert.equal(V.tabTitle('now', 'Master'), 'Now')
+test('the header names the tab: Agents, Needs you, Outputs, or the coordinator', () => {
+  assert.equal(V.tabTitle('agents', 'Master'), 'Agents')
   assert.equal(V.tabTitle('needs', 'Master'), 'Needs you')
   assert.equal(V.tabTitle('outputs', 'Master'), 'Outputs')
   assert.equal(V.tabTitle('talk', 'Master'), 'Master')

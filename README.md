@@ -2017,10 +2017,14 @@ dashboard keeps listening on `127.0.0.1` only.
 4. Within a few seconds a running dashboard listens (no restart needed). On the phone, open the address it prints (`http://<address>:4318/phone`), sign in,
    and add the page to the home screen.
 
-**What the phone can do**, and nothing else: see how many things need you and what each agent is doing; answer
+**What the phone can do**, and nothing else: see how many things need you, and on the Agents tab the pipeline from
+Request to Output with each agent's state, the flows standing at each box (a tap opens a read-only sheet), the
+alerts and the open pull requests (`GET /phone/api/orchestration` and `/phone/api/flow?id=`, read only); answer
 an open question (once: changing an answer stays on the PC); tick a by-hand step; mark a finished output
-Completed; and send a message to the coordinator and read its replies written after your first message from that
-phone (never its other work). Each message reaches the coordinator after a fixed first line, the same rule
+Completed; and chat with the coordinator. The chat is one thread shared by every phone signed in with the PIN (they
+are all you): the last 30 messages, each with the coordinator's written replies that followed it, so it survives a
+new sign-in. Replies written before the first phone message are never shown, nor anything but its written words
+(no tool calls, results or thinking). Each message reaches the coordinator after a fixed first line, the same rule
 `docs/agent-brief.md` gives it under Phone messages: it came from the phone, so nothing destructive, pushed,
 deployed or live, and no settings change, until you confirm at the PC. There is no delete, archive,
 settings, rules, config, Finish without Senior, Send or Generate on the phone. An answer and a message each go

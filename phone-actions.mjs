@@ -2,8 +2,10 @@
 // uses. Nothing here forwards a path or a method to the desktop routes, so no desktop route is ever reachable from
 // the phone, whatever the phone asks for.
 //
-//   summary   read: what needs the user (questions, by-hand steps, outputs to sign off), each agent in one line,
+//   summary   read: what needs the user (questions, by-hand steps, outputs to sign off) and
 //             today's finished count. Built from human-routes.mjs humanGet and completed-routes.mjs outputsGet.
+//   orchestration, flow   read: the pipeline's boxes with the agents' states, the flows standing at each, the alerts
+//             and the open pull requests; one flow's sheet (phone-orchestration.mjs). Nothing written.
 //   answer    answer ONE open question: flows.mjs applyAnswer, then relay.queue, exactly as the desktop's
 //             POST /api/flows/<id>/answer does. STRICTER than the desktop: an ask that already has an answer is
 //             refused (the phone never changes or reopens an answer), and so is a flow that is not open or blocked.
@@ -11,12 +13,13 @@
 //             belong to THAT flow (handTickRoute looks it up there).
 //   complete  mark a finished flow completed: completed-routes.mjs completeRoute with completed: true. Never false:
 //             Uncomplete stays on the desktop. An unfinished flow is refused with the desktop's own sentence.
-//   talk, talkSend   read the thread with Master, send a message (phone-talk.mjs).
+//   talk, talkSend   read the thread with Master (the same for every signed-in phone) and what a message costs
+//             (phone-cost.mjs), send a message (phone-talk.mjs).
 // NOT here, on purpose: delete, archive, drop, status, settings, rules, config, Finish without Senior, pull-request
 // Send, Generate, Request test steps, Ask for steps, the chat. A phone that is lost while signed in can do only
 // what is above until the session expires or the desktop signs it out.
 //
-// Each action takes the parsed JSON body and resolves { status, body }. `relay`, `talk` and `getStatus` are
+// Each action takes the parsed JSON body and resolves { status, body }. `relay`, `talk`, `getStatus` and `alerts` are
 // injected (server.mjs passes its own), so the tests stub every side effect.
 
 import { CONFIG } from './config.mjs'
@@ -25,9 +28,11 @@ import { finishedAt, isFinished } from './completed.mjs'
 import { applyAnswer, listFlows, readFlow, storyOf, validateFlow, writeFlow } from './flows.mjs'
 import { handTickRoute, humanGet } from './human-routes.mjs'
 import { pipelineGraph } from './pipeline.mjs'
+import { phoneCost } from './phone-cost.mjs'
+import { makeOrchestration } from './phone-orchestration.mjs'
 import { TALK_MAX } from './phone-talk.mjs'
 
-export const ACTIONS = Object.freeze(['summary', 'answer', 'tick', 'complete', 'talk', 'talkSend'])
+export const ACTIONS = Object.freeze(['summary', 'orchestration', 'flow', 'answer', 'tick', 'complete', 'talk', 'talkSend'])
 const SLUG = /^[a-z0-9-]{1,80}$/
 const NODE = /^[A-Za-z0-9_-]{1,40}$/
 const STORY_LINES = 8
@@ -53,34 +58,12 @@ const startOfToday = now => {
   return d.getTime()
 }
 
-/** How long the summary waits for the agents: a cold status build (git, every transcript) can take far longer. */
+/** How long the Agents tab waits for the agent list (phone-orchestration.mjs): a cold status build can take far longer. */
 export const AGENTS_WAIT_MS = 3000
 
-export function makePhoneActions({ relay, talk, getStatus, config = CONFIG, now = Date.now, agentsWaitMs = AGENTS_WAIT_MS }) {
-  /** Each agent in one line; null while the PC is still building the list (the page says so and asks again later). */
-  /** A label to show: an unmapped session is an Unnamed session, never its raw id (QA, 2026-11-26). */
-  const shownLabel = l => {
-    const s = String(l || '').trim()
-    return !s || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s) || /^[0-9a-f]{16,}$/i.test(s) ? 'Unnamed session' : s
-  }
-
-  async function agentLines(flows) {
-    let agents = []
-    let timer
-    try {
-      const late = new Promise(resolve => { timer = setTimeout(() => resolve(null), agentsWaitMs) })
-      const st = await Promise.race([getStatus(false), late])
-      if (st === null) return null
-      agents = st?.agents || []
-    } catch {
-      return [] // the page says nothing about agents rather than an error
-    } finally {
-      clearTimeout(timer)
-    }
-    const onFlow = label => flows.filter(f => f.agent === label && live(f)).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))[0]?.title || ''
-    return agents.map(a => ({ label: shownLabel(a.label), busy: a.state === 'active' || a.status === 'busy', flow: onFlow(a.label) }))
-  }
-
+export function makePhoneActions({ relay, talk, getStatus, alerts = async () => null, config = CONFIG, now = Date.now, agentsWaitMs = AGENTS_WAIT_MS, cost = phoneCost }) {
+  const orch = makeOrchestration({ getStatus, alerts, config, now, agentsWaitMs })
+  // the agents themselves are on the Agents tab (orchestration): the summary no longer waits for the status build
   async function summary() {
     const graph = pipelineGraph(config)
     const all = listFlows({ archived: 'any' }).flows
@@ -107,7 +90,6 @@ export function makePhoneActions({ relay, talk, getStatus, config = CONFIG, now 
       builtAt: new Date(now()).toISOString(),
       coordinator: config.coordinatorLabel, // what the page calls the coordinator's tab and thread
       needs: { total: asks.length + hands.length + outputs.length, asks: asks.length, hands: hands.length, outputs: outputs.length },
-      agents: await agentLines(all),
       finishedToday,
       asks,
       hands,
@@ -157,9 +139,9 @@ export function makePhoneActions({ relay, talk, getStatus, config = CONFIG, now 
     return completeRoute(flow.id, { completed: true }, { config, now: now() })
   }
 
-  // each phone session sees and continues only ITS OWN conversation (phone-talk.mjs): ctx.session is its id
-  const talkGet = async (_b, ctx = {}) => ok(await talk.threadWithReplies(ctx.session || ''))
+  // ONE thread for every signed-in phone (phone-talk.mjs); ctx.session only marks who sent a message, never shown
+  const talkGet = async () => ok({ ...(await talk.threadWithReplies()), cost: cost() })
   const talkSend = async (b, ctx = {}) => talk.send(isObject(b) ? b.text : undefined, ctx.session || '')
 
-  return { summary, answer, tick, complete, talk: talkGet, talkSend }
+  return { summary, orchestration: () => orch.orchestration(), flow: b => orch.flow(b), answer, tick, complete, talk: talkGet, talkSend }
 }

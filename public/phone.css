@@ -129,7 +129,8 @@ textarea.ph-input { resize: vertical; min-height: 84px; }
   max-width: 560px; margin: 0 auto;
   padding: 16px 16px calc(var(--nav-h) + 24px + env(safe-area-inset-bottom));
 }
-.ph-sec { display: grid; gap: 14px; }
+/* minmax(0, 1fr): a long chip or link that does not wrap is cut by its own ellipsis, never widens the column */
+.ph-sec { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 .ph-big { margin: 4px 0 0; font-size: 26px; line-height: 1.2; font-weight: 650; letter-spacing: -.015em; }
 .ph-h { margin: 10px 0 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
 
@@ -140,18 +141,6 @@ textarea.ph-input { resize: vertical; min-height: 84px; }
 }
 .ph-count-n { font-size: 24px; font-weight: 650; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .ph-count-l { font-size: 13px; color: var(--muted); line-height: 1.3; }
-
-.ph-agents { list-style: none; margin: 0; padding: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
-.ph-agent {
-  display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; align-items: center; column-gap: 10px; row-gap: 1px;
-  padding: 10px 12px;
-}
-.ph-agent + .ph-agent { border-top: 1px solid var(--line); }
-.ph-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--idle); }
-.ph-dot.is-busy { background: var(--ok); }
-.ph-agent-name { font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ph-agent-state { font-size: 13px; color: var(--muted); }
-.ph-agent-flow { grid-column: 2 / 4; font-size: 13.5px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* cards: a question, a by-hand flow, an output */
 .ph-card { display: grid; gap: 10px; padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
@@ -174,16 +163,147 @@ textarea.ph-input { resize: vertical; min-height: 84px; }
 .ph-story { display: grid; gap: 6px; margin: 0; padding: 0 0 0 18px; font-size: 14.5px; color: var(--ink-2); }
 .ph-story b { color: var(--ink); font-weight: 600; }
 
-/* Talk to Master: the thread, newest at the bottom, the box under it */
-.ph-thread { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
-.ph-msg { display: grid; gap: 4px; max-width: 88%; padding: 10px 12px; border-radius: 12px; }
-.ph-msg.is-them { justify-self: start; background: var(--surface); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
-.ph-msg.is-you { justify-self: end; background: var(--accent-soft); border-bottom-right-radius: 4px; }
-.ph-msg.is-failed { border: 1px solid var(--bad); }
-.ph-msg-text { margin: 0; font-size: 15px; white-space: pre-wrap; overflow-wrap: anywhere; }
-.ph-meta { font-size: 12px; color: var(--muted); }
-.ph-msg.is-failed .ph-meta { color: var(--bad); }
-.ph-send { display: grid; gap: 10px; }
+/* ═══ the chat with the coordinator (phone-chat.js): your message on the right, its replies under it on the left,
+   newest at the bottom; the composer pinned above the tab bar, or above the keyboard while it is open (--kb, set by
+   phone-composer.js from the visual viewport). --composer-h is the composer's measured height. ═══ */
+.ph-main.is-chat { padding-bottom: calc(var(--nav-h) + var(--composer-h, 110px) + 20px + env(safe-area-inset-bottom)); }
+.kb-open .ph-main.is-chat { padding-bottom: calc(var(--kb, 0px) + var(--composer-h, 110px) + 20px); }
+.ph-chat { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+
+.ph-help { font-size: 14px; color: var(--ink-2); }
+.ph-help summary {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 36px; cursor: pointer; color: var(--muted);
+  font-size: 13.5px; list-style: none;
+}
+.ph-help summary::-webkit-details-marker { display: none; }
+.ph-help summary::before { content: ""; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-45deg); transition: transform .15s ease-out; }
+.ph-help[open] summary::before { transform: rotate(45deg); }
+.ph-help p { margin: 0 0 8px; padding: 0 2px; }
+
+.ph-empty { display: grid; gap: 6px; justify-items: center; padding: 12vh 12px 0; text-align: center; }
+
+.ph-thread { display: grid; gap: 22px; margin: 0; padding: 0; list-style: none; }
+.ph-x { display: grid; gap: 4px; min-width: 0; }
+.ph-bubble { max-width: 85%; min-width: 0; padding: 9px 13px; border-radius: 18px; font-size: 15.5px; line-height: 1.45; overflow-wrap: anywhere; }
+.ph-bubble.is-you { justify-self: end; background: var(--accent-soft); color: var(--ink); border-bottom-right-radius: 6px; }
+.ph-bubble.is-them { justify-self: start; max-width: 92%; background: var(--surface); border: 1px solid var(--line); border-bottom-left-radius: 6px; margin-top: 6px; }
+.ph-bubble.is-failed { background: none; border: 1px dashed var(--bad); }
+.ph-bubble-text { margin: 0; white-space: pre-wrap; }
+.ph-meta { margin: 0; padding: 0 6px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ph-meta.is-you { justify-self: end; }
+.ph-failed { justify-self: end; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 4px 10px; max-width: 92%; padding: 0 2px; }
+.ph-failed-why { margin: 0; font-size: 13px; color: var(--bad); text-align: right; overflow-wrap: anywhere; }
+.ph-retry { min-height: 40px; padding: 4px 14px; font-size: 14px; border-radius: 20px; }
+
+/* a reply's simple formatting (phone-text.js) */
+.ph-md > :first-child { margin-top: 0; }
+.ph-md > :last-child { margin-bottom: 0; }
+.ph-md p { margin: 0 0 .6em; }
+.ph-md ul, .ph-md ol { margin: 0 0 .6em; padding-left: 1.25em; }
+.ph-md li + li { margin-top: 2px; }
+.ph-md code { padding: 1px 5px; background: var(--surface-2); border-radius: 4px; font-size: 13.5px; }
+.ph-md pre { margin: 0 0 .6em; padding: 8px 10px; background: var(--surface-2); border-radius: var(--radius); overflow-x: auto; }
+.ph-md pre code { padding: 0; background: none; white-space: pre; }
+.ph-md a { color: var(--accent); text-underline-offset: 2px; }
+
+/* Master is working…: three quiet dots (still under reduced motion, see the end of this file) */
+.ph-working { display: flex; align-items: center; gap: 10px; margin: 0; padding: 2px 6px; font-size: 14px; color: var(--muted); }
+.ph-working.is-quiet { color: var(--faint); font-size: 13.5px; }
+.ph-dots { display: inline-flex; gap: 4px; }
+.ph-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); opacity: .35; animation: ph-dot 1.4s ease-in-out infinite; }
+.ph-dots i:nth-child(2) { animation-delay: .2s; }
+.ph-dots i:nth-child(3) { animation-delay: .4s; }
+@keyframes ph-dot { 0%, 80%, 100% { opacity: .35; } 40% { opacity: 1; } }
+
+.ph-composer {
+  position: fixed; left: 0; right: 0; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); z-index: 4;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 4px 8px;
+  padding: 8px max(12px, calc((100% - 560px) / 2)) 6px; background: var(--bg); border-top: 1px solid var(--line);
+}
+.kb-open .ph-composer { bottom: var(--kb, 0px); }
+.ph-compose-box { min-height: 44px; max-height: 132px; padding: 10px 16px; line-height: 1.4; border-radius: 22px; resize: none; overflow-y: auto; }
+textarea.ph-compose-box { min-height: 44px; resize: none; }
+.ph-send-btn { min-height: 44px; padding: 0 18px; border-radius: 22px; }
+.ph-cost, .ph-composer .ph-status { grid-column: 1 / -1; margin: 0; font-size: 12px; color: var(--faint); text-align: center; }
+.ph-composer .ph-status { color: var(--warn); font-size: 13px; }
+
+.ph-pill {
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 5;
+  bottom: calc(var(--nav-h) + var(--composer-h, 110px) + 12px + env(safe-area-inset-bottom));
+  min-height: 36px; padding: 6px 16px; border: 0; border-radius: 18px;
+  background: var(--ink); color: var(--bg); font-size: 14px; font-weight: 550; box-shadow: 0 4px 14px rgba(0, 0, 0, .18);
+}
+.kb-open .ph-pill { bottom: calc(var(--kb, 0px) + var(--composer-h, 110px) + 12px); }
+
+/* ═══ the Agents tab (phone-agents.js): what needs you, the alerts, the open pull requests, then the pipeline as a
+   vertical list of its boxes on one rail, each with the agent's state and the flows standing there as chips ═══ */
+.ph-state { display: inline-flex; align-items: center; gap: 6px; flex: none; font-size: 13px; color: var(--muted); }
+.ph-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--idle); }
+.ph-state.is-busy { color: var(--ink-2); }
+.ph-state.is-busy .ph-dot { background: var(--ok); }
+.ph-state.is-none .ph-dot { background: none; box-shadow: inset 0 0 0 1.5px var(--idle); }
+
+.ph-alerts { display: grid; gap: 6px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.ph-alerts-head { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; font-weight: 600; }
+.ph-alert-mark { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); }
+.ph-alert-lines { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.ph-alert-lines li { font-size: 14px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.ph-prs, .ph-others { margin: 0; padding: 0; list-style: none; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.ph-prs li + li, .ph-others li + li { border-top: 1px solid var(--line); }
+.ph-prs li { display: flex; min-width: 0; }
+.ph-prs li > * { flex: 1; min-width: 0; padding: 11px 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }
+.ph-pr-link { color: var(--accent); text-decoration: none; }
+.ph-pr-link:active { text-decoration: underline; }
+.ph-others li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; }
+.ph-other-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 550; }
+
+.ph-pipe { position: relative; margin: 0; padding: 6px 0; list-style: none; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.ph-pipe::before { content: ""; position: absolute; left: 21px; top: 24px; bottom: 24px; width: 1.5px; background: var(--line-strong); }
+.ph-box { position: relative; padding: 9px 14px 9px 40px; min-width: 0; }
+.ph-box::before {
+  content: ""; position: absolute; left: 16px; top: 15px; width: 12px; height: 12px; border-radius: 50%;
+  background: var(--surface); box-shadow: inset 0 0 0 2px var(--line-strong);
+}
+.ph-box.has-flows::before { background: var(--accent); box-shadow: 0 0 0 3px var(--surface); }
+.ph-box-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 26px; }
+.ph-box-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 600; }
+.ph-box.is-start .ph-box-name, .ph-box.is-step .ph-box-name, .ph-box.is-end .ph-box-name { font-weight: 500; color: var(--ink-2); }
+.ph-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.ph-chip {
+  display: inline-flex; align-items: baseline; gap: 6px; max-width: 100%; min-height: 40px; padding: 8px 12px;
+  border-radius: 20px; background: var(--surface-2); border: 1px solid var(--line); font-size: 14px; text-align: left;
+}
+.ph-chip-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.ph-chip-word { flex: none; font-size: 12px; color: var(--muted); }
+.ph-chip.t-bad { border-color: var(--bad); }
+.ph-chip.t-bad .ph-chip-word { color: var(--bad); }
+.ph-chip.t-ok .ph-chip-word { color: var(--ok); }
+.ph-more { align-self: center; font-size: 13px; color: var(--muted); }
+
+/* ═══ the flow sheet: a modal bottom sheet over the tab (phone-app.js keeps the focus in it) ═══ */
+.sheet-open body { overflow: hidden; }
+.ph-sheet-back { position: fixed; inset: 0; z-index: 20; background: rgba(10, 10, 14, .42); }
+.ph-sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 21; display: flex; flex-direction: column;
+  max-width: 560px; max-height: 88vh; max-height: 88dvh; margin: 0 auto; padding-bottom: env(safe-area-inset-bottom);
+  background: var(--surface); border-radius: 16px 16px 0 0; box-shadow: 0 -8px 30px rgba(0, 0, 0, .22);
+  animation: ph-rise .2s ease-out;
+}
+@keyframes ph-rise { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.ph-sheet:focus-visible { outline: none; }
+.ph-sheet-head { display: flex; align-items: flex-start; gap: 10px; padding: 14px 12px 10px 16px; border-bottom: 1px solid var(--line); }
+.ph-sheet-title { flex: 1; min-width: 0; margin: 10px 0 0; font-size: 18px; line-height: 1.3; font-weight: 650; overflow-wrap: anywhere; }
+.ph-sheet-close { flex: none; }
+.ph-sheet-body { display: grid; gap: 12px; padding: 12px 16px 20px; overflow-y: auto; overscroll-behavior: contain; }
+.ph-sheet-body .ph-h { margin-top: 6px; }
+.ph-where { margin: 0; font-size: 15px; font-weight: 550; overflow-wrap: anywhere; }
+.ph-route { display: flex; flex-wrap: wrap; align-items: center; row-gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 13px; }
+.ph-route li { display: inline-flex; align-items: center; color: var(--faint); }
+.ph-route li + li::before { content: ""; width: 5px; height: 5px; margin: 0 8px; border-right: 1.5px solid var(--line-strong); border-top: 1.5px solid var(--line-strong); transform: rotate(45deg); }
+.ph-route .ph-step-done { color: var(--ink-2); }
+.ph-route .ph-step-current span { padding: 2px 9px; border-radius: 10px; background: var(--accent-soft); color: var(--ink); font-weight: 600; }
+.ph-route .ph-step-skipped span { text-decoration: line-through; text-decoration-color: var(--line-strong); }
 
 /* the bottom bar: four tabs within thumb reach */
 .ph-nav {

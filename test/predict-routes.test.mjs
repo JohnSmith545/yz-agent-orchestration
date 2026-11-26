@@ -89,6 +89,14 @@ test('GET /api/alerts: a flow far past its plain limit, uncached, logged once as
   assert.equal((await fetch(`${base}/api/alerts`, { method: 'DELETE' })).status, 405)
 })
 
+test('route.alerts() is the same answer as GET /api/alerts, for the phone Agents tab (phone-orchestration.mjs)', async () => {
+  put(flow('a', { nodes: [{ id: 'q', type: 'ask', kind: 'yesno', title: 'Go on?', at: iso(NOW - 30 * HOUR), answer: null }] }))
+  const r = await route.alerts()
+  assert.equal(r.status, 200)
+  assert.deepEqual(r.body.alerts.map(a => a.key), ['stuck:a:ask'])
+  assert.deepEqual(r.body.alerts.map(a => a.text), (await get('/api/alerts')).body.alerts.map(a => a.text))
+})
+
 test('alerts off in config: an empty answer that says so', async () => {
   route = make({ config: { ...CONFIG, alerts: { enabled: false } } })
   put(flow('a', { nodes: [{ id: 'q', type: 'ask', kind: 'yesno', title: 'Go on?', at: iso(NOW - 30 * HOUR), answer: null }] }))

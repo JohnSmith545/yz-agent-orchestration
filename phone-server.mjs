@@ -9,6 +9,8 @@
 //   POST /phone/logout            sign this phone out
 //   GET  /phone/api/me            { csrf, expiresAt }: a reloaded page gets its CSRF token back
 //   GET  /phone/api/summary       \
+//   GET  /phone/api/orchestration  |  (read only: the Agents tab, phone-orchestration.mjs)
+//   GET  /phone/api/flow?id=       |  (read only: one flow's sheet; only the first id in the address is passed on)
 //   GET  /phone/api/talk           |  the allowlist (phone-actions.mjs): each a named action, never a forwarded path
 //   POST /phone/api/answer         |
 //   POST /phone/api/tick           |
@@ -67,6 +69,11 @@ export const ASSETS = Object.freeze({
   '/phone/phone.css': ['phone.css', 'text/css; charset=utf-8'],
   '/phone/phone-state.js': ['phone-state.js', 'text/javascript; charset=utf-8'],
   '/phone/phone-view.js': ['phone-view.js', 'text/javascript; charset=utf-8'],
+  '/phone/phone-text.js': ['phone-text.js', 'text/javascript; charset=utf-8'],
+  '/phone/phone-chat.js': ['phone-chat.js', 'text/javascript; charset=utf-8'],
+  '/phone/phone-composer.js': ['phone-composer.js', 'text/javascript; charset=utf-8'],
+  '/phone/phone-agents.js': ['phone-agents.js', 'text/javascript; charset=utf-8'],
+  '/phone/phone-chat-live.js': ['phone-chat-live.js', 'text/javascript; charset=utf-8'],
   '/phone/phone-app.js': ['phone-app.js', 'text/javascript; charset=utf-8'],
   '/phone/manifest.webmanifest': ['phone-manifest.webmanifest', 'application/manifest+json; charset=utf-8'],
   '/phone/icon.svg': ['phone-icon.svg', 'image/svg+xml'],
@@ -75,8 +82,10 @@ export const ASSETS = Object.freeze({
 })
 
 /** The API: 'METHOD path' -> the action's name in phone-actions.mjs. */
-const API = Object.freeze({
+export const API = Object.freeze({
   'GET /phone/api/summary': 'summary',
+  'GET /phone/api/orchestration': 'orchestration',
+  'GET /phone/api/flow': 'flow',
   'GET /phone/api/talk': 'talk',
   'POST /phone/api/answer': 'answer',
   'POST /phone/api/tick': 'tick',
@@ -153,7 +162,7 @@ export function makePhoneHandler({ settings, own, auth, actions, limits = PHONE_
       const limited = byAddress.hit(address)
       if (!limited.ok) return tooMany(res, limited)
 
-      const pathname = String(req.url || '').split('?')[0]
+      const [pathname, query = ''] = String(req.url || '').split('?')
       const route = `${req.method} ${pathname}`
       const asset = req.method === 'GET' ? ASSETS[pathname] : undefined
       if (asset) {
@@ -189,7 +198,8 @@ export function makePhoneHandler({ settings, own, auth, actions, limits = PHONE_
         auth.logout(token)
         return send(res, 200, { ok: true }, { 'set-cookie': clearCookie() })
       }
-      const body = req.method === 'POST' ? await jsonBody(req) : {}
+      // a GET carries no body; the flow sheet's id is the address's first id, as given (the action checks it)
+      const body = req.method === 'POST' ? await jsonBody(req) : action === 'flow' ? { id: new URLSearchParams(query).get('id') } : {}
       const r = await actions[action](body, { session: session.id.slice(0, 32) })
       return send(res, r.status, r.body)
     } catch (err) {

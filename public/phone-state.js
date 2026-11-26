@@ -3,14 +3,12 @@
 //
 //   needsLine(n)                  'Nothing needs you' | '1 thing needs you' | 'N things need you'
 //   countParts(needs)             the three counts under it: questions, by hand, outputs to sign off
-//   agentWord(a)                  'Busy' | 'Idle'
 //   clock(at) / when(at, now)     '14:05' / today '14:05', another day '24 Nov' (times as on a clock: the desktop's one
 //                                 relative-time helper, Shell.ago, is not loaded on the phone listener)
-//   threadItems(talk)             the user's messages and the coordinator's replies, one list, oldest first
-//   messageWord(m, label)         'Sending…' | 'Sent to Master' | 'Not sent: <why>'
-//   draftBack(before, after, sentId)   the text to put back in the box when the message just sent failed, else null
+//   (the chat with the coordinator, its states and its words, is public/phone-chat.js)
 //   pinProblem(pin)               why the typed PIN cannot be sent yet, or null (8 to 12 digits, as phone-auth.mjs)
 //   failureOf(status)             'signedOut' (401) | 'offline' (no answer) | 'error'
+//   routeOf(hash) / hashOf(tab)   the tab (or flow sheet) the address names, and the address of a tab
 ;(() => {
   const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
 
@@ -28,8 +26,6 @@
     ]
   }
 
-  const agentWord = a => (a && a.busy ? 'Busy' : 'Idle')
-
   const pad = x => String(x).padStart(2, '0')
   function clock(at) {
     const t = Date.parse(at)
@@ -46,31 +42,6 @@
     return d.toDateString() === new Date(now).toDateString() ? clock(at) : `${d.getDate()} ${MONTHS[d.getMonth()]}`
   }
 
-  /** Oldest first; a message or reply with no time goes last, in the order given. */
-  function threadItems(talk) {
-    const t = talk || {}
-    const mine = (Array.isArray(t.messages) ? t.messages : []).map(m => ({ who: 'you', at: m.at, text: String(m.text || ''), state: m.state, error: m.error || '', id: m.id }))
-    const theirs = (Array.isArray(t.replies) ? t.replies : []).map(r => ({ who: 'them', at: r.at, text: String(r.text || '') }))
-    const key = x => (Number.isNaN(Date.parse(x.at)) ? Infinity : Date.parse(x.at))
-    return [...mine, ...theirs].map((x, i) => ({ x, i })).sort((a, b) => key(a.x) - key(b.x) || a.i - b.i).map(({ x }) => x)
-  }
-
-  function messageWord(m, label) {
-    if (!m) return ''
-    if (m.state === 'sending') return 'Sending…'
-    if (m.state === 'sent') return `Sent to ${label || 'Master'}`
-    return `Not sent: ${m.error || 'it did not go'}`
-  }
-
-  /** When the message `sentId` was sending before and has failed now, its text goes back in the box. */
-  function draftBack(before, after, sentId) {
-    if (!sentId) return null
-    const was = (before || []).find(m => m.id === sentId)
-    const now = (after || []).find(m => m.id === sentId)
-    if (!now || now.state !== 'failed' || (was && was.state === 'failed')) return null
-    return now.text
-  }
-
   function pinProblem(pin) {
     const p = String(pin ?? '')
     if (!/^[0-9]*$/.test(p)) return 'Only digits.'
@@ -81,5 +52,17 @@
 
   const failureOf = status => (status === 401 ? 'signedOut' : !status ? 'offline' : 'error')
 
-  window.PhoneState = { needsLine, countParts, agentWord, clock, when, threadItems, messageWord, draftBack, pinProblem, failureOf }
+  /** The bottom bar's tabs, the first is where the page opens. MUST CHANGE IN LOCKSTEP with phone-view.js nav. */
+  const TABS = Object.freeze(['agents', 'needs', 'outputs', 'talk'])
+  const FLOW_ID = /^[a-z0-9-]{1,80}$/
+  /** The address's #tab or #flow=<id>: so a tab or a flow sheet can be opened, reloaded or kept on the home screen. */
+  function routeOf(hash) {
+    const h = String(hash ?? '').replace(/^#/, '')
+    if (TABS.includes(h)) return { tab: h, flow: null }
+    const m = /^flow=(.*)$/.exec(h)
+    return { tab: TABS[0], flow: m && FLOW_ID.test(m[1]) ? m[1] : null }
+  }
+  const hashOf = tab => `#${tab}`
+
+  window.PhoneState = { needsLine, countParts, clock, when, pinProblem, failureOf, TABS, routeOf, hashOf }
 })()
