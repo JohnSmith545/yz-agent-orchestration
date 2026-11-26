@@ -2,7 +2,7 @@
 // uses. Nothing here forwards a path or a method to the desktop routes, so no desktop route is ever reachable from
 // the phone, whatever the phone asks for.
 //
-//   summary   read: what needs the user (questions, by-hand steps, outputs to sign off), each agent in one line,
+//   summary   read: what needs the user (questions, by-hand steps, outputs to sign off) and
 //             today's finished count. Built from human-routes.mjs humanGet and completed-routes.mjs outputsGet.
 //   orchestration, flow   read: the pipeline's boxes with the agents' states, the flows standing at each, the alerts
 //             and the open pull requests; one flow's sheet (phone-orchestration.mjs). Nothing written.
@@ -58,35 +58,12 @@ const startOfToday = now => {
   return d.getTime()
 }
 
-/** How long the summary waits for the agents: a cold status build (git, every transcript) can take far longer. */
+/** How long the Agents tab waits for the agent list (phone-orchestration.mjs): a cold status build can take far longer. */
 export const AGENTS_WAIT_MS = 3000
 
 export function makePhoneActions({ relay, talk, getStatus, alerts = async () => null, config = CONFIG, now = Date.now, agentsWaitMs = AGENTS_WAIT_MS, cost = phoneCost }) {
   const orch = makeOrchestration({ getStatus, alerts, config, now, agentsWaitMs })
-  /** Each agent in one line; null while the PC is still building the list (the page says so and asks again later). */
-  /** A label to show: an unmapped session is an Unnamed session, never its raw id (QA, 2026-11-26). */
-  const shownLabel = l => {
-    const s = String(l || '').trim()
-    return !s || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s) || /^[0-9a-f]{16,}$/i.test(s) ? 'Unnamed session' : s
-  }
-
-  async function agentLines(flows) {
-    let agents = []
-    let timer
-    try {
-      const late = new Promise(resolve => { timer = setTimeout(() => resolve(null), agentsWaitMs) })
-      const st = await Promise.race([getStatus(false), late])
-      if (st === null) return null
-      agents = st?.agents || []
-    } catch {
-      return [] // the page says nothing about agents rather than an error
-    } finally {
-      clearTimeout(timer)
-    }
-    const onFlow = label => flows.filter(f => f.agent === label && live(f)).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))[0]?.title || ''
-    return agents.map(a => ({ label: shownLabel(a.label), busy: a.state === 'active' || a.status === 'busy', flow: onFlow(a.label) }))
-  }
-
+  // the agents themselves are on the Agents tab (orchestration): the summary no longer waits for the status build
   async function summary() {
     const graph = pipelineGraph(config)
     const all = listFlows({ archived: 'any' }).flows
@@ -113,7 +90,6 @@ export function makePhoneActions({ relay, talk, getStatus, alerts = async () => 
       builtAt: new Date(now()).toISOString(),
       coordinator: config.coordinatorLabel, // what the page calls the coordinator's tab and thread
       needs: { total: asks.length + hands.length + outputs.length, asks: asks.length, hands: hands.length, outputs: outputs.length },
-      agents: await agentLines(all),
       finishedToday,
       asks,
       hands,

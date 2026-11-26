@@ -74,7 +74,7 @@ test('the address opens a tab, and a flow sheet by its id; anything else is the 
 
 // ═══ the markup ═══
 
-const ALL = () => [V.signIn({ status: 'Wrong PIN. 4 tries left before a 15 minute lock.' }), V.nav('now', SUMMARY, 'Master'), V.now(SUMMARY, Date.parse('2026-11-25T12:00:00Z')),
+const ALL = () => [V.signIn({ status: 'Wrong PIN. 4 tries left before a 15 minute lock.' }), V.nav('agents', SUMMARY, 'Master'),
   V.needs(SUMMARY, {}), V.outputs(SUMMARY, { confirm: 'shipped' }), V.outputs(SUMMARY, {}),
   V.talk({ label: 'Master', running: false, busy: false, messages: [{ id: 'm1', at: '2026-11-25T10:00:00Z', text: '<b>hi</b>', state: 'failed', error: 'x', replies: [{ at: '2026-11-25T10:01:00Z', text: 'ok "fine"' }] }] }, {})]
 
@@ -87,7 +87,7 @@ test('no markup holds an inline style or an inline handler (the CSP allows neith
 })
 
 test('everything from the server is escaped', () => {
-  assert.match(V.now(SUMMARY), /Login page &lt;beta&gt;/)
+  assert.match(V.needs({ ...SUMMARY, asks: [{ ...SUMMARY.asks[0], flowTitle: 'Login page <beta>' }] }, {}), /Login page &lt;beta&gt;/)
   const t = V.talk({ label: 'Master', messages: [{ id: 'm1', at: '2026-11-25T10:00:00Z', text: '<img src=x onerror=alert(1)>', state: 'sent', replies: [] }] }, {})
   assert.doesNotMatch(t, /<img/)
   assert.match(t, /&lt;img src=x onerror=alert\(1\)&gt;/)
@@ -99,25 +99,6 @@ test('sign in: a PIN field for digits that is never shown, the number pad, and t
   assert.deepEqual([...h.matchAll(/data-ph-key="([^"]+)"/g)].map(m => m[1]), ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'clear', '0', 'back'])
   assert.match(text(h), /Wrong PIN\./)
   assert.match(V.signIn({ busy: true }), /disabled>Signing in…/)
-})
-
-test('the bottom bar: Now, Needs you with its count, Outputs with its count, and the coordinator', () => {
-  const h = V.nav('needs', SUMMARY, 'Master')
-  assert.deepEqual([...h.matchAll(/data-ph-tab="([^"]+)"/g)].map(m => m[1]), ['now', 'needs', 'outputs', 'talk'])
-  assert.match(h, /data-ph-tab="needs" aria-current="page"/)
-  assert.match(text(h), /^Now Needs you 3 Outputs 1 Master$/)
-})
-
-test('Now: N things need you, the counts that go to their tab, each agent in one line, finished today', () => {
-  const h = V.now(SUMMARY)
-  assert.match(text(h), /4 things need you/)
-  assert.match(h, /data-ph-tab="needs"><span class="ph-count-n">2<\/span><span class="ph-count-l">questions/)
-  assert.match(h, /data-ph-tab="outputs"><span class="ph-count-n">1<\/span><span class="ph-count-l">output to sign off/)
-  assert.match(text(h), /Agent 1 Busy Login page &lt;beta&gt;/)
-  assert.match(text(h), /QA Idle no open flow/)
-  assert.match(text(h), /Finished today: 3/)
-  assert.match(V.now({ ...SUMMARY, agents: [] }), /No agents are running/)
-  assert.match(text(V.now({ ...SUMMARY, agents: null })), /still gathering what the agents are doing/)
 })
 
 test('Needs you: Yes and No with what each means, a text box for a text question, the cost said once, by-hand ticks', () => {
@@ -153,11 +134,12 @@ test('the chat tab: a reply shows its bold and code, escaped first; your own tex
 
 // ═══ the live half, the stylesheet, the manifest ═══
 
-test('phone-app.js stores nothing in the browser, registers no service worker, and sends the CSRF header', () => {
+test('the live files store nothing in the browser, register no service worker, and send the CSRF header', () => {
   const app = read('phone-app.js')
-  for (const s of ['localStorage', 'sessionStorage', 'indexedDB', 'serviceWorker', 'caches.', 'document.cookie']) assert.equal(app.includes(s), false, s)
+  const live = ['phone-app.js', 'phone-chat-live.js', 'phone-composer.js'].map(read).join('\n')
+  for (const s of ['localStorage', 'sessionStorage', 'indexedDB', 'serviceWorker', 'caches.', 'document.cookie', 'innerHTML +=', '.setAttribute(\'style\'']) assert.equal(live.includes(s), false, s)
   assert.match(app, /'x-phone-csrf': st\.csrf/)
-  assert.match(app, /C\.pollMs\(st\.thread/, 'the chat polls on PhoneChat.pollMs: 5 s while a message is in flight, else 15 s')
+  assert.match(read('phone-chat-live.js'), /C\.pollMs\(st\.thread/, 'the chat polls on PhoneChat.pollMs: 5 s while a message is in flight, else 15 s')
   assert.match(app, /visibilitychange/)
   assert.match(app, /if \(field\) field\.value = '' \/\/ read once, never kept/)
 })
@@ -209,8 +191,8 @@ test('Outputs: story lines lose the glossary brackets and never repeat the agent
   assert.match(V.outputs(sum, {}), /aria-label="Completed: Quota fix"/)
 })
 
-test('the header names the tab: Now, Needs you, Outputs, or the coordinator', () => {
-  assert.equal(V.tabTitle('now', 'Master'), 'Now')
+test('the header names the tab: Agents, Needs you, Outputs, or the coordinator', () => {
+  assert.equal(V.tabTitle('agents', 'Master'), 'Agents')
   assert.equal(V.tabTitle('needs', 'Master'), 'Needs you')
   assert.equal(V.tabTitle('outputs', 'Master'), 'Outputs')
   assert.equal(V.tabTitle('talk', 'Master'), 'Master')

@@ -3,7 +3,6 @@
 //
 //   needsLine(n)                  'Nothing needs you' | '1 thing needs you' | 'N things need you'
 //   countParts(needs)             the three counts under it: questions, by hand, outputs to sign off
-//   agentWord(a)                  'Busy' | 'Idle'
 //   clock(at) / when(at, now)     '14:05' / today '14:05', another day '24 Nov' (times as on a clock: the desktop's one
 //                                 relative-time helper, Shell.ago, is not loaded on the phone listener)
 //   (the chat with the coordinator, its states and its words, is public/phone-chat.js)
@@ -26,8 +25,6 @@
       { key: 'outputs', tab: 'outputs', n: n.outputs || 0, label: (n.outputs || 0) === 1 ? 'output to sign off' : 'outputs to sign off' },
     ]
   }
-
-  const agentWord = a => (a && a.busy ? 'Busy' : 'Idle')
 
   const pad = x => String(x).padStart(2, '0')
   function clock(at) {
@@ -56,7 +53,7 @@
   const failureOf = status => (status === 401 ? 'signedOut' : !status ? 'offline' : 'error')
 
   /** The bottom bar's tabs, the first is where the page opens. MUST CHANGE IN LOCKSTEP with phone-view.js nav. */
-  const TABS = Object.freeze(['now', 'needs', 'outputs', 'talk'])
+  const TABS = Object.freeze(['agents', 'needs', 'outputs', 'talk'])
   const FLOW_ID = /^[a-z0-9-]{1,80}$/
   /** The address's #tab or #flow=<id>: so a tab or a flow sheet can be opened, reloaded or kept on the home screen. */
   function routeOf(hash) {
@@ -67,5 +64,5 @@
   }
   const hashOf = tab => `#${tab}`
 
-  window.PhoneState = { needsLine, countParts, agentWord, clock, when, pinProblem, failureOf, TABS, routeOf, hashOf }
+  window.PhoneState = { needsLine, countParts, clock, when, pinProblem, failureOf, TABS, routeOf, hashOf }
 })()

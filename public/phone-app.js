@@ -1,27 +1,30 @@
 // The phone page's live half (public/phone.html): it signs in, fetches, polls and binds the clicks; the words come
-// from phone-state.js and the markup from phone-view.js and phone-chat.js. Everything it calls is on the phone listener
+// from phone-state.js and the markup from phone-view.js, phone-agents.js and phone-chat.js. Everything it calls is on the phone listener
 // (phone-server.mjs): /phone/login, /phone/logout and /phone/api/*. Every POST carries the session's CSRF token in
 // X-Phone-CSRF; the session itself is an HttpOnly cookie this script never sees.
 //
 // Rules this file keeps:
 // - The PIN is read once from its field when the user signs in, sent once and the field emptied. Nothing here
 //   stores it, or anything else, in the browser (no web storage, no cookie it can read, no cache): there is no service worker.
-// - Polling only while the page is visible: the summary every SUMMARY_MS and, on the coordinator's tab, the thread
+// - Polling only while the page is visible: the summary every SUMMARY_MS (and the orchestration with it, on the
+//   Agents tab) and, on the coordinator's tab, the thread
 //   on PhoneChat.pollMs (5 s while a message is on its way or the coordinator works, else 15 s). Hidden, it stops;
 //   visible again, it refreshes at once.
 // - A redraw keeps what the user is typing (every [data-draft] field) and where the focus is, so a poll never eats
 //   an answer half written.
-// - The chat: one message at a time (Send is off while the box is empty or one is in flight); the box empties once
-//   the server has the message; a message that was not delivered has Try again, which puts its text back in the box
-//   and sends nothing by itself. A new reply is followed down only when the reader is near the bottom, else the
-//   New reply pill shows. The composer stays above the on-screen keyboard (phone-composer.js).
-// - The address names the tab (#talk, #needs …), so a reload or a home-screen icon opens where the user was.
+// - The chat's live half (reading the thread, the pill, Send, Try again) is public/phone-chat-live.js, made once here
+//   with this file's state, network call and draw. The composer stays above the on-screen keyboard (phone-composer.js).
+// - The address names the tab (#talk, #needs …) or the open flow sheet (#flow=<id>), so a reload or a home-screen
+//   icon opens where the user was.
+// - The flow sheet (a chip on the Agents tab) is a modal dialog: focus moves into it and stays there (Tab wraps),
+//   Escape, Close or a tap outside it closes it and gives the focus back to its chip; a poll that redraws it keeps
+//   its scroll. An answer given in it reloads it.
 // - The PC unreachable: a quiet line at the top, and the page keeps trying. The session over (401): back to the PIN.
 ;(() => {
   const S = window.PhoneState
   const V = window.PhoneView
-  const C = window.PhoneChat
   const K = window.PhoneComposer
+  const A = window.PhoneAgents
   const doc = window.document
   const root = doc.getElementById('app')
   if (!root) return
@@ -32,12 +35,10 @@
 
   const first = S.routeOf(window.location.hash)
   const st = {
-    signedIn: false, csrf: '', tab: first.tab, summary: null, thread: null, notice: '', pill: false,
+    signedIn: false, csrf: '', tab: first.tab, summary: null, orch: null, sheet: null, thread: null, notice: '', pill: false,
     signIn: { status: '', busy: false }, ui: { status: {}, busy: {}, confirm: null, talkDraft: '' },
   }
   let timers = []
-  let talkTimer = null
-  let talkSeen = -1 // how many replies were on screen at the last draw of the chat (-1: none yet, open at the bottom)
 
   // ═══ the network ═══
 
@@ -61,7 +62,7 @@
 
   function signedOut(why) {
     stop()
-    Object.assign(st, { signedIn: false, csrf: '', summary: null, thread: null, pill: false })
+    Object.assign(st, { signedIn: false, csrf: '', summary: null, orch: null, sheet: null, thread: null, pill: false })
     st.signIn = { status: why || '', busy: false }
     draw()
   }
@@ -72,104 +73,72 @@
     draw()
   }
 
-  // ═══ the chat ═══
-
-  const visible = () => doc.visibilityState !== 'hidden'
-  const pcNow = () => Date.parse(st.thread?.now) || Date.now()
-  const scrollState = () => ({ scrollTop: window.scrollY || 0, clientHeight: window.innerHeight || 0, scrollHeight: doc.documentElement.scrollHeight || 0 })
-  const toBottom = () => window.scrollTo(0, doc.documentElement.scrollHeight)
-
-  /** The next read of the thread, on the chat tab only: 5 s while something is on its way, else 15 s. */
-  function scheduleTalk() {
-    window.clearTimeout(talkTimer)
-    talkTimer = null
-    if (!st.signedIn || st.tab !== 'talk') return
-    const ms = C.pollMs(st.thread, pcNow(), visible())
-    if (ms) talkTimer = window.setTimeout(loadThread, ms)
-  }
-
-  async function loadThread({ follow = false } = {}) {
-    const near = C.nearBottom(scrollState()) // measured BEFORE the redraw makes the page taller
-    const r = await call('GET', '/phone/api/talk')
-    if (r.status === 200) st.thread = r.json
-    if (st.tab === 'talk' && st.thread) {
-      const count = C.replyCount(st.thread)
-      const what = follow ? 'follow' : C.onNewReplies(talkSeen, count, near)
-      talkSeen = count
-      if (what === 'pill') st.pill = true
-      draw()
-      if (what === 'follow') {
-        st.pill = false
-        showPill()
-        toBottom()
-      }
-    } else draw()
-    scheduleTalk()
-  }
-
-  function showPill() {
-    const pill = root.querySelector('[data-ph-newreply]')
-    if (pill) pill.hidden = !st.pill
-  }
-
-  /** Send on or off for the text in the box now (the server's own one-at-a-time refusal still stands behind it). */
-  function updateSend() {
-    const box = root.querySelector('#phTalk')
-    const btn = root.querySelector('.ph-send-btn')
-    if (!box || !btn) return
-    const sending = !!st.thread?.busy || C.status(st.thread, pcNow()).kind === 'sending' || !!st.ui.busy.talk
-    btn.disabled = !C.canSend(box.value, sending)
-  }
-
-  async function sendTalk(form) {
-    const box = form.querySelector('[data-draft="talk"]')
-    const text = box?.value || ''
-    if (!text.trim()) return say('talk', 'Type a message first.')
-    st.ui.busy.talk = true
-    st.ui.status.talk = ''
+  async function loadOrch() {
+    const r = await call('GET', '/phone/api/orchestration')
+    if (r.status === 200) st.orch = r.json
     draw()
-    const r = await call('POST', '/phone/api/talk', { text })
-    delete st.ui.busy.talk
-    if (r.status === 202) {
-      st.ui.status.talk = ''
-      draw({ talk: '' }) // the server has it now: the box empties
-      return loadThread({ follow: true })
-    }
-    if (r.status !== 401) say('talk', r.status ? r.json.error || 'Not sent.' : `${OFFLINE} Your text is still in the box.`)
   }
 
-  /** Try again: the message's text back in the box, ready to send; nothing is sent until the user presses Send. */
-  function retry(id) {
-    const m = (st.thread?.messages || []).find(x => x.id === id)
-    const box = root.querySelector('#phTalk')
-    if (!m || !box) return
-    box.value = m.text
-    st.ui.talkDraft = m.text
-    K.grow(box)
-    K.measure(root)
-    updateSend()
-    box.focus()
+  // ═══ the flow sheet ═══
+
+  const chipOf = id => [...root.querySelectorAll('[data-ph-flow]')].find(b => b.getAttribute('data-ph-flow') === id)
+
+  async function loadSheet() {
+    const id = st.sheet?.id
+    if (!id) return
+    const r = await call('GET', `/phone/api/flow?id=${encodeURIComponent(id)}`)
+    if (st.sheet?.id !== id) return // closed or another one opened meanwhile
+    st.sheet = r.status === 200 ? { id, data: r.json } : { id, error: r.status ? r.json.error || 'That flow could not be read.' : OFFLINE }
+    draw()
+  }
+
+  function openSheet(id) {
+    st.sheet = { id, loading: true }
+    window.history?.replaceState?.(null, '', `#flow=${encodeURIComponent(id)}`)
+    draw()
+    root.querySelector('.ph-sheet')?.focus()
+    return loadSheet()
+  }
+
+  function closeSheet() {
+    const id = st.sheet?.id
+    st.sheet = null
+    window.history?.replaceState?.(null, '', S.hashOf(st.tab))
+    draw()
+    chipOf(id)?.focus()
+  }
+
+  /** Tab and Shift+Tab stay inside the open sheet. */
+  function trapTab(e) {
+    const sheet = root.querySelector('.ph-sheet')
+    if (!sheet) return
+    const list = [...sheet.querySelectorAll('button:not([disabled]), a[href], textarea, input:not([disabled])')]
+    if (!list.length) return
+    const at = list.indexOf(doc.activeElement)
+    if (e.shiftKey && at <= 0) { e.preventDefault(); list.at(-1).focus() }
+    else if (!e.shiftKey && (at === -1 || at === list.length - 1)) { e.preventDefault(); list[0].focus() }
   }
 
   // ═══ polling, only while visible ═══
 
+  const visible = () => doc.visibilityState !== 'hidden'
   function stop() {
     for (const t of timers) window.clearInterval(t)
     timers = []
-    window.clearTimeout(talkTimer)
-    talkTimer = null
+    chat.stop()
   }
   function start() {
     stop()
     if (!st.signedIn || !visible()) return
-    timers.push(window.setInterval(loadSummary, SUMMARY_MS))
-    scheduleTalk()
+    timers.push(window.setInterval(() => (st.tab === 'agents' ? Promise.all([loadSummary(), loadOrch()]) : loadSummary()), SUMMARY_MS))
+    chat.schedule()
   }
   doc.addEventListener('visibilitychange', () => {
     if (!visible()) return stop()
     if (!st.signedIn) return
     loadSummary()
-    if (st.tab === 'talk') loadThread()
+    if (st.tab === 'talk') chat.load()
+    if (st.tab === 'agents') loadOrch()
     start()
   })
 
@@ -189,6 +158,7 @@
     Object.assign(drafts, put)
     if (drafts.talk !== undefined) st.ui.talkDraft = drafts.talk
     const focus = selectorOf(doc.activeElement)
+    const sheetTop = root.querySelector('.ph-sheet-body')?.scrollTop || 0
     if (!st.signedIn) {
       root.innerHTML = V.signIn(st.signIn)
     } else {
@@ -196,11 +166,12 @@
       const body = st.tab === 'needs' ? V.needs(st.summary, st.ui)
         : st.tab === 'outputs' ? V.outputs(st.summary, st.ui)
         : st.tab === 'talk' ? V.talk(st.thread, st.ui)
-        : V.now(st.summary)
+        : A.view(st.orch, st.summary)
       root.innerHTML = '<div class="ph-app">' +
         `<header class="ph-top"><span class="ph-brand">${V.esc(V.tabTitle(st.tab, label))}</span><span class="ph-notice" role="status">${V.esc(st.notice)}</span>` +
         '<button type="button" class="link ph-out" data-ph-signout>Sign out</button></header>' +
-        `<main class="ph-main${st.tab === 'talk' ? ' is-chat' : ''}" id="phMain">${body}</main>${V.nav(st.tab, st.summary, label)}</div>`
+        `<main class="ph-main${st.tab === 'talk' ? ' is-chat' : ''}" id="phMain">${body}</main>${V.nav(st.tab, st.summary, label)}` +
+        `${st.sheet ? A.sheet(st.sheet, st.ui) : ''}</div>`
     }
     for (const f of root.querySelectorAll('[data-draft]')) {
       const k = f.getAttribute('data-draft')
@@ -209,12 +180,16 @@
     if (st.tab === 'talk') {
       K.grow(root.querySelector('#phTalk'))
       K.measure(root)
-      showPill()
+      chat.showPill()
     }
+    doc.documentElement.classList.toggle('sheet-open', !!(st.signedIn && st.sheet))
+    const body = root.querySelector('.ph-sheet-body')
+    if (body) body.scrollTop = sheetTop
     if (focus) root.querySelector(focus)?.focus?.({ preventScroll: true })
   }
 
   const say = (key, text) => { st.ui.status[key] = text; draw() }
+  const chat = window.PhoneChatLive.make({ root, st, call, draw, say, offline: OFFLINE })
 
   // ═══ actions ═══
 
@@ -243,8 +218,10 @@
     delete st.ui.busy[key]
     if (r.status === 401) return
     st.ui.status[key] = r.status === 200 ? done : r.status ? r.json.error || `Not done (${r.status}).` : OFFLINE
-    if (r.status === 200) await loadSummary()
-    else draw()
+    if (r.status === 200) {
+      await loadSummary()
+      if (st.sheet) await loadSheet() // an answer given in the flow sheet: the sheet shows it gone
+    } else draw()
     return r
   }
 
@@ -274,22 +251,29 @@
 
   function go(tab) {
     st.tab = tab
+    st.sheet = null
     st.ui.confirm = null
-    st.pill = false
-    talkSeen = -1
+    chat.reset()
     window.history?.replaceState?.(null, '', S.hashOf(tab))
     draw()
     window.scrollTo(0, 0)
-    scheduleTalk()
-    if (tab === 'talk') loadThread()
+    chat.schedule()
+    if (tab === 'talk') chat.load()
     else loadSummary()
+    if (tab === 'agents') loadOrch()
   }
 
   /** Signed in (or a session already open): the summary, the tab the address named, and the polls. */
   async function opened() {
     draw()
     await loadSummary()
-    if (st.tab === 'talk') await loadThread()
+    if (st.tab === 'talk') await chat.load()
+    if (st.tab === 'agents') await loadOrch()
+    if (first.flow) {
+      first.flow = null
+      const id = S.routeOf(window.location.hash).flow
+      if (id) await openSheet(id)
+    }
     start()
   }
 
@@ -304,14 +288,17 @@
       field.value = k === 'clear' ? '' : k === 'back' ? field.value.slice(0, -1) : (field.value + k).slice(0, 12)
       return
     }
+    if (t.closest('[data-ph-sheet-close]')) return closeSheet()
     const tab = t.closest('[data-ph-tab]')
     if (tab) return go(tab.getAttribute('data-ph-tab'))
+    const chip = t.closest('[data-ph-flow]')
+    if (chip) return openSheet(chip.getAttribute('data-ph-flow'))
     const again = t.closest('[data-ph-retry]')
-    if (again) return retry(again.getAttribute('data-ph-retry'))
+    if (again) return chat.retry(again.getAttribute('data-ph-retry'))
     if (t.closest('[data-ph-newreply]')) {
       st.pill = false
-      showPill()
-      return toBottom()
+      chat.showPill()
+      return window.scrollTo(0, doc.documentElement.scrollHeight)
     }
     const yn = t.closest('[data-ph-answer]')
     if (yn) return answer(yn, yn.getAttribute('data-ph-answer'))
@@ -344,14 +331,16 @@
     st.ui.talkDraft = e.target.value
     K.grow(e.target)
     K.measure(root)
-    updateSend()
+    chat.updateSend()
   })
   root.addEventListener('submit', e => {
     e.preventDefault()
     if (e.target.matches('[data-ph-login]')) return signIn(e.target)
-    if (e.target.matches('[data-ph-talk]')) return sendTalk(e.target)
+    if (e.target.matches('[data-ph-talk]')) return chat.send(e.target)
   })
   root.addEventListener('keydown', e => {
+    if (st.sheet && e.key === 'Tab') return trapTab(e)
+    if (st.sheet && e.key === 'Escape') return closeSheet()
     if (e.key === 'Escape' && st.ui.confirm) {
       const id = st.ui.confirm
       st.ui.confirm = null
@@ -359,12 +348,7 @@
       root.querySelector(`[data-ph-complete][data-flow="${id}"]`)?.focus()
     }
   })
-  window.addEventListener('scroll', () => {
-    if (st.pill && C.nearBottom(scrollState())) {
-      st.pill = false
-      showPill()
-    }
-  }, { passive: true })
+  window.addEventListener('scroll', () => chat.onScroll(), { passive: true })
   K.watchKeyboard()
 
   // ═══ start: a session already open (the cookie) goes straight in ═══

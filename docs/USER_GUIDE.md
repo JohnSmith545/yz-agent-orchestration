@@ -801,8 +801,12 @@ is off until you set it up, and only reachable on your own private network.
 
 **On the phone** there are four tabs at the bottom:
 
-- **Now**: how many things need you (questions, by-hand steps, outputs to sign off), what each agent is doing in
-  one line, and how many flows finished today.
+- **Agents**: how many things need you (questions, by-hand steps, outputs to sign off), the alerts (how many, and
+  the first two), the open pull requests (a tap opens GitHub), and the pipeline as a list from Request to Output:
+  each box with its agent's state (a green dot for busy, grey for idle, a ring for no session) and the flows standing
+  there. Tap a flow to see its tickets, where it stands, its route, its open questions (with Yes and No), its last
+  QA result, its story and its pull request. Close it with Close, Escape or a tap outside. Read only, apart from
+  answering. At the bottom, how many flows finished today.
 - **Needs you**: each open question with Yes and No (or a box for a written answer), and each by-hand flow with
   its steps to tick. An answer reaches the agent through a short paid turn on your PC, a few cents each. A
   question you have answered cannot be changed from the phone; do that at the PC.

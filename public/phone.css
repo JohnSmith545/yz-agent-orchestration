@@ -129,7 +129,8 @@ textarea.ph-input { resize: vertical; min-height: 84px; }
   max-width: 560px; margin: 0 auto;
   padding: 16px 16px calc(var(--nav-h) + 24px + env(safe-area-inset-bottom));
 }
-.ph-sec { display: grid; gap: 14px; }
+/* minmax(0, 1fr): a long chip or link that does not wrap is cut by its own ellipsis, never widens the column */
+.ph-sec { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 .ph-big { margin: 4px 0 0; font-size: 26px; line-height: 1.2; font-weight: 650; letter-spacing: -.015em; }
 .ph-h { margin: 10px 0 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
 
@@ -140,18 +141,6 @@ textarea.ph-input { resize: vertical; min-height: 84px; }
 }
 .ph-count-n { font-size: 24px; font-weight: 650; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .ph-count-l { font-size: 13px; color: var(--muted); line-height: 1.3; }
-
-.ph-agents { list-style: none; margin: 0; padding: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
-.ph-agent {
-  display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; align-items: center; column-gap: 10px; row-gap: 1px;
-  padding: 10px 12px;
-}
-.ph-agent + .ph-agent { border-top: 1px solid var(--line); }
-.ph-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--idle); }
-.ph-dot.is-busy { background: var(--ok); }
-.ph-agent-name { font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ph-agent-state { font-size: 13px; color: var(--muted); }
-.ph-agent-flow { grid-column: 2 / 4; font-size: 13.5px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* cards: a question, a by-hand flow, an output */
 .ph-card { display: grid; gap: 10px; padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
@@ -179,7 +168,7 @@ textarea.ph-input { resize: vertical; min-height: 84px; }
    phone-composer.js from the visual viewport). --composer-h is the composer's measured height. ═══ */
 .ph-main.is-chat { padding-bottom: calc(var(--nav-h) + var(--composer-h, 110px) + 20px + env(safe-area-inset-bottom)); }
 .kb-open .ph-main.is-chat { padding-bottom: calc(var(--kb, 0px) + var(--composer-h, 110px) + 20px); }
-.ph-chat { display: grid; gap: 14px; }
+.ph-chat { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 
 .ph-help { font-size: 14px; color: var(--ink-2); }
 .ph-help summary {
@@ -245,6 +234,76 @@ textarea.ph-compose-box { min-height: 44px; resize: none; }
   background: var(--ink); color: var(--bg); font-size: 14px; font-weight: 550; box-shadow: 0 4px 14px rgba(0, 0, 0, .18);
 }
 .kb-open .ph-pill { bottom: calc(var(--kb, 0px) + var(--composer-h, 110px) + 12px); }
+
+/* ═══ the Agents tab (phone-agents.js): what needs you, the alerts, the open pull requests, then the pipeline as a
+   vertical list of its boxes on one rail, each with the agent's state and the flows standing there as chips ═══ */
+.ph-state { display: inline-flex; align-items: center; gap: 6px; flex: none; font-size: 13px; color: var(--muted); }
+.ph-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--idle); }
+.ph-state.is-busy { color: var(--ink-2); }
+.ph-state.is-busy .ph-dot { background: var(--ok); }
+.ph-state.is-none .ph-dot { background: none; box-shadow: inset 0 0 0 1.5px var(--idle); }
+
+.ph-alerts { display: grid; gap: 6px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.ph-alerts-head { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; font-weight: 600; }
+.ph-alert-mark { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); }
+.ph-alert-lines { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.ph-alert-lines li { font-size: 14px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.ph-prs, .ph-others { margin: 0; padding: 0; list-style: none; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.ph-prs li + li, .ph-others li + li { border-top: 1px solid var(--line); }
+.ph-prs li { display: flex; min-width: 0; }
+.ph-prs li > * { flex: 1; min-width: 0; padding: 11px 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }
+.ph-pr-link { color: var(--accent); text-decoration: none; }
+.ph-pr-link:active { text-decoration: underline; }
+.ph-others li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; }
+.ph-other-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 550; }
+
+.ph-pipe { position: relative; margin: 0; padding: 6px 0; list-style: none; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.ph-pipe::before { content: ""; position: absolute; left: 21px; top: 24px; bottom: 24px; width: 1.5px; background: var(--line-strong); }
+.ph-box { position: relative; padding: 9px 14px 9px 40px; min-width: 0; }
+.ph-box::before {
+  content: ""; position: absolute; left: 16px; top: 15px; width: 12px; height: 12px; border-radius: 50%;
+  background: var(--surface); box-shadow: inset 0 0 0 2px var(--line-strong);
+}
+.ph-box.has-flows::before { background: var(--accent); box-shadow: 0 0 0 3px var(--surface); }
+.ph-box-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 26px; }
+.ph-box-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 600; }
+.ph-box.is-start .ph-box-name, .ph-box.is-step .ph-box-name, .ph-box.is-end .ph-box-name { font-weight: 500; color: var(--ink-2); }
+.ph-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.ph-chip {
+  display: inline-flex; align-items: baseline; gap: 6px; max-width: 100%; min-height: 40px; padding: 8px 12px;
+  border-radius: 20px; background: var(--surface-2); border: 1px solid var(--line); font-size: 14px; text-align: left;
+}
+.ph-chip-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.ph-chip-word { flex: none; font-size: 12px; color: var(--muted); }
+.ph-chip.t-bad { border-color: var(--bad); }
+.ph-chip.t-bad .ph-chip-word { color: var(--bad); }
+.ph-chip.t-ok .ph-chip-word { color: var(--ok); }
+.ph-more { align-self: center; font-size: 13px; color: var(--muted); }
+
+/* ═══ the flow sheet: a modal bottom sheet over the tab (phone-app.js keeps the focus in it) ═══ */
+.sheet-open body { overflow: hidden; }
+.ph-sheet-back { position: fixed; inset: 0; z-index: 20; background: rgba(10, 10, 14, .42); }
+.ph-sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 21; display: flex; flex-direction: column;
+  max-width: 560px; max-height: 88vh; max-height: 88dvh; margin: 0 auto; padding-bottom: env(safe-area-inset-bottom);
+  background: var(--surface); border-radius: 16px 16px 0 0; box-shadow: 0 -8px 30px rgba(0, 0, 0, .22);
+  animation: ph-rise .2s ease-out;
+}
+@keyframes ph-rise { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.ph-sheet:focus-visible { outline: none; }
+.ph-sheet-head { display: flex; align-items: flex-start; gap: 10px; padding: 14px 12px 10px 16px; border-bottom: 1px solid var(--line); }
+.ph-sheet-title { flex: 1; min-width: 0; margin: 10px 0 0; font-size: 18px; line-height: 1.3; font-weight: 650; overflow-wrap: anywhere; }
+.ph-sheet-close { flex: none; }
+.ph-sheet-body { display: grid; gap: 12px; padding: 12px 16px 20px; overflow-y: auto; overscroll-behavior: contain; }
+.ph-sheet-body .ph-h { margin-top: 6px; }
+.ph-where { margin: 0; font-size: 15px; font-weight: 550; overflow-wrap: anywhere; }
+.ph-route { display: flex; flex-wrap: wrap; align-items: center; row-gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 13px; }
+.ph-route li { display: inline-flex; align-items: center; color: var(--faint); }
+.ph-route li + li::before { content: ""; width: 5px; height: 5px; margin: 0 8px; border-right: 1.5px solid var(--line-strong); border-top: 1.5px solid var(--line-strong); transform: rotate(45deg); }
+.ph-route .ph-step-done { color: var(--ink-2); }
+.ph-route .ph-step-current span { padding: 2px 9px; border-radius: 10px; background: var(--accent-soft); color: var(--ink); font-weight: 600; }
+.ph-route .ph-step-skipped span { text-decoration: line-through; text-decoration-color: var(--line-strong); }
 
 /* the bottom bar: four tabs within thumb reach */
 .ph-nav {

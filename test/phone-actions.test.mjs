@@ -46,7 +46,7 @@ test('the allowlist is exactly: read the summary, the orchestration and a flow s
 
 // ═══ the summary ═══
 
-test('the summary: what needs the user, each agent in one line, and the questions, by-hand steps and outputs', async () => {
+test('the summary: what needs the user, and the questions, by-hand steps and outputs; no agent lines (the Agents tab has them)', async () => {
   put('asker', { nodes: [ask('a1'), ask('a2', 'text')] })
   put('hands', { agent: 'Agent 2', hand: { steps: [STEP] } })
   put('shipped', { status: 'done', output: { summary: 'Done.', story: [{ id: 's1', who: 'Agent 1', did: 'Built the login page.', why: 'You asked.' }] } })
@@ -54,7 +54,7 @@ test('the summary: what needs the user, each agent in one line, and the question
   const { status, body } = await actions().summary()
   assert.equal(status, 200)
   assert.deepEqual(body.needs, { total: 4, asks: 2, hands: 1, outputs: 1 })
-  assert.deepEqual(body.agents, [{ label: 'Agent 1', busy: true, flow: 'Flow asker' }, { label: 'QA', busy: false, flow: '' }])
+  assert.equal('agents' in body, false)
   assert.equal(body.finishedToday, 0, 'shipped finished a day ago')
   const a = body.asks.find(x => x.nodeId === 'a1')
   assert.deepEqual({ flowId: a.flowId, question: a.question, why: a.why, kind: a.kind, yes: a.yes, no: a.no }, { flowId: 'asker', question: 'Ship a1?', why: 'Because it is ready.', kind: 'yesno', yes: 'ship it', no: 'hold it' })
@@ -70,19 +70,12 @@ test('finished today counts flows finished since local midnight', async () => {
   assert.equal((await actions().summary()).body.finishedToday, 1)
 })
 
-test('a cold status build does not hold the summary: agents is null and the rest comes at once', async () => {
+test('the summary never waits for the status build: it answers at once even when the agents never come', async () => {
   put('asker', { nodes: [ask('a1')] })
   const started = Date.now()
-  const r = await makePhoneActions({ relay, talk, getStatus: () => new Promise(() => {}), agentsWaitMs: 50 }).summary()
-  assert.ok(Date.now() - started < 2000)
-  assert.equal(r.body.agents, null)
+  const r = await makePhoneActions({ relay, talk, getStatus: () => new Promise(() => {}) }).summary()
+  assert.ok(Date.now() - started < 1000)
   assert.equal(r.body.needs.asks, 1)
-})
-
-test('the agents line degrades quietly when the status cannot be built', async () => {
-  const r = await makePhoneActions({ relay, talk, getStatus: async () => { throw new Error('git broke') } }).summary()
-  assert.equal(r.status, 200)
-  assert.deepEqual(r.body.agents, [])
 })
 
 // ═══ answer ═══
@@ -216,8 +209,3 @@ test('talk reads the one thread with its cost line, and sends through phone-talk
   assert.equal(r.body.sid, 'abc')
 })
 
-test('an agent line never shows a raw session id: an unmapped session is an Unnamed session (QA, 2026-11-26)', async () => {
-  const raw = [{ label: '3f2a9c1e-7b4d-4e21-9a0b-6c5d4e3f2a1b', state: 'idle' }, { label: '', state: 'idle' }, { label: 'Agent 2', state: 'idle' }]
-  const { body } = await makePhoneActions({ relay, talk, getStatus: async () => ({ agents: raw }) }).summary()
-  assert.deepEqual(body.agents.map(a => a.label), ['Unnamed session', 'Unnamed session', 'Agent 2'])
-})

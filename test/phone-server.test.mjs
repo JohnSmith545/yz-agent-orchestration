@@ -129,7 +129,7 @@ test('only GET and POST, each on its own paths: any other method is 404', async 
 test('the phone page and its own assets are served, each with its type', async () => {
   for (const [p, type] of Object.entries({
     '/phone': 'text/html', '/phone/': 'text/html', '/phone/phone.css': 'text/css', '/phone/phone-state.js': 'text/javascript', '/phone/phone-view.js': 'text/javascript',
-    '/phone/phone-app.js': 'text/javascript', '/phone/phone-text.js': 'text/javascript', '/phone/phone-chat.js': 'text/javascript', '/phone/phone-composer.js': 'text/javascript', '/phone/manifest.webmanifest': 'application/manifest+json', '/phone/icon.svg': 'image/svg+xml', '/phone/icon-180.png': 'image/png', '/phone/inter.woff2': 'font/woff2',
+    '/phone/phone-app.js': 'text/javascript', '/phone/phone-text.js': 'text/javascript', '/phone/phone-chat.js': 'text/javascript', '/phone/phone-composer.js': 'text/javascript', '/phone/phone-agents.js': 'text/javascript', '/phone/phone-chat-live.js': 'text/javascript', '/phone/manifest.webmanifest': 'application/manifest+json', '/phone/icon.svg': 'image/svg+xml', '/phone/icon-180.png': 'image/png', '/phone/inter.woff2': 'font/woff2',
   })) {
     const r = await request('GET', p)
     assert.equal(r.status, 200, p)
@@ -162,6 +162,14 @@ test('the phone page holds no inline script or style, so the CSP needs none', ()
   assert.doesNotMatch(page, /<script(?![^>]*\ssrc=)[^>]*>/, 'every script has a src')
   assert.doesNotMatch(page, /\son[a-z]+=/i, 'no inline event handler')
   assert.doesNotMatch(page, /<style|\sstyle=/i)
+})
+
+test('every script and stylesheet the phone page loads is in the fixed asset map, and no other script is served', () => {
+  const page = fs.readFileSync(path.join(HERE, '..', 'public', 'phone.html'), 'utf8')
+  const loaded = [...page.matchAll(/(?:src|href)="(\/phone\/[^"]+)"/g)].map(m => m[1])
+  for (const p of loaded) assert.ok(P.ASSETS[p], `${p} is served`)
+  const scripts = Object.keys(P.ASSETS).filter(p => p.endsWith('.js'))
+  assert.deepEqual(scripts.sort(), loaded.filter(p => p.endsWith('.js')).sort())
 })
 
 test('a request addressed to any other host is refused (DNS rebinding)', async () => {

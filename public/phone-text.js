@@ -13,6 +13,7 @@
 //   [text](address)      a link ONLY when the address is https://github.com/... with nothing but plain address
 //   https://...          characters (GITHUB): then <a target="_blank" rel="noopener noreferrer">. Any other
 //                        address is said as text, `text (address)`: never a javascript:, data: or other link.
+// isGithub(address) is that same test, for the other links the phone draws (phone-agents.js: pull requests).
 // Nothing else becomes markup: no HTML, no images, no tables. The phone page's CSP (phone-server.mjs) allows no
 // inline script or style either, so even a mistake here could not run a script.
 ;(() => {
@@ -97,5 +98,7 @@
     return out
   }
 
-  window.PhoneText = { render, esc }
+  const isGithub = address => typeof address === 'string' && GITHUB.test(address)
+
+  window.PhoneText = { render, esc, isGithub }
 })()
