@@ -2,13 +2,19 @@
 // two lists of the side panel. Pure except explain and howToTest, which hand over to another page.
 //
 //   byNode(tickets)             { nodeId: [tickets] }: where each ticket stands now, the current step of its
-//                               `progress` (flow-route.js at; stage.node when a ticket has none), dropped and
-//                               archived off
+//                               `progress` (flow-route.js at; stage.node when a ticket has none), dropped,
+//                               archived and completed off
 //   chips(list) / chipRows(g)   at most MAX chips per node and a +N; the chip rows the tallest node needs
-//   chipHtml(t, labels)         one chip: the title cut by CSS, its status in the tooltip
+//   chipHtml(t, labels)         one chip: the title cut by CSS, its status in the tooltip; one that waits for the
+//                               user's sign-off (`waiting`, completed.mjs) has the amber dot and says Mark it completed
 //   ticketList / ticketsHtml    Tickets: needs attention first (failed, sent back, blocked, waiting), then newest;
 //                               each row says the flow's type and its current step (`build · QA`)
-//   outputList / outputsHtml    Outputs: finished tickets with output or a QA pass, newest first
+//   outputList / outputsHtml    Outputs: finished tickets with output or a QA pass, or waiting for sign-off, newest
+//                               first; a waiting one says Mark it completed and has its Completed tick (completed-view.js)
+//   outputsHeadHtml(summary)    the list's head: how many wait and are overdue, Mark all completed
+// A COMPLETED ticket (the user's sign-off) is in none of these, Show archived or not: it is put away for good. An
+// ARCHIVED one that still waits for sign-off stays in Outputs, Show archived or not, with an Archived mark and its tick:
+// archiving is not a sign-off (completed.mjs). It is still no chip on the diagram.
 //   testTarget(t, steps)        where How to test goes: 'qa' (QA has a record), 'flow' (its Output has test
 //                               steps), or null (no button: there is nothing to show)
 //   stepsToFetch(list, known)   the outputs whose test step count the page must still look up (/api/flows/<id>)
@@ -38,7 +44,7 @@
   const attention = t => ATTENTION[stageStatus(t)] ?? 9
   const newest = (a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || ''))
   const byNeed = (a, b) => attention(a) - attention(b) || newest(a, b)
-  const visible = (t, archived) => archived || !t.archived
+  const visible = (t, archived) => !t.completed && (archived || !t.archived)
 
   /** { nodeId: label } from the graph, so a row can say where its ticket is. */
   const labelsOf = graph => Object.fromEntries((graph?.nodes || []).map(n => [n.id, n.label]))
@@ -54,7 +60,7 @@
     const out = {}
     for (const t of tickets || []) {
       const node = nodeOf(t)
-      if (!node || t.archived) continue
+      if (!node || t.archived || t.completed) continue
       ;(out[node] ||= []).push(t)
     }
     for (const list of Object.values(out)) list.sort(byNeed)
@@ -63,11 +69,14 @@
   const chips = list => ({ shown: (list || []).slice(0, MAX), more: Math.max(0, (list || []).length - MAX) })
   const chipRows = groups => Math.min(MAX, Math.max(0, ...Object.values(groups || {}).map(l => l.length)))
 
-  const tipOf = (t, labels) => [t.title || t.id, whereOf(t, labels || {}), word(t)].filter(Boolean).join(' · ')
+  const tipOf = (t, labels) => [t.title || t.id, whereOf(t, labels || {}), word(t), t.waiting ? 'Mark it completed' : '', window.QualityFlow?.tip(t) || ''].filter(Boolean).join(' · ')
+  const C = () => window.CompletedView
 
   function chipHtml(t, labels) {
     const tn = tone(t)
-    return `<button type="button" class="pl-chip${tn ? ` t-${tn}` : ''}" data-ticket="${esc(t.id)}" title="${esc(tipOf(t, labels))}">${esc(t.title || t.id)}</button>`
+    const cls = `${tn ? ` t-${tn}` : ''}${t.waiting ? ' is-waiting' : ''}`
+    const dot = t.waiting ? '<i class="cv-dot" aria-hidden="true"></i>' : ''
+    return `<button type="button" class="pl-chip${cls}" data-ticket="${esc(t.id)}" title="${esc(tipOf(t, labels))}">${dot}${esc(t.title || t.id)}</button>`
   }
 
   // ═══ Tickets ═══
@@ -92,7 +101,7 @@
 
   const finished = t => t.status === 'done' || t.stage?.node === 'outcome'
   const outputList = (tickets, { archived = false } = {}) =>
-    (tickets || []).filter(t => visible(t, archived) && finished(t) && (t.hasOutput || t.qa?.status === 'passed')).sort(newest)
+    (tickets || []).filter(t => (visible(t, archived) || (t.waiting && !t.completed)) && finished(t) && (t.hasOutput || t.qa?.status === 'passed' || t.waiting)).sort(newest)
 
   const qaWord = t => QA_WORD[t.qa?.status] || (t.codeProducing ? 'Not tested' : 'No code changes')
   const qaTone = t => (t.qa?.status === 'passed' ? 'ok' : t.qa?.status === 'failed' || t.qa?.status === 'qa-failed' ? 'bad' : '')
@@ -113,13 +122,21 @@
         const tn = qaTone(t)
         const on = t.id === selected
         const to = testTarget(t, steps[t.id])
+        const sign = t.waiting && C() // waits for the user's sign-off: the mark in words, and its Completed tick
+        const mark = (sign && t.archived ? '<span class="cv-arch">Archived</span>' : '') + (sign ? C().markHtml(C().overdue(t.id), Number(C().data?.warnAfterDays) || 2) : '')
         return `<li class="pl-out"><button type="button" class="pl-row${t.archived ? ' pl-archived' : ''}" data-ticket="${esc(t.id)}" aria-pressed="${on}" title="${esc(t.title || t.id)}">` +
           `<span class="pl-row-title">${esc(t.title || t.id)}</span>` +
-          `<span class="pl-row-meta"><span class="pl-word${tn ? ` t-${tn}` : ''}">${esc(qaWord(t))}</span></span></button>` +
+          `<span class="pl-row-meta"><span class="pl-word${tn ? ` t-${tn}` : ''}">${esc(qaWord(t))}</span>${mark}</span></button>` +
           `<div class="pl-out-acts"><button type="button" class="link" data-explain="${esc(t.id)}">Explain</button>` +
-          (to ? `<button type="button" class="link" data-test="${esc(t.id)}" data-to="${to}">How to test</button>` : '') + '</div></li>'
+          (to ? `<button type="button" class="link" data-test="${esc(t.id)}" data-to="${to}">How to test</button>` : '') + (sign ? C().tickHtml(t) : '') + '</div></li>'
       })
       .join('')}</ul>`
+  }
+
+  /** The Output list's head: how many wait for sign-off (overdue too) and Mark all completed; '' when none wait. */
+  function outputsHeadHtml(summary) {
+    const head = C()?.headHtml(summary) || ''
+    return head ? `<div class="cv-box-head">${head}${C().allHtml(summary)}</div>` : ''
   }
 
   // ═══ handing over to another page ═══
@@ -150,5 +167,5 @@
     window.Shell?.whenReady?.(sel, el => el.scrollIntoView?.({ behavior: 'smooth', block: 'start' }), 3000)
   }
 
-  window.PipelineTickets = { labelsOf, tone, word, byNode, chips, chipRows, chipHtml, ticketList, ticketsHtml, outputList, outputsHtml, qaWord, testTarget, stepsToFetch, explain, howToTest, MAX }
+  window.PipelineTickets = { labelsOf, tone, word, byNode, chips, chipRows, chipHtml, ticketList, ticketsHtml, outputList, outputsHtml, outputsHeadHtml, qaWord, testTarget, stepsToFetch, explain, howToTest, MAX }
 })()

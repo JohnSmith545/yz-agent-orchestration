@@ -111,5 +111,5 @@ test('the server asks the real finder, and npm run check covers the new file', a
   assert.match(server, /import \{ findSkill \} from '\.\/script-skill\.mjs'/)
   assert.match(server, /makeScriptRoute\(\{ port: PORT,[^\n]*skill: findSkill \}\)/)
   const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
-  assert.ok(pkg.scripts.check.includes('node --check script-skill.mjs'))
+  assert.ok(pkg.checkList.includes('node --check script-skill.mjs'))
 })

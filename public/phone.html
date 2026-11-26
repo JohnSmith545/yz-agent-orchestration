@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f6f6f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e0e11" media="(prefers-color-scheme: dark)">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Agents">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Agents</title>
+<link rel="manifest" href="/phone/manifest.webmanifest">
+<link rel="icon" href="/phone/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/phone/icon-180.png">
+<link rel="stylesheet" href="/phone/phone.css">
+</head>
+<body>
+<!-- The phone page (phone-server.mjs serves it on the phone listener only). phone-app.js draws everything into #app. -->
+<div id="app" class="ph-root"><noscript><p class="ph-muted">This page needs JavaScript.</p></noscript></div>
+<script src="/phone/phone-state.js"></script>
+<script src="/phone/phone-view.js"></script>
+<script src="/phone/phone-app.js"></script>
+</body>
+</html>

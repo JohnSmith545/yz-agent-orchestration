@@ -70,6 +70,20 @@
       "claude-fable-5-1": { "input": 10, "output": 50, "cacheWrite": 12.5, "cacheWrite1h": 20, "cacheRead": 0.25 }
     }
   },
+  "outputs": { "max": 7, "warnAfterDays": 2 },
+  "alerts": {
+    "enabled": true,
+    "stuckFactor": 3,
+    "stuckMinMinutes": 60,
+    "stuckHours": 24,
+    "spikeFactor": 4,
+    "spikeMinTokens": 20000000,
+    "contextTokens": 400000,
+    "dailyUsd": null,
+    "dailyTokens": null
+  },
+  "estimates": { "enabled": true, "nearest": 8 },
+  "learn": { "enabled": true, "autoRetro": true, "weekly": false, "verdictAfterDays": 14, "model": "claude-opus-5-5", "retroModel": "claude-sonnet-5-5" },
   "pipeline": {
     "qa": "QA",
     "producers": null,
@@ -77,12 +91,22 @@
     "maxReworks": 3,
     "planner": null,
     "security": null,
-    "senior": null
+    "senior": null,
+    "requireSelfCheck": false
   },
+  "quality": { "autoLessons": true, "critic": "manual", "areas": [], "riskRules": null },
   "pr": {
     "enabled": false,
     "remote": "origin",
     "bases": ["dev"],
     "gh": "gh"
-  }
+  },
+  "routing": {
+    "intakeModel": null,
+    "rules": [
+      { "when": { "risk": "high" }, "model": "claude-opus-5-5", "effort": "high", "why": "high-risk work gets the strongest model" },
+      { "when": { "type": "wording", "size": "small" }, "model": "claude-sonnet-5-5", "effort": "medium", "why": "small wording fixes rarely fail QA" }
+    ]
+  },
+  "remote": { "enabled": false, "bind": "", "port": 4318, "pinHash": "", "sessionHours": 4 }
 }

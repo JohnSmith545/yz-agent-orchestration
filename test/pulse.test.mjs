@@ -86,7 +86,7 @@ test('pulse carries the validated reminders from the config, so the page needs n
   const p = await pulse(deps)
   assert.ok(Array.isArray(p.reminders))
   assert.deepEqual(p.reminders, CONFIG.reminders)
-  assert.deepEqual(Object.keys(p).sort(), ['agents', 'at', 'chat', 'flows', 'reminders', 'waiting'])
+  assert.deepEqual(Object.keys(p).sort(), ['agents', 'at', 'away', 'chat', 'flows', 'reminders', 'waiting'])
 })
 
 test('ticketFlows maps each ticket to its open flows with the current step and whether one waits', () => {

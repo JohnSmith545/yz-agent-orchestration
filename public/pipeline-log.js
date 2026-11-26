@@ -6,8 +6,10 @@
 //                                          Plans, Security and Senior when `roles` (the graph's node roles) has the
 //                                          planner, Security or Senior (pipeline.mjs): their own log kinds
 //                                          (score-log.mjs GATE_KINDS)
+//                                          and Completed last, on every pipeline: the flows the user marked
+//                                          completed (completed.mjs), which the other views leave out
 //   PipelineLog.queryOf(win, filter)       '/api/log?days=30&cell=caught' (Rules is kind=rule, Plans kind=planned,
-//                                          Security kind=security)
+//                                          Security kind=security, Completed completed=1)
 //   PipelineLog.filterOf(v)                a filter key, All for anything else
 //
 // One row per event (score-log.mjs): the time as the pages show times (Shell.ago, the exact time on hover), the
@@ -30,17 +32,19 @@
     Object.freeze({ key: 'security', label: 'Security', role: 'security' }),
     Object.freeze({ key: 'senior', label: 'Senior', role: 'senior' }),
   ])
+  /** The user's sign-off: the default view leaves a completed flow out, this chip shows only those (score-routes.mjs). */
+  const SIGN_OFF_FILTER = Object.freeze({ key: 'completed', label: 'Completed' })
   const KINDS = ['rule', 'planned', 'security', 'senior']
   const CELLS = ['delivered', 'caught', 'missed', 'slipped']
   const TAG = Object.freeze({ delivered: 'Counted: right, delivered', caught: 'Counted: right, caught', missed: 'Counted: wrong, missed', slipped: 'Counted: wrong, slipped through' })
   /** The empty line per filter: "Nothing caught in the last 7 days." */
   const NOTHING = Object.freeze({
     all: 'Nothing in the log', delivered: 'Nothing delivered', caught: 'Nothing caught', missed: 'Nothing missed', slipped: 'Nothing slipped through', rule: 'No rule changes',
-    planned: 'No plans handed out', security: 'No Security verdicts', senior: 'No Senior reviews',
+    planned: 'No plans handed out', security: 'No Security verdicts', senior: 'No Senior reviews', completed: 'Nothing completed',
   })
 
   const esc = s => window.UI.esc(s)
-  const filterOf = v => ([...FILTERS, ...GATE_FILTERS].some(f => f.key === v) ? v : 'all')
+  const filterOf = v => ([...FILTERS, ...GATE_FILTERS, SIGN_OFF_FILTER].some(f => f.key === v) ? v : 'all')
   const winOf = v => (v === '7' || v === 'all' ? v : '30')
   const spanOf = win => (win === 'all' ? 'all time' : `the last ${win} days`)
 
@@ -48,13 +52,14 @@
     const f = filterOf(filter)
     const q = `/api/log?days=${winOf(win)}`
     if (CELLS.includes(f)) return `${q}&cell=${f}`
+    if (f === SIGN_OFF_FILTER.key) return `${q}&completed=1`
     return KINDS.includes(f) ? `${q}&kind=${f}` : q
   }
 
   function chipsHtml(filter, { roles = [] } = {}) {
     const f = filterOf(filter)
     const has = new Set(roles)
-    const all = [...FILTERS, ...GATE_FILTERS.filter(x => has.has(x.role))]
+    const all = [...FILTERS, ...GATE_FILTERS.filter(x => has.has(x.role)), SIGN_OFF_FILTER]
     return `<div class="lg-chips" role="group" aria-label="Show in the log">${all.map(x => `<button type="button" data-log-chip="${x.key}" aria-pressed="${x.key === f}">${x.label}</button>`).join('')}</div>`
   }
 

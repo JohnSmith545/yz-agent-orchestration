@@ -1,0 +1,85 @@
+/* Completed: the sign-off on a finished flow (public/completed-view.js). Quiet by default: an amber dot and plain
+   words; a notice (the banner look: a line, a warn edge on the left) only once something waited too long or piled up.
+   Colours are the page's own tokens, so light and dark both work; nothing moves, so reduced motion has nothing to stop. */
+
+.cv-dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--warn); }
+
+/* the line over the Agents diagram and on Home */
+.cv-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 0 0 12px; padding: 2px 0; font-size: 13.5px; color: var(--ink-2); }
+.cv-line b { color: var(--ink); font-weight: 550; }
+.cv-line .link { margin-left: auto; }
+.cv-line.is-notice { padding: 10px 14px; border: 1px solid var(--line); border-left: 3px solid var(--warn); border-radius: var(--radius); background: var(--surface); }
+.cv-over { color: var(--warn); font-weight: 550; }
+/* Home: under Human review's line, and the 32 px before the next zone that styles.css gives that line kept */
+#homeOutputs .cv-line { margin: 0; }
+#homeHuman:not([hidden]) + #homeOutputs:not([hidden]) { margin-top: 8px; }
+#homeOutputs:not([hidden]) + .home-zone, #homeHuman:not([hidden]) + #homeOutputs[hidden] + .home-zone { margin-top: 32px; }
+
+/* the mark on a card, a chip row or the flow's Sign-off block */
+.cv-mark { display: inline-flex; align-items: center; gap: 6px; color: var(--warn); font-size: 12px; font-weight: 500; white-space: nowrap; }
+.cv-mark .cv-dot { width: 7px; height: 7px; }
+
+/* the Completed buttons and their inline question */
+.cv-confirm { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.cv-ask[hidden], .cv-confirm [data-cv-ask][hidden] { display: none; }
+.cv-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; max-width: 520px; }
+.cv-ask-q { flex: 1 1 100%; color: var(--ink-2); font-size: 13px; }
+.cv-confirm.is-open { flex: 1 1 100%; margin-left: 0; }
+.cv-confirm.is-open .cv-ask { flex: 1 1 100%; }
+.cv-btn { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.cv-tick-i { width: 14px; height: 14px; fill: none; stroke: var(--ok); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.cv-btn:focus-visible, .cv-ask button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* the pile-up reminder above a composer (the Ask drawer, Pass a task on the Tickets page) */
+.cv-remind { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 10px; padding: 10px 12px; border: 1px solid var(--line);
+  border-left: 3px solid var(--warn); border-radius: var(--radius); background: var(--surface); font-size: 13px; color: var(--ink-2); }
+.cv-remind p { display: flex; align-items: baseline; gap: 8px; flex: 1 1 260px; margin: 0; }
+.cv-remind .cv-dot { transform: translateY(-1px); }
+
+/* the Output box: its head, and each row's tick (the panel's Outputs list, pipeline-panel.js) */
+.cv-head { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.cv-head.is-notice { color: var(--warn); font-weight: 600; }
+.cv-box-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0 0 8px; padding: 0 2px; }
+.cv-box-head .cv-confirm { margin-left: auto; }
+.pl-out .cv-mark { margin-left: auto; }
+.pl-out-acts { flex-wrap: wrap; align-items: center; }
+.pl-out-acts .cv-confirm { margin-left: auto; }
+.pl-out-acts .cv-tick { padding: 1px 8px; font-size: 12.5px; }
+.pl-node .cv-head { display: block; padding: 0 10px 4px; font-size: 11.5px; }
+.pl-chip .cv-dot { width: 6px; height: 6px; margin-right: 5px; vertical-align: 1px; }
+
+/* the flow's own Sign-off block, at the end of its Output tab */
+.ob-complete .cv-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.ob-complete .cv-say { display: flex; flex-direction: column; gap: 4px; flex: 1 1 280px; margin: 0; color: var(--ink-2); font-size: 13.5px; }
+
+/* the flow archive's Completed label */
+.ar-done { color: var(--ok); font-weight: 550; }
+
+@media (max-width: 600px) {
+  .cv-line .link, .cv-box-head .cv-confirm, .pl-out-acts .cv-confirm { margin-left: 0; }
+}
+
+/* the Output box of the diagram (pipeline-output.js): its count lines, like the Human task box's */
+.pl-out-count { flex: none; height: 20px; margin: 0 0 4px; padding: 0 10px; color: var(--ink-2);
+  font-size: 12px; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pl-out-count .cv-dot { margin-right: 6px; vertical-align: 1px; }
+.pl-out-count.is-over { color: var(--warn); }
+.pl-out-count.is-notice { color: var(--warn); font-weight: 600; }
+.pl-outputs .cv-line { margin: 4px 0 10px; }
+
+/* the Flows board: a card's own line, a tile's mark under its title */
+.fl-card-sign { margin: 0; }
+.fl-small .cv-mark { align-self: flex-start; }
+
+/* where a new request starts: over the Ask drawer's composer, in Pass a task and its bulk bar */
+.fc-remind { flex: none; padding: 10px 16px 0; border-top: 1px solid var(--line); }
+.fc-remind .cv-remind { margin: 0; }
+.fx-bulk-remind:not([hidden]) { flex: 1 1 100%; }
+.fx-bulk-remind .cv-remind, .fx-pass .cv-remind { margin: 0 0 4px; }
+.pl-out .pl-row-meta { flex-wrap: wrap; row-gap: 2px; }
+.pl-out .pl-word { white-space: nowrap; }
+/* an archived output that still waits for sign-off: archiving is not a sign-off */
+.cv-arch { color: var(--muted); font-size: 12px; white-space: nowrap; }
+
+/* the Output list scrolls clear of the toast stack (completed-view.js sets --cv-toasts to its height) */
+.pl-panel-list { padding-bottom: calc(20px + var(--cv-toasts, 0px)); }

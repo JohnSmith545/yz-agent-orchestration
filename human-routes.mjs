@@ -11,7 +11,7 @@
 //                                    queueHandRequest), { ok, via: 'relay', requestedAt }; the chat agent's own flow:
 //                                    { ok, via: 'chat', text } for the page to put in the Ask drawer, and nothing is
 //                                    stamped or relayed (no paid turn starts without the user)
-//   POST /api/tickets/<id>/request-hand  { note? }: Ask for steps on a TICKET marked no-code or not-codebase (a Human
+//   POST /api/tickets/<id>/request-hand  { note? }: Ask for steps on a TICKET marked no-code or not-codebase, or sorted no-code or needs-a-person by ticket intake (a Human
 //                                    review ticket row). A live flow that carries the ticket is asked; else a new flow
 //                                    is started for it (`<ticket>-by-hand`, type ask, its agent the one who marked the
 //                                    ticket when that is a working agent in the pipeline, else the coordinator), then
@@ -28,9 +28,10 @@ import { readState } from './factory-state.mjs'
 import { createFlow, listFlows, readFlow, seniorHold, validateFlow, writeFlow } from './flows.mjs'
 import { failedSoFar, SENIOR_MAX } from './flow-senior.mjs'
 import { applyHandTick } from './hand-steps.mjs'
-import { HUMAN_MARKS, humanItems } from './human.mjs'
+import { HUMAN_KINDS, HUMAN_MARKS, humanItems } from './human.mjs'
 import { gateLabels, pipelineGraph } from './pipeline.mjs'
 import { handText } from './relay.mjs'
+import { ticketKinds } from './routing-intake-store.mjs'
 import { isTrashed } from './trash.mjs'
 import { newRoute } from './tools/route-cli.mjs'
 
@@ -53,8 +54,9 @@ function ticketsOf() {
   return map
 }
 
-export function humanGet({ now = Date.now() } = {}) {
-  const { items, counts } = humanItems({ flows: listFlows().flows, marks: readState().marks, tickets: ticketsOf(), senior: gateLabels(CONFIG).senior })
+export function humanGet({ now = Date.now(), kinds = ticketKinds() } = {}) {
+  // `kinds`: ticket intake's sure sorts (routing-intake-store.mjs), so the Tickets list leaves out tickets sorted as code
+  const { items, counts } = humanItems({ flows: listFlows().flows, marks: readState().marks, tickets: ticketsOf(), senior: gateLabels(CONFIG).senior, kinds })
   return ok({ items, counts, builtAt: new Date(now).toISOString() })
 }
 
@@ -123,13 +125,16 @@ export function agentForTicket(mark, graph) {
 }
 
 /** Ask for steps on a ticket with no flow of its own yet: find or start its flow, then the same request as request-hand. */
-export function ticketHandRoute(ticketId, b, relay, { config = CONFIG } = {}) {
+export function ticketHandRoute(ticketId, b, relay, { config = CONFIG, kinds = null } = {}) {
   if (typeof ticketId !== 'string' || !TICKET.test(ticketId)) return no(400, 'A ticket id looks like FLA-815.')
   const note = b?.note ?? ''
   if (typeof note !== 'string') return no(400, 'note must be text')
   if (note.length > NOTE_MAX) return no(400, `note must be at most ${NOTE_MAX} characters`)
   const mark = readState().marks[ticketId]
-  if (!HUMAN_MARKS.includes(mark?.review)) return no(400, `${ticketId} is not marked as work only you can do, so there is no one to ask for steps.`)
+  // a ticket intake sorted as no-code or needs-a-person is a Human review row too, marked or not (human.mjs)
+  const kind = (kinds || ticketKinds())[ticketId]
+  const sorted = HUMAN_KINDS.includes(kind) ? kind : null
+  if (!HUMAN_MARKS.includes(mark?.review) && !sorted) return no(400, `${ticketId} is not marked as work only you can do, so there is no one to ask for steps.`)
   let flow = listFlows({ ticket: ticketId }).flows.find(live)
   let created = false
   if (!flow) {
@@ -144,7 +149,7 @@ export function ticketHandRoute(ticketId, b, relay, { config = CONFIG } = {}) {
       const title = ticketsOf().get(ticketId)?.title || ticketId
       flow = createFlow({
         id, title, agent, tickets: [ticketId],
-        why: `Work only you can do (${ticketId}, marked ${mark.review}). You asked ${agent} for the steps to do it by hand.`,
+        why: `Work only you can do (${ticketId}, ${HUMAN_MARKS.includes(mark?.review) ? `marked ${mark.review}` : `sorted as ${sorted}`}). You asked ${agent} for the steps to do it by hand.`,
         route: newRoute('ask', agent, 'you', config),
       })
       created = true

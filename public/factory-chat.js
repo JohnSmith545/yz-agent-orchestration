@@ -16,6 +16,8 @@
 // document ({ detail: { busy } }); the rail's Ask item shows a dot from it.
 // The head shows Independent's state as a dot and one word (Working, Waiting,
 // Idle): busy from this stream, waiting from the pulse's chat.state.
+// Over the composer, once outputs.max finished flows wait for the user's sign-off, the pile-up reminder with Mark all
+// completed (completed-view.js fills the data-cv-reminder slot). The composer still works: a reminder, never a block.
 (() => {
   const $ = (s, el = document) => el.querySelector(s)
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
@@ -106,6 +108,7 @@
       </div>`
     box.innerHTML = `
       <div class="fc-log" id="fcLog" aria-live="polite"></div>
+      <div class="fc-remind" data-cv-reminder hidden></div>
       <form class="fc-form" id="fcForm">
         <div class="fc-quick">
           <button type="button" data-q="Which tickets need a code review next, in board order? Pick the 3 most important and say why.">What to review next</button>
@@ -115,6 +118,7 @@
         <textarea id="fcInput" rows="3" placeholder="Talk to the agent. Enter sends, Shift+Enter for a new line."></textarea>
         <div class="fc-send"><span class="small faint" id="fcHint"></span><button type="submit" class="primary" id="fcSend">Send</button></div>
       </form>`
+    window.CompletedView?.paint(box) // the pile-up reminder, when it applies
     $('#fcForm', box).addEventListener('submit', e => { e.preventDefault(); send($('#fcInput', box).value) })
     $('#fcInput', box).addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(e.target.value) } })
     $('#fcStop', head).addEventListener('click', () => fetch('/api/chat/stop', { method: 'POST' }))

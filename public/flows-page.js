@@ -27,7 +27,12 @@
       'Flows that reached the Output sit below them under Done; dropped ones behind Show dropped.</p>' +
       '<p>Updated is the newest change to any flow. The page reads them again every 15 seconds.</p>' +
       '<p><b>Archive</b> and <b>Delete</b> (on each card, and in an open flow\'s ⋯ menu) take a flow off the board. Both keep it in the <b>flow archive</b> (the link under the board): ' +
-      'an archived flow is put away, a deleted one waits there until you choose Delete for good. Nothing leaves by a timer.</p>')
+      'an archived flow is put away, a deleted one waits there until you choose Delete for good. Nothing leaves by a timer. ' +
+      'Archiving is not a sign-off: an output you archive without marking it completed still counts as waiting for you.</p>' +
+      '<p><b>Completed</b> is your sign-off on a finished output, and only you give it: press Completed at the end of the Output tab of a flow, or tick it in ' +
+      'the Output list on the Agents page. It goes to the flow archive and off every board, and still counts in the score; Uncomplete there puts it back. ' +
+      'A card marked <b>Mark it completed</b> waits for you. The reminders follow two settings in config.json: outputs.warnAfterDays (2 days, then a notice) ' +
+      'and outputs.max (7 waiting, then the Ask drawer reminds you before a new request).</p>')
   }
 
   function open(query = {}) {

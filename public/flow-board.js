@@ -25,6 +25,9 @@
 //   fit(root)                     cut each card's line again at a word until it fits (after a draw)
 //   state(f)                      { word, cls } of the one chip, or null
 //   askControls(f, n, slot)       an ask's Yes and No, or its text field (the Human review box, human-review.js)
+// A flow waiting at the Output for the user's sign-off (completed-view.js) says so on its card or tile: the amber
+// mark and the words Mark it completed; a completed one is archived, so the board never draws it.
+//
 //   shown(flows)                  the flows the board draws: never an archived or deleted one (/api/flows leaves
 //                                 them out, but one opened from the archive is merged into the page's data)
 ;(() => {
@@ -91,6 +94,12 @@
     return null
   }
 
+  /** The amber mark of a flow waiting for the user's sign-off (completed-view.js), or ''. */
+  function signOff(f) {
+    const C = window.CompletedView
+    return C?.waits(f.id) ? C.markHtml(C.overdue(f.id), Number(C.data?.warnAfterDays) || 2) : ''
+  }
+
   /** Archive and Delete for one flow on the board; while its Delete waits on the server's question, that question. */
   function acts(f, asking = null) {
     const id = esc(f.id)
@@ -109,14 +118,15 @@
     const s = state(f)
     const line = storyLine(f)
     return `<article class="fl-card${f.derived?.waiting?.length ? ' is-waiting' : ''}" data-open="${esc(f.id)}" tabindex="0">` +
-      `<div class="fl-card-top"><span class="fl-card-title">${esc(f.title)}</span>${s ? `<span class="fl-chip ${s.cls}">${esc(s.word)}</span>` : ''}</div>` +
+      `<div class="fl-card-top"><span class="fl-card-title">${esc(f.title)}</span>${s ? `<span class="fl-chip ${s.cls}">${esc(s.word)}</span>` : ''}${window.QualityFlow?.chip(f) || ''}</div>` + // the risk chip (quality-flow.js)
       (line ? `<p class="fl-card-story" data-line="${esc(rawLine(f))}">${line}</p>` : '') +
+      (signOff(f) ? `<p class="fl-card-sign">${signOff(f)}</p>` : '') +
       (window.FlowRoute?.strip(f) || '') + // its route from Request to Output (flow-route.js)
       `<div class="fl-prog"><span class="fl-card-agent">${esc(f.agent)}</span>` +
       `<div class="fl-bar"><i style="width:${total ? Math.round((done / total) * 100) : 0}%"></i></div><span>${done}/${total}</span></div>${acts(f, asking)}</article>`
   }
 
-  const small = (f, { asking = null } = {}) => `<article class="fl-small" data-open="${esc(f.id)}" tabindex="0"><span class="fl-card-title">${esc(f.title)}</span>` +
+  const small = (f, { asking = null } = {}) => `<article class="fl-small" data-open="${esc(f.id)}" tabindex="0"><span class="fl-card-title">${esc(f.title)}</span>${signOff(f)}` +
     (window.FlowRoute?.strip(f, { mini: true }) || '') +
     `<span class="small">${esc(f.agent)} · ${esc(window.Shell.ago(f.updatedAt))}</span>${acts(f, asking)}</article>`
 

@@ -209,7 +209,7 @@ test('the block is on the page, in npm run check, under Pipeline time, and drive
   assert.match(html, /<link rel="stylesheet" href="tokens.css">/)
   assert.ok(html.indexOf('src="token-view.js"') > html.indexOf('src="time-strip.js"'))
   assert.ok(html.indexOf('src="token-strip.js"') > html.indexOf('src="token-view.js"'))
-  const check = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).scripts.check
+  const check = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).checkList
   for (const f of ['public/token-view.js', 'public/token-strip.js']) assert.ok(check.includes(`node --check ${f}`), f)
   const page = read('agents-page.js')
   assert.ok(page.indexOf('id="plTokens"') > page.indexOf('id="plTime"'))

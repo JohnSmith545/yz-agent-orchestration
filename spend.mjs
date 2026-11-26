@@ -1,12 +1,13 @@
 // What the dashboard's OWN headless turns cost (spec F4): the chat, the answer
 // relay, the term explainer, the ticket-source refreshes and the two Generators tools: the
-// Prompt generator (kind `script`) and the Standup creator (kind `standup`). Each turn's
+// Prompt generator (kind `script`) and the Standup creator (kind `standup`), and the quality runs: a lesson extraction
+// (kind `lesson`) and a second opinion on a plan (kind `critic`), quality-extract.mjs and quality-critic.mjs. Each turn's
 // `total_cost_usd` becomes one line of data/spend.jsonl, and the rail's chip
 // shows today's sum (GET /api/spend, public/spend.js).
 //
 // Rules this file keeps:
 // - ⚠️ The file is APPEND-ONLY, written with appendFileSync, one JSON line per
-//   turn: { "at": ISO, "kind": "chat|relay|explain|refresh|script|standup", "usd": number }.
+//   turn: { "at": ISO, "kind": "chat|relay|explain|refresh|script|standup|lesson|critic|intake|retro|learn|phone", "usd": number }.
 //   That is deliberate: atomic-write.mjs (temp file + rename) is for files
 //   rewritten whole, while one appended line is a single small write that
 //   never rewrites the lines before it. A reader that meets a torn or hand-made
@@ -26,7 +27,7 @@ import { DATA_DIR } from './factory-state.mjs'
 
 export const SPEND_FILE = path.join(DATA_DIR, 'spend.jsonl')
 /** The headless turns the dashboard runs itself. */
-export const KINDS = Object.freeze(['chat', 'relay', 'explain', 'refresh', 'script', 'standup'])
+export const KINDS = Object.freeze(['chat', 'relay', 'explain', 'refresh', 'script', 'standup', 'lesson', 'critic', 'intake', 'retro', 'learn', 'phone'])
 const RECENT = 20
 
 const isCost = usd => typeof usd === 'number' && Number.isFinite(usd) && usd > 0

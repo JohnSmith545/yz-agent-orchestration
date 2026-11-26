@@ -5,9 +5,10 @@
 //   Archived   live flows the user put away (`archivedAt`, the user's field, flows.mjs)
 //   Deleted    flows the user deleted, kept whole in data/trash/<id>.json (trash.mjs) until Delete for good
 //
-//   GET  /api/archive              { archived: [{ id, title, agent, status, tickets, archivedAt }], deleted: [{ id,
+//   GET  /api/archive              { archived: [{ id, title, agent, status, tickets, archivedAt, completedAt? }], deleted: [{ id,
 //                                  title, agent, status, tickets, deletedAt, broken? }] }, each the newest first
-//   POST /api/flows/<id>/archive   { archived: true|false }: sets or clears archivedAt
+//   POST /api/flows/<id>/archive   { archived: true|false }: sets or clears archivedAt; a COMPLETED flow (completed.mjs) is
+//                                  not unarchived here (409): Uncomplete takes the mark and the archive off together
 //   POST /api/flows/<id>/delete    { confirm?: true }: an open or blocked flow without confirm is 200
 //                                  { ok: false, needsConfirm, message } and nothing changes (a question, not an
 //                                  error: the browser logs no failed request); otherwise the flow moves to the
@@ -40,6 +41,7 @@ export function archiveRoute(id, b) {
   if (typeof b?.archived !== 'boolean') return no(400, 'archived must be true or false')
   const flow = readFlow(id)
   if (!flow) return no(404, `No flow ${id}.`)
+  if (!b.archived && flow.completedAt) return no(409, 'This flow is completed. Take the mark off with Uncomplete in the flow archive.')
   if (b.archived) flow.archivedAt = new Date().toISOString()
   else delete flow.archivedAt
   writeFlow(flow)
@@ -61,7 +63,7 @@ export function deleteRoute(id, b, relay) {
 }
 
 /** One archived flow as the archive lists it: what tells it apart, and when it was put away. */
-const archivedRow = f => ({ id: f.id, title: f.title, agent: f.agent, status: f.status, tickets: f.tickets || [], archivedAt: f.archivedAt })
+const archivedRow = f => ({ id: f.id, title: f.title, agent: f.agent, status: f.status, tickets: f.tickets || [], archivedAt: f.archivedAt, ...(f.completedAt ? { completedAt: f.completedAt } : {}), ...(f.retro ? { retro: f.retro } : {}) })
 
 /** Both groups of the flow archive, each the newest first. ⚠️ A Deleted group that cannot be read leaves it empty with `deletedError`, never a failed page. */
 export function archiveList() {

@@ -216,7 +216,7 @@ test('the script writes nothing and starts no process', () => {
 
 test('npm run check covers it, and the README says how to wire it without installing it', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
-  assert.ok(pkg.scripts.check.includes('node --check tools/flow-gate.mjs'))
+  assert.ok(pkg.checkList.includes('node --check tools/flow-gate.mjs'))
   const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8')
   assert.match(readme, /### The stop check/)
   assert.match(readme, /"SubagentStop"/)

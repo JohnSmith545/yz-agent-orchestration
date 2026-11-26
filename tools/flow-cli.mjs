@@ -8,7 +8,7 @@
 //
 // Only the user sets `verified` or answers an ask: there is no verify command,
 // and `write` merges the user's ticks and answers back in (mergeKeepingAnswers).
-// Only the user archives or deletes a flow, too: no command sets `archivedAt`,
+// Only the user archives, completes or deletes a flow, too: no command sets `archivedAt` or `completedAt`,
 // and any command on a flow the user deleted (trash.mjs: it waits in the flow
 // archive) fails with one line telling the agent to stop (TRASHED), so nothing
 // writes into a flow the user deleted, and `write` or `new` can never bring one
@@ -20,7 +20,10 @@
 
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, statSync } from 'node:fs'
 import path from 'node:path'
+import { outputsSummary, reminderLine } from '../completed.mjs'
+import { CONFIG } from '../config.mjs'
 import { parseDiagram } from '../diagram-text.mjs'
+import { pipelineGraph } from '../pipeline.mjs'
 import {
   addEvidence, addNode, createFlow, derive, EVIDENCE_DIR, EVIDENCE_KINDS, listFlows,
   agentMoveRefusal, mergeKeepingAnswers, readFlow, setNodeStatus, validateFlow, visualOf, withPipeline, writeFlow,
@@ -31,9 +34,11 @@ import { isTrashed } from '../trash.mjs'
 import { changeBlock, changeCommands } from './change-cli.mjs'
 import { handBlock, handCommands } from './hand-cli.mjs'
 import { planBlock, planCommands } from './plan-cli.mjs'
+import { qualityCommands } from './quality-cli.mjs'
 import { prBlock, prCommands } from './pr-cli.mjs'
 import { qaBlock, qaCommands } from './qa-cli.mjs'
 import { newRoute, routeBlock, routeCommands, settleRoute } from './route-cli.mjs'
+import { withRoutingNew, withRoutingPlan } from './routing-cli.mjs'
 import { rulesCommands, withQaRules, withRules } from './rules-cli.mjs'
 import { securityCommands } from './security-cli.mjs'
 import { seniorCommands } from './senior-cli.mjs'
@@ -96,8 +101,12 @@ export const USAGE = `usage: flow <command>
    a new flow needs "route": { "type": "build" } (or review, ask), and a rewrite keeps the stored route
   show <flow>           the JSON with derived, to read back answers (stdout); what its Output holds (stderr)
   list [--open] [--waiting] [--agent X] [--ticket ABC-1] [--archived]   archived flows only with --archived
-  rules [--by "<label>"]   your specification and rules, set by the user on the dashboard (new and qa-start print them too)
-  Only the user archives or deletes a flow. A command refused with "deleted" means stop work on that flow.
+  rules [--by "<label>"] [<flow>]   your specification and rules, set by the user on the dashboard (new and qa-start print them too),
+   then the lessons from earlier work that match the flow
+  self-check <flow> [--done "<id>=ok|no:<what is missing>"]...   before you hand a code flow to QA: without --done the
+   checklist for this flow; answer every item at once, a no needs a note. QA reads it at qa-start
+  Only the user archives, completes or deletes a flow. A command refused with "deleted" means stop work on that flow.
+  new may note on stderr that finished flows wait for the user to mark them completed: tell the user once, calmly.
 The Output, what the user sees first: when a piece of work is finished, record
   say <flow> "<what was done>" [--why "<the reason>"] [--who "<label>"] [--id s2 --replace]   one story line
   say-clear <flow>      empties the story, to tell it again
@@ -197,7 +206,19 @@ function cmdNew(f, { by, config }) {
   const [id, title] = f._
   if (isTrashed(id)) return fail(TRASHED_NEW(id))
   createFlow({ id, title, agent: by, tickets: tickets(f.tickets), env: f.env, why: f.why, route: newRoute(f.type, by, by, config) })
-  return ok(`Flow ${id} created`)
+  const pile = pileUp(config)
+  return pile ? { ...ok(`Flow ${id} created`), err: pile } : ok(`Flow ${id} created`)
+}
+
+/**
+ * The pile-up reminder (completed.mjs): when the finished flows waiting for the user's sign-off reach outputs.max,
+ * `flow new` says so on stderr and still creates the flow (exit 0), so the agent tells the user. Only the user
+ * completes a flow, on the dashboard: there is no command for it here. '' below the limit.
+ */
+function pileUp(config) {
+  const c = config || CONFIG
+  const s = outputsSummary(listFlows({ archived: 'any' }).flows, pipelineGraph(c), c.outputs, Date.now()) // archiving is no sign-off
+  return s.piled ? reminderLine(s.counts.waiting) : ''
 }
 
 /** step, check, ask and note: append one node. */
@@ -479,7 +500,7 @@ function cmdList(f) {
 }
 
 const COMMANDS = {
-  new: withRules(cmdNew),
+  new: withRules(withRoutingNew(cmdNew)),
   step: addCmd('step'),
   check: addCmd('check'),
   ask: addCmd('ask'),
@@ -502,12 +523,15 @@ const COMMANDS = {
   ...routeCommands(NO_NAME),
   ...withQaRules(qaCommands({ noName: NO_NAME, evidenceTarget, copyEvidence, shotExt: SHOT_EXT, shotError: SHOT_ERROR })),
   ...rulesCommands(NO_NAME),
-  ...plannerCommands(planCommands({ noName: NO_NAME, copyEvidence })),
+  ...plannerCommands(withRoutingPlan(planCommands({ noName: NO_NAME, copyEvidence }))),
   ...reviewerCommands(securityCommands({ noName: NO_NAME, copyEvidence })),
   ...seniorWithRules(seniorCommands({ noName: NO_NAME })),
 }
 
 /** The Senior commands, with `senior-start` printing its rules and settings (it refuses anyone but Senior). */
+// the self-check, the lessons after the rules, the risk label (tools/quality-cli.mjs): over new, rules, plan and qa-start
+Object.assign(COMMANDS, qualityCommands(COMMANDS, { noName: NO_NAME }))
+
 function seniorWithRules(commands) {
   return { ...commands, 'senior-start': withRules(commands['senior-start']) }
 }

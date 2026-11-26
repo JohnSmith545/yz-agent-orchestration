@@ -26,6 +26,10 @@
 //   clears it (trash-routes.mjs), mergeKeepingAnswers takes it from the stored file only, and listFlows
 //   leaves an archived flow out unless asked. A NEW open ask clears it (writeFlow), so archiving never
 //   hides a later question. Deleting is the Trash (trash.mjs), not a field.
+// - `completedAt` and `completedBy` (optional; 'you') are the USER'S sign-off on a finished flow (completed.mjs):
+//   only the page's Completed sets them (completed-routes.mjs), always together with archivedAt, and the agent's
+//   rewrite keeps or drops them EXACTLY as it does archivedAt (never sets them). `signoff` is the history of every
+//   time the user set or took off the mark ([{ at, did }], completed.mjs), for the Log, kept from the stored file too. A new open ask clears the mark with the archive.
 // - `qa` (optional) is QA's record of testing the flow (flow-qa.mjs validateQa): only the QA commands
 //   (tools/qa-cli.mjs) write it, and mergeKeepingAnswers takes it from the stored file only (keepQa),
 //   so a producer's rewrite can neither drop a failure nor forge a pass.
@@ -39,6 +43,9 @@
 //   only the plan commands (tools/plan-cli.mjs) write it, and mergeKeepingAnswers takes it from the stored file only.
 // - `senior` (optional) is Senior's review of work with no code to test (flow-senior.mjs): only the Senior commands
 //   (tools/senior-cli.mjs) write it, and mergeKeepingAnswers takes it from the stored file only (keepSenior).
+// - `selfcheck`, `critic` and `risk` (optional) are the producer's self-check before QA, the second opinion on the plan
+//   and the risk label (quality-flow.mjs): only the quality commands and the server write them, and
+//   mergeKeepingAnswers takes them from the stored file only (keepQuality).
 // - ⚠️ THE SENIOR GATE lives HERE, in writeFlow, the one door every writer goes through (the agent CLI's set and
 //   write, the dashboard's status route, anything added later): while Senior holds a flow (flow-senior.mjs
 //   seniorHolds), a write that moves it to done is refused with that one sentence. Only Senior's own pass, which
@@ -49,16 +56,21 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 
 import { writeAtomic } from './atomic-write.mjs'
+import { SIGNOFF_MAX, validateSignoff } from './completed.mjs'
 import { DIAGRAM_KINDS, DIAGRAM_MAX } from './diagram-text.mjs'
 import { hasBefore, validateChange } from './flow-change.mjs'
 import { mergeReady, validateSend } from './flow-merge.mjs'
 import { keepPlan, validatePlan } from './flow-plan.mjs'
 import { keepQa, validateQa } from './flow-qa.mjs'
+import { keepQuality, validateQuality } from './quality-flow.mjs'
 import { keepSenior, recordHold, seniorHolds, validateSenior } from './flow-senior.mjs'
 import { CONFIG } from './config.mjs'
 import { pipelineGraph } from './pipeline.mjs'
 import { keepHand, validateHand } from './hand-steps.mjs'
+import { keepEstimate, validateEstimate } from './predict-keep.mjs'
 import { keepRoute, validateRoute } from './flow-route.mjs'
+import { keepRouting, validateRouting } from './routing-flow.mjs'
+import { keepRetro, validateRetro } from './learn-retro-text.mjs'
 import { sayShorter, STORY_ID, STORY_MAX, storyOf, YOU } from './flow-story.mjs'
 import { lookup } from './glossary.mjs'
 import { DATA_DIR } from './project-store.mjs'
@@ -121,6 +133,10 @@ export function validateFlow(flow) {
   if (!FLOW_STATUS.includes(flow.status)) problems.push(`status ${oneOf(FLOW_STATUS)}`)
   if (flow.why !== undefined && typeof flow.why !== 'string') problems.push('why must be text')
   if (flow.archivedAt !== undefined && !isIsoTime(flow.archivedAt)) problems.push('archivedAt must be a time')
+  if (flow.completedAt !== undefined && !isIsoTime(flow.completedAt)) problems.push('completedAt must be a time')
+  if (flow.signoff !== undefined) problems.push(...validateSignoff(flow.signoff, isIsoTime))
+  if (flow.completedBy !== undefined && flow.completedBy !== 'you') problems.push('completedBy must be you')
+  if (flow.retro !== undefined) problems.push(...validateRetro(flow.retro)) // the server's retrospective (learn-retro-text.mjs)
   if (!Array.isArray(flow.nodes)) return [...problems, 'nodes must be a list']
 
   const allIds = new Set(flow.nodes.map(n => n?.id))
@@ -162,6 +178,9 @@ export function validateFlow(flow) {
   if (flow.hand !== undefined) problems.push(...validateHand(flow.hand))
   if (flow.plan !== undefined) problems.push(...validatePlan(flow.plan, flow.id))
   if (flow.senior !== undefined) problems.push(...validateSenior(flow.senior))
+  problems.push(...validateQuality(flow)) // selfcheck, critic, risk (quality-flow.mjs)
+  if (flow.estimate !== undefined) problems.push(...validateEstimate(flow.estimate)) // the server's (predict-keep.mjs)
+  if (flow.routing !== undefined) problems.push(...validateRouting(flow.routing))
   return problems
 }
 
@@ -411,7 +430,11 @@ export function agentMoveRefusal(stored, next) {
 /** Why Senior holds `flow` now (flow-senior.mjs seniorHolds) on the pipeline the store reads, or ''. */
 export const seniorHold = flow => seniorHolds(flow, gateGraph())
 
-export function writeFlow(flow) {
+/**
+ * `stamp: false` keeps the flow's updatedAt as given (the user's Completed, completed-routes.mjs): the scorecard and
+ * Pipeline time date a finished flow by its updatedAt, and a sign-off must not move it. Every other write stamps.
+ */
+export function writeFlow(flow, { stamp = true } = {}) {
   const problems = validateFlow(flow)
   if (problems.length) throw new Error(problems.join('\n'))
   const stored = storedFlow(flow.id)
@@ -425,12 +448,19 @@ export function writeFlow(flow) {
     // the code lets the page say what the USER can do instead of the agent's sentence (public/flow-hand.js holdText)
     if (held) throw Object.assign(new Error(held), { code: 'senior-hold' })
   }
-  if (flow.archivedAt && stored && hasNewOpenAsk(flow, stored)) delete flow.archivedAt
-  flow.updatedAt = now()
+  if ((flow.archivedAt || flow.completedAt) && stored && hasNewOpenAsk(flow, stored)) {
+    // a completed flow reopened by a question: the history says so, by the agent (completed.mjs), so the Log stays true
+    if (flow.completedAt) flow.signoff = [...(Array.isArray(flow.signoff) ? flow.signoff : []), { at: now(), did: 'reopened', by: flow.agent }].slice(-SIGNOFF_MAX)
+    for (const k of USER_PUT_AWAY) delete flow[k]
+  }
+  if (stamp || !isText(flow.updatedAt)) flow.updatedAt = now()
   writeAtomic(flowFile(flow.id), JSON.stringify(flow, null, 1))
   if (before && before !== flow.status) recordFlowStatus(flow.id, before, flow.status)
   return flow
 }
+
+/** What a new open ask takes off a flow the user put away: the archive and the sign-off on it (completed.mjs). */
+const USER_PUT_AWAY = ['archivedAt', 'completedAt', 'completedBy']
 
 /** The flow's file now, parsed, or null (no file, or not readable). */
 function storedFlow(id) {
@@ -593,14 +623,20 @@ export function mergeKeepingAnswers(incoming, existing) {
       else delete incoming.output[key]
     }
   }
-  // Archive is the user's, like a tick: only ever from the stored file, never set or cleared by an agent.
-  if (existing?.archivedAt) incoming.archivedAt = existing.archivedAt
-  else delete incoming.archivedAt
+  // Archive and Completed are the user's, like a tick: only ever from the stored file, never set or cleared by an agent.
+  for (const key of ['archivedAt', 'completedAt', 'completedBy', 'signoff']) {
+    if (existing?.[key]) incoming[key] = existing[key]
+    else delete incoming[key]
+  }
   keepQa(incoming, existing) // QA's, like a tick is the user's: only ever from the stored file
   keepRoute(incoming, existing) // the plan: only `flow route` changes a stored one
   keepHand(incoming, existing) // the user's ticks on the by-hand steps: only ever from the stored file
   keepPlan(incoming, existing) // the planner's hand-out: only the plan commands write it
   keepSenior(incoming, existing) // Senior's verdict: only the Senior commands write it
+  keepQuality(incoming, existing) // the self-check, the plan critic and the risk label: never from an agent's file
+  keepEstimate(incoming, existing) // the estimate (predict-keep.mjs): only the server writes it
+  keepRouting(incoming, existing) // the routing record: only the dashboard writes it (routing-flow.mjs)
+  keepRetro(incoming, existing) // the retrospective: only the server writes it (learn-retro.mjs)
   if (existing?.createdAt) incoming.createdAt = existing.createdAt
   delete incoming.derived
   return incoming

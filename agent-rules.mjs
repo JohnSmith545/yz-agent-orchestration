@@ -5,7 +5,8 @@
 //
 //   data/agent-rules.json      { agents: { "<label>": { spec, rules: [{ id, text, addedAt }], updatedAt } } }
 //   data/agent-rules-log.jsonl one line per saved change: { at, label, spec: set|changed|cleared|null, added: [text],
-//                              removed: [text] }, newest last, the newest LOG_KEEP kept
+//                              removed: [text], by? }, newest last, the newest LOG_KEEP kept. `by` marks a save made
+//                              from the Learn page (CHANGE_BY: an accepted proposal, a Revert); none is the user's edit
 //
 // Rules this file keeps:
 // - The validator and the merge are PURE (checkChange, applyChange, rulesView, rulesBlock, rulesText): no file,
@@ -37,6 +38,8 @@ export const RULES_LOG = path.join(DATA_DIR, 'agent-rules-log.jsonl')
 /** The log keeps its newest 500 lines. */
 export const LOG_KEEP = 500
 const NL = '\n'
+/** The marks a log line may carry (learn-routes.mjs): `learn` an accepted Learn proposal, `revert` a Revert there. */
+export const CHANGE_BY = Object.freeze(['learn', 'revert'])
 /** A specification of at most 2,000 characters, a rule of 1 to 300, at most 30 rules per agent. */
 export const RULE_LIMITS = Object.freeze({ spec: 2000, rule: 300, rules: 30 })
 
@@ -222,7 +225,7 @@ export function readLog(file = RULES_LOG) {
     try {
       const l = JSON.parse(raw)
       if (isObj(l) && isTime(l.at) && typeof l.label === 'string' && isList(l.added) && isList(l.removed) && [null, 'set', 'changed', 'cleared'].includes(l.spec ?? null)) {
-        out.push({ at: l.at, label: l.label, spec: l.spec ?? null, added: l.added, removed: l.removed })
+        out.push({ at: l.at, label: l.label, spec: l.spec ?? null, added: l.added, removed: l.removed, ...(CHANGE_BY.includes(l.by) ? { by: l.by } : {}) })
       }
     } catch {
       // a torn line: the rest still reads
@@ -236,8 +239,15 @@ const joinAnd = parts => (parts.length < 2 ? parts.join('') : `${parts.slice(0, 
 const SPEC_ALONE = { set: label => `${label} got a specification.`, changed: label => `The specification of ${label} changed.`, cleared: label => `The specification of ${label} was cleared.` }
 const SPEC_PART = { set: 'its specification was set', changed: 'its specification changed', cleared: 'its specification was cleared' }
 
-/** A log line as one plain sentence: "Agent 1 got 2 new rules and its specification changed." */
-export function changeSentence({ label, spec, added = [], removed = [] }) {
+/** What a marked line adds to its sentence (CHANGE_BY). */
+const BY_WORDS = { learn: ' From Learn.', revert: ' Reverted on the Learn page.' }
+
+/** A log line as one plain sentence: "Agent 1 got 2 new rules and its specification changed.", then its mark's words. */
+export function changeSentence(line) {
+  return plainSentence(line) + (BY_WORDS[line?.by] || '')
+}
+
+function plainSentence({ label, spec, added = [], removed = [] }) {
   if (!added.length && !removed.length) return spec ? SPEC_ALONE[spec](label) : `The rules of ${label} were saved.`
   if (!added.length && !spec) return `${rules(removed.length)} ${removed.length === 1 ? 'was' : 'were'} removed from ${label}.`
   const parts = []

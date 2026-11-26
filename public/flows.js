@@ -190,6 +190,7 @@
           <button type="button" class="help meta-r" aria-label="What the views and marks mean">?</button></div>
         <div class="fl-open-sub"></div>
         <div class="fl-hand" hidden></div>
+        <div class="fl-quality" hidden></div>
         <div class="fl-out" id="flPanelOutput" role="tabpanel" aria-labelledby="flTabOutput"></div>
         <div class="fl-explain" id="flPanelExplain" role="tabpanel" aria-labelledby="flTabExplain"></div>
         <div class="fl-stat" id="flPanelStatus" role="tabpanel" aria-labelledby="flTabStatus"></div>
@@ -330,6 +331,7 @@
     renderReadonly(f)
     renderHead(f)
     window.FlowHand?.fill($('.fl-hand', board), f, { needs: !!window.HumanReview?.needsHand(f.id), readonly: readonly(f) })
+    window.QualityFlow?.fill($('.fl-quality', board), f) // the risk label, the self-check, the second opinion (quality-flow.js)
     window.Glossary?.autoLearn(f) // its unknown marked words, once (glossary-store.js)
     // Only the shown view draws: a hidden chart would fit to a 0 px width. Output and Status gate their own redraw.
     if (view === 'output') return window.FlowOutput.fill($('.fl-out', board), f)
@@ -355,6 +357,7 @@
   /** PURE: the read-only line for an archived or deleted flow, else ''. */
   function readonlyBanner(f) {
     if (!readonly(f)) return ''
+    if (f.completedAt && window.CompletedView) return window.CompletedView.readonlyHtml(f) // Uncomplete is in the archive
     const what = f.deletedAt ? `This flow is <b>deleted</b> (${window.Shell.ago(f.deletedAt)}).` : `This flow is <b>archived</b> (${window.Shell.ago(f.archivedAt)}).`
     return `<p class="fl-readonly" role="note"><span>${what} It is in the flow archive, and nothing can be changed here.</span>` +
       `<button type="button" class="link" data-ro-restore>Restore</button><a class="link" href="#/archive">Open the flow archive</a></p>`
@@ -599,6 +602,9 @@
     timer = null
     gen++ // a load still in flight lands nowhere
   }
+
+  // what waits for the user's sign-off changed (completed-view.js): the marks on the board and the Sign-off block follow
+  window.document?.addEventListener('outputs:change', () => render())
 
   window.FlowsView = {
     /** The Flows page: the board (flows-page.js). */

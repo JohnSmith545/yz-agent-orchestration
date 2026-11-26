@@ -11,9 +11,11 @@
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { outputSettings } from './completed.mjs'
 import { isBranch } from './flow-merge.mjs'
 import { DEFAULT_PIPELINE, pipelineSettings } from './pipeline.mjs'
 import { CURRENT_PROJECT, PROJECTS, projectRaw } from './project-store.mjs'
+import { qualitySettings } from './quality-config.mjs'
 import { validPinHash } from './send-pin.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -230,6 +232,11 @@ const DEFAULTS = {
    * anything; pr.protect and pr.bases are refused too); `maxReworks` how often a failure goes back before it stops.
    */
   pipeline: DEFAULT_PIPELINE,
+  /**
+   * The sign-off reminders (completed.mjs outputSettings): `max` finished flows waiting for Completed before the Ask
+   * drawer, the Tickets page and `flow new` remind the user; `warnAfterDays` before one waiting is overdue.
+   */
+  outputs: { max: 7, warnAfterDays: 2 },
   /** The Factory page: ticket collections, the chat agent, the answer relay and the explainer. */
   factory: {
     /**
@@ -279,6 +286,8 @@ function load() {
   config.pr = prSettings(raw.pr)
   config.levels = levelSettings(raw.levels)
   config.pipeline = pipelineSettings(raw.pipeline)
+  config.outputs = outputSettings(raw.outputs) // the sign-off reminders (completed.mjs): { max, warnAfterDays }
+  config.quality = qualitySettings(raw.quality, raw.pipeline) // lessons, the plan critic, risk rules, the self-check switch (quality-config.mjs)
   if (!config.repo) throw new Error('config.json needs "repo": the absolute path of the git repo to watch.')
   config.repo = config.repo.replace(/\\/g, '/')
   if (!config.sessionCwdMatch) config.sessionCwdMatch = path.basename(config.repo)

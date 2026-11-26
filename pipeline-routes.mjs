@@ -3,11 +3,13 @@
 //   GET  /api/pipeline           { graph, tickets, builtAt }: the orchestration graph (pipeline.mjs pipelineGraph) and
 //                                every flow on it: [{ id, title, agent, tickets, status, stage: { node, status, path,
 //                                reworks }, route, progress, qa (flow-qa.mjs qaView: earlier attempts as an outline),
-//                                codeProducing, hasOutput, archived, updatedAt }], newest first. `route` and `progress`
+//                                codeProducing, hasOutput, archived, completed, waiting, updatedAt }], newest first. `route` and `progress`
 //                                are flow-route.mjs withRoute: the planned way (stored, or inferred: true) and each
 //                                step's state; every page reads those, none works its own out. Open and blocked flows always; done
 //                                and dropped ones changed in the last 14 days; archived ones too, flagged; the Trash
-//                                never (a trashed flow has no file in data/flows).
+//                                never (a trashed flow has no file in data/flows). `completed` is the user's sign-off
+//                                (completed.mjs): the page never draws one. `waiting` is a finished flow that waits
+//                                for it, listed however old, so the Output box holds every one the reminders count.
 //   GET  /api/qa[?status=passed] { qa, flows, remotes, builtAt }: what QA recorded, for a QA page. `qa` is the QA
 //                                label; each flow is { id, title, agent, tickets, status, archived, updatedAt, stage,
 //                                route, progress, qa (qaView, each step with the `url` of its shot), report: { ref, url, text,
@@ -32,6 +34,7 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { waitsForSignOff } from './completed.mjs'
 import { CONFIG } from './config.mjs'
 import { qaView } from './flow-qa.mjs'
 import { withRoute } from './flow-route.mjs'
@@ -125,10 +128,12 @@ function hasOutput(flow) {
 export function pipelineGet({ config = CONFIG, now = Date.now() } = {}) {
   const graph = pipelineGraph(config)
   const tickets = listFlows({ archived: 'any' }).flows
-    .filter(f => f.status === 'open' || f.status === 'blocked' || (isTime(f.updatedAt) && now - Date.parse(f.updatedAt) <= RECENT_MS))
+    .filter(f => f.status === 'open' || f.status === 'blocked' || (isTime(f.updatedAt) && now - Date.parse(f.updatedAt) <= RECENT_MS) || waitsForSignOff(f, graph))
     .map(f => ({
       id: f.id, title: f.title, agent: f.agent, tickets: f.tickets || [], status: f.status, stage: stageOf(f, graph), ...withRoute(f, graph),
       qa: qaView(f.qa), codeProducing: isCodeProducing(f), hasOutput: hasOutput(f), archived: !!f.archivedAt, updatedAt: f.updatedAt ?? null,
+      completed: !!f.completedAt, waiting: waitsForSignOff(f, graph),
+      risk: f.risk ?? null, // the risk label (quality-risk.mjs), for the chip's tooltip
     }))
   return { status: 200, body: { graph, tickets, builtAt: new Date(now).toISOString() } }
 }

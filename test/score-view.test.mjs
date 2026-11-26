@@ -144,7 +144,7 @@ test('wired in: the scripts after app.js, the stylesheet, npm run check, and the
   assert.ok(at('score-view.js') > at('app.js') && at('score-strip.js') > at('score-view.js'), 'score-view.js, then score-strip.js')
   assert.match(html, /<link rel="stylesheet" href="score\.css">/)
   const pkg = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'package.json'), 'utf8'))
-  for (const f of ['score.mjs', 'score-routes.mjs', 'public/score-view.js', 'public/score-strip.js']) assert.match(pkg.scripts.check, new RegExp(`node --check ${f.replace('.', '\\.')}`), f)
+  for (const f of ['score.mjs', 'score-routes.mjs', 'public/score-view.js', 'public/score-strip.js']) assert.match(pkg.checkList, new RegExp(`node --check ${f.replace('.', '\\.')}`), f)
   const page = read('agents-page.js')
   assert.match(page, /<div class="pl-main">\s*<div class="psc" id="plScore"><\/div>/)
   assert.match(page, /ScoreStrip/)

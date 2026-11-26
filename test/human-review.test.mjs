@@ -167,5 +167,5 @@ test('wired: one line in pipeline-view.js, the box tall when the screen has room
   assert.match(css, /max-height: clamp\(340px, calc\(100vh - var\(--header-h\) - 56px\), 760px\)/, 'about five questions at 1440 by 900, the rows scroll inside')
   const html = read('index.html')
   assert.match(html, /<script src="human-review.js"><\/script>/)
-  assert.ok(JSON.parse(fs.readFileSync(path.join(HERE, '..', 'package.json'), 'utf8')).scripts.check.includes('node --check public/human-review.js'))
+  assert.ok(JSON.parse(fs.readFileSync(path.join(HERE, '..', 'package.json'), 'utf8')).checkList.includes('node --check public/human-review.js'))
 })

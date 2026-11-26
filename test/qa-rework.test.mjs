@@ -162,3 +162,13 @@ test('reworkRetry: clears the error, stamps queuedAt and queues it; refused when
   assert.equal(R.reworkRetry(ID, { queueRework: () => assert.fail('nothing') }).status, 409)
   assert.equal(R.reworkRetry('nope', {}).status, 404)
 })
+
+test('a rework to a producer with no session open runs no paid turn and says why (QA, 2026-11-26)', async () => {
+  put(failedQa())
+  const { prompts, run } = recorder()
+  const relay = makeRelay({ run, delayMs: 5, present: async () => false, waitMs: 60_000 })
+  R.noticeReworks(relay)
+  await waitFor(() => rework().error)
+  assert.equal(rework().error, 'Agent 3 has no session open; it is sent when one opens.')
+  assert.equal(prompts.length, 0)
+})

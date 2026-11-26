@@ -110,7 +110,7 @@ test('wired in: pipeline-log.js before pipeline-panel.js, checked by npm run che
   const at = s => html.indexOf(`<script src="${s}"></script>`)
   assert.ok(at('pipeline-log.js') > 0 && at('pipeline-log.js') < at('pipeline-panel.js'))
   const pkg = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'package.json'), 'utf8'))
-  for (const f of ['score-log.mjs', 'public/pipeline-log.js']) assert.match(pkg.scripts.check, new RegExp(`node --check ${f.replace('.', '\\.')}`), f)
+  for (const f of ['score-log.mjs', 'public/pipeline-log.js']) assert.match(pkg.checkList, new RegExp(`node --check ${f.replace('.', '\\.')}`), f)
   for (const f of fs.readdirSync(PUBLIC).filter(f => f.endsWith('.css') && f !== 'score.css')) assert.doesNotMatch(read(f), /\.lg-/, f)
   assert.doesNotMatch(read('pipeline-log.js') + read('pipeline-panel.js'), /—/)
 })

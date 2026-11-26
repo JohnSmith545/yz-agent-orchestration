@@ -32,7 +32,9 @@
    *   prevFlows  the `flows` this returned last time (Map id -> line), or null on the
    *              first poll: that poll is the baseline and raises no flow alerts.
    *   p          the pulse: { waiting: [{ flowId, flowTitle, agent, nodeId, question, why }],
-   *              flows: [{ id, title, agent, status, evidence, undelivered }] }
+   *              flows: [{ id, title, agent, status, evidence, undelivered }], away: [the same lines] }
+   *              `away` are the flows put away (archived or completed): they go into the baseline and never raise an
+   *              alert, so one the user brings back (Unarchive, Uncomplete) is not a fresh flow that is done with proof
    *   seen       ask keys (`flowId:nodeId`) already alerted, kept across reloads.
    *   first      the first poll since the page loaded: several new asks become one summary.
    *   onFlows    the user is on the Flows page, where new proof is already in view.
@@ -62,8 +64,9 @@
     // (Undo, Restore, Unarchive) it is compared with what it was, never as a fresh flow (a false is done or added
     // proof). One small line per flow id; past FLOWS_KEPT the oldest of the vanished ones go.
     const flows = new Map(prevFlows || [])
+    for (const f of p.away || []) flows.set(f.id, f) // known, never alerted
     for (const f of lines) flows.set(f.id, f)
-    const live = new Set(lines.map(f => f.id))
+    const live = new Set([...lines, ...(p.away || [])].map(f => f.id))
     for (const id of [...flows.keys()]) {
       if (flows.size <= FLOWS_KEPT) break
       if (!live.has(id)) flows.delete(id)
@@ -358,7 +361,8 @@
    * `html` is already escaped; `action` is the plain { label, kind, flowId, nodeId } runAction knows.
    * `keep: false` leaves it out of the history (the per-load summary: the asks it counts are already there).
    */
-  function toast(html, { kind = 'info', action, sticky = false, keep = true } = {}) {
+  /** One toast; returns its element. `onDismiss` runs when the user presses its ✕ (phone-notice.js keeps that per browser). */
+  function toast(html, { kind = 'info', action, sticky = false, keep = true, onDismiss = null } = {}) {
     const a = KINDS.includes(action?.kind) ? JSON.parse(JSON.stringify(action)) : null
     if (keep) {
       saveHistory(raw, history(loadHistory(raw), { at: new Date().toISOString(), html, action: a }))
@@ -367,11 +371,12 @@
     const el = document.createElement('div')
     el.className = `nt-toast ${kind}`
     el.innerHTML = `<div class="nt-text">${html}</div><div class="nt-actions">${a ? `<button type="button" class="link nt-go">${esc(a.label)}</button>` : ''}<button type="button" class="link nt-x" aria-label="Dismiss">✕</button></div>`
-    el.querySelector('.nt-x').addEventListener('click', () => el.remove())
+    el.querySelector('.nt-x').addEventListener('click', () => { el.remove(); onDismiss?.() })
     if (a) el.querySelector('.nt-go').addEventListener('click', () => { el.remove(); runAction(a) })
     stack.appendChild(el)
     while (stack.children.length > 4) stack.firstChild.remove()
     if (!sticky) setTimeout(() => el.remove(), 12_000)
+    return el
   }
   function desktop(title, body, onClick) {
     if (!desktopOn() || document.visibilityState === 'visible' && document.hasFocus()) return
