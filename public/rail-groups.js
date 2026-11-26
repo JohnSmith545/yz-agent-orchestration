@@ -19,7 +19,11 @@
 // link, or an entry that is not whole, is refused with a warning: every page has exactly ONE rail link
 // (test/rail-groups.test.mjs fails when a new page in shell.js VIEWS has none).
 //
-//   PURE: groups(), foot(), linkFor(view), add(group, entry, { after }), navHtml(groups, current), linkHtml(entry)
+// Under 720 px the rail is a bar along the bottom, with room for few icons: it shows only the pages in BAR (the most
+// used), Ask and a More button; More opens a sheet (rail-more.js) listing every other page in its group, more().
+//
+//   PURE: groups(), foot(), linkFor(view), add(group, entry, { after }), navHtml(groups, current, idPrefix),
+//         linkHtml(entry), bar(), more()
 // No DOM here: the shell writes navHtml into the rail, and the tests run this file in a vm with a bare window.
 ;(() => {
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
@@ -121,12 +125,18 @@
    * the rail is open and is read out either way; a thin line marks the group when the rail is closed (shell.css).
    * The links are in group order, so Tab walks the groups in order. `current` marks that view's link.
    */
-  const navHtml = (list, current) =>
+  const navHtml = (list, current, idPrefix = 'rg-') =>
     (Array.isArray(list) ? list : [])
-      .map(g => `<div class="rail-group" role="group" aria-labelledby="rg-${esc(g.id)}">` +
-        `<div class="rail-group-head"><h2 class="rail-group-label" id="rg-${esc(g.id)}">${esc(g.label)}</h2></div>` +
+      .map(g => `<div class="rail-group" role="group" aria-labelledby="${esc(idPrefix)}${esc(g.id)}">` +
+        `<div class="rail-group-head"><h2 class="rail-group-label" id="${esc(idPrefix)}${esc(g.id)}">${esc(g.label)}</h2></div>` +
         `${g.entries.map(e => linkHtml(e, current)).join('')}</div>`)
       .join('')
 
-  window.RailGroups = { groups, foot, linkFor, add, navHtml, linkHtml }
+  // ═══ the phone-width bar: the most used pages, in rail order (so the Tab order matches what is seen) ═══
+  const BAR = ['home', 'flows', 'tickets', 'agents']
+  const bar = () => [...BAR]
+  /** Every page link that is NOT in the bar, in its group and rail order; a group left empty is dropped. */
+  const more = () => groups().map(g => ({ ...g, entries: g.entries.filter(e => !BAR.includes(e.view)) })).filter(g => g.entries.length)
+
+  window.RailGroups = { groups, foot, linkFor, add, navHtml, linkHtml, bar, more }
 })()

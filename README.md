@@ -235,7 +235,9 @@ mode is `:root[data-theme="dark"]`.
   name sits on it, and a screen reader hears it as a heading. Hover it for 300 ms,
   or Tab into it, and it opens to 200 px with labels; the pin at the top keeps
   it open (remembered). On a short window only the groups scroll, inside the rail; the foot stays put.
-  Under 720 px wide the rail is a bar along the bottom.
+  Under 720 px wide the rail is a bar along the bottom with only Home, Flows, Tickets, Agents, Ask and
+  **More**; More opens a sheet with every other page in its group, then Alerts, Spend today, Phone on,
+  Settings and Theme (`public/rail-more.js`, the bar's pages in `RailGroups.bar`).
   **One place orders the pages:** `public/rail-groups.js`. A new page adds its link by group and by name,
   `RailGroups.add('agents', { view, href, label, icon }, { after: 'subagents' })`, never by appending to the
   rail; a group that does not exist puts it in a final More group with a console warning, and

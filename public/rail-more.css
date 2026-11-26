@@ -1,0 +1,65 @@
+/* The phone-width bar and its More sheet (rail-more.js). At 720 px and wider More is hidden and the rail is as
+   shell.css draws it. Under 720 px the bar shows only its pages (RailGroups.bar, marked .in-bar), Ask and More; More
+   opens a sheet above the bar with every other page in its group, then Alerts, Spend today, Phone on, Settings and
+   Theme. Colours come from the tokens only, so dark mode needs nothing here. The sheet sits over the rail and the
+   Ask drawer (z 40) and under the ? popovers (help.js, z 45), so the spend chip's popover opens over it. */
+
+#railMore { display: none; }
+.rm[hidden] { display: none; }
+
+/* the alert count, copied from the bell onto More and the sheet's Alerts row */
+.rm-count {
+  position: absolute; top: -2px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px;
+  background: var(--bad); color: var(--accent-ink); font-size: 10.5px; font-weight: 650; line-height: 16px; text-align: center;
+}
+.rm-count[hidden] { display: none; }
+
+@media (max-width: 720px) {
+  /* the bar: its pages, Ask and More, each a thumb-wide share of the row */
+  .rail-nav .rail-item:not(.in-bar) { display: none; }
+  .rail-bottom > :not(#railAsk):not(#railMore) { display: none; }
+  #railMore { display: flex; }
+  #railMore.is-lit { color: var(--ink); }
+  #railMore.is-lit .rail-icon { background: var(--surface-3); }
+  #railMore.is-lit::before {
+    content: ""; position: absolute; left: 10px; right: 10px; bottom: 0; height: 2px; border-radius: 2px 2px 0 0; background: var(--accent);
+  }
+
+  .rm { position: fixed; inset: 0 0 var(--rail-w) 0; z-index: 40; display: flex; flex-direction: column; justify-content: flex-end; }
+  .rm-backdrop { position: absolute; inset: 0; background: var(--overlay); }
+  .rm-sheet {
+    position: relative; max-height: calc(100% - 48px); overflow-y: auto; overscroll-behavior: contain;
+    padding: 4px 0 12px; background: var(--bg); border-top: 1px solid var(--line-strong); border-radius: 14px 14px 0 0;
+    box-shadow: var(--shadow); animation: rm-in .18s ease-out;
+  }
+  @keyframes rm-in { from { transform: translateY(12px); opacity: 0; } }
+  .rm-head { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px 2px 16px; }
+  .rm-title { margin: 0; font-size: 15px; font-weight: 650; color: var(--ink); }
+  .rm-x {
+    display: grid; place-items: center; width: 40px; height: 40px; padding: 0; border: 0; border-radius: var(--radius);
+    background: none; color: var(--muted); cursor: pointer;
+  }
+  .rm-x:hover { background: var(--surface-2); color: var(--ink); }
+  .rm-x svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; }
+
+  /* in the sheet the groups are lists again, with their names always shown (the bar flattened them) */
+  .rm .rail-group { display: flex; flex-direction: column; }
+  .rm .rail-group-head { display: block; height: 22px; margin-top: 8px; }
+  .rm .rail-group-label { left: 10px; opacity: 1; background: var(--bg); }
+  .rm .rail-item, .rm #railSpend {
+    display: flex; flex: none; width: 100%; height: 44px; padding: 0; justify-content: flex-start; gap: 6px; color: var(--muted);
+  }
+  .rm .rail-item:hover, .rm .rail-item[aria-current="page"] { color: var(--ink); }
+  .rm .rail-icon { flex: none; width: 32px; height: 32px; margin: 0 0 0 12px; }
+  .rm .rail-label { display: inline; opacity: 1; transform: none; pointer-events: auto; }
+  .rm .rail-item[aria-current="page"]::before { left: 0; right: auto; top: 11px; bottom: 11px; width: 2px; height: auto; border-radius: 0 2px 2px 0; }
+  .rm .rail-item[data-rm-theme] svg path { fill: currentColor; } /* the theme mark: a circle half filled */
+  .rm-slots { display: contents; }
+  .rm #railSpend[hidden] { display: none; } /* nothing spent today: no row */
+  .rm #railSpend .sp-chip { gap: 6px; }
+  .rm #railSpend .sp-amt { width: 32px; margin-left: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rm-sheet { animation: none; }
+}

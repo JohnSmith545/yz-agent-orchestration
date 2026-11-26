@@ -88,6 +88,10 @@ At the foot, always in view: **Ask**, the **Alerts** bell, **Spend today**, **Ph
 is on), **Settings** and the theme switch. On a short window the groups scroll inside the rail and the foot stays
 put. **Ctrl+K** lists the same pages under the same group names.
 
+On a narrow window (under 720 px, such as a phone) the rail becomes a bar along the bottom with only the pages
+used most: Home, Flows, Tickets and Agents, then Ask and **More**. More opens a sheet with every other page in its
+group, then Alerts, Spend today, Phone on, Settings and the theme switch. Escape, Close or a tap outside closes it.
+
 ### Home
 
 Home is at `#/home` (the first link in Work; the brand mark at the top of the rail opens it too); the dashboard

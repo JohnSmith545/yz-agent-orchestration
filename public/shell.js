@@ -177,6 +177,8 @@
     moon: svg('<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>'),
     pin: svg('<path d="M9 3h6l-1 6 3 4H7l3-4Z"/><path d="M12 13v8"/>'),
     close: svg('<path d="M6 6l12 12M18 6 6 18"/>'),
+    // More: three dots in a row (the rest of the pages, in the phone-width bar)
+    more: svg('<circle cx="5.5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="18.5" cy="12" r="1.4"/>'),
   }
 
   // ─── the rail ───
@@ -203,7 +205,10 @@
       <div class="rail-slot" id="railPhone" hidden></div>
       ${R.linkHtml(R.linkFor('settings'))}
       <button type="button" class="rail-item" id="themeToggle" title="Theme"><span class="rail-icon"><span class="theme-sun">${ICON.sun}</span><span class="theme-moon">${ICON.moon}</span><i class="theme-dot" aria-hidden="true"></i></span><span class="rail-label">Theme</span></button>
+      <button type="button" class="rail-item rail-more-btn" id="railMore" aria-haspopup="dialog" aria-controls="railMoreSheet" aria-expanded="false" title="More"><span class="rail-icon">${ICON.more}</span><span class="rail-label">More</span></button>
     </div>`
+  // ⚠️ More (rail-more.js, rail-more.css) shows only in the phone-width bar, under 720 px: the bar keeps the most used
+  // pages (RailGroups.bar) with Ask and More, and More opens a sheet with the rest in their groups.
 
   // Labels as tooltips by default; after a 300 ms hover the rail opens to
   // 200 px over the page. Pinned, it stays open and pushes the page instead.
