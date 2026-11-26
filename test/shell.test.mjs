@@ -87,16 +87,19 @@ test('a non-string hash never throws', () => {
   assert.deepEqual(r(undefined), { view: 'flows', params: {}, redirect: null })
 })
 
-test('the rail: the brand mark is Home at #/home, and Flows is the first page after it', () => {
+test('the rail: the brand mark still opens #/home, and the Work group starts Home, then Flows', () => {
   const src = fs.readFileSync(path.join(HERE, '..', 'public', 'shell.js'), 'utf8')
-  assert.match(src, /<a class="rail-item rail-brand" href="#\/home" data-view="home" title="Home">/)
-  const nav = /<nav class="rail-nav"[^>]*>\s*\$\{([^}]*)\}/.exec(src)?.[1] || ''
-  assert.match(nav, /^link\('flows', '#\/flows', 'Flows'\)/, 'Flows first')
+  assert.match(src, /<a class="rail-item rail-brand" href="#\/home"/)
+  const ctx = { window: {} }
+  for (const f of ['rail-groups.js', 'shell.js']) vm.runInNewContext(fs.readFileSync(path.join(HERE, '..', 'public', f), 'utf8'), ctx)
+  assert.equal(ctx.window.RailGroups.groups()[0].entries.slice(0, 2).map(e => e.href).join(' '), '#/home #/flows')
 })
 
 test('no link still sends a reader Home by #/ (that is Flows now): the palette and the Since card use #/home', () => {
   const pub = f => fs.readFileSync(path.join(HERE, '..', 'public', f), 'utf8')
-  assert.match(pub('palette.js'), /\['Home', '#\/home'\]/)
+  const ctx = { window: {} }
+  for (const f of ['rail-groups.js', 'palette.js']) vm.runInNewContext(pub(f), ctx)
+  assert.equal(ctx.window.Palette.gather({}).find(i => i.label === 'Home')?.hint, '#/home')
   assert.doesNotMatch(pub('since.js'), /'#\/'|"#\/"/)
 })
 

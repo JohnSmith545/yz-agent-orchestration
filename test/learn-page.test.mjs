@@ -1,6 +1,6 @@
 // Tests for the Learn page in the browser (public/learn-view.js, public/learn-page.js) and a flow's Retrospective
-// (public/learn-retro.js), with their place in the shell: the route #/learn, the rail link at the END of the page list,
-// index.html. (Not in the palette: its empty list shows 12 entries and one more page would push Ask out.) Browser scripts in a vm with a bare window: only the pure half runs.
+// (public/learn-retro.js), with their place in the shell: the route #/learn, the rail link last in the Quality group,
+// index.html. Browser scripts in a vm with a bare window: only the pure half runs.
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -20,7 +20,8 @@ vm.runInNewContext(read('learn-page.js'), { window: w })
 const V = w.LearnView
 const R = w.LearnRetro
 const shellWindow = {}
-vm.runInNewContext(read('shell.js'), { window: shellWindow })
+const shellCtx = { window: shellWindow }
+for (const f of ['rail-groups.js', 'shell.js']) vm.runInNewContext(read(f), shellCtx) // as index.html loads them
 const resolve = h => JSON.parse(JSON.stringify(shellWindow.Shell.resolve(h)))
 
 const NOW = Date.parse('2026-11-25T12:00:00.000Z')
@@ -34,15 +35,17 @@ const DUE = {
 }
 const STATE = { settings: SETTINGS, running: null, lastRunAt: RUN.at, remind: null, runs: [RUN], verdicts: { due: [DUE], changes: [DUE, { ...DUE, id: 'v0', at: '2026-11-01T10:00:00.000Z', by: 'you', due: false, state: 'kept', verdict: { overall: 'same' } }] }, retroBusy: false }
 
-test('the route #/learn, and the shell wires it: title, section, page object, icon, a rail link at the END', () => {
+test('the route #/learn, and the shell wires it: title, section, page object, icon, a rail link after Lessons in the Quality group', () => {
   assert.deepEqual(resolve('#/learn'), { view: 'learn', params: {}, redirect: null })
   assert.deepEqual(resolve('#/learn?run=2026-11-25-a1b2c3'), { view: 'learn', params: { query: { run: '2026-11-25-a1b2c3' } }, redirect: null })
   const shell = read('shell.js')
   assert.match(shell, /learn: 'Learn'/)
   assert.match(shell, /learn: 'learnView'/)
   assert.match(shell, /learn: 'LearnPage'/)
-  assert.match(shell, /ICON\.learn = svg\(/)
-  assert.match(shell, /querySelector\('\.rail-nav'\)\?\.insertAdjacentHTML\?\.\('beforeend', link\('learn', '#\/learn', 'Learn'\)\)/)
+  const quality = shellWindow.RailGroups.groups().find(g => g.id === 'quality').entries
+  assert.equal(quality.map(e => e.view).join(' '), 'qa lessons learn')
+  assert.equal(shellWindow.RailGroups.linkFor('learn').href, '#/learn')
+  assert.match(shellWindow.RailGroups.linkFor('learn').icon, /<path/, 'its icon: a light bulb')
   const html = read('index.html')
   assert.match(html, /<section id="learnView" aria-label="Learn" hidden><\/section>/)
   for (const f of ['learn-retro.js', 'learn-view.js', 'learn-page.js']) assert.match(html, new RegExp(`<script src="${f}"></script>`))

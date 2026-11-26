@@ -50,12 +50,16 @@ test('#/qa is the QA page and #/qa/<id> opens one ticket on it, decoded', () => 
   assert.equal(window.Shell.railFor(window.Shell.resolve('#/qa/x')), 'qa', 'an opened ticket still lights QA in the rail')
 })
 
-test('the rail links to QA between Flows and Tickets (Generators sits right after QA), and the shell opens QaPage in #qaView', () => {
+test('the rail links to QA first in the Quality group, with its own icon, and the shell opens QaPage in #qaView', () => {
   const shell = read('shell.js')
-  assert.match(shell, /link\('flows', '#\/flows', 'Flows'\)\}\$\{link\('qa', '#\/qa', 'QA'\)\}\$\{link\('script', '#\/generators', 'Generators'\)\}\$\{link\('tickets', '#\/tickets', 'Tickets'\)\}/)
+  const rail = { window: {} }
+  for (const f of ['rail-groups.js', 'shell.js']) vm.runInNewContext(read(f), rail)
+  const quality = rail.window.RailGroups.groups().find(g => g.id === 'quality')
+  assert.equal(quality.entries[0].view, 'qa', 'QA leads the Quality group')
+  assert.equal(quality.entries[0].href, '#/qa')
+  assert.match(quality.entries[0].icon, /<circle/, 'the rail icon')
   assert.match(shell, /qa: 'qaView'/)
   assert.match(shell, /qa: 'QaPage'/)
-  assert.match(shell, /^\s+qa: svg\(/m, 'the rail icon')
   assert.match(shell, /r\.view === 'qa'\) page\?\.open\?\.\(r\.params\.id\)/, 'the opened id goes to the page')
 })
 
@@ -72,7 +76,9 @@ test('index.html holds the section, the scripts after flows-page.js and the styl
 test('npm run check covers the new scripts, and the palette and glossary know the page', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
   for (const f of ['flow-qa-line.js', 'qa-view.js', 'qa-page.js', 'flow-explain.js', 'flow-explain-view.js']) assert.ok(pkg.checkList.includes(`node --check public/${f}`), f)
-  assert.match(read('palette.js'), /\['QA', '#\/qa'\]/)
+  const pal = { window: {} }
+  for (const f of ['rail-groups.js', 'palette.js']) vm.runInNewContext(read(f), pal)
+  assert.equal(pal.window.Palette.gather({}).find(i => i.kind === 'page' && i.label === 'QA')?.hint, '#/qa', 'the palette lists it')
   assert.ok(JSON.parse(read('glossary.json')).qa?.short?.length > 20)
 })
 
