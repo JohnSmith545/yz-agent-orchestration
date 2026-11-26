@@ -14,7 +14,7 @@
 .prl-h { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: -0.005em; color: var(--ink); }
 
 /* the slots: under the Alerts line on the Agents page, under the lines on Home */
-.pl-prs { margin: 0 0 22px; }
+.pl-prs { margin: 0 0 22px; scroll-margin-top: calc(var(--header-h) + 16px); } /* #/agents?prs lands it clear of the sticky page header */
 .pl-prs[hidden], #homePrs[hidden] { display: none; }
 #homePrs:not([hidden]) { margin-top: 20px; }
 #homePrs:not([hidden]) + .home-zone { margin-top: 32px; }
