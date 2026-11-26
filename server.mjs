@@ -53,6 +53,7 @@ import { makeProjectRoutes } from './projects-routes.mjs'
 import { makeTokenRoute } from './token-routes.mjs'
 import { makePredictRoute } from './predict-routes.mjs'
 import { makeRoutingRoute } from './routing-routes.mjs'
+import { makePrListRoute } from './prlist-routes.mjs'
 // the four smart features connected through their contracts (smart-wiring.mjs)
 import { learnLessons, learnSignals, riskLevelOf, tokensFinal, wireRouting } from './smart-wiring.mjs'
 import { listLessons } from './quality-lessons.mjs'
@@ -903,6 +904,8 @@ const predictRoute = makePredictRoute({ index: tokenRoute.index, names: async ()
 // are final: its finishing hour closed in the transcripts Predict last placed from
 wireRouting({ riskOf, flowTokens, tokensReady: at => tokensFinal(at, { building: tokenRoute.snapshot().building, placedThrough: predictRoute.placedThrough() }) })
 const routingRoute = makeRoutingRoute({ port: PORT }) // the Routing page, ticket intake, a flow task type (routing-routes.mjs)
+/** The Pull requests list (prlist-routes.mjs): every flow's open pull request, read only, gh asked at most once a minute. */
+const prListRoute = makePrListRoute({ gh, git, remote: () => prNow().remote })
 /** The Learn page (learn-wiring.mjs): retrospectives, the weekly Learn run and a verdict on every rule change. */
 const learnRoute = makeLearnServerRoute({ port: PORT, tokens: () => tokenRoute.snapshot(), lessons: learnLessons(listLessons), signals: learnSignals(signals) })
 /** The paths factory-routes.mjs answers. */
@@ -932,6 +935,7 @@ const server = createServer(async (req, res) => {
     if (await routingRoute(req, res, url)) return
     if (await learnRoute(req, res, url)) return
     if (await phoneRoute(req, res, url)) return
+    if (await prListRoute(req, res, url)) return
     if (url.pathname === '/api/orchestration') {
       const data = await orchestration(url.searchParams.get('c'), url.searchParams.has('refresh'))
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' })
@@ -997,6 +1001,7 @@ tokenRoute.start() // Pipeline tokens: the first read of the transcripts, in the
 qualityRoute.start() // risk labels, and the automatic lesson and second-opinion runs (quality-watch.mjs)
 predictRoute.start() // Predict and warn: an estimate stored once on each open flow, now and every minute
 routingRoute.start() // Routing: each finished flow gets its one outcome line (routing-outcomes.mjs), once a minute
+prListRoute.start() // the Pull requests list: the states read now and every minute, in the background
 
 // ─── end-of-day stop ───────────────────────────────────────────────────────────────
 
