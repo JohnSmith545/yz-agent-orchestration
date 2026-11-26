@@ -225,3 +225,19 @@ test('server.mjs mounts the route with its gh and git runners and starts the bac
   assert.match(src, /if \(await prListRoute\(req, res, url\)\) return/)
   assert.match(src, /prListRoute\.start\(\)/)
 })
+
+test('a pull request on the branch older than the agent record is the one before: not shown, and looked for again later', async () => {
+  let t = 0
+  const world = { 'head:feat/z': pr(URL2, { state: 'MERGED', createdAt: '2026-11-20T08:00:00Z' }) }
+  const { gh, calls } = fakeGh(world)
+  const flows = [flow('c', { merge: { head: 'feat/z', base: 'dev', title: 't', body: 'b', at: '2026-11-26T07:00:00Z' } })]
+  const list = makePrList({ gh, flows: () => flows, repo: async () => '', now: () => t })
+  await list.refresh()
+  assert.equal(list.snapshot().items.length, 0)
+  // the agent now opens the next pull request on the same branch: found on the next read
+  world['head:feat/z'] = pr('https://github.com/acme/shop/pull/30', { createdAt: '2026-11-26T07:30:00Z' })
+  t += 61_000
+  await list.refresh()
+  assert.equal(calls.length, 2, 'the old merged one did not stop the lookup')
+  assert.deepEqual(list.snapshot().items.map(i => i.number), [30])
+})

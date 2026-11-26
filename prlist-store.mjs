@@ -68,7 +68,12 @@ export function makePrList({ gh, flows, repo, now = Date.now, everyMs = EVERY_MS
     }
     const j = await ask(['pr', 'list', ...(name ? [`--repo=${name}`] : []), `--head=${look.head}`, `--base=${look.base}`, '--state=all', '--limit=1', `--json=${PR_JSON}`])
     if (!Array.isArray(j)) return undefined
-    return j.length ? readOf(j[0]) ?? undefined : null
+    const found = j.length ? readOf(j[0]) : null
+    if (j.length && !found) return undefined
+    // ⚠️ opened BEFORE the agent recorded this branch: that is the pull request before (merged, say), not this
+    // record's. Treated as none yet, so it is looked for again, and a merged one does not end the lookup for good.
+    if (found && look.at && Date.parse(found.openedAt || '') < Date.parse(look.at)) return null
+    return found
   }
 
   async function run() {
