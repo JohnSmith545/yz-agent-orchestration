@@ -42,7 +42,8 @@ import { listRepoSubagents, oneSubagent, sessionFile, ticketBuilders, windowStar
 import { listFlows } from './flows.mjs'
 import { pinnedSessions } from './pinned-agents.mjs'
 import { readWaits, standingWaits, tailAfter } from './waiting.mjs' // sessions stopped for the user's permission or reply
-import { useWaitingSessions } from './human-routes.mjs' // Human review lists those sessions too
+import { useSessionReplies, useWaitingSessions } from './human-routes.mjs' // Human review lists those sessions, and replies to them
+import { makeSessionReplies } from './session-replies.mjs' // the user's reply to a waiting session, as one message
 import { hostAllowed } from './local-origin.mjs'
 import { pushEnv } from './pr-routes.mjs'
 import { makeOrchestration, pulse } from './orchestration.mjs'
@@ -253,10 +254,11 @@ async function describeWorktree(wt, idx) {
 
 // ─── agents (Claude sessions) ─────────────────────────────────────────────────
 
-let runningForWaits = [] // the running (not pinned-and-closed) sessions as of the last read: { sessionId, label }
+let runningForWaits = [] // the running (not pinned-and-closed) sessions as of the last read: { sessionId, name, label }
 /** The running sessions that wait on the user now (waiting.mjs): the hook's records that still stand. */
 const waitingNow = () => standingWaits(readWaits(), runningForWaits, tailAfter)
 useWaitingSessions(waitingNow)
+useSessionReplies({ replies: makeSessionReplies({ run: claudeRun }), nameOf: id => runningForWaits.find(x => x.sessionId === id)?.name || null })
 
 /** Live sessions in the watched repo, from the harness's session registry. */
 async function liveSessions() {
@@ -281,7 +283,7 @@ async function liveSessions() {
       }
     }
   }
-  runningForWaits = sessions.map(x => ({ sessionId: x.sessionId, label: labelOf(x.name) }))
+  runningForWaits = sessions.map(x => ({ sessionId: x.sessionId, name: x.name, label: labelOf(x.name) }))
   // A pinned agent whose session is closed still gets listed, idle, from its saved history.
   sessions.push(...pinnedSessions(CONFIG.pinnedAgents, new Set(sessions.map(x => x.sessionId))))
   return sessions

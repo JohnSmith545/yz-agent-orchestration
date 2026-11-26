@@ -80,7 +80,7 @@ import { settingsGet, settingsPin, settingsSend } from './settings-routes.mjs'
 import { explain as explainTurn } from './explain.mjs'
 import { buildFactory, collections, readSource, refreshSource } from './factory.mjs'
 import { setMark, updateState } from './factory-state.mjs'
-import { handRequestRoute, handTickRoute, humanGet, seniorReleaseRoute, ticketHandRoute } from './human-routes.mjs'
+import { handRequestRoute, handTickRoute, humanGet, seniorReleaseRoute, sessionReplyRoute, ticketHandRoute } from './human-routes.mjs'
 import { askTermRoute, explainRoute, learnRoute, listGlossary, removeRoute, termRoute } from './glossary-routes.mjs'
 import { learnTerms } from './learn.mjs'
 import { originAllowed } from './local-origin.mjs'
@@ -205,6 +205,12 @@ export async function factoryRoute(req, res, url, { git, gh, push, pr, port = CO
     if (p === '/api/outputs' && !post) return send(res, outputsGet()), true
     if (action === 'request-hand' && post) return send(res, handRequestRoute(id, await body(req), relay)), true
     if (p === '/api/human' && !post) return send(res, humanGet()), true
+    // the user's reply to a waiting session: only the dashboard page may send it, never an agent calling the route
+    const sessionReply = /^\/api\/sessions\/([^/]+)\/reply$/.exec(p)
+    if (sessionReply && post) {
+      if (!pageOrigin(req, port)) return json(res, 403, { error: 'The user does this, only from the dashboard page.' }), true
+      return send(res, sessionReplyRoute(decodeURIComponent(sessionReply[1]), await body(req))), true
+    }
     const ticketHand = /^\/api\/tickets\/([^/]+)\/request-hand$/.exec(p)
     if (ticketHand && post) return send(res, ticketHandRoute(decodeURIComponent(ticketHand[1]), await body(req), relay)), true
     if (action === 'ask-term' && post) return send(res, askTermRoute(id, await body(req), relay)), true

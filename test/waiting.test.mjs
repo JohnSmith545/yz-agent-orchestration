@@ -176,3 +176,7 @@ test('the hook records a question on Stop from the reply it was handed, and prin
   assert.equal(r.stdout, '')
   assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'waiting.json'), 'utf8')).s9.reason, 'Shall I start?')
 })
+
+test('resumedIn is true once the session writes a new reply of its own after the wait (a message answered without tools)', () => {
+  assert.equal(resumedIn(said('Got it, building now.')), true)
+})

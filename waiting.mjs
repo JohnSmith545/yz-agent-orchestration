@@ -4,8 +4,8 @@
 // data/waiting.json (in DATA_ROOT, one file for every project, keyed by session id):
 //   { "<sessionId>": { kind: 'permission' | 'question', reason, at: ISO time, size, transcript, cwd } }
 // `size` is the transcript's size in bytes when the hook ran. A wait stands while nothing the session did since
-// then shows it moved on: `resumedIn` reads the bytes past `size` for a real user line (a typed reply, or the tool
-// result that follows an approved or denied permission). Hook notes and meta lines written while it waits do not
+// then shows it moved on: `resumedIn` reads the bytes past `size` for a real user line (a typed reply, a message, or
+// the tool result that follows an approved or denied permission) or a new reply of the session's own. Hook notes and meta lines written while it waits do not
 // count. So no second hook is needed to clear a wait.
 //
 // Rules this file keeps:
@@ -89,7 +89,7 @@ export function lastReplyText(tail) {
 }
 
 // Whether the transcript bytes written after a wait show the session moved on.
-export const resumedIn = tail => lines(tail).some(isRealUser)
+export const resumedIn = tail => lines(tail).some(o => isRealUser(o) || o?.type === 'assistant')
 
 // The entries with this session's wait recorded (replacing its last one) and week-old ones dropped.
 export function recordWait(entries, input, wait, { size, now = Date.now() }) {

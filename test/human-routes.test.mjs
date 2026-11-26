@@ -263,3 +263,48 @@ test('GET /api/human: a broken waiting-session source leaves the sessions out, n
     useWaitingSessions(() => [])
   }
 })
+
+// ═══ replying to a waiting session (session-replies.mjs) ═══
+
+test('POST /api/sessions/<id>/reply from the page sends the reply, and Human review shows how it went', async () => {
+  const { useSessionReplies } = await import('../human-routes.mjs')
+  const { makeSessionReplies } = await import('../session-replies.mjs')
+  const prompts = []
+  const replies = makeSessionReplies({ run: async p => (prompts.push(p), { ok: true, out: 'SENT' }) })
+  useSessionReplies({ replies, nameOf: id => (id === 's1' ? 'agent-3' : null) })
+  useWaitingSessions(() => [{ sessionId: 's1', label: 'agent-3', kind: 'question', reason: 'Go?', at: '2099-01-01T00:00:00.000Z' }])
+  try {
+    const r = await post('/api/sessions/s1/reply', { text: 'Yes, go' })
+    assert.equal(r.status, 200)
+    assert.equal((await r.json()).reply.status, 'sending')
+    await new Promise(res => setTimeout(res, 20))
+    assert.match(prompts[0], /"agent-3"/)
+    const row = (await (await get('/api/human')).json()).items[0]
+    assert.equal(row.reply.status, 'sent')
+    assert.equal(row.reply.text, 'Yes, go')
+  } finally {
+    useWaitingSessions(() => [])
+  }
+})
+
+test('a reply needs the dashboard page: an agent calling the route (no Origin) is refused and nothing is sent', async () => {
+  const { useSessionReplies } = await import('../human-routes.mjs')
+  const { makeSessionReplies } = await import('../session-replies.mjs')
+  let runs = 0
+  useSessionReplies({ replies: makeSessionReplies({ run: async () => (runs++, { ok: true, out: 'SENT' }) }), nameOf: () => 'agent-3' })
+  const r = await fetch(base + '/api/sessions/s1/reply', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: 'Yes' }) })
+  assert.equal(r.status, 403)
+  assert.equal(runs, 0)
+})
+
+test('a reply to a closed session, or an empty one, is refused in plain words', async () => {
+  const { useSessionReplies } = await import('../human-routes.mjs')
+  const { makeSessionReplies } = await import('../session-replies.mjs')
+  useSessionReplies({ replies: makeSessionReplies({ run: async () => ({ ok: true, out: 'SENT' }) }), nameOf: id => (id === 'live' ? 'agent-3' : null) })
+  const closed = await post('/api/sessions/gone/reply', { text: 'Yes' })
+  assert.equal(closed.status, 404)
+  assert.match((await closed.json()).error, /closed or not running.*VS Code/)
+  const empty = await post('/api/sessions/live/reply', { text: '  ' })
+  assert.equal(empty.status, 400)
+  assert.equal((await empty.json()).error, 'Write a reply first.')
+})

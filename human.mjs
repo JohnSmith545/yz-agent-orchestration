@@ -101,7 +101,7 @@ export function humanItems({ flows = [], marks = {}, tickets = new Map(), senior
   // a session stopped for the user's permission or reply (waiting.mjs standingWaits)
   for (const w of sessions) {
     const label = String(w.label || 'A session')
-    items.push({ key: `session:${w.sessionId}`, kind: 'session', sessionId: String(w.sessionId), title: label, agent: label, since: w.at || '', reason: line(w.kind === 'question' ? `Asked you: ${w.reason || 'a question'}` : w.reason || 'Needs your permission to go on.'), wait: w.kind === 'question' ? 'question' : 'permission' })
+    items.push({ key: `session:${w.sessionId}`, kind: 'session', sessionId: String(w.sessionId), title: label, agent: label, since: w.at || '', reason: line(w.kind === 'question' ? `Asked you: ${w.reason || 'a question'}` : w.reason || 'Needs your permission to go on.'), wait: w.kind === 'question' ? 'question' : 'permission', ...(w.reply ? { reply: w.reply } : {}) })
   }
   const covered = new Set() // tickets a live (not dropped) flow carries: that flow speaks for them
   const humanMark = id => HUMAN_MARKS.includes(marks?.[id]?.review)
