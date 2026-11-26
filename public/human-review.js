@@ -6,7 +6,9 @@
 //               the whole width), so it lines up with them and never covers a box, an arrow or a label; it is not a
 //               step of any route (pipeline.mjs is untouched)
 //   the rail    a count on the Agents entry, and the page head's "N waiting on you": both count what keeps an agent
-//               waiting (questions and by-hand work), never the tickets, so the two always agree
+//               waiting (sessions stopped for you, questions and by-hand work), never the tickets, so the two always agree
+//   a session   a Claude Code session stopped for your permission or reply (waiting.mjs) is a row that opens that
+//               session, and a NEW one raises a sticky toast and a desktop notification once
 //   Home        one line: what needs you now, the tickets apart, and a link to the box (#homeHuman)
 //
 //   ┌──────────────────────────────────────────────────────────────────────────────┐
@@ -37,9 +39,9 @@
   const GAP = 6 // between the diagram's layout (its own padding included) and the box
   const BOTTOM = 10 // under the box, inside the canvas
   const FILTER_KEY = 'human.filter'
-  const KIND = { ask: 'Question', hand: 'By hand', blocked: 'Blocked', ticket: 'Ticket' }
+  const KIND = { session: 'Session', ask: 'Question', hand: 'By hand', blocked: 'Blocked', ticket: 'Ticket' }
   /** The chips, in order: [key, label]. MUST CHANGE IN LOCKSTEP with human.mjs counts. */
-  const FILTERS = [['all', 'All'], ['ask', 'Questions'], ['hand', 'By hand'], ['blocked', 'Blocked'], ['ticket', 'Tickets']]
+  const FILTERS = [['all', 'All'], ['session', 'Sessions'], ['ask', 'Questions'], ['hand', 'By hand'], ['blocked', 'Blocked'], ['ticket', 'Tickets']]
   const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 
   // ═══ pure ═══
@@ -58,15 +60,15 @@
     return { x: left, y, w: Math.max(0, right - left) }
   }
 
-  /** What keeps an agent waiting on the user: questions and by-hand work (the rail and the page head show this). */
-  const waiting = c => (Number(c?.ask) || 0) + (Number(c?.hand) || 0)
+  /** What keeps an agent waiting on the user: stopped sessions, questions and by-hand work (the rail and the page head show this). */
+  const waiting = c => (Number(c?.session) || 0) + (Number(c?.ask) || 0) + (Number(c?.hand) || 0)
 
   /** The chip in effect: the stored one when it is a chip, else Questions while there are any, else All. */
-  const filterOf = (stored, counts) => (FILTERS.some(([k]) => k === stored) ? stored : Number(counts?.ask) > 0 ? 'ask' : 'all')
+  const filterOf = (stored, counts) => (FILTERS.some(([k]) => k === stored) ? stored : Number(counts?.ask) > 0 && !Number(counts?.session) ? 'ask' : 'all')
 
   /** `13 questions · 2 by hand · 60 tickets`: the split, never one mixed number; '' when nothing waits. */
   function splitText(c) {
-    return [[c?.ask, 'question', 'questions'], [c?.hand, 'by hand', 'by hand'], [c?.blocked, 'blocked', 'blocked'], [c?.ticket, 'ticket', 'tickets']]
+    return [[c?.session, 'session waiting', 'sessions waiting'], [c?.ask, 'question', 'questions'], [c?.hand, 'by hand', 'by hand'], [c?.blocked, 'blocked', 'blocked'], [c?.ticket, 'ticket', 'tickets']]
       .filter(([v]) => Number(v) > 0).map(([v, one, many]) => plural(Number(v), one, many)).join(' · ')
   }
 
@@ -74,14 +76,15 @@
   function kindWord(i) {
     if (i.kind === 'hand' && i.progress?.total) return `${KIND.hand} · ${i.progress.done} of ${i.progress.total}`
     if (i.kind === 'ticket') return `${KIND.ticket} ${i.ticketId}`
+    if (i.kind === 'session') return i.wait === 'question' ? 'Needs your reply' : 'Needs your OK'
     return KIND[i.kind] || ''
   }
 
   function rowHtml(i) {
     const waited = window.Shell?.ago(i.since) || ''
     const meta = [`<span class="hr-kind k-${esc(i.kind)}">${esc(kindWord(i))}</span>`, i.agent ? esc(i.agent) : '', waited ? `waiting ${esc(waited)}` : ''].filter(Boolean)
-    const open = i.kind === 'ticket' ? `data-hr-ticket="${esc(i.ticketId)}"` : `data-hr-open="${esc(i.flowId)}" data-hr-kind="${esc(i.kind)}"${i.nodeId ? ` data-hr-node="${esc(i.nodeId)}"` : ''}`
-    const label = i.kind === 'ask' ? 'Open the question in its flow' : i.kind === 'hand' ? 'Open the steps in its flow' : i.kind === 'ticket' ? 'Open the ticket' : 'Open the flow'
+    const open = i.kind === 'session' ? `data-hr-agent="${esc(i.sessionId)}"` : i.kind === 'ticket' ? `data-hr-ticket="${esc(i.ticketId)}"` : `data-hr-open="${esc(i.flowId)}" data-hr-kind="${esc(i.kind)}"${i.nodeId ? ` data-hr-node="${esc(i.nodeId)}"` : ''}`
+    const label = i.kind === 'session' ? 'Open the session to answer it' : i.kind === 'ask' ? 'Open the question in its flow' : i.kind === 'hand' ? 'Open the steps in its flow' : i.kind === 'ticket' ? 'Open the ticket' : 'Open the flow'
     const ask = i.kind === 'ask' && i.ask
       ? `<div class="hr-ask" data-flow="${esc(i.flowId)}"><p class="hr-q">${esc(i.ask.title)}</p><div class="hr-acts">${window.FlowBoard.askControls({ id: i.flowId }, { id: i.nodeId, kind: i.ask.kind, yes: i.ask.yes, no: i.ask.no, answer: null }, 'hr')}</div></div>`
       : ''
@@ -94,7 +97,7 @@
       (ask ? `${ask}<p class="hr-why"><span class="hr-why-k">Why?</span> ${esc(i.reason)}</p>` : `<p class="hr-why">${esc(i.reason)}</p>`) + steps + '</li>'
   }
 
-  const EMPTY = { ask: 'No questions wait on you.', hand: 'No work waits for you to do by hand.', blocked: 'No flow is blocked.', ticket: 'No ticket waits on you.' }
+  const EMPTY = { session: 'No session is waiting on you.', ask: 'No questions wait on you.', hand: 'No work waits for you to do by hand.', blocked: 'No flow is blocked.', ticket: 'No ticket waits on you.' }
 
   function chipsHtml(counts, filter) {
     const n = k => (k === 'all' ? Number(counts?.total) || 0 : Number(counts?.[k]) || 0)
@@ -123,13 +126,19 @@
     if (!c) return ''
     if (!c.total) return '<p class="hr-home"><i class="hr-dot is-calm" aria-hidden="true"></i>Nothing needs you right now.</p>'
     const now = waiting(c) + (Number(c.blocked) || 0)
-    const parts = [[c.ask, 'question'], [c.hand, 'by-hand task'], [c.blocked, 'blocked flow']].filter(([v]) => v > 0).map(([v, one]) => plural(v, one))
+    const parts = [[c.session, 'session waiting', 'sessions waiting'], [c.ask, 'question'], [c.hand, 'by-hand task'], [c.blocked, 'blocked flow']].filter(([v]) => v > 0).map(([v, one, many]) => plural(v, one, many))
     const lead = now ? `<b>${plural(now, 'thing needs', 'things need')} you now</b><span class="hr-home-parts">${esc(parts.join(', '))}</span>` : '<b>Nothing blocks an agent</b>'
     const tickets = c.ticket ? `<span class="hr-home-parts">${esc(plural(c.ticket, 'ticket', 'tickets'))} only you can do</span>` : ''
     return `<p class="hr-home"><i class="hr-dot${now ? '' : ' is-calm'}" aria-hidden="true"></i>${lead}${tickets}<a class="link" href="#/agents?human" data-hr-show>Open Human review</a></p>`
   }
 
-  const api = { FILTERS, filterOf, splitText, waiting, spot, rowHtml, html, homeHtml, data: null, place() {}, refresh() {}, show() {}, needsHand: () => false }
+  /** The session rows in `next` that were not in `prev`: each is a new wait to raise once. */
+  const newWaits = (prev, next) => {
+    const seen = new Set((prev || []).filter(i => i.kind === 'session').map(i => `${i.key}@${i.since}`))
+    return (next || []).filter(i => i.kind === 'session' && !seen.has(`${i.key}@${i.since}`))
+  }
+
+  const api = { FILTERS, filterOf, newWaits, splitText, waiting, spot, rowHtml, html, homeHtml, data: null, place() {}, refresh() {}, show() {}, needsHand: () => false }
   window.HumanReview = api
   if (!window.document) return
 
@@ -152,7 +161,7 @@
   function paintBox() {
     const vals = new Map([...box.querySelectorAll('input[data-key]')].map(i => [i.dataset.key, i.value]))
     const a = doc.activeElement
-    const keep = a && box.contains(a) ? ['data-key', 'data-hr-open', 'data-hr-chip', 'data-hr-steps'].find(k => a.hasAttribute(k)) : null
+    const keep = a && box.contains(a) ? ['data-key', 'data-hr-open', 'data-hr-agent', 'data-hr-chip', 'data-hr-steps'].find(k => a.hasAttribute(k)) : null
     const focus = keep ? `[${keep}="${CSS.escape(a.getAttribute(keep))}"]` : null
     const scroll = box.querySelector('.hr-rows')?.scrollTop || 0
     box.innerHTML = html(data, filterOf(store.get(), data?.counts))
@@ -209,6 +218,7 @@
       next = { ...(data || {}), error: e?.message || String(e) }
     }
     const sig = JSON.stringify([next.items, next.counts, next.error])
+    if (data?.items && next.items) for (const w of newWaits(data.items, next.items)) raiseWait(w) // not on the first load: the pill says it
     data = next
     if (sig === last) return
     last = sig
@@ -217,6 +227,13 @@
     doc.dispatchEvent(new CustomEvent('humanreview:change')) // the diagram's Human task box shows the counts too (pipeline-view.js)
     // the open flow's checklist may now know it needs the user (flows.js reads needsHand on its next draw)
     if (window.Shell?.current?.view === 'flows') window.FlowsView?.load()
+  }
+
+  /** A toast and a desktop notification for a session that just stopped for the user. */
+  function raiseWait(w) {
+    const open = () => window.Shell?.go(`#/agent/${enc(w.sessionId)}`)
+    window.Notifier?.toast(`<b>${esc(w.title)}</b> is waiting on you<br>${esc(w.reason)}`, { kind: 'decision', sticky: true })
+    window.Notifier?.desktop(`${w.title} is waiting on you`, w.reason, open)
   }
 
   /** The Agents page with the box in view and its heading focused, from anywhere (the head's pill, Home, a toast). */
@@ -258,6 +275,8 @@
     }
     const steps = t.closest('[data-hr-steps]')
     if (steps) return askSteps(steps)
+    const agent = t.closest('[data-hr-agent]')
+    if (agent) return window.Shell?.go(`#/agent/${enc(agent.dataset.hrAgent)}`)
     const ticket = t.closest('[data-hr-ticket]')
     if (ticket) return window.FactoryView?.gotoTicket(ticket.dataset.hrTicket)
     const open = t.closest('[data-hr-open]')

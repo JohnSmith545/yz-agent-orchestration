@@ -40,7 +40,7 @@ test('the head shows the split, never one mixed number; the chips carry the coun
   assert.equal(H.splitText({ ask: 0 }), '')
   assert.match(h, /<div class="lg-chips hr-chips" role="group" aria-label="Show in Human review">/)
   assert.deepEqual([...h.matchAll(/data-hr-chip="(\w+)" aria-pressed="(\w+)">(\w[\w ]*) <span class="hr-chip-n">(\d+)<\/span>/g)].map(m => m.slice(1).join(' ')),
-    ['all true All 4', 'ask false Questions 1', 'hand false By hand 1', 'blocked false Blocked 1', 'ticket false Tickets 1'])
+    ['all true All 4', 'session false Sessions 0', 'ask false Questions 1', 'hand false By hand 1', 'blocked false Blocked 1', 'ticket false Tickets 1'])
 })
 
 test('a chip shows only its kind; with none of it, one calm line; the default is Questions while there are any, else All; a stored choice wins', () => {
@@ -168,4 +168,38 @@ test('wired: one line in pipeline-view.js, the box tall when the screen has room
   const html = read('index.html')
   assert.match(html, /<script src="human-review.js"><\/script>/)
   assert.ok(JSON.parse(fs.readFileSync(path.join(HERE, '..', 'package.json'), 'utf8')).checkList.includes('node --check public/human-review.js'))
+})
+
+// ═══ sessions stopped for the user (waiting.mjs) ═══
+
+const SESSION = { key: 'session:abc', kind: 'session', sessionId: 'abc', title: 'Coordinator', agent: 'Coordinator', since: '2026-11-26T10:00:00Z', reason: 'Asked you: Shall I <start>?', wait: 'question' }
+
+test('a waiting session row says what it needs, escapes the reason, and opens that session', () => {
+  const H = load().HumanReview
+  const h = H.rowHtml(SESSION)
+  assert.match(h, /data-hr-agent="abc"/)
+  assert.match(h, /title="Open the session to answer it"/)
+  assert.match(h, />Needs your reply</)
+  assert.match(h, /Asked you: Shall I &lt;start&gt;\?/)
+  assert.match(H.rowHtml({ ...SESSION, wait: 'permission', reason: 'Claude needs your permission to use Bash' }), />Needs your OK</)
+})
+
+test('waiting sessions count in the rail and page head number, the split and Home, and open All by default', () => {
+  const H = load().HumanReview
+  const counts = { total: 2, ask: 1, hand: 0, blocked: 0, ticket: 0, session: 1 }
+  assert.equal(H.waiting(counts), 2)
+  assert.equal(H.splitText(counts), '1 session waiting · 1 question')
+  assert.equal(H.filterOf(null, counts), 'all', 'Questions alone would hide the waiting session')
+  assert.match(text(H.homeHtml({ counts })), /2 things need you now 1 session waiting, 1 question/)
+  assert.match(H.html({ items: [ASK], counts: { ...counts, session: 0, total: 1 } }, 'session'), /No session is waiting on you\./)
+})
+
+test('newWaits gives only the sessions that started waiting since the last poll', () => {
+  const H = load().HumanReview
+  const again = { ...SESSION, key: 'session:abc', since: '2026-11-26T11:00:00Z' }
+  const other = { ...SESSION, key: 'session:def', sessionId: 'def' }
+  assert.deepEqual(H.newWaits([SESSION, ASK], [SESSION, ASK]).length, 0)
+  assert.deepEqual(H.newWaits([SESSION], [SESSION, other]).map(i => i.key), ['session:def'])
+  assert.deepEqual(H.newWaits([SESSION], [again]).map(i => i.since), ['2026-11-26T11:00:00Z'], 'the same session waiting again is new')
+  assert.deepEqual(H.newWaits([], [ASK]), [], 'flow questions keep their own alerts (notify.js)')
 })
