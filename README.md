@@ -167,8 +167,9 @@ rail adds up what these turns cost.
 
 ## Configuration
 
-Six pages sit in a rail on the left: **Home**, **Flows**, **Tickets**,
-**Timeline**, **Agents** and **Subagents** (one agent's live view opens from Agents or Subagents). Pages
+The pages sit in a rail on the left, in four groups: **Work** (Home, Flows, Tickets, Generators), **Agents**
+(Agents, Subagents, Orchestration bank, Routing), **Quality** (QA, Lessons, Learn) and **History** (Timeline,
+Flow archive, Glossary), with Settings at the foot (one agent's live view opens from Agents or Subagents). Pages
 refresh themselves; the Refresh button in the page header rebuilds at once.
 
 `config.json` stays on your machine (it is in `.gitignore`):
@@ -227,10 +228,18 @@ mode is `:root[data-theme="dark"]`.
 
 `public/shell.js` and `shell.css` draw the frame every page shares.
 
-- **The rail** (56 px, icons only): the brand mark (Home), then Flows first, QA, Generators, Tickets,
-  Timeline, Agents, Subagents, Glossary, and at the foot Ask, Alerts, Spend and Theme. Hover it for 300 ms,
+- **The rail** (56 px, icons only): the brand mark and the Project menu, then the pages in four groups,
+  Work (Home, Flows, Tickets, Generators), Agents (Agents, Subagents, Orchestration bank, Routing), Quality
+  (QA, Lessons, Learn) and History (Timeline, Flow archive, Glossary), and at the foot Ask, Alerts, Spend,
+  Phone on (while phone access is on), Settings and Theme. A thin line marks each group; open, the group's
+  name sits on it, and a screen reader hears it as a heading. Hover it for 300 ms,
   or Tab into it, and it opens to 200 px with labels; the pin at the top keeps
-  it open (remembered). Under 720 px wide the rail is a bar along the bottom.
+  it open (remembered). On a short window only the groups scroll, inside the rail; the foot stays put.
+  Under 720 px wide the rail is a bar along the bottom.
+  **One place orders the pages:** `public/rail-groups.js`. A new page adds its link by group and by name,
+  `RailGroups.add('agents', { view, href, label, icon }, { after: 'subagents' })`, never by appending to the
+  rail; a group that does not exist puts it in a final More group with a console warning, and
+  `test/rail-groups.test.mjs` fails while a page in the shell has no rail link. The palette lists the same groups.
   The routes are `#/` (Flows, the landing page), `#/flows` (the same page, so old links keep working),
   `#/home`, `#/qa` (and `#/qa/<flow id>` for one ticket), `#/generators` (and `#/generators?tool=standup` for the Standup creator; `#/brainstorming` and `#/script` still land there),
   `#/tickets`, `#/timeline`, `#/agents`, `#/subagents`, `#/glossary`, `#/settings`
@@ -331,7 +340,7 @@ mode is `:root[data-theme="dark"]`.
   hint), `Theme: light`, `Theme: dark`, `Theme: system` and Mark read (while
   the Since card shows). It never opens over the report modal. Prefix matches
   come first, then text found anywhere in the name or its hint, 12 at most;
-  an empty box lists the pages and the actions. Up and Down choose, Enter
+  an empty box lists every page under the rail's group names, then Settings and the actions. Up and Down choose, Enter
   opens, Escape closes. It makes no request: it searches what the pages
   already loaded, so tickets show once the Tickets page has loaded them, and
   flows once Home or Flows has. `Ctrl+K` while you type in another field is
@@ -392,7 +401,7 @@ story, the rules and the costs are in the user guide: [Plain story, marked words
 
 ### Home (#/home)
 
-Home moved from `#/` to `#/home` when Flows became the landing page; the brand mark at the top of the rail opens it.
+Home moved from `#/` to `#/home` when Flows became the landing page; it is the first link of the rail's Work group, and the brand mark at the top opens it too.
 
 Zones, top to bottom: **Since 23:10** (only when something happened since you
 last pressed its `Mark read`: flows that changed status, answers delivered,
@@ -1787,7 +1796,7 @@ at that. Each model run is ONE short headless turn on Sonnet 5.5 at low effort (
 `script.mjs`), one at a time, its cost recorded in the spend chip; a model never changes a lesson, a flow or a setting
 by itself.
 
-**The lessons library** (`#/lessons`, the last link on the rail; `data/lessons.json`, `quality-lessons.mjs`). A
+**The lessons library** (`#/lessons`, in the rail's Quality group; `data/lessons.json`, `quality-lessons.mjs`). A
 lesson is one plain sentence of at most 160 characters in one area (tests, ui, routes, data, docs, process, infra,
 general; `quality.areas` adds more), with how often it was seen and the flows that taught it. When QA, Security or
 Senior records a failure, one run (`quality-extract.mjs`) reads its summary and report and proposes up to 3 lessons;
@@ -1875,7 +1884,7 @@ token counts already record. **No model is run**: nothing here costs anything.
 
 ## Routing (#/routing) and ticket intake
 
-The **Routing** page (last on the rail) holds plain rules that SUGGEST who does a task and on what: the first rule
+The **Routing** page (in the rail's Agents group) holds plain rules that SUGGEST who does a task and on what: the first rule
 that fits the task's type, risk and size names an agent, a model and an effort, with a one-line why. Defaults live
 in `routing-rules.mjs` (small wording fixes go to Sonnet 5.5 at medium effort); the page saves your own list to
 `routing.rules` in `config.json` after a plain confirm, every other line of the file kept. A list with any bad rule
@@ -2011,7 +2020,7 @@ hand out the same subnet cannot be told apart, which Tailscale avoids. **Never f
 
 Nothing about it happens quietly: the Settings page's **Phone** card shows whether it is on, the address, when the
 PIN was set, recent sign-ins and lockouts, **Sign out everywhere** and **Turn phone access off**; while it is on,
-the rail ends with a **Phone on** badge. Every sign-in, lockout, PIN change and change of `remote.enabled`,
+the rail's foot shows a **Phone on** badge above Settings. Every sign-in, lockout, PIN change and change of `remote.enabled`,
 `bind` or the PIN hash in config.json raises a desktop notice and a line in the Log, and a PIN that `phone-pin`
 did not write is called out as changed outside the setup command. Turning it on is only ever done in a terminal,
 which is no wall against a local agent that can write config.json: these notices are how you would see it.
