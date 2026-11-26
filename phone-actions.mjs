@@ -4,6 +4,8 @@
 //
 //   summary   read: what needs the user (questions, by-hand steps, outputs to sign off), each agent in one line,
 //             today's finished count. Built from human-routes.mjs humanGet and completed-routes.mjs outputsGet.
+//   orchestration, flow   read: the pipeline's boxes with the agents' states, the flows standing at each, the alerts
+//             and the open pull requests; one flow's sheet (phone-orchestration.mjs). Nothing written.
 //   answer    answer ONE open question: flows.mjs applyAnswer, then relay.queue, exactly as the desktop's
 //             POST /api/flows/<id>/answer does. STRICTER than the desktop: an ask that already has an answer is
 //             refused (the phone never changes or reopens an answer), and so is a flow that is not open or blocked.
@@ -17,7 +19,7 @@
 // Send, Generate, Request test steps, Ask for steps, the chat. A phone that is lost while signed in can do only
 // what is above until the session expires or the desktop signs it out.
 //
-// Each action takes the parsed JSON body and resolves { status, body }. `relay`, `talk` and `getStatus` are
+// Each action takes the parsed JSON body and resolves { status, body }. `relay`, `talk`, `getStatus` and `alerts` are
 // injected (server.mjs passes its own), so the tests stub every side effect.
 
 import { CONFIG } from './config.mjs'
@@ -27,9 +29,10 @@ import { applyAnswer, listFlows, readFlow, storyOf, validateFlow, writeFlow } fr
 import { handTickRoute, humanGet } from './human-routes.mjs'
 import { pipelineGraph } from './pipeline.mjs'
 import { phoneCost } from './phone-cost.mjs'
+import { makeOrchestration } from './phone-orchestration.mjs'
 import { TALK_MAX } from './phone-talk.mjs'
 
-export const ACTIONS = Object.freeze(['summary', 'answer', 'tick', 'complete', 'talk', 'talkSend'])
+export const ACTIONS = Object.freeze(['summary', 'orchestration', 'flow', 'answer', 'tick', 'complete', 'talk', 'talkSend'])
 const SLUG = /^[a-z0-9-]{1,80}$/
 const NODE = /^[A-Za-z0-9_-]{1,40}$/
 const STORY_LINES = 8
@@ -58,7 +61,8 @@ const startOfToday = now => {
 /** How long the summary waits for the agents: a cold status build (git, every transcript) can take far longer. */
 export const AGENTS_WAIT_MS = 3000
 
-export function makePhoneActions({ relay, talk, getStatus, config = CONFIG, now = Date.now, agentsWaitMs = AGENTS_WAIT_MS, cost = phoneCost }) {
+export function makePhoneActions({ relay, talk, getStatus, alerts = async () => null, config = CONFIG, now = Date.now, agentsWaitMs = AGENTS_WAIT_MS, cost = phoneCost }) {
+  const orch = makeOrchestration({ getStatus, alerts, config, now, agentsWaitMs })
   /** Each agent in one line; null while the PC is still building the list (the page says so and asks again later). */
   /** A label to show: an unmapped session is an Unnamed session, never its raw id (QA, 2026-11-26). */
   const shownLabel = l => {
@@ -163,5 +167,5 @@ export function makePhoneActions({ relay, talk, getStatus, config = CONFIG, now 
   const talkGet = async () => ok({ ...(await talk.threadWithReplies()), cost: cost() })
   const talkSend = async (b, ctx = {}) => talk.send(isObject(b) ? b.text : undefined, ctx.session || '')
 
-  return { summary, answer, tick, complete, talk: talkGet, talkSend }
+  return { summary, orchestration: () => orch.orchestration(), flow: b => orch.flow(b), answer, tick, complete, talk: talkGet, talkSend }
 }

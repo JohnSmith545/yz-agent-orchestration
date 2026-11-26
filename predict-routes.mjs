@@ -18,6 +18,8 @@
 //   GET  /api/predict/ticket?id=<id>    { id, estimate, similar, flow, flowDone }: for a ticket not yet started,
 //                                       computed on the fly; `flow` names a flow that already carries it (done or not)
 //   GET  /api/predict/accuracy?days=    predict-estimate.mjs accuracyOf over Pipeline time's window (7, 30, all)
+//   route.alerts()                      { status, body }: what GET /api/alerts answers, for the phone's Agents tab
+//                                       (phone-orchestration.mjs shows the count and the first two, read only)
 //   route.placed({ from, now })         { placed, unplaced }: the period's tokens placed on flows, and not, for the
 //                                       one line Pipeline tokens gains (token-routes.mjs)
 //   route.sweep()                       places the tokens on the flows again (what flowTokens answers from), then
@@ -365,6 +367,7 @@ export function makePredictRoute({
     const p = await placement(from)
     return { placed: p.placed, unplaced: p.unplaced }
   }
+  route.alerts = alertsGet
   route.sweep = sweep
   route.ready = () => lastPlacement !== null
   route.placedThrough = () => dataAtOf(lastPlacement)

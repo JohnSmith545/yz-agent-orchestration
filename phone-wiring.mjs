@@ -12,7 +12,8 @@
 // config.json that does not parse, this PC off the network it was set up on) and opens again when the block is good
 // again, such as when the PC is back on that network.
 //
-//   startPhone({ getStatus, relay, run, sessions, transcriptFile }, { reader?, configFile?, every? })   { door, stop() }
+//   startPhone({ getStatus, relay, run, sessions, transcriptFile, alerts? }, { reader?, configFile?, every? })   { door, stop() }
+//   alerts: Predict and warn's own answer (predict-routes.mjs route.alerts), for the Agents tab's alert lines
 
 import { CONFIG, CONFIG_FILE } from './config.mjs'
 import { makePhoneActions } from './phone-actions.mjs'
@@ -56,7 +57,7 @@ export function watchRemote({ reader = remoteNow, auth = makeAuthStore(), every 
 /** The coordinator's session, live or pinned, by its session name (config coordinator). */
 const coordinatorOf = async sessions => (await sessions()).find(s => s.name === CONFIG.coordinator) || null
 
-export function startPhone({ getStatus, relay, run, sessions, transcriptFile }, { reader = remoteNow, configFile = CONFIG_FILE, every = CHECK_MS } = {}) {
+export function startPhone({ getStatus, relay, run, sessions, transcriptFile, alerts = async () => null }, { reader = remoteNow, configFile = CONFIG_FILE, every = CHECK_MS } = {}) {
   const auth = makeAuthStore()
   const watcher = watchRemote({ reader, auth, every })
   const talk = makeTalk({
@@ -74,7 +75,7 @@ export function startPhone({ getStatus, relay, run, sessions, transcriptFile }, 
   })
   const lost = talk.sweep()
   if (lost) console.log(`phone: ${lost} message(s) to ${CONFIG.coordinatorLabel} were on their way when the dashboard stopped; the phone shows them as not sent`)
-  const actions = makePhoneActions({ relay, talk, getStatus })
+  const actions = makePhoneActions({ relay, talk, getStatus, alerts })
   let door = null
   // 3 lockouts in 24 hours (phone-auth.mjs ESCALATE): phone access OFF in config.json, the same write as Turn phone access off
   const onEscalate = () => {

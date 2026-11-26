@@ -39,8 +39,8 @@ beforeEach(() => {
   fs.mkdirSync(F.FLOWS_DIR, { recursive: true })
 })
 
-test('the allowlist is exactly: read the summary, answer, tick, complete, and talk to the coordinator', () => {
-  assert.deepEqual([...ACTIONS].sort(), ['answer', 'complete', 'summary', 'talk', 'talkSend', 'tick'])
+test('the allowlist is exactly: read the summary, the orchestration and a flow sheet, answer, tick, complete, and talk to the coordinator', () => {
+  assert.deepEqual([...ACTIONS].sort(), ['answer', 'complete', 'flow', 'orchestration', 'summary', 'talk', 'talkSend', 'tick'])
   assert.deepEqual(Object.keys(actions()).sort(), [...ACTIONS].sort())
 })
 
@@ -186,6 +186,21 @@ test('complete refuses an unfinished flow with the desktop sentence, and writes 
   assert.equal(fs.readFileSync(file('busy'), 'utf8'), before)
   assert.equal((await actions().complete({ flowId: 'nope' })).status, 404)
   assert.equal((await actions().complete({ flowId: 'a/b' })).status, 400)
+})
+
+// ═══ the orchestration (phone-orchestration.mjs, tested on its own) ═══
+
+test('orchestration and flow are the read-only builders, with the alerts passed through', async () => {
+  let asked = 0
+  const a = makePhoneActions({ relay, talk, getStatus: async () => ({ agents }), alerts: async () => (asked++, { status: 200, body: { enabled: true, alerts: [{ text: 'One.' }] } }) })
+  const o = await a.orchestration()
+  assert.equal(o.status, 200)
+  assert.equal(asked, 1)
+  assert.deepEqual(o.body.alerts, { count: 1, lines: ['One.'] })
+  put('seen', { title: 'Seen flow' })
+  assert.equal((await a.flow({ id: 'seen' })).body.title, 'Seen flow')
+  assert.equal((await a.flow({ id: '../x' })).status, 400)
+  assert.deepEqual(calls, [], 'nothing relayed, nothing written')
 })
 
 // ═══ talk ═══

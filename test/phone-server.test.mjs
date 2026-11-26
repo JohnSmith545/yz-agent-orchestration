@@ -32,7 +32,7 @@ let own
 let base
 
 const recorder = name => async b => (calls.push([name, b]), { status: 200, body: { ok: true, action: name } })
-const actions = { summary: recorder('summary'), answer: recorder('answer'), tick: recorder('tick'), complete: recorder('complete'), talk: recorder('talk'), talkSend: recorder('talkSend') }
+const actions = { summary: recorder('summary'), orchestration: recorder('orchestration'), flow: recorder('flow'), answer: recorder('answer'), tick: recorder('tick'), complete: recorder('complete'), talk: recorder('talk'), talkSend: recorder('talkSend') }
 const LIMITS = { session: { max: 40, ms: 60_000 }, address: { max: 400, ms: 60_000 }, login: { max: 30, ms: 60_000 } }
 
 function handler(extra = {}) {
@@ -110,7 +110,7 @@ test('a dozen-plus desktop routes and files are 404 on the phone listener, signe
       assert.equal(r.status, 404, `GET ${p}`)
     }
   }
-  for (const p of ['/api/flows/x/answer', '/api/flows/x/delete', '/api/settings/pin', '/api/settings/send', '/api/chat/send', '/api/flows/x/pr', '/phone/api/delete', '/phone/api/archive', '/phone/api/status', '/phone/api/summary', '/phone']) {
+  for (const p of ['/api/flows/x/answer', '/api/flows/x/delete', '/api/settings/pin', '/api/settings/send', '/api/chat/send', '/api/flows/x/pr', '/phone/api/delete', '/phone/api/archive', '/phone/api/status', '/phone/api/summary', '/phone', '/phone/api/orchestration', '/phone/api/flow', '/phone/api/flow?id=x']) {
     const r = await write(p, {}, asUser(user))
     assert.equal(r.status, 404, `POST ${p}`)
   }
@@ -338,6 +338,29 @@ test('a broken request body never reaches an action', async () => {
   assert.deepEqual(calls, [])
 })
 
+// ═══ the orchestration: two more reads, nothing more ═══
+
+test('the orchestration and a flow sheet are GET only, behind the session, and a flow id comes from the address alone', async () => {
+  for (const p of ['/phone/api/orchestration', '/phone/api/flow?id=login']) {
+    const r = await request('GET', p)
+    assert.equal(r.status, 401, `${p} without a session`)
+    assert.equal(r.headers['cache-control'], 'no-store')
+  }
+  const user = await signIn()
+  for (const m of ['PUT', 'DELETE', 'PATCH']) assert.equal((await request(m, '/phone/api/flow?id=x', { headers: asUser(user) })).status, 404)
+  assert.equal((await write('/phone/api/orchestration', {}, asUser(user))).status, 404, 'a POST to a read is 404, CSRF or not')
+  assert.equal((await write('/phone/api/flow', { id: 'x' }, asUser(user))).status, 404)
+  assert.deepEqual(calls, [])
+  assert.equal((await request('GET', '/phone/api/orchestration', { headers: { cookie: user.cookie } })).status, 200)
+  assert.equal((await request('GET', '/phone/api/flow?id=login-page&id=other&flowId=x', { headers: { cookie: user.cookie } })).status, 200)
+  await request('GET', '/phone/api/flow', { headers: { cookie: user.cookie } })
+  assert.deepEqual(calls, [['orchestration', {}], ['flow', { id: 'login-page' }], ['flow', { id: null }]], 'only the first id, as given: the action checks it')
+})
+
+test('the API table is exactly the eight actions and the two session routes', () => {
+  assert.deepEqual(Object.keys(P.API).sort(), ['GET /phone/api/flow', 'GET /phone/api/orchestration', 'GET /phone/api/summary', 'GET /phone/api/talk', 'POST /phone/api/answer', 'POST /phone/api/complete', 'POST /phone/api/talk', 'POST /phone/api/tick'])
+})
+
 // ═══ the listener itself ═══
 
 test('with no remote block, or one that is off, NOTHING new listens: the server is never even created', () => {
@@ -362,6 +385,7 @@ test('server.mjs keeps its one 127.0.0.1 listener and starts the phone through s
   const src = fs.readFileSync(path.join(HERE, '..', 'server.mjs'), 'utf8')
   assert.equal((src.match(/\.listen\(|listenWhenFree\(/g) || []).length, 1)
   assert.match(src, /listenWhenFree\(server, PORT, '127\.0\.0\.1'\)/)
+  assert.match(src, /startPhone\(\{[^}]*alerts: \(\) => predictRoute\.alerts\(\)/, 'the Agents tab reads the same alerts as the desktop')
   assert.equal((src.match(/startPhone\(/g) || []).length, 1)
   assert.doesNotMatch(src, /0\.0\.0\.0/)
 })
