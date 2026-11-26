@@ -93,8 +93,9 @@ a.prl-title:hover { text-decoration: underline; text-decoration-color: var(--lin
 /* ─── the move up (prlist.js) ─── */
 
 /* the one that leaves: drawn where it was, over the list, as it fades up and out */
-.prl-ghost { position: absolute; left: 0; right: 0; margin: 0; pointer-events: none; transition: opacity .26s ease-out, transform .4s var(--prl-ease); }
-.prl-ghost.is-gone { opacity: 0; transform: translateY(-10px); }
+/* (prlist.js sets its timing: it is gone before the rest start to rise, so it is never drawn over the next one) */
+.prl-ghost { position: absolute; left: 0; right: 0; margin: 0; pointer-events: none; transition: opacity .14s ease-out, transform .14s ease-out; }
+.prl-ghost.is-gone { opacity: 0; transform: translateY(-6px); }
 /* a new one at the top: a short fade in */
 .prl-item.prl-entering { animation: prl-in .26s var(--prl-ease) both; }
 @keyframes prl-in { from { opacity: 0; transform: translateY(-4px); } }

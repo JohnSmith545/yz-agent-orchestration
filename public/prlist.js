@@ -9,9 +9,10 @@
 // GitHub at most once a minute in the background, so a poll never waits on GitHub).
 //
 // ═══ THE MOVE UP ═══ When the keys change (prlist-view.js motionPlan), the slot is redrawn and then animated FLIP
-// style: each kept item starts where it was, at its old size (a scale) and its old opacity, and eases to its new
-// place and step over 400 ms; the one that left is drawn as a GHOST copy where it was (inert: no focus, not read out)
-// and fades up and out; a new one fades in at the top. Under reduced motion, or for a slot not on show, the list
+// style: the one that left is drawn as a GHOST copy where it was (inert: no focus, not read out) and fades out,
+// lifting a few pixels, in plan.leaveMs; each kept item starts where it was, at its old size (a scale) and its old
+// opacity, waits plan.delay (until the ghost is gone, so no title is ever drawn over another) and then eases to its
+// new place and step, the whole move in plan.ms; a new one fades in at the top. Under reduced motion, or for a slot not on show, the list
 // simply redraws. A paint asked for while a move runs waits for it to end.
 //
 // Rules: no sound, no toast; the more line's open state lives in memory only; the focus stays on the same control
@@ -98,6 +99,7 @@
       list.appendChild(ghost)
     }
     const moving = []
+    const lines = []
     for (const k of plan.kept) {
       const li = list.querySelector(`:scope > [data-prl-key="${CSS.escape(k.key)}"]`)
       const was = before.get(k.key)
@@ -105,25 +107,41 @@
       li.style.transition = 'none'
       li.style.transform = `translateY(${was.top - li.offsetTop}px) scale(${V().scaleFrom(k.from, k.to)})`
       li.style.opacity = String(V().fogStep(k.from).opacity)
+      // the new first item's small line was not there before: it fades in late in the rise (plan.metaAt)
+      const meta = k.from > 0 && k.to === 0 ? li.querySelector('.prl-meta') : null
+      if (meta) {
+        meta.style.transition = 'none'
+        meta.style.opacity = '0'
+        lines.push(meta)
+      }
       moving.push(li)
     }
     for (const key of plan.entered) list.querySelector(`:scope > [data-prl-key="${CSS.escape(key)}"]`)?.classList.add('prl-entering')
     void list.offsetHeight // the start positions are laid out before the transitions begin
     window.requestAnimationFrame(() => {
+      const rise = ms - plan.delay
       if (el.style.height) {
-        el.style.transition = `height ${ms}ms var(--prl-ease)`
+        el.style.transition = `height ${rise}ms var(--prl-ease) ${plan.delay}ms`
         el.style.height = `${toHeight}px`
       }
-      for (const ghost of list.querySelectorAll('.prl-ghost')) ghost.classList.add('is-gone')
+      for (const ghost of list.querySelectorAll('.prl-ghost')) {
+        ghost.style.transition = `opacity ${plan.leaveMs}ms ease-out, transform ${plan.leaveMs}ms ease-out`
+        ghost.classList.add('is-gone')
+      }
       for (const li of moving) {
-        li.style.transition = `transform ${ms}ms var(--prl-ease), opacity ${ms}ms var(--prl-ease)`
+        li.style.transition = `transform ${rise}ms var(--prl-ease) ${plan.delay}ms, opacity ${rise}ms var(--prl-ease) ${plan.delay}ms`
         li.style.transform = ''
         li.style.opacity = ''
+      }
+      for (const meta of lines) {
+        meta.style.transition = `opacity ${plan.metaMs}ms ease-out ${plan.metaAt}ms`
+        meta.style.opacity = ''
       }
     })
     setTimeout(() => {
       list.querySelectorAll('.prl-ghost').forEach(g => g.remove())
       for (const li of moving) li.style.transition = ''
+      for (const meta of lines) meta.style.transition = ''
       for (const p of ['height', 'overflow', 'transition']) el.style[p] = ''
       list.querySelectorAll('.prl-entering').forEach(li => li.classList.remove('prl-entering'))
       done()

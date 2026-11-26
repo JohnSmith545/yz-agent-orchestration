@@ -237,3 +237,29 @@ test('reduced motion: when the first leaves, the list simply redraws at once, no
   assert.match(p.slot.innerHTML, /data-fog="0" data-prl-key="https:\/\/github\.com\/acme\/shop\/pull\/2"/, 'the second is now the clear first')
   assert.doesNotMatch(p.slot.innerHTML, /prl-ghost|prl-entering/)
 })
+
+test('a clean leave: the one that leaves has faded out fully before any item starts to rise into its place', () => {
+  const p = V.motionPlan(['a', 'b', 'c'], ['b', 'c'], { reduced: false })
+  assert.ok(p.leaveMs > 0 && p.leaveMs <= 160, `the leave is short: ${p.leaveMs}`)
+  assert.ok(p.delay >= p.leaveMs, 'the rest wait until it is gone: never text over text')
+  assert.ok(p.ms - p.delay >= 240, 'and still rise calmly, not in a jump')
+  assert.ok(p.ms >= 350 && p.ms <= 450, `the whole move about 400 ms: ${p.ms}`)
+  // nothing left (a new one arrived at the top): nothing to wait for
+  const n = V.motionPlan(['b', 'c'], ['x', 'b', 'c'], { reduced: false })
+  assert.equal(n.delay, 0)
+})
+
+test('the leaving copy only fades and lifts a little: its own transition, no long slide over the next one', () => {
+  const css = read('public/prlist.css')
+  assert.match(css, /\.prl-ghost\.is-gone\s*\{[^}]*opacity:\s*0[^}]*translateY\(-[1-8]px\)/)
+  const js = read('public/prlist.js')
+  assert.match(js, /plan\.leaveMs/)
+  assert.match(js, /plan\.delay/)
+})
+
+test('the new first item shows its small line only in the second half of its rise, so it never lands on the item under it', () => {
+  const p = V.motionPlan(['a', 'b', 'c'], ['b', 'c'], { reduced: false })
+  assert.ok(p.metaAt >= p.delay + (p.ms - p.delay) / 2, `the small line waits: ${p.metaAt}`)
+  assert.ok(p.metaAt + p.metaMs <= p.ms, 'and is in by the end of the move')
+  assert.match(read('public/prlist.js'), /plan\.metaAt/)
+})

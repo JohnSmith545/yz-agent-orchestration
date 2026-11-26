@@ -19,16 +19,18 @@
 // all, and it is in the link's title too), the list is a plain <ul> in order, and nothing is aria-hidden.
 // ⚠️ FOG MUST CHANGE IN LOCKSTEP with the [data-fog] rules in prlist.css (test/prlist-view.test.mjs checks both).
 //
-// ═══ THE MOVE UP ═══ When the first leaves (merged, closed or Completed), it fades up and out while the rest slide
-// up one place, each growing to its new step, over MOVE_MS; a new pull request arrives at the top with a short
-// fade in. change() and motionPlan() say what moves; prlist.js does it. Reduced motion: no slide, no fade.
+// ═══ THE MOVE UP ═══ When the first leaves (merged, closed or Completed), it fades up and out in LEAVE_MS, and only
+// then do the rest slide up one place, each growing to its new step: the whole move takes MOVE_MS. ⚠️ The rest wait
+// for the leave on purpose: rising while the old one still shows drew its title across the new first one (QA,
+// 2026-11-26). A new pull request arrives at the top with a short fade in. change() and motionPlan() say what moves; prlist.js does it. Reduced motion: no slide, no fade.
 //
 //   FOG, fogStep(i), plan(items, { open, max }), blockHtml(data, { open, now, where }), metaWords(item, now),
 //   change(prevKeys, nextKeys), motionPlan(prevKeys, nextKeys, { reduced }), scaleFrom(fromIndex, toIndex), HELP
 ;(() => {
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
   const MAX = 5
-  const MOVE_MS = 400
+  const MOVE_MS = 420
+  const LEAVE_MS = 140
 
   /** The steps, first to last: opacity, type size (px) and how much of the title shows (ch, 0 for all of it). */
   const FOG = Object.freeze([
@@ -127,7 +129,12 @@
     const c = change(prevKeys, nextKeys)
     const moved = c.left.length || c.entered.length || c.kept.some(k => k.from !== k.to)
     if (reduced || !(prevKeys || []).length || !moved) return { mode: 'redraw', ...c }
-    return { mode: 'animate', ms: MOVE_MS, ...c }
+    // ms: the whole move; leaveMs: the fade of the one that left; delay: how long the rest wait before they rise;
+    // metaAt and metaMs: when and how fast the NEW first item's small line fades in. It waits for the second half of
+    // the rise: drawn at once, it lay across the item under it while both still stood at their old places.
+    const delay = c.left.length ? LEAVE_MS : 0
+    const half = Math.round((MOVE_MS - delay) / 2)
+    return { mode: 'animate', ms: MOVE_MS, leaveMs: LEAVE_MS, delay, metaAt: delay + half, metaMs: MOVE_MS - delay - half, ...c }
   }
 
   /** The scale a kept item starts from so it seems to grow (or shrink) from its old step to its new one. */
