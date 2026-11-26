@@ -27,8 +27,12 @@
 //   to survive a new sign-in. ⚠️ Replies older than the transcript's last TAIL_BYTES, or in a coordinator session
 //   that has since been replaced by a new one, are not found: the message stays, with no reply under it.
 // - `run` is injected (server.mjs passes relay.mjs claudeRun), so tests never start a model.
+// - A failed message says WHY IN PLAIN WORDS (plainReason): the dashboard could not start a model run on this PC,
+//   the coordinator has no session open, the PC is busy, or could not deliver it. ⚠️ The raw reason (spawn ENOENT,
+//   an exit code, a FAILED line) goes to the server log only and never to the page (QA, 2026-11-26: a message
+//   said Not delivered: ENOENT). An old raw reason already in the file is put in plain words when it is shown.
 //
-//   makeTalk({ file, agent, label, run, transcript, running, now, readRecords }) ->
+//   makeTalk({ file, agent, label, run, transcript, running, now, readRecords, log }) ->
 //     { send(text, sid), thread(), threadWithReplies(), sweep(), settled() }   sid: the phone session that sends
 //   repliesOf(records)               the coordinator's text replies, oldest first: [{ at, text }]
 //   matchReplies(messages, replies)  each message with the replies that followed it: [{ ...message, replies }]
@@ -64,6 +68,26 @@ export const PHONE_MARKER = "[From the user's phone, signed in with the phone PI
 export const talkLine = text =>
   `The user sent you this message from their phone (the dashboard phone page): ${JSON.stringify(text)}. ` +
   'Answer it in your own session as you would any message from them: the phone shows your newest replies.'
+
+/** The plain words a failed message may show; `noSession` is built with the coordinator's label. */
+export const REASONS = Object.freeze({
+  start: 'The dashboard could not start a model run on this PC.',
+  busy: 'The PC is busy. Try again in a moment.',
+  restarted: 'The dashboard restarted before it went. Try again.',
+  other: 'Could not deliver it. Try again.',
+})
+const noSession = label => `${label} has no session open. Open it on the PC, then send again.`
+
+/** A raw relay or spawn reason in plain words. A reason that is already plain is returned as it is. */
+export function plainReason(raw, label) {
+  const s = String(raw ?? '')
+  if (Object.values(REASONS).includes(s) || s === noSession(label)) return s
+  if (/ENOENT|EACCES|EPERM|no claude binary|failed to start|not recognized as an internal|cannot find/i.test(s)) return REASONS.start
+  if (/no session|no agent|not running|has no session|session (is )?closed|no such session/i.test(s)) return noSession(label)
+  if (/restarted/i.test(s)) return REASONS.restarted
+  if (/timed out|timeout|busy|overloaded|rate.?limit|\b429\b|\b529\b|EBUSY|ETIMEDOUT|try again later/i.test(s)) return REASONS.busy
+  return REASONS.other
+}
 
 const textOf = content => (Array.isArray(content) ? content.filter(c => c?.type === 'text' && typeof c.text === 'string').map(c => c.text).join('\n\n') : '')
 
@@ -125,7 +149,7 @@ function clean(raw) {
     .slice(-KEEP)
 }
 
-export function makeTalk({ file = TALK_FILE, agent, label, run, transcript, running = async () => true, now = () => new Date(), readRecords = readTail }) {
+export function makeTalk({ file = TALK_FILE, agent, label, run, transcript, running = async () => true, now = () => new Date(), readRecords = readTail, log = m => console.error(m) }) {
   let busy = null // the delivery promise while one is on its way
   let seq = 0
   let cache = { key: '', replies: [] } // the transcript's replies, read again only when the file changed
@@ -145,13 +169,15 @@ export function makeTalk({ file = TALK_FILE, agent, label, run, transcript, runn
     try {
       // no paid turn for a coordinator with no session open: it could only fail (QA, 2026-11-26); the page puts the
       // text back in the box, so Send again is the user's own press once the session is open
-      if (!(await isRunning())) throw new Error(`${label} has no session open. Open it on the PC, then send again.`)
+      if (!(await isRunning())) throw new Error(noSession(label))
       outcome = relayOutcome(await run(messagePrompt(agent, [PHONE_MARKER, talkLine(message.text)])), 'phone')
     } catch (err) {
       outcome = { ok: false, error: String(err?.message || err).slice(0, ERROR_MAX) }
     }
+    // the raw reason for the PC's log; the phone gets plain words
+    if (!outcome.ok) log(`phone: a message to ${label} was not delivered: ${String(outcome.error || 'no reason given').slice(0, ERROR_MAX)}`)
     try {
-      update(message.id, outcome.ok ? { state: 'sent', deliveredAt: now().toISOString() } : { state: 'failed', error: outcome.error || 'not sent' })
+      update(message.id, outcome.ok ? { state: 'sent', deliveredAt: now().toISOString() } : { state: 'failed', error: plainReason(outcome.error, label) })
     } catch (err) {
       console.error(`phone: could not record a message outcome: ${err?.message || err}`)
     }
@@ -170,7 +196,7 @@ export function makeTalk({ file = TALK_FILE, agent, label, run, transcript, runn
   }
 
   /** A message as a phone sees it: never which session sent it. */
-  const shown = ({ sid, ...m }) => m
+  const shown = ({ sid, ...m }) => (typeof m.error === 'string' ? { ...m, error: plainReason(m.error, label) } : m)
   const thread = () => ({ label, busy: !!busy, messages: read().map(shown) })
 
   /** The coordinator's text replies from the transcript's tail; the same answer while the file has not changed. */

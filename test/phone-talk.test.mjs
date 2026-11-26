@@ -18,10 +18,10 @@ const dir = process.env.FACTORY_DATA_DIR
 let n = 0
 const SENT = JSON.stringify({ type: 'result', result: 'SENT', total_cost_usd: 0.031, is_error: false })
 
-function talk({ run = async () => ({ ok: true, out: SENT, err: '' }), transcript = async () => null, running = async () => true, now } = {}) {
+function talk({ run = async () => ({ ok: true, out: SENT, err: '' }), transcript = async () => null, running = async () => true, now, log = () => {} } = {}) {
   const file = path.join(dir, `talk-${n++}.json`)
   const prompts = []
-  const t = T.makeTalk({ file, agent: 'Coordinator', label: 'Master', run: async p => (prompts.push(p), run(p)), transcript, running, ...(now ? { now } : {}) })
+  const t = T.makeTalk({ file, agent: 'Coordinator', label: 'Master', run: async p => (prompts.push(p), run(p)), transcript, running, log, ...(now ? { now } : {}) })
   return { t, file, prompts }
 }
 
@@ -58,12 +58,12 @@ test('a failed delivery says so and keeps the text; a turn that throws fails the
   const m = failed.t.thread().messages[0]
   assert.equal(m.state, 'failed')
   assert.equal(m.text, 'are you there')
-  assert.match(m.error, /no session named Coordinator/)
+  assert.equal(m.error, 'Master has no session open. Open it on the PC, then send again.', 'in plain words')
   const threw = talk({ run: async () => { throw new Error('spawn ENOENT') } })
   await threw.t.send('again')
   await threw.t.settled()
   assert.equal(threw.t.thread().messages[0].state, 'failed')
-  assert.match(threw.t.thread().messages[0].error, /ENOENT/)
+  assert.equal(threw.t.thread().messages[0].error, T.REASONS.start)
 })
 
 test('one message in flight at a time: a second send while the first is on its way is refused, not queued', async () => {
@@ -291,4 +291,43 @@ test('a message while the coordinator has no session open runs no paid turn: fai
   const m = t.thread().messages.at(-1)
   assert.equal(m.state, 'failed')
   assert.equal(m.error, 'Master has no session open. Open it on the PC, then send again.')
+})
+
+// ═══ the reason, in plain words (QA, 2026-11-26: a failed message said Not delivered: ENOENT) ═══
+
+test('relay and spawn errors become plain words; the raw code goes to the server log only', async () => {
+  const cases = [
+    [{ ok: false, out: '', err: 'ENOENT' }, T.REASONS.start],
+    [{ ok: false, out: '', err: 'no claude binary: not found on PATH' }, T.REASONS.start],
+    [{ ok: false, out: '', err: 'failed to start' }, T.REASONS.start],
+    [{ ok: false, out: '', err: 'spawn EACCES' }, T.REASONS.start],
+    [{ ok: false, out: '', err: 'timed out after 120 s' }, T.REASONS.busy],
+    [{ ok: false, out: '', err: 'API Error: 529 Overloaded' }, T.REASONS.busy],
+    [{ ok: false, out: '', err: 'rate limit reached, 429' }, T.REASONS.busy],
+    [{ ok: true, out: 'FAILED: no session named Coordinator', err: '' }, 'Master has no session open. Open it on the PC, then send again.'],
+    [{ ok: true, out: 'FAILED: no agent called Coordinator is running', err: '' }, 'Master has no session open. Open it on the PC, then send again.'],
+    [{ ok: false, out: '', err: 'exited with code 3' }, T.REASONS.other],
+    [{ ok: true, out: 'something odd', err: '' }, T.REASONS.other],
+  ]
+  for (const [answer, words] of cases) {
+    const logged = []
+    const { t } = talk({ run: async () => answer, log: l => logged.push(l) })
+    await t.send('hello')
+    await t.settled()
+    const m = t.thread().messages[0]
+    assert.equal(m.state, 'failed')
+    assert.equal(m.error, words, JSON.stringify(answer))
+    assert.doesNotMatch(JSON.stringify(t.thread()), /ENOENT|EACCES|spawn|exited with code|429|529|FAILED:/, 'no raw code reaches the page')
+    assert.equal(logged.length, 1)
+    assert.match(logged[0], /^phone: a message to Master was not delivered: /)
+  }
+})
+
+test('an old raw reason kept in the file is shown in plain words too; a plain reason stays as it is', () => {
+  const { file } = talk()
+  fs.writeFileSync(file, JSON.stringify({ messages: [{ id: 'a1', at: '2026-11-25T09:00:00.000Z', text: 'x', state: 'failed', error: 'spawn ENOENT' }, { id: 'a2', at: '2026-11-25T09:01:00.000Z', text: 'y', state: 'failed', error: T.REASONS.busy }] }))
+  const t = T.makeTalk({ file, agent: 'Coordinator', label: 'Master', run: async () => ({ ok: true, out: 'SENT' }), transcript: async () => null })
+  assert.deepEqual(t.thread().messages.map(m => m.error), [T.REASONS.start, T.REASONS.busy])
+  for (const plain of Object.values(T.REASONS)) assert.equal(T.plainReason(plain, 'Master'), plain, 'idempotent')
+  assert.equal(T.plainReason(T.plainReason('spawn ENOENT', 'Master'), 'Master'), T.REASONS.start)
 })
