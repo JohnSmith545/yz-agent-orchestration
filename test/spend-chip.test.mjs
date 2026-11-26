@@ -82,7 +82,7 @@ test('the chip stays hidden when nothing was spent today', async () => {
   assert.equal(slot.hidden, true)
 })
 
-test('with a total the chip shows, reading $12.40 today rounded to cents', async () => {
+test('with a total the chip shows the amount ONCE, beside its label Spend today, rounded to cents where it is exact', async () => {
   const t = load({ ...ZERO, today: 12.3987, byKind: { ...ZERO.byKind, chat: 12.3987 } })
   const slot = element()
   t.Spend.mount(slot)
@@ -90,9 +90,11 @@ test('with a total the chip shows, reading $12.40 today rounded to cents', async
   const { btn, amt, label } = parts(slot)
   assert.equal(slot.hidden, false)
   assert.equal(btn.tagName, 'BUTTON')
-  assert.equal(label.textContent, '$12.40 today')
-  assert.equal(amt.textContent, '$12') // the 56 px rail shows the short form
+  assert.equal(label.textContent, 'Spend today', 'the expanded rail names it; the amount is not repeated in the label')
+  assert.equal(amt.textContent, '$12') // the 56 px rail shows the short form, and the expanded one keeps it beside the label
+  assert.equal(`${amt.textContent} ${label.textContent}`.split('$').length - 1, 1, 'one amount on screen')
   assert.match(btn.title, /\$12\.40 today/)
+  assert.equal(btn.getAttribute('aria-label'), 'Spend today: $12.40', 'a screen reader hears the exact amount')
 })
 
 test('under half a cent shows as <$0.01, never as $0.00 or hidden', async () => {
@@ -101,7 +103,8 @@ test('under half a cent shows as <$0.01, never as $0.00 or hidden', async () => 
   t.Spend.mount(slot)
   await settle()
   assert.equal(slot.hidden, false)
-  assert.equal(parts(slot).label.textContent, '<$0.01 today')
+  assert.equal(parts(slot).amt.textContent, '<1¢')
+  assert.equal(parts(slot).btn.getAttribute('aria-label'), 'Spend today: <$0.01')
 })
 
 test('the panel lists every kind and the recent lines with how long ago, escaped', async () => {

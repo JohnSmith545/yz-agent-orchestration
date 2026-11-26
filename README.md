@@ -320,7 +320,8 @@ mode is `:root[data-theme="dark"]`.
   (`reminder.<date>.<HH:MM>`), so a reload the same day stays quiet and a page
   left open overnight fires again the next day. A page opened after the time
   still shows that day's reminder once.
-- **Spend today** (`public/spend.js`, `spend.mjs`): above Theme, `$12.40 today`
+- **Spend today** (`public/spend.js`, `spend.mjs`): above Theme, the amount (its
+  label, Spend today, beside it when the rail is open; the exact sum in its tooltip)
   is what the dashboard's OWN headless turns cost today: the chat, the answer
   relay, the explainer, the ticket refreshes, the Prompt generator and the Standup creator. It is hidden while today is
   zero, and the closed rail shows the short amount (`$4.20`, `$12`). Click it

@@ -128,8 +128,8 @@ body.drawer-open { padding-right: var(--drawer-w); }
 #rail.open #railAlerts .nt-bell::after, #rail:has(:focus-visible) #railAlerts .nt-bell::after, .rail-pinned #rail #railAlerts .nt-bell::after { opacity: 1; transform: none; }
 #railAlerts .nt-count { top: 2px; left: 34px; right: auto; }
 
-/* Spend today (spend.js, spec F4): the short amount in the icon box, `$12.40 today` as the
-   label. The slot is a .rail-item, so the Dock hover and the label fade come from above;
+/* Spend today (spend.js, spec F4): the short amount in the icon box, `Spend today` as the
+   label (the amount shows once). The slot is a .rail-item, so the Dock hover and the label fade come from above;
    the button fills it and resets the global button look. Its ? popover is help.js's. */
 #railSpend { cursor: default; }
 #railSpend .sp-chip {

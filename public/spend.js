@@ -7,7 +7,9 @@
 //   Spend.mount(slot) once every script is in. The slot stays hidden while
 //   today is zero.
 // - The chip: the short amount in the icon box (the closed 56 px rail shows
-//   only that) and `$12.40 today` as its label. A click opens the shared ?
+//   only that) and `Spend today` as its label beside it, so the open rail
+//   shows the amount ONCE (it read `$1.97 $1.97 today` before). The exact
+//   amount is in its title and its accessible name. A click opens the shared ?
 //   popover (help.js) with the total by kind and the last 20 turns.
 // - Rounding to cents happens HERE, not on the server. A total under half a
 //   cent reads `<$0.01`, never `$0.00`: something was spent.
@@ -72,7 +74,8 @@
     const text = `${money(today)} today`
     slot.hidden = !today
     amt.textContent = short(today)
-    label.textContent = text
+    label.textContent = 'Spend today'
+    btn.setAttribute('aria-label', `Spend today: ${money(today)}`)
     btn.title = `Spent ${text} on headless turns`
     window.Help?.attach(btn, panel(data))
     if (!today && btn.getAttribute('aria-expanded') === 'true') window.Help?.close()
