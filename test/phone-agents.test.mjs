@@ -101,6 +101,12 @@ test('the sheet while loading, after a refusal, and with nothing optional', () =
   assert.doesNotMatch(bare, /Last QA|ph-pr-link|data-ph-answer/)
 })
 
+test('a draft pull request on the sheet says so', () => {
+  const h = A.sheet({ data: { ...SHEET, pr: { url: 'https://github.com/o/r/pull/31', number: 31, state: 'draft' } } }, {})
+  assert.ok(h.includes('>Pull request #31, a draft</a>'))
+  assert.doesNotMatch(A.sheet({ data: SHEET }, {}), /a draft/)
+})
+
 test('hostile text in every field of the tab and the sheet is escaped; no inline style, handler or script', () => {
   const evil = '"><script>alert(1)</script><img src=x onerror=alert(1)>'
   const orch = {

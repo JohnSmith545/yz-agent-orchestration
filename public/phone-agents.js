@@ -109,7 +109,8 @@
       (asks.length ? `<h3 class="ph-h">${asks.length === 1 ? 'A question for you' : 'Questions for you'}</h3>${asks.map(a => window.PhoneView.askCard(a, ui)).join('')}` : '') +
       qa +
       (story.length ? `<h3 class="ph-h">Story</h3><ul class="ph-story">${story.map(l => `<li><b>${esc(l.who)}</b> ${esc(l.did)}${l.why ? ` <span class="ph-faint">${esc(l.why)}</span>` : ''}</li>`).join('')}</ul>` : '') +
-      (f.pr ? `<p class="ph-line">${link(f.pr.url, `Pull request #${Number(f.pr.number) || ''}`.trim())}</p>` : ''))
+      // the pull request as the PC's Pull requests list has it (phone-orchestration.mjs sheetPr): open, or a draft
+      (f.pr ? `<p class="ph-line">${link(f.pr.url, `${`Pull request #${Number(f.pr.number) || ''}`.trim()}${f.pr.state === 'draft' ? ', a draft' : ''}`)}</p>` : ''))
   }
 
   window.PhoneAgents = { view, sheet }

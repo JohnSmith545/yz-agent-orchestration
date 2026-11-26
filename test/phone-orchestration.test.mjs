@@ -173,7 +173,7 @@ test('the sheet: title, tickets, where it stands, its route line, story, last QA
     qa: { status: 'failed', attempt: 2, at: ago(0.05), by: 'QA', summary: 'The button does nothing.', rework: { to: 'Agent 1' } },
     output: { story: [{ id: 's1', who: 'Agent 1', did: 'Built the page.', why: 'You asked.' }], pr: { url: 'https://github.com/o/r/pull/12', number: 12, state: 'open' } },
   })
-  const { status, body } = await make().flow({ id: 'build' })
+  const { status, body } = await make({ prs: () => [item(12, { flow: { id: 'build', title: 'Login page' } })] }).flow({ id: 'build' })
   assert.equal(status, 200)
   assert.equal(body.title, 'Login page')
   assert.deepEqual(body.tickets, ['FLA-12'])
@@ -185,6 +185,27 @@ test('the sheet: title, tickets, where it stands, its route line, story, last QA
   assert.deepEqual(body.qa, { word: 'Failed', attempt: 2, at: body.qa.at, summary: 'The button does nothing.' })
   assert.deepEqual(body.asks.map(a => [a.flowId, a.nodeId, a.question, a.kind]), [['build', 'a1', 'Ship it?', 'yesno']])
   assert.deepEqual(body.pr, { url: 'https://github.com/o/r/pull/12', number: 12, state: 'open' })
+})
+
+// The sheet shows a pull request ONLY when the fog list has it for this flow, with its state from there: the flow
+// record alone (output.pr) can still say open after GitHub merged or closed it, and the phone must not disagree
+// with the desktop Pull requests block.
+test('the sheet takes its pull request from the Pull requests list, never from the flow record alone', async () => {
+  const pr = { url: 'https://github.com/o/r/pull/12', number: 12, state: 'open' }
+  put('gone-pr', { status: 'done', output: { pr } })
+  assert.equal((await make().flow({ id: 'gone-pr' })).body.pr, null, 'no provider: none, though the record says open')
+  assert.equal((await make({ prs: () => [] }).flow({ id: 'gone-pr' })).body.pr, null, 'merged or closed: the list dropped it')
+  assert.equal((await make({ prs: () => [item(30, { flow: { id: 'other', title: 'x' } })] }).flow({ id: 'gone-pr' })).body.pr, null, 'another flow')
+  const draft = await make({ prs: () => [item(31, { draft: true, flow: { id: 'gone-pr', title: 'x' } })] }).flow({ id: 'gone-pr' })
+  assert.deepEqual(draft.body.pr, { url: 'https://github.com/o/r/pull/31', number: 31, state: 'draft' }, 'the list wins: its link, its state')
+  put('no-pr', { status: 'open' })
+  const opened = await make({ prs: async () => [item(32, { flow: { id: 'no-pr', title: 'x' } })] }).flow({ id: 'no-pr' })
+  assert.deepEqual(opened.body.pr, { url: 'https://github.com/o/r/pull/32', number: 32, state: 'open' }, 'an agent opened it before the record')
+  for (const prs of [() => { throw new Error('x') }, () => new Promise(() => {}), () => 'junk', () => [item(33, { url: 'javascript:alert(1)', flow: { id: 'no-pr' } })]]) {
+    const r = await make({ prs, agentsWaitMs: 20 }).flow({ id: 'no-pr' })
+    assert.equal(r.status, 200)
+    assert.equal(r.body.pr, null)
+  }
 })
 
 test('a finished or dropped flow shows no open question (the answer action would refuse it)', async () => {

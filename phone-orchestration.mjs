@@ -24,7 +24,9 @@
 //              the Trash) is a 404, and so is one that is archived or completed (put away: the PC has it). `asks`
 //              are its unanswered questions while the flow is still on its way (the phone answers them with the
 //              existing answer action, which refuses anything else); `route` is its progress, each step { label,
-//              state }; `qa` QA's last verdict in a word, with its summary cut.
+//              state }; `qa` QA's last verdict in a word, with its summary cut. `pr` is { url, number, state: open
+//              or draft } ONLY when the Pull requests list (the `prs` provider) has one for this flow, else null:
+//              the flow record alone can say open after GitHub merged or closed it.
 //
 // Every text field here is HOSTILE (agents, tickets and transcripts wrote it): it is sent as plain JSON text, cut
 // to a length, and the phone renders it with esc only (public/phone-agents.js). Nothing here writes anything.
@@ -121,12 +123,20 @@ export function makeOrchestration({ getStatus, alerts = async () => null, prs = 
 
   /** The Pull requests list's items (open only, newest first, as the fog block shows them), each re-checked here:
    *  the provider's text came from GitHub and the agents, so it is hostile too. */
-  async function openPrs() {
+  async function fogItems() {
     const items = await within(Promise.resolve().then(prs), agentsWaitMs, [])
-    return (Array.isArray(items) ? items : [])
-      .filter(p => p && typeof p === 'object' && GITHUB_PR.test(String(p.url || '')))
+    return (Array.isArray(items) ? items : []).filter(p => p && typeof p === 'object' && GITHUB_PR.test(String(p.url || '')))
+  }
+  async function openPrs() {
+    return (await fogItems())
       .slice(0, PRS_MAX)
       .map(p => ({ title: cut(p.title || p.url, TITLE_MAX), url: p.url, number: Number(p.number) || null }))
+  }
+  /** A flow sheet's pull request: the fog list's item for THIS flow, or null. ⚠️ Never the flow record alone
+   *  (output.pr): it can still say open after GitHub merged or closed it, and the phone must agree with the PC. */
+  async function sheetPr(flowId) {
+    const p = (await fogItems()).find(i => i.flow && i.flow.id === flowId)
+    return p ? { url: p.url, number: Number(p.number) || null, state: p.draft ? 'draft' : 'open' } : null
   }
 
   async function orchestration() {
@@ -170,7 +180,7 @@ export function makeOrchestration({ getStatus, alerts = async () => null, prs = 
     const stage = stageOf(f, graph)
     const { route, progress } = withRoute(f, graph)
     const qa = qaView(f.qa)
-    const pr = f.output?.pr
+    const pr = await sheetPr(f.id)
     return ok({
       id: f.id,
       title: cut(f.title || f.id, TITLE_MAX),
@@ -184,7 +194,7 @@ export function makeOrchestration({ getStatus, alerts = async () => null, prs = 
         flowId: f.id, nodeId: n.id, flowTitle: cut(f.title, TITLE_MAX), agent: cut(f.agent, 40), question: cut(n.title, TITLE_MAX * 2), why: cut(n.why, STORY_TEXT_MAX * 2),
         kind: n.kind === 'text' ? 'text' : 'yesno', yes: cut(n.yes, 160), no: cut(n.no, 160),
       })) : [],
-      pr: pr && GITHUB_PR.test(String(pr.url || '')) ? { url: pr.url, number: Number(pr.number) || null, state: ['open', 'merged', 'closed'].includes(pr.state) ? pr.state : 'open' } : null,
+      pr,
     })
   }
 
