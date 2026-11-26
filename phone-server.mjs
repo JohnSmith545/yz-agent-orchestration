@@ -27,7 +27,7 @@
 //   4. The address has not passed its rate limit (phone-limits.mjs), else 429.
 //   5. The path and method are on the list above, else 404.
 //   6. /phone/api/* and logout: a live session cookie (else 401, and the cookie is cleared), then the session's
-//      rate limit (429).
+//      rate limit (429): its reads (GET) and its writes (POST) each have their own (phone-limits.mjs read, session).
 //   7. Every POST: an Origin equal to http://<bind>:<port> and, when the browser says, Sec-Fetch-Site same-origin
 //      (403); every POST but sign-in: the session's CSRF token in X-Phone-CSRF (403); a JSON content type (415); a
 //      body of at most BODY_MAX bytes (413) that is a JSON object (400).
@@ -130,7 +130,8 @@ export function makePhoneHandler({ settings, own, auth, actions, limits = PHONE_
   const byAddress = makeLimiter({ ...limits.address, now })
   const byRevalidate = makeLimiter({ ...(limits.revalidate || PHONE_LIMITS.revalidate), now })
   const files = makePhoneAssets({ assets: ASSETS, publicDir })
-  const bySession = makeLimiter({ ...limits.session, now })
+  const bySession = makeLimiter({ ...limits.session, now }) // a session's writes
+  const byRead = makeLimiter({ ...(limits.read || PHONE_LIMITS.read), now }) // a session's reads
   const byLogin = makeLimiter({ ...limits.login, now })
   const tooMany = (res, r, what = 'Too many requests') => send(res, 429, { error: `${what}. Wait ${r.retryAfter} seconds.` }, { 'retry-after': String(r.retryAfter) })
 
@@ -199,7 +200,7 @@ export function makePhoneHandler({ settings, own, auth, actions, limits = PHONE_
         if (session) { token = t; break }
       }
       if (!session) return send(res, 401, { error: 'Your phone session has ended. Sign in again.', signedOut: true }, { 'set-cookie': clearCookie() })
-      const sessionLimit = bySession.hit(session.id)
+      const sessionLimit = (req.method === 'GET' ? byRead : bySession).hit(session.id)
       if (!sessionLimit.ok) return tooMany(res, sessionLimit)
 
       if (req.method === 'POST') {

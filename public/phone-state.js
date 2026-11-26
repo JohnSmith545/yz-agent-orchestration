@@ -9,6 +9,9 @@
 //   pinProblem(pin)               why the typed PIN cannot be sent yet, or null (8 to 12 digits, as phone-auth.mjs)
 //   failureOf(status)             'signedOut' (401) | 'offline' (no answer) | 'error'
 //   routeOf(hash) / hashOf(tab)   the tab (or flow sheet) the address names, and the address of a tab
+//   limitedAfter(n, status)       how many 429s in a row after this answer: +1 on a 429, kept when offline, else 0
+//   backoffMs(baseMs, n)          a poll's wait after n 429s in a row: doubled each time, never past BACKOFF_MAX_MS,
+//                                 so a refused phone slows down instead of hammering (phone-limits.mjs)
 ;(() => {
   const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
 
@@ -64,5 +67,15 @@
   }
   const hashOf = tab => `#${tab}`
 
-  window.PhoneState = { needsLine, countParts, clock, when, pinProblem, failureOf, TABS, routeOf, hashOf }
+  const BACKOFF_MAX_MS = 60_000
+  const limitedAfter = (n, status) => {
+    const was = Number.isInteger(n) && n > 0 ? n : 0
+    return status === 429 ? was + 1 : status === 0 ? was : 0
+  }
+  function backoffMs(baseMs, n) {
+    const k = Number.isInteger(n) && n > 0 ? Math.min(n, 10) : 0 // 2^10 is far past the cap: no overflow
+    return k ? Math.max(baseMs, Math.min(BACKOFF_MAX_MS, baseMs * 2 ** k)) : baseMs
+  }
+
+  window.PhoneState = { needsLine, countParts, clock, when, pinProblem, failureOf, TABS, routeOf, hashOf, limitedAfter, backoffMs, BACKOFF_MAX_MS }
 })()

@@ -16,6 +16,7 @@
 ;(() => {
   const C = window.PhoneChat
   const K = window.PhoneComposer
+  const S = window.PhoneState
   const doc = window.document
 
   function make({ root, st, call, draw, say, offline }) {
@@ -37,7 +38,8 @@
       stop()
       if (!st.signedIn || st.tab !== 'talk') return
       const ms = C.pollMs(st.thread, pcNow(), visible())
-      if (ms) timer = window.setTimeout(load, ms)
+      // after a 429 the wait doubles, up to 60 s (phone-state.js backoffMs; phone-app.js counts the refusals in a row)
+      if (ms) timer = window.setTimeout(load, S.backoffMs(ms, st.limited))
     }
 
     function showPill() {

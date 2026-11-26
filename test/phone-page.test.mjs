@@ -132,6 +132,34 @@ test('the chat tab: a reply shows its bold and code, escaped first; your own tex
   assert.ok(h.includes('**mine**'))
 })
 
+// ═══ backing off after a 429 ═══
+
+test('after a 429 the poll waits twice as long each time, up to 60 s; any other answer resets it', () => {
+  assert.equal(S.backoffMs(15_000, 0), 15_000)
+  assert.equal(S.backoffMs(15_000, 1), 30_000)
+  assert.equal(S.backoffMs(15_000, 2), 60_000)
+  assert.equal(S.backoffMs(15_000, 3), 60_000, 'never past 60 s')
+  assert.equal(S.backoffMs(5_000, 1), 10_000)
+  assert.equal(S.backoffMs(5_000, 50), 60_000, 'a long run of refusals does not overflow')
+  assert.equal(S.backoffMs(90_000, 0), 90_000, 'a base already over 60 s is left alone')
+  for (const bad of [undefined, null, -1, NaN, 'x']) assert.equal(S.backoffMs(5_000, bad), 5_000, String(bad))
+  assert.equal(S.limitedAfter(0, 429), 1)
+  assert.equal(S.limitedAfter(2, 429), 3)
+  assert.equal(S.limitedAfter(3, 200), 0)
+  assert.equal(S.limitedAfter(3, 202), 0)
+  assert.equal(S.limitedAfter(3, 0), 3, 'offline says nothing about the limit')
+  assert.equal(S.limitedAfter(undefined, 429), 1)
+})
+
+test('both pollers wait S.backoffMs after a refusal: the summary and the chat', () => {
+  const app = read('phone-app.js')
+  const live = read('phone-chat-live.js')
+  assert.match(app, /st\.limited = S\.limitedAfter\(st\.limited, r\.status\)/, 'every answer counts the refusals in a row')
+  assert.match(app, /S\.backoffMs\(SUMMARY_MS, st\.limited\)/)
+  assert.doesNotMatch(app, /setInterval/, 'no fixed interval that would keep hammering')
+  assert.match(live, /S\.backoffMs\(ms, st\.limited\)/)
+})
+
 // ═══ the live half, the stylesheet, the manifest ═══
 
 test('the live files store nothing in the browser, register no service worker, and send the CSRF header', () => {

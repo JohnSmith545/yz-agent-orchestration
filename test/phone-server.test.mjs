@@ -16,6 +16,7 @@ process.env.FACTORY_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'phone-serv
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const P = await import('../phone-server.mjs')
 const { makeAuthStore } = await import('../phone-auth.mjs')
+const { PHONE_LIMITS } = await import('../phone-limits.mjs')
 const { hashPin } = await import('../send-pin.mjs')
 
 const PIN = '5038172946'
@@ -321,7 +322,7 @@ test('sign out ends that session; Sign out everywhere (the desktop) ends every o
 })
 
 test('the API is rate limited per session, and the listener per address', async () => {
-  current = handler({ limits: { ...LIMITS, session: { max: 5, ms: 60_000 } } })
+  current = handler({ limits: { ...LIMITS, read: { max: 5, ms: 60_000 } } })
   const user = await signIn()
   for (let i = 0; i < 5; i++) assert.equal((await request('GET', '/phone/api/summary', { headers: { cookie: user.cookie } })).status, 200)
   const r = await request('GET', '/phone/api/summary', { headers: { cookie: user.cookie } })
@@ -330,6 +331,21 @@ test('the API is rate limited per session, and the listener per address', async 
   current = handler({ limits: { ...LIMITS, address: { max: 4, ms: 60_000 } } })
   for (let i = 0; i < 4; i++) await request('GET', '/phone')
   assert.equal((await request('GET', '/phone')).status, 429)
+})
+
+test('a session may read 180 times a minute; its writes keep their own limit of 60, and neither uses up the other', async () => {
+  current = handler({ limits: { ...PHONE_LIMITS, address: { max: 10_000, ms: 60_000 } } })
+  assert.equal(PHONE_LIMITS.read.max, 180)
+  assert.equal(PHONE_LIMITS.session.max, 60, 'writes stay as they were')
+  const user = await signIn()
+  for (let i = 0; i < 60; i++) assert.notEqual((await write('/phone/api/answer', {}, asUser(user))).status, 429, `write ${i + 1}`)
+  assert.equal((await write('/phone/api/answer', {}, asUser(user))).status, 429, 'the 61st write')
+  for (let i = 0; i < 180; i++) assert.equal((await request('GET', '/phone/api/summary', { headers: { cookie: user.cookie } })).status, 200, `read ${i + 1}`)
+  const r = await request('GET', '/phone/api/summary', { headers: { cookie: user.cookie } })
+  assert.equal(r.status, 429, 'the 181st read')
+  assert.ok(Number(r.headers['retry-after']) > 0)
+  clock.t += 60_000
+  assert.equal((await request('GET', '/phone/api/me', { headers: { cookie: user.cookie } })).status, 200, 'a new minute')
 })
 
 test('the PIN never appears in config, the auth file, the console or any answer', async () => {

@@ -9,7 +9,9 @@
 // - Polling only while the page is visible: the summary every SUMMARY_MS (and the orchestration with it, on the
 //   Agents tab) and, on the coordinator's tab, the thread
 //   on PhoneChat.pollMs (5 s while a message is on its way or the coordinator works, else 15 s). Hidden, it stops;
-//   visible again, it refreshes at once.
+//   visible again, it refreshes at once. After a 429 (too many requests) each poll waits twice as long, up to 60 s
+//   (phone-state.js backoffMs), and the next answer that is not a 429 puts it back: a refused phone slows down
+//   instead of hammering. ⚠️ A chain of timeouts, never a fixed interval, so each wait is worked out afresh.
 // - A redraw keeps what the user is typing (every [data-draft] field) and where the focus is, so a poll never eats
 //   an answer half written.
 // - The chat's live half (reading the thread, the pill, Send, Try again) is public/phone-chat-live.js, made once here
@@ -32,13 +34,15 @@
   const SUMMARY_MS = 15_000
   const OFFLINE = 'Cannot reach your PC. It may be off or asleep; trying again.'
   const OFF = 'Phone access is off on your PC.'
+  const SLOWED = 'Your PC asked for a pause. Checking again more slowly.'
 
   const first = S.routeOf(window.location.hash)
   const st = {
     signedIn: false, csrf: '', tab: first.tab, summary: null, orch: null, sheet: null, thread: null, notice: '', pill: false,
-    signIn: { status: '', busy: false }, ui: { status: {}, busy: {}, confirm: null, talkDraft: '' },
+    signIn: { status: '', busy: false }, ui: { status: {}, busy: {}, confirm: null, talkDraft: '' }, limited: 0,
   }
   let timers = []
+  let round = 0 // bumped by stop(): a poll that was already on its way does not schedule another after it
 
   // ═══ the network ═══
 
@@ -55,7 +59,8 @@
       return { status: 0, json: {} }
     }
     const json = await r.json().catch(() => ({}))
-    st.notice = r.status === 503 ? OFF : ''
+    st.limited = S.limitedAfter(st.limited, r.status)
+    st.notice = r.status === 503 ? OFF : r.status === 429 ? SLOWED : ''
     if (r.status === 401 && url !== '/phone/login' && url !== '/phone/api/me') signedOut('Your session ended. Sign in again.')
     return { status: r.status, json }
   }
@@ -123,14 +128,23 @@
 
   const visible = () => doc.visibilityState !== 'hidden'
   function stop() {
-    for (const t of timers) window.clearInterval(t)
+    round++
+    for (const t of timers) window.clearTimeout(t)
     timers = []
     chat.stop()
+  }
+  /** The next summary poll (and the orchestration with it on the Agents tab), waiting longer after a 429. */
+  function tick() {
+    const mine = round
+    timers = [window.setTimeout(async () => {
+      await (st.tab === 'agents' ? Promise.all([loadSummary(), loadOrch()]) : loadSummary())
+      if (mine === round && st.signedIn && visible()) tick()
+    }, S.backoffMs(SUMMARY_MS, st.limited))]
   }
   function start() {
     stop()
     if (!st.signedIn || !visible()) return
-    timers.push(window.setInterval(() => (st.tab === 'agents' ? Promise.all([loadSummary(), loadOrch()]) : loadSummary()), SUMMARY_MS))
+    tick()
     chat.schedule()
   }
   doc.addEventListener('visibilitychange', () => {
