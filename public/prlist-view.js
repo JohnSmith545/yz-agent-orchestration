@@ -84,7 +84,8 @@
     const name = url
       ? `<a class="prl-title" href="${esc(url)}" target="_blank" rel="noopener" title="${esc(title)}">${esc(title)}</a>`
       : `<span class="prl-title" title="${esc(title)}">${esc(title)}</span>`
-    const flowLink = item.flow?.id ? `<a class="link prl-flow" href="#/flows?flow=${encodeURIComponent(item.flow.id)}">Open the flow</a>` : ''
+    // the link names its flow for a screen reader: five `Open the flow` in a row would say nothing apart
+    const flowLink = item.flow?.id ? `<a class="link prl-flow" href="#/flows?flow=${encodeURIComponent(item.flow.id)}" aria-label="Open the flow: ${esc(item.flow.title || title)}">Open the flow</a>` : ''
     // each word group carries the dot after it, so a line on a narrow screen ends with one and never starts with one
     const list = metaWords(item, now)
     const words = list.map((w, n) => `<span class="prl-w">${wordHtml(w)}${n < list.length - 1 ? '<span class="prl-sep">·</span>' : ''}</span>`).join('')

@@ -101,6 +101,7 @@ test('every item is a real link to its pull request in a new tab, with its full 
   }
   assert.equal((html.match(/href="#\/flows\?flow=flow-\d"/g) || []).length, 5, 'and an Open the flow link on each')
   assert.match(html, />Open the flow</)
+  assert.match(html, /aria-label="Open the flow: Flow 1"/, 'each Open the flow names its flow for a screen reader')
 })
 
 test('a link that is not https is drawn as text, never as a link', () => {
