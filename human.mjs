@@ -6,6 +6,7 @@
 //   hand     work no agent can finish: a flow with by-hand steps recorded (hand-steps.mjs) that is not finished
 //            (open or blocked), or an open flow for a ticket marked no-code or not-codebase, steps or not
 //   blocked  a flow its agent marked blocked, with no open ask and no by-hand work to say more
+//   session  a running Claude Code session stopped for the user's permission or reply (waiting.mjs standingWaits)
 //   ticket   a ticket marked no-code or not-codebase (factory-state.mjs) that is not finished and no live flow covers
 //            (CI/CD, cloud setup and console work mostly land here, until an agent writes the steps)
 // Each row: { key, kind, flowId?, nodeId?, ticketId?, title, agent, since, reason, ask?, progress?, tickets? },
@@ -35,7 +36,7 @@ import { handProgress } from './hand-steps.mjs'
 export const HUMAN_MARKS = Object.freeze(['no-code', 'not-codebase'])
 /** Ticket states that mean the work is finished (the ticket sources, factory.mjs): such a ticket waits on no one. */
 export const DONE_STATES = Object.freeze(['Accepted', 'Delivered', 'Finished', 'Rejected', 'Done', 'Closed'])
-const KIND_ORDER = ['ask', 'hand', 'blocked', 'ticket']
+const KIND_ORDER = ['session', 'ask', 'hand', 'blocked', 'ticket']
 const LINE_MAX = 140
 const MARK_WHY = { 'no-code': 'Marked no code yet: it needs a decision or work from you before an agent can build it.', 'not-codebase': 'Marked not codebase work: a person, console or process task.' }
 
@@ -95,8 +96,13 @@ function sortedTicketRows({ kinds, marks, tickets, covered }) {
   return rows
 }
 
-export function humanItems({ flows = [], marks = {}, tickets = new Map(), senior = null, kinds = null } = {}) {
+export function humanItems({ flows = [], marks = {}, tickets = new Map(), senior = null, kinds = null, sessions = [] } = {}) {
   const items = []
+  // a session stopped for the user's permission or reply (waiting.mjs standingWaits)
+  for (const w of sessions) {
+    const label = String(w.label || 'A session')
+    items.push({ key: `session:${w.sessionId}`, kind: 'session', sessionId: String(w.sessionId), title: label, agent: label, since: w.at || '', reason: line(w.kind === 'question' ? `Asked you: ${w.reason || 'a question'}` : w.reason || 'Needs your permission to go on.'), wait: w.kind === 'question' ? 'question' : 'permission' })
+  }
   const covered = new Set() // tickets a live (not dropped) flow carries: that flow speaks for them
   const humanMark = id => HUMAN_MARKS.includes(marks?.[id]?.review)
   for (const f of flows) {
@@ -140,7 +146,7 @@ export function humanItems({ flows = [], marks = {}, tickets = new Map(), senior
   }
   items.push(...sortedTicketRows({ kinds, marks, tickets, covered }))
   items.sort((a, b) => String(b.since).localeCompare(String(a.since)) || KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) || a.key.localeCompare(b.key))
-  const counts = { total: items.length, ask: 0, hand: 0, blocked: 0, ticket: 0 }
+  const counts = { total: items.length, ask: 0, hand: 0, blocked: 0, ticket: 0, session: 0 }
   for (const i of items) counts[i.kind]++
   return { items, counts }
 }

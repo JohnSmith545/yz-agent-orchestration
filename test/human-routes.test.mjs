@@ -16,6 +16,7 @@ const S = await import('../factory-state.mjs')
 const { factoryRoute } = await import('../factory-routes.mjs')
 const { makeRelay, buildPrompt, handText } = await import('../relay.mjs')
 const { CONFIG } = await import('../config.mjs')
+const { useWaitingSessions } = await import('../human-routes.mjs')
 
 const calls = []
 const relay = { queueHandRequest: (...a) => calls.push(['queueHandRequest', ...a]), queue: () => {}, drop: () => {} }
@@ -54,7 +55,7 @@ test('GET /api/human: the rows and the counts, from the flows and the ticket mar
   const j = await (await get('/api/human')).json()
   assert.deepEqual(Object.keys(j), ['items', 'counts', 'builtAt'])
   assert.deepEqual(j.items.map(i => [i.kind, i.flowId || i.ticketId]), [['ticket', 'FLA-820'], ['hand', 'ci']])
-  assert.deepEqual(j.counts, { total: 2, ask: 0, hand: 1, blocked: 0, ticket: 1 })
+  assert.deepEqual(j.counts, { total: 2, ask: 0, hand: 1, blocked: 0, ticket: 1, session: 0 })
   assert.equal(j.items[0].reason, 'Link the billing account.')
 })
 
@@ -239,4 +240,26 @@ test('a request for by-hand steps to an agent with no session open runs no paid 
   await new Promise(r => setTimeout(r, 60))
   assert.equal(prompts.length, 0)
   assert.match(F.readFlow('ci').hand.requestError, /has no session open/)
+})
+
+test('GET /api/human: a waiting session from the server is a row, and the count includes it', async () => {
+  useWaitingSessions(() => [{ sessionId: 's1', label: 'Coordinator', kind: 'question', reason: 'Go?', at: '2099-01-01T00:00:00.000Z' }])
+  try {
+    const j = await (await get('/api/human')).json()
+    assert.deepEqual(j.items[0], { key: 'session:s1', kind: 'session', sessionId: 's1', title: 'Coordinator', agent: 'Coordinator', since: '2099-01-01T00:00:00.000Z', reason: 'Asked you: Go?', wait: 'question' })
+    assert.equal(j.counts.session, 1)
+  } finally {
+    useWaitingSessions(() => [])
+  }
+})
+
+test('GET /api/human: a broken waiting-session source leaves the sessions out, never an error', async () => {
+  useWaitingSessions(() => { throw new Error('boom') })
+  try {
+    const r = await get('/api/human')
+    assert.equal(r.status, 200)
+    assert.equal((await r.json()).counts.session, 0)
+  } finally {
+    useWaitingSessions(() => [])
+  }
 })

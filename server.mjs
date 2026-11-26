@@ -41,6 +41,8 @@ import { pipelineGraph } from './pipeline.mjs'
 import { listRepoSubagents, oneSubagent, sessionFile, ticketBuilders, windowStart } from './subagents.mjs'
 import { listFlows } from './flows.mjs'
 import { pinnedSessions } from './pinned-agents.mjs'
+import { readWaits, standingWaits, tailAfter } from './waiting.mjs' // sessions stopped for the user's permission or reply
+import { useWaitingSessions } from './human-routes.mjs' // Human review lists those sessions too
 import { hostAllowed } from './local-origin.mjs'
 import { pushEnv } from './pr-routes.mjs'
 import { makeOrchestration, pulse } from './orchestration.mjs'
@@ -251,6 +253,11 @@ async function describeWorktree(wt, idx) {
 
 // ─── agents (Claude sessions) ─────────────────────────────────────────────────
 
+let runningForWaits = [] // the running (not pinned-and-closed) sessions as of the last read: { sessionId, label }
+/** The running sessions that wait on the user now (waiting.mjs): the hook's records that still stand. */
+const waitingNow = () => standingWaits(readWaits(), runningForWaits, tailAfter)
+useWaitingSessions(waitingNow)
+
 /** Live sessions in the watched repo, from the harness's session registry. */
 async function liveSessions() {
   const sessions = []
@@ -274,6 +281,7 @@ async function liveSessions() {
       }
     }
   }
+  runningForWaits = sessions.map(x => ({ sessionId: x.sessionId, label: labelOf(x.name) }))
   // A pinned agent whose session is closed still gets listed, idle, from its saved history.
   sessions.push(...pinnedSessions(CONFIG.pinnedAgents, new Set(sessions.map(x => x.sessionId))))
   return sessions
@@ -517,8 +525,10 @@ async function buildStatus() {
 
   const talk = conversations(agents)
   const nameOf = makeNamer(agents.map(a => ({ name: a.name, socket: a._socket, subNames: a._subNames })))
+  const waits = new Map(waitingNow().map(w => [w.sessionId, { kind: w.kind, reason: w.reason, at: w.at }]))
   for (const a of agents) {
     if (a.lastTool?.tool === 'SendMessage') a.lastTool.summary = `to ${nameOf(String(a.lastTool.summary).replace(/^to /, ''))}`
+    a.waitingOnYou = waits.get(a.sessionId) || null // stopped for your permission or reply (waiting.mjs)
     // Who this agent is talking with: the newest edge it is part of, in 30 min.
     const c = talk.find(x => (x.from === a.label || x.to === a.label) && Date.now() - new Date(x.t) < 30 * 60_000)
     a.talkingWith = c ? { with: c.from === a.label ? c.to : c.from, direction: c.from === a.label ? 'to' : 'from', t: c.t, via: c.via } : null

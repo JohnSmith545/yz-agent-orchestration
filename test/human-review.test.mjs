@@ -29,14 +29,14 @@ const ASK = { key: 'ask:dark:n3', kind: 'ask', flowId: 'dark', nodeId: 'n3', tit
 const HAND = { key: 'hand:ci', kind: 'hand', flowId: 'ci', title: 'Production deploy needs its secrets', agent: 'Agent 2', since: '2026-11-24T07:00:00Z', reason: '1 of 4 done. Next: Add the deploy token', progress: { done: 1, total: 4 } }
 const TICKET = { key: 'ticket:FLA-820', kind: 'ticket', ticketId: 'FLA-820', title: 'Cloud Hosting: Billing account linked', agent: '', since: '2026-11-10T00:00:00Z', reason: 'Marked not codebase work: a person, console or process task.' }
 const BLOCKED = { key: 'blocked:b', kind: 'blocked', flowId: 'b', title: 'Deploy', agent: 'Agent 1', since: '2026-11-09T00:00:00Z', reason: 'Blocked at: Deploy to stage' }
-const DATA = { items: [ASK, HAND, TICKET, BLOCKED], counts: { total: 4, ask: 1, hand: 1, blocked: 1, ticket: 1 } }
+const DATA = { items: [ASK, HAND, TICKET, BLOCKED], counts: { total: 4, ask: 1, hand: 1, blocked: 1, ticket: 1, session: 0 } }
 
 test('the head shows the split, never one mixed number; the chips carry the counts, All first, the one in effect pressed', () => {
   const H = load().HumanReview
   const h = H.html(DATA, 'all')
   assert.match(h, /<h3 class="hr-h" id="hrHead" tabindex="-1"><i class="hr-dot" aria-hidden="true"><\/i>Human review<\/h3><span class="hr-split">1 question · 1 by hand · 1 blocked · 1 ticket<\/span>/)
   assert.doesNotMatch(h, /hr-count/, 'no single mixed number')
-  assert.equal(H.splitText({ ask: 13, hand: 2, blocked: 0, ticket: 60 }), '13 questions · 2 by hand · 60 tickets')
+  assert.equal(H.splitText({ ask: 13, hand: 2, blocked: 0, ticket: 60, session: 0 }), '13 questions · 2 by hand · 60 tickets')
   assert.equal(H.splitText({ ask: 0 }), '')
   assert.match(h, /<div class="lg-chips hr-chips" role="group" aria-label="Show in Human review">/)
   assert.deepEqual([...h.matchAll(/data-hr-chip="(\w+)" aria-pressed="(\w+)">(\w[\w ]*) <span class="hr-chip-n">(\d+)<\/span>/g)].map(m => m.slice(1).join(' ')),
@@ -49,7 +49,7 @@ test('a chip shows only its kind; with none of it, one calm line; the default is
   assert.match(asks, /data-hr-chip="ask" aria-pressed="true"/)
   assert.match(asks, /Deploy the fix to dev\?/)
   assert.doesNotMatch(asks, /Billing account linked|Production deploy/)
-  assert.match(H.html({ items: [TICKET], counts: { total: 1, ask: 0, hand: 0, blocked: 0, ticket: 1 } }, 'ask'), /<p class="hr-empty">No questions wait on you\.<\/p>/)
+  assert.match(H.html({ items: [TICKET], counts: { total: 1, ask: 0, hand: 0, blocked: 0, ticket: 1, session: 0 } }, 'ask'), /<p class="hr-empty">No questions wait on you\.<\/p>/)
   assert.equal(H.filterOf(null, { ask: 3 }), 'ask')
   assert.equal(H.filterOf(null, { ask: 0 }), 'all')
   assert.equal(H.filterOf('ticket', { ask: 3 }), 'ticket')
@@ -93,7 +93,7 @@ test('a title opens the right place: the question at its node, the by-hand steps
 
 test('the rail and the page head count what keeps an agent waiting (questions and by-hand work), so they agree; the help says so', () => {
   const H = load().HumanReview
-  assert.equal(H.waiting({ ask: 13, hand: 2, blocked: 1, ticket: 60 }), 15)
+  assert.equal(H.waiting({ ask: 13, hand: 2, blocked: 1, ticket: 60, session: 0 }), 15)
   assert.equal(H.waiting(undefined), 0)
   const src = read('human-review.js')
   assert.match(src, /const n = waiting\(data\?\.counts\)/)
@@ -104,7 +104,7 @@ test('the rail and the page head count what keeps an agent waiting (questions an
 
 test('empty: one calm line; loading and a failure say so too', () => {
   const H = load().HumanReview
-  const h = H.html({ items: [], counts: { total: 0, ask: 0, hand: 0, blocked: 0, ticket: 0 } })
+  const h = H.html({ items: [], counts: { total: 0, ask: 0, hand: 0, blocked: 0, ticket: 0, session: 0 } })
   assert.match(h, /<p class="hr-empty">Nothing waits on you\. The agents can go on by themselves\.<\/p>/)
   assert.doesNotMatch(h, /hr-rows|hr-chips/)
   assert.match(H.html(null), /Loading…/)
@@ -143,10 +143,10 @@ test('placed by the layout under every box, arrow and label, lined up left to ri
 
 test('Home says what needs you now, the tickets apart, and links to the box; or that nothing does', () => {
   const H = load().HumanReview
-  const h = H.homeHtml({ counts: { total: 75, ask: 13, hand: 2, blocked: 0, ticket: 60 } })
+  const h = H.homeHtml({ counts: { total: 75, ask: 13, hand: 2, blocked: 0, ticket: 60, session: 0 } })
   assert.match(text(h), /^15 things need you now 13 questions, 2 by-hand tasks 60 tickets only you can do Open Human review$/)
   assert.match(h, /<a class="link" href="#\/agents\?human" data-hr-show>Open Human review<\/a>/)
-  assert.match(text(H.homeHtml({ counts: { total: 5, ask: 0, hand: 0, blocked: 0, ticket: 5 } })), /^Nothing blocks an agent 5 tickets only you can do/)
+  assert.match(text(H.homeHtml({ counts: { total: 5, ask: 0, hand: 0, blocked: 0, ticket: 5, session: 0 } })), /^Nothing blocks an agent 5 tickets only you can do/)
   assert.match(H.homeHtml({ counts: { total: 0 } }), /Nothing needs you right now\./)
   assert.equal(H.homeHtml(null), '')
 })

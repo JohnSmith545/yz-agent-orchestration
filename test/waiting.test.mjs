@@ -8,7 +8,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { lastReplyText, recordWait, resumedIn, waitKind, KEEP_DAYS } from '../waiting.mjs'
+import { lastReplyText, recordWait, resumedIn, standingWaits, waitKind, KEEP_DAYS } from '../waiting.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const HOOK = path.join(HERE, '..', 'tools', 'waiting-hook.mjs')
@@ -122,4 +122,30 @@ test('the hook fails open: bad input or a missing transcript exits 0 with no out
     assert.equal(r.status, 0)
     assert.equal(r.stdout, '')
   }
+})
+
+// ═══ standingWaits: the waits the pages show ═══
+
+test('standingWaits keeps a live session whose transcript did not move on, newest first, with its label', () => {
+  const entries = {
+    a: { kind: 'permission', reason: 'Claude needs your permission to use Bash', at: '2026-11-26T09:00:00.000Z', size: 10, transcript: 'A' },
+    b: { kind: 'question', reason: 'Shall I start?', at: '2026-11-26T10:00:00.000Z', size: 20, transcript: 'B' },
+  }
+  const tails = { A: hookNote(), B: '' }
+  const got = standingWaits(entries, [{ sessionId: 'a', label: 'Coordinator' }, { sessionId: 'b', label: 'Retesting' }], (file, size) => tails[file])
+  assert.deepEqual(got.map(w => [w.sessionId, w.label, w.kind]), [['b', 'Retesting', 'question'], ['a', 'Coordinator', 'permission']])
+  assert.equal(got[0].reason, 'Shall I start?')
+  assert.equal(got[0].at, '2026-11-26T10:00:00.000Z')
+})
+
+test('standingWaits drops a wait once the session moved on, a closed session, and an unreadable transcript', () => {
+  const entries = { a: { kind: 'question', at: '2026-11-26T09:00:00.000Z', size: 1, transcript: 'A' }, b: { kind: 'question', at: '2026-11-26T09:00:00.000Z', size: 1, transcript: 'B' }, gone: { kind: 'question', at: '2026-11-26T09:00:00.000Z', size: 1, transcript: 'G' } }
+  const tails = { A: typed('yes'), B: null, G: '' }
+  assert.deepEqual(standingWaits(entries, [{ sessionId: 'a', label: 'A' }, { sessionId: 'b', label: 'B' }], f => tails[f]), [])
+})
+
+test('standingWaits reads each transcript from where it ended when the hook ran', () => {
+  const seen = []
+  standingWaits({ a: { kind: 'question', at: '2026-11-26T09:00:00.000Z', size: 77, transcript: 'A' } }, [{ sessionId: 'a', label: 'A' }], (f, size) => (seen.push([f, size]), ''))
+  assert.deepEqual(seen, [['A', 77]])
 })

@@ -92,6 +92,23 @@ export function recordWait(entries, input, wait, { size, now = Date.now() }) {
   return kept
 }
 
+// The waits that still stand for these live sessions, newest first: [{ sessionId, label, kind, reason, at }].
+// readTail(file, size) gives the transcript text written after the hook ran, or null when it cannot be read.
+export function standingWaits(entries, sessions, readTail) {
+  const out = []
+  for (const s of sessions || []) {
+    const e = entries?.[s.sessionId]
+    if (!e || !e.transcript) continue
+    const tail = readTail(e.transcript, Number(e.size) || 0)
+    if (tail == null || resumedIn(tail)) continue
+    out.push({ sessionId: s.sessionId, label: s.label, kind: e.kind, reason: e.reason || '', at: e.at || '' })
+  }
+  return out.sort((a, b) => String(b.at).localeCompare(String(a.at)))
+}
+
+/** The transcript text past `size` (what the session wrote since the hook ran), or null when unreadable. */
+export const tailAfter = (file, size) => tailFrom(file, size)?.text ?? null
+
 /** The recorded waits; {} when there is no file or it cannot be read. */
 export function readWaits(file = WAITING_FILE) {
   try {

@@ -1,7 +1,7 @@
 // The Human review routes and the by-hand step routes (factory-routes.mjs mounts them; every POST has passed its
 // same-origin check there). Each handler returns { status, body } like glossary-routes.mjs.
 //
-//   GET  /api/human                  { items, counts: { total, ask, hand, blocked, ticket }, builtAt }: what waits on
+//   GET  /api/human                  { items, counts: { total, ask, hand, blocked, ticket, session }, builtAt }: what waits on
 //                                    the user, and why (human.mjs), newest first. The Agents page box, the rail's
 //                                    count and Home's line all read this one answer.
 //   POST /api/flows/<id>/hand        { step, done: true|false }: the user's tick on one by-hand step (hand-steps.mjs
@@ -54,9 +54,24 @@ function ticketsOf() {
   return map
 }
 
+let waitingSessions = () => [] // the server's live sessions that wait on the user (server.mjs, waiting.mjs)
+// Sets where GET /api/human gets the sessions waiting on the user: a function returning [{ sessionId, label, kind, reason, at }].
+export function useWaitingSessions(fn) {
+  waitingSessions = typeof fn === 'function' ? fn : () => []
+}
+
+/** The waiting sessions, or none when the source fails: a broken source never breaks Human review. */
+function sessionsNow() {
+  try {
+    return waitingSessions() || []
+  } catch {
+    return []
+  }
+}
+
 export function humanGet({ now = Date.now(), kinds = ticketKinds() } = {}) {
   // `kinds`: ticket intake's sure sorts (routing-intake-store.mjs), so the Tickets list leaves out tickets sorted as code
-  const { items, counts } = humanItems({ flows: listFlows().flows, marks: readState().marks, tickets: ticketsOf(), senior: gateLabels(CONFIG).senior, kinds })
+  const { items, counts } = humanItems({ flows: listFlows().flows, marks: readState().marks, tickets: ticketsOf(), senior: gateLabels(CONFIG).senior, kinds, sessions: sessionsNow() })
   return ok({ items, counts, builtAt: new Date(now).toISOString() })
 }
 
