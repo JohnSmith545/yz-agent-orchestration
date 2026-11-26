@@ -36,6 +36,13 @@ const lastLine = text => String(text || '').trim().split(/\n+/).filter(l => l.tr
 
 // Which notification means the session waits on the user, and why, in one line; null when it does not.
 export function waitKind(input, lastReply) {
+  const event = input?.hook_event_name
+  // The VS Code extension sends no Notification: a permission dialog fires PermissionRequest, a finished reply Stop.
+  if (event === 'PermissionRequest') return { kind: 'permission', reason: input.tool_name ? `Needs your OK to use ${input.tool_name}` : 'Needs your OK to go on' }
+  if (event === 'Stop') {
+    const reply = typeof input.last_assistant_message === 'string' ? input.last_assistant_message : String(lastReply || '')
+    return /\?\s*$/.test(reply) ? { kind: 'question', reason: oneLine(lastLine(reply)) } : null
+  }
   const type = input?.notification_type
   const message = String(input?.message || '')
   const asks = /\?\s*$/.test(String(lastReply || ''))

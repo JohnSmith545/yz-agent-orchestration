@@ -149,3 +149,30 @@ test('standingWaits reads each transcript from where it ended when the hook ran'
   standingWaits({ a: { kind: 'question', at: '2026-11-26T09:00:00.000Z', size: 77, transcript: 'A' } }, [{ sessionId: 'a', label: 'A' }], (f, size) => (seen.push([f, size]), ''))
   assert.deepEqual(seen, [['A', 77]])
 })
+
+// ═══ Stop and PermissionRequest: the events the VS Code extension fires (it sends no Notification) ═══
+
+test('a Stop after a reply that ends with a question is a question wait; any other Stop is none', () => {
+  assert.deepEqual(waitKind({ hook_event_name: 'Stop' }, 'Done.\n\nShall I merge it?'), { kind: 'question', reason: 'Shall I merge it?' })
+  assert.equal(waitKind({ hook_event_name: 'Stop' }, 'Merged and live.'), null)
+})
+
+test('a Stop prefers the reply the hook was handed over the transcript tail (the last line may not be written yet)', () => {
+  assert.equal(waitKind({ hook_event_name: 'Stop', last_assistant_message: 'Go ahead?' }, 'Older text.').kind, 'question')
+  assert.equal(waitKind({ hook_event_name: 'Stop', last_assistant_message: 'All done.' }, 'Older question?'), null)
+})
+
+test('a PermissionRequest is a permission wait naming the tool', () => {
+  assert.deepEqual(waitKind({ hook_event_name: 'PermissionRequest', tool_name: 'Bash' }, ''), { kind: 'permission', reason: 'Needs your OK to use Bash' })
+  assert.deepEqual(waitKind({ hook_event_name: 'PermissionRequest' }, ''), { kind: 'permission', reason: 'Needs your OK to go on' })
+})
+
+test('the hook records a question on Stop from the reply it was handed, and prints nothing so the stop goes ahead', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'waiting-'))
+  const transcript = path.join(dir, 't.jsonl')
+  fs.writeFileSync(transcript, typed('hi'))
+  const r = runHook({ session_id: 's9', transcript_path: transcript, hook_event_name: 'Stop', stop_hook_active: false, last_assistant_message: 'Shall I start?' }, dir)
+  assert.equal(r.status, 0)
+  assert.equal(r.stdout, '')
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'waiting.json'), 'utf8')).s9.reason, 'Shall I start?')
+})

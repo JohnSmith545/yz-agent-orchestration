@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// A Claude Code Notification hook: records that a session stopped to wait on the user (a permission prompt, or an
+// A Claude Code Notification, PermissionRequest and Stop hook (the VS Code extension sends no Notification): records that a session stopped to wait on the user (a permission prompt, or an
 // idle prompt after a reply that asked something) in data/waiting.json, for the dashboard to show (waiting.mjs).
 // The hook runs this with its JSON on stdin:
 //
-//   { "session_id", "transcript_path", "cwd", "hook_event_name": "Notification", "notification_type", "message" }
+//   { "session_id", "transcript_path", "cwd", "hook_event_name", "notification_type", "message", "tool_name", "last_assistant_message" }
 //
 // It FAILS OPEN: bad input, an unreadable transcript or any error ends with exit code 0 and no output, so a broken
 // recorder never gets in a session's way. It prints nothing, ever.
