@@ -51,20 +51,19 @@ test('the sheet: the title as its heading, repo and number, Open or Draft, the b
   const t = text(h)
   assert.match(t, /acme\/shop #12/)
   assert.match(t, /Open feat\/login into dev/)
-  assert.match(t, /By alice · opened 3 hours ago/)
+  const S = ctx.window.PhoneState
+  assert.ok(t.includes(`By alice · opened ${S.when('2026-11-26T09:00:00Z', NOW)}`), t)
   assert.match(t, /Read from GitHub at \d\d:\d\d/)
   assert.match(h, /<button type="button" class="link ph-pr-refresh" data-ph-pr-refresh>Refresh<\/button>/)
   assert.match(text(sheet(PR({ state: 'draft' }))), /Draft feat\/login into dev/)
   assert.match(text(sheet(PR({ state: 'merged' }))), /Merged/)
 })
 
-test('the age in plain words', () => {
-  assert.equal(P.ago('2026-11-26T11:59:40Z', NOW), 'just now')
-  assert.equal(P.ago('2026-11-26T11:59:00Z', NOW), '1 minute ago')
-  assert.equal(P.ago('2026-11-26T11:20:00Z', NOW), '40 minutes ago')
-  assert.equal(P.ago('2026-11-26T11:00:00Z', NOW), '1 hour ago')
-  assert.equal(P.ago('2026-11-24T12:00:00Z', NOW), '2 days ago')
-  assert.equal(P.ago('nonsense', NOW), '')
+test('when it was opened is said as the phone says every time: a clock time today, a date before; none when unknown', () => {
+  const S = ctx.window.PhoneState
+  assert.ok(text(sheet(PR({ createdAt: '2026-11-20T09:00:00Z' }))).includes(`opened ${S.when('2026-11-20T09:00:00Z', NOW)}`))
+  assert.doesNotMatch(text(sheet(PR({ createdAt: null }))), /opened/)
+  assert.equal('ago' in P, false, 'no relative-time helper of its own (test/copy.test.mjs)')
 })
 
 test('a stale copy or a problem says so in one line above the rest', () => {

@@ -846,7 +846,7 @@ is off until you set it up, and only reachable on your own private network.
 a sheet on the phone instead of leaving for GitHub:
 
 - at the top, its title, the repository and number, Open or Draft, the branch going into its base, who opened it
-  and how long ago, and when it was read from GitHub, with a small **Refresh**;
+  and when, and when it was read from GitHub, with a small **Refresh**;
 - **Checks**: one plain line such as `Failing: 22 passed, 1 failing, 1 running`, then each failing or running
   check by name;
 - **Review**: who a review is asked of, who approved, who asked for changes;

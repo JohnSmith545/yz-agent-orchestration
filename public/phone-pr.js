@@ -11,7 +11,7 @@
 //   options(prLinks, ui)   the Options sheet: the one choice, as two radio buttons, and where it is kept
 //   gear()                 the header's Options button
 //   routeOf(hash) / hashOf(flowId)   #pr=<flow id> or #options: a reload, or a screenshot, opens there
-//   fold(text, lines) / ago(at, now) / names(list) / patch(lines)   the small pure helpers, for the tests
+//   fold(text, lines) / names(list) / patch(lines)   the small pure helpers, for the tests
 //
 // ⚠️ EVERY value is HOSTILE (GitHub's: anyone who can open a pull request or comment wrote it): esc everywhere. The
 // description and the comments go through PhoneText.render, the SAME renderer as the chat with the coordinator, so
@@ -36,16 +36,6 @@
   function names(v) {
     const l = list(v).map(String)
     return l.length < 2 ? l.join('') : `${l.slice(0, -1).join(', ')} and ${l.at(-1)}`
-  }
-
-  function ago(at, nowMs = Date.now()) {
-    const t = Date.parse(at)
-    if (Number.isNaN(t)) return ''
-    const m = Math.floor((nowMs - t) / 60_000)
-    if (m < 1) return 'just now'
-    if (m < 60) return `${plural(m, 'minute')} ago`
-    const h = Math.floor(m / 60)
-    return h < 24 ? `${plural(h, 'hour')} ago` : `${plural(Math.floor(h / 24), 'day')} ago`
   }
 
   /** The first `lines` lines, a ``` block cut in half closed again, so the fold never swallows what follows. */
@@ -166,7 +156,10 @@
     const open = new Set(list(ui.files).map(Number))
     const state = own(STATE, d.state) ? d.state : 'open'
     const branch = d.head && d.base ? ` <span class="ph-pr-branch"><code>${esc(d.head)}</code> into <code>${esc(d.base)}</code></span>` : ''
-    const by = [d.author ? `By ${d.author}` : '', d.createdAt ? `opened ${ago(d.createdAt, nowMs)}` : ''].filter(Boolean).join(' · ')
+    // when it was opened as the rest of the phone says a time (PhoneState.when: a clock today, else a date): the
+    // desktop's one relative-time helper is not loaded here, and no second one may be written (test/copy.test.mjs)
+    const opened = S.when(d.createdAt, nowMs)
+    const by = [d.author ? `By ${d.author}` : '', opened ? `opened ${opened}` : ''].filter(Boolean).join(' · ')
     const read = pr.loading ? 'Reading…' : d.checkedAt && S.clock(d.checkedAt) ? `Read from GitHub at ${S.clock(d.checkedAt)}` : ''
     const note = pr.note || d.problem
     return frame(d.title || 'Pull request',
@@ -204,5 +197,5 @@
   }
   const hashOf = flowId => `#pr=${flowId}`
 
-  window.PhonePr = { sheet, options, gear, routeOf, hashOf, fold, ago, names, patch }
+  window.PhonePr = { sheet, options, gear, routeOf, hashOf, fold, names, patch }
 })()
