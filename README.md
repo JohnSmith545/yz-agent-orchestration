@@ -1458,7 +1458,7 @@ The dashboard only sees a question an agent writes down (`flow ask`). A session 
 permission prompt or for your reply in its terminal, was invisible. `tools/waiting-hook.mjs` is a small script
 for Claude Code **Notification**, **PermissionRequest** and **Stop** hooks that fixes that (the VS Code extension sends
 no Notification, so the other two carry it there: a permission dialog, and a reply that ends with a question): each time a session stops to wait on you, it records
-the session, why and when in `data/waiting.json` (`waiting.mjs`). The dashboard then shows it:
+the session, why and when in `data/waiting/<session>.json` (one file per session) (`waiting.mjs`). The dashboard then shows it:
 
 - the session's card (Home and the Agents page) gets an amber edge and a line above its Now line:
   **Needs your OK:** (a permission prompt) or **Asked you:** (its last reply ended with a question);

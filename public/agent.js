@@ -237,7 +237,13 @@
     if (sig === view.replySig) return // unchanged: leave what is being typed alone
     view.replySig = sig
     el.hidden = !row
+    // keep a reply being typed (and its focus) across the redraw
+    const draft = el.querySelector('textarea')?.value || ''
+    const typing = el.contains(document.activeElement)
     el.innerHTML = row ? `<p class="agent-reply-q"><b>${row.wait === 'question' ? 'Waiting on your reply' : 'Waiting on your OK'}</b> · ${esc(row.reason)}</p>${window.HumanReview.replyHtml(row)}` : ''
+    const area = el.querySelector('textarea')
+    if (area && draft) area.value = draft
+    if (area && typing) area.focus()
   }
   if (typeof document !== 'undefined') document.addEventListener?.('humanreview:change', paintReply)
 

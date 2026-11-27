@@ -59,3 +59,14 @@ test('the session page shows the same box above Live activity, and only redraws 
   assert.match(src, /window\.HumanReview\.replyHtml\(row\)/)
   assert.match(src, /if \(sig === view\.replySig\) return/)
 })
+
+// review: a refused reply left the box disabled for good, a redraw wiped a draft, and the toast could not open the session
+test('a refused reply gives the box and Retry back; the session page keeps a draft; the toast opens the session', () => {
+  const hr = read('human-review.js')
+  assert.match(hr, /else form\.querySelectorAll\('textarea, button'\)\.forEach\(x => \(x\.disabled = false\)\)/)
+  assert.match(hr, /if \(!ok\) retry\.disabled = false/)
+  assert.match(hr, /<a class="link" href="#\/agent\/\$\{enc\(w\.sessionId\)\}">Open<\/a>/)
+  const ag = read('agent.js')
+  assert.match(ag, /const draft = el\.querySelector\('textarea'\)\?\.value \|\| ''/)
+  assert.match(ag, /if \(area && draft\) area\.value = draft/)
+})

@@ -250,7 +250,8 @@
   /** A toast and a desktop notification for a session that just stopped for the user. */
   function raiseWait(w) {
     const open = () => window.Shell?.go(`#/agent/${enc(w.sessionId)}`)
-    window.Notifier?.toast(`<b>${esc(w.title)}</b> is waiting on you<br>${esc(w.reason)}`, { kind: 'decision', sticky: true })
+    // the toast opens the session too: with the window in focus there is no desktop notification to click
+    window.Notifier?.toast(`<b>${esc(w.title)}</b> is waiting on you<br>${esc(w.reason)} <a class="link" href="#/agent/${enc(w.sessionId)}">Open</a>`, { kind: 'decision', sticky: true })
     window.Notifier?.desktop(`${w.title} is waiting on you`, w.reason, open)
   }
 
@@ -284,7 +285,9 @@
     const retry = e.target.closest?.('[data-hr-retry]')
     if (e.type === 'click' && retry) {
       retry.disabled = true
-      sendReply(retry.dataset.hrRetry, '', { retry: true })
+      sendReply(retry.dataset.hrRetry, '', { retry: true }).then(ok => {
+        if (!ok) retry.disabled = false // refused: Retry stays usable
+      })
       return true
     }
     const form = e.type === 'submit' && e.target.closest?.('form[data-hr-reply]')
@@ -296,6 +299,8 @@
     form.querySelectorAll('textarea, button').forEach(x => (x.disabled = true))
     sendReply(form.dataset.hrReply, text).then(ok => {
       if (ok) area.value = ''
+      // refused (the session closed, say): the box comes back with the text, to send again or keep
+      else form.querySelectorAll('textarea, button').forEach(x => (x.disabled = false))
     })
     return true
   }

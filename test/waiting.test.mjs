@@ -8,7 +8,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { lastReplyText, recordWait, resumedIn, standingWaits, waitKind, KEEP_DAYS } from '../waiting.mjs'
+import { lastReplyText, nextWait, readWaits, resumedIn, standingWaits, waitKind, KEEP_DAYS } from '../waiting.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const HOOK = path.join(HERE, '..', 'tools', 'waiting-hook.mjs')
@@ -78,14 +78,21 @@ test('resumedIn ignores hook notes, meta lines and partial lines written while i
 
 // ═══ recordWait: one entry per session, old ones pruned ═══
 
-test('recordWait keeps one entry per session with where its transcript ended, and drops week-old ones', () => {
+test('nextWait records where the transcript ended, and when', () => {
   const now = Date.parse('2026-11-26T10:00:00Z')
-  const old = new Date(now - (KEEP_DAYS + 1) * 86_400_000).toISOString()
-  const entries = { stale: { at: old, kind: 'question' }, s1: { at: old, kind: 'question' } }
-  const next = recordWait(entries, { session_id: 's1', transcript_path: 'C:/t.jsonl', cwd: 'C:/repo' }, { kind: 'permission', reason: 'Bash' }, { size: 42, now })
-  assert.deepEqual(Object.keys(next), ['s1'])
-  assert.deepEqual(next.s1, { kind: 'permission', reason: 'Bash', at: '2026-11-26T10:00:00.000Z', size: 42, transcript: 'C:/t.jsonl', cwd: 'C:/repo' })
-  assert.equal(entries.s1.kind, 'question', 'the input is not changed')
+  const got = nextWait(null, { session_id: 's1', transcript_path: 'C:/t.jsonl', cwd: 'C:/repo' }, { kind: 'permission', reason: 'Bash' }, { size: 42, now, prevResumed: true })
+  assert.deepEqual(got, { kind: 'permission', reason: 'Bash', at: '2026-11-26T10:00:00.000Z', size: 42, transcript: 'C:/t.jsonl', cwd: 'C:/repo' })
+})
+
+// review: Stop then an idle prompt (or PermissionRequest then a permission Notification) recorded one wait twice,
+// with a new time, so the page raised a second sticky toast for the same question
+test('nextWait keeps the same wait that still stands (no new time, no second alert); a resumed or different one is new', () => {
+  const prev = { kind: 'question', reason: 'Ship it?', at: '2026-11-26T09:00:00.000Z', size: 10, transcript: 'T', cwd: '' }
+  const input = { session_id: 's1', transcript_path: 'T' }
+  const now = Date.parse('2026-11-26T09:01:00Z')
+  assert.equal(nextWait(prev, input, { kind: 'question', reason: 'Ship it?' }, { size: 20, now, prevResumed: false }), null)
+  assert.equal(nextWait(prev, input, { kind: 'question', reason: 'Ship it?' }, { size: 20, now, prevResumed: true }).at, '2026-11-26T09:01:00.000Z')
+  assert.equal(nextWait(prev, input, { kind: 'permission', reason: 'Needs your OK to use Bash' }, { size: 20, now, prevResumed: false }).kind, 'permission')
 })
 
 // ═══ the hook itself ═══
@@ -94,14 +101,14 @@ function runHook(input, dataDir) {
   return spawnSync(process.execPath, [HOOK], { input: typeof input === 'string' ? input : JSON.stringify(input), env: { ...process.env, FACTORY_DATA_DIR: dataDir }, encoding: 'utf8' })
 }
 
-test('the hook records a permission wait in data/waiting.json, with the transcript size at that moment', () => {
+test('the hook records a permission wait in data/waiting/<session>.json, with the transcript size at that moment', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'waiting-'))
   const transcript = path.join(dir, 't.jsonl')
   fs.writeFileSync(transcript, said('Running the tests now.'))
   const r = runHook({ session_id: 'abc', transcript_path: transcript, cwd: 'C:/repo', hook_event_name: 'Notification', notification_type: 'permission_prompt', message: 'Claude needs your permission to use Bash' }, dir)
   assert.equal(r.status, 0)
   assert.equal(r.stdout, '')
-  const saved = JSON.parse(fs.readFileSync(path.join(dir, 'waiting.json'), 'utf8'))
+  const saved = readWaits(path.join(dir, 'waiting'))
   assert.equal(saved.abc.kind, 'permission')
   assert.equal(saved.abc.size, fs.statSync(transcript).size)
 })
@@ -112,7 +119,7 @@ test('the hook records nothing for an idle session whose last reply asked nothin
   fs.writeFileSync(transcript, said('Merged and live.'))
   const r = runHook({ session_id: 'abc', transcript_path: transcript, notification_type: 'idle_prompt', message: 'Claude is waiting for your input' }, dir)
   assert.equal(r.status, 0)
-  assert.equal(fs.existsSync(path.join(dir, 'waiting.json')), false)
+  assert.deepEqual(readWaits(path.join(dir, 'waiting')), {})
 })
 
 test('the hook fails open: bad input or a missing transcript exits 0 with no output', () => {
@@ -122,6 +129,63 @@ test('the hook fails open: bad input or a missing transcript exits 0 with no out
     assert.equal(r.status, 0)
     assert.equal(r.stdout, '')
   }
+})
+
+// review: every hook read the one shared file, changed it and wrote it back, so two at once lost a wait
+test('two sessions stopping at the same moment both keep their wait (one file per session)', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'waiting-'))
+  const transcript = path.join(dir, 't.jsonl')
+  fs.writeFileSync(transcript, said('Ready?'))
+  const { spawn } = await import('node:child_process')
+  const run = id => new Promise(res => {
+    const c = spawn(process.execPath, [HOOK], { env: { ...process.env, FACTORY_DATA_DIR: dir } })
+    c.on('exit', res)
+    c.stdin.end(JSON.stringify({ session_id: id, transcript_path: transcript, hook_event_name: 'Stop', last_assistant_message: 'Ready?' }))
+  })
+  await Promise.all(['s-1', 's-2', 's-3', 's-4'].map(run))
+  assert.deepEqual(Object.keys(readWaits(path.join(dir, 'waiting'))).sort(), ['s-1', 's-2', 's-3', 's-4'])
+})
+
+test('the hook keeps the first time of a wait that is recorded again while it still stands', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'waiting-'))
+  const transcript = path.join(dir, 't.jsonl')
+  fs.writeFileSync(transcript, said('Ship it?'))
+  const input = { session_id: 'abc', transcript_path: transcript, hook_event_name: 'Stop', last_assistant_message: 'Ship it?' }
+  runHook(input, dir)
+  const first = readWaits(path.join(dir, 'waiting')).abc.at
+  fs.appendFileSync(transcript, hookNote())
+  runHook({ ...input, hook_event_name: 'Notification', notification_type: 'idle_prompt', last_assistant_message: undefined }, dir)
+  assert.equal(readWaits(path.join(dir, 'waiting')).abc.at, first)
+})
+
+test('a session id that is not a plain id is never used as a file name', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'waiting-'))
+  const transcript = path.join(dir, 't.jsonl')
+  fs.writeFileSync(transcript, said('Ready?'))
+  runHook({ session_id: '../../evil', transcript_path: transcript, hook_event_name: 'Stop', last_assistant_message: 'Ready?' }, dir)
+  assert.deepEqual(readWaits(path.join(dir, 'waiting')), {})
+  assert.equal(fs.existsSync(path.join(dir, 'evil.json')), false)
+})
+
+// review: one assistant message with two tool calls writes a line per block, and a later block cleared a
+// permission wait while its dialog was still open
+test('a permission wait clears only on a user line (the tool result after Approve or Deny), never on an assistant line', () => {
+  const block = line({ type: 'assistant', message: { id: 'm1', content: [{ type: 'tool_use', name: 'Edit' }] } })
+  assert.equal(resumedIn(block, 'permission'), false)
+  assert.equal(resumedIn(block + toolResult(), 'permission'), true)
+  assert.equal(resumedIn(said('Got it.'), 'question'), true)
+})
+
+test('standingWaits keeps a permission wait while later blocks of the same message are written', () => {
+  const entries = { a: { kind: 'permission', reason: 'Needs your OK to use Bash', at: '2026-11-26T09:00:00.000Z', size: 1, transcript: 'A' } }
+  const block = line({ type: 'assistant', message: { id: 'm1', content: [{ type: 'tool_use', name: 'Edit' }] } })
+  assert.equal(standingWaits(entries, [{ sessionId: 'a', label: 'A' }], () => block).length, 1)
+})
+
+// review: common endings were missed: a bold question, or one in quotes or brackets
+test('a reply ending in a bold, quoted or bracketed question still counts as a question', () => {
+  for (const reply of ['**Want me to open the PR?**', 'Ship it?"', 'Ship it? )', 'Merge _now?_']) assert.equal(waitKind({ hook_event_name: 'Stop' }, reply)?.kind, 'question', reply)
+  assert.equal(waitKind({ hook_event_name: 'Stop' }, 'Done. Merged.'), null)
 })
 
 // ═══ standingWaits: the waits the pages show ═══
@@ -174,7 +238,7 @@ test('the hook records a question on Stop from the reply it was handed, and prin
   const r = runHook({ session_id: 's9', transcript_path: transcript, hook_event_name: 'Stop', stop_hook_active: false, last_assistant_message: 'Shall I start?' }, dir)
   assert.equal(r.status, 0)
   assert.equal(r.stdout, '')
-  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'waiting.json'), 'utf8')).s9.reason, 'Shall I start?')
+  assert.equal(readWaits(path.join(dir, 'waiting')).s9.reason, 'Shall I start?')
 })
 
 test('resumedIn is true once the session writes a new reply of its own after the wait (a message answered without tools)', () => {

@@ -1,8 +1,9 @@
 // Sessions waiting on the user: a Claude Code Notification hook (tools/waiting-hook.mjs) records each session that
 // stopped for the user's permission or reply, and the server shows the waits that still stand.
 //
-// data/waiting.json (in DATA_ROOT, one file for every project, keyed by session id):
-//   { "<sessionId>": { kind: 'permission' | 'question', reason, at: ISO time, size, transcript, cwd } }
+// data/waiting/<sessionId>.json (in DATA_ROOT, shared by every project), ONE file per session, so two hooks writing at
+// the same moment never overwrite each other's wait:
+//   { kind: 'permission' | 'question', reason, at: ISO time, size, transcript, cwd }
 // `size` is the transcript's size in bytes when the hook ran. A wait stands while nothing the session did since
 // then shows it moved on: `resumedIn` reads the bytes past `size` for a real user line (a typed reply, a message, or
 // the tool result that follows an approved or denied permission) or a new reply of the session's own. Hook notes and meta lines written while it waits do not
@@ -13,13 +14,16 @@
 //   chat.mjs lastExchange): a session that finished its work and went idle is not waiting on anyone.
 // - Pure except readWaits / writeWaits / tailFrom, so the tests build any state.
 
-import { closeSync, fstatSync, openSync, readFileSync, readSync } from 'node:fs' // the small reads the hook and server do
+import { closeSync, fstatSync, openSync, readdirSync, readFileSync, readSync, rmSync } from 'node:fs' // the small reads and writes the hook and server do
 import path from 'node:path'
 import { writeAtomic } from './atomic-write.mjs' // a reader never sees half a file
 import { DATA_ROOT } from './project-store.mjs' // data/ (or FACTORY_DATA_DIR), shared by every project
 
-export const WAITING_FILE = path.join(DATA_ROOT, 'waiting.json') // every session's recorded wait
+export const WAITING_DIR = path.join(DATA_ROOT, 'waiting') // one file per session's recorded wait
 export const KEEP_DAYS = 7 // a wait older than this is dropped the next time the hook writes
+const SAFE_ID = /^[A-Za-z0-9_-]{1,100}$/ // a session id used as a file name: never a path
+// a reply that ends with a question, a bold, quoted or bracketed one too ('**Ship it?**', 'Ship it?")')
+const ASKS = /\?[\s*_`"')\]]*$/
 const REASON_MAX = 140 // one line on a card or a Human review row
 const TAIL_MAX = 256 * 1024 // how much of a transcript's end is read
 
@@ -41,11 +45,11 @@ export function waitKind(input, lastReply) {
   if (event === 'PermissionRequest') return { kind: 'permission', reason: input.tool_name ? `Needs your OK to use ${input.tool_name}` : 'Needs your OK to go on' }
   if (event === 'Stop') {
     const reply = typeof input.last_assistant_message === 'string' ? input.last_assistant_message : String(lastReply || '')
-    return /\?\s*$/.test(reply) ? { kind: 'question', reason: oneLine(lastLine(reply)) } : null
+    return ASKS.test(reply) ? { kind: 'question', reason: oneLine(lastLine(reply)) } : null
   }
   const type = input?.notification_type
   const message = String(input?.message || '')
-  const asks = /\?\s*$/.test(String(lastReply || ''))
+  const asks = ASKS.test(String(lastReply || ''))
   const question = () => (asks ? { kind: 'question', reason: oneLine(lastLine(lastReply)) } : null)
   if (type === 'permission_prompt') return { kind: 'permission', reason: oneLine(message) }
   if (type === 'idle_prompt') return question()
@@ -88,15 +92,15 @@ export function lastReplyText(tail) {
   return ''
 }
 
-// Whether the transcript bytes written after a wait show the session moved on.
-export const resumedIn = tail => lines(tail).some(o => isRealUser(o) || o?.type === 'assistant')
+// Whether the transcript bytes written after a wait show the session moved on. A permission wait ends only on a user
+// line (the tool result after Approve or Deny): later blocks of the same assistant message can land after the hook ran.
+export const resumedIn = (tail, kind = 'question') => lines(tail).some(o => isRealUser(o) || (kind !== 'permission' && o?.type === 'assistant'))
 
-// The entries with this session's wait recorded (replacing its last one) and week-old ones dropped.
-export function recordWait(entries, input, wait, { size, now = Date.now() }) {
-  const cutoff = now - KEEP_DAYS * 86_400_000
-  const kept = Object.fromEntries(Object.entries(entries || {}).filter(([id, e]) => id !== input.session_id && Date.parse(e?.at) >= cutoff))
-  kept[input.session_id] = { ...wait, at: new Date(now).toISOString(), size, transcript: input.transcript_path || '', cwd: input.cwd || '' }
-  return kept
+// The session's wait to save, or null when `prev` is the same wait and still stands (keep its time: no second alert).
+export function nextWait(prev, input, wait, { size, now = Date.now(), prevResumed = true }) {
+  const same = prev && !prevResumed && prev.kind === wait.kind && prev.reason === wait.reason && prev.transcript === (input.transcript_path || '')
+  if (same) return null
+  return { ...wait, at: new Date(now).toISOString(), size, transcript: input.transcript_path || '', cwd: input.cwd || '' }
 }
 
 // The waits that still stand for these live sessions, newest first: [{ sessionId, label, kind, reason, at }].
@@ -107,7 +111,7 @@ export function standingWaits(entries, sessions, readTail) {
     const e = entries?.[s.sessionId]
     if (!e || !e.transcript) continue
     const tail = readTail(e.transcript, Number(e.size) || 0)
-    if (tail == null || resumedIn(tail)) continue
+    if (tail == null || resumedIn(tail, e.kind)) continue
     out.push({ sessionId: s.sessionId, label: s.label, kind: e.kind, reason: e.reason || '', at: e.at || '' })
   }
   return out.sort((a, b) => String(b.at).localeCompare(String(a.at)))
@@ -116,17 +120,38 @@ export function standingWaits(entries, sessions, readTail) {
 /** The transcript text past `size` (what the session wrote since the hook ran), or null when unreadable. */
 export const tailAfter = (file, size) => tailFrom(file, size)?.text ?? null
 
-/** The recorded waits; {} when there is no file or it cannot be read. */
-export function readWaits(file = WAITING_FILE) {
+/** The recorded waits by session id; {} when there are none. A file that cannot be read is left out. */
+export function readWaits(dir = WAITING_DIR) {
+  let names = []
   try {
-    const v = JSON.parse(readFileSync(file, 'utf8'))
-    return v && typeof v === 'object' && !Array.isArray(v) ? v : {}
+    names = readdirSync(dir).filter(n => n.endsWith('.json') && SAFE_ID.test(n.slice(0, -5)))
   } catch {
     return {}
   }
+  const out = {}
+  for (const n of names) {
+    try {
+      const v = JSON.parse(readFileSync(path.join(dir, n), 'utf8'))
+      if (v && typeof v === 'object' && !Array.isArray(v)) out[n.slice(0, -5)] = v
+    } catch {
+      /* mid-write or broken: skip it this round */
+    }
+  }
+  return out
 }
 
-export const writeWaits = (entries, file = WAITING_FILE) => writeAtomic(file, JSON.stringify(entries, null, 2)) // saves every wait at once
+/** Saves one session's wait in its own file; false (and nothing written) for an id that is not a plain id. */
+export function writeWait(sessionId, entry, dir = WAITING_DIR) {
+  if (!SAFE_ID.test(String(sessionId))) return false
+  writeAtomic(path.join(dir, `${sessionId}.json`), JSON.stringify(entry, null, 2))
+  return true
+}
+
+/** Deletes the waits older than KEEP_DAYS. */
+export function pruneWaits(dir = WAITING_DIR, now = Date.now()) {
+  const cutoff = now - KEEP_DAYS * 86_400_000
+  for (const [id, e] of Object.entries(readWaits(dir))) if (!(Date.parse(e?.at) >= cutoff)) rmSync(path.join(dir, `${id}.json`), { force: true })
+}
 
 /** A file's bytes from `start` to its end (at most the newest `max`), and its size; null when unreadable. */
 export function tailFrom(file, start = 0, max = TAIL_MAX) {

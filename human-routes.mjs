@@ -69,6 +69,12 @@ export function sessionReplyRoute(sessionId, body) {
   if (!sessionReplies) return no(503, 'Replies are not set up on this dashboard. Reply in VS Code instead.')
   const name = sessionName(sessionId)
   if (!name) return no(404, 'That session is closed or not running. Reply in VS Code instead.')
+  // only a session waiting on a question takes a reply: never one at work, or at a permission prompt
+  const wait = rawSessions().find(w => w.sessionId === sessionId)
+  if (wait?.kind !== 'question') return no(409, 'That session is not waiting on a question now. Check its page for what it needs.')
+  // Retry resends only a reply to THIS question, never one written for an earlier question
+  const last = sessionReplies.get(sessionId)
+  if (body?.retry === true && !(last && String(last.at) >= String(wait.at))) return no(400, 'Nothing to send again: write a reply.')
   try {
     const { record } = body?.retry === true ? sessionReplies.retry(sessionId, name) : sessionReplies.send(sessionId, name, body?.text)
     return ok({ ok: true, reply: record })
@@ -84,11 +90,21 @@ export function useWaitingSessions(fn) {
 }
 
 /** The waiting sessions, or none when the source fails: a broken source never breaks Human review. */
+/** The waiting sessions as the server sees them, or none when the source fails. */
+function rawSessions() {
+  try {
+    return waitingSessions() || []
+  } catch {
+    return []
+  }
+}
+
 function sessionsNow() {
   try {
-    return (waitingSessions() || []).map(w => {
+    return rawSessions().map(w => {
+      // a reply shows only on the question it answered: one written before this wait began belongs to an earlier one
       const reply = sessionReplies?.get(w.sessionId)
-      return reply ? { ...w, reply } : w
+      return reply && String(reply.at) >= String(w.at) ? { ...w, reply } : w
     })
   } catch {
     return []
