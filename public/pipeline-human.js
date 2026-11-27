@@ -25,7 +25,7 @@
   const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
 
   /** What keeps an agent waiting on the user, as the Human review head splits it: questions, then by-hand work. */
-  const countParts = counts => [[counts?.ask, 'question', 'questions'], [counts?.hand, 'by hand', 'by hand']]
+  const countParts = counts => [[counts?.session, 'session waiting', 'sessions waiting'], [counts?.ask, 'question', 'questions'], [counts?.hand, 'by hand', 'by hand']]
     .filter(([v]) => Number(v) > 0).map(([v, one, many]) => plural(Number(v), one, many))
   const countText = counts => countParts(counts).join(' · ')
 

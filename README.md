@@ -75,6 +75,8 @@ script itself because the list grew past what a Windows command line can hold.
   went, its pull request and its final report, with builders apart from quick lookups.
 - **The Ask drawer**: a chat with a Claude Code session ("Independent") that can
   read the code, write flows, message agents and drive a browser.
+- **Sessions waiting on you**: a Claude Code hook tells the dashboard when a session stops for your
+  permission or reply; its card, Human review and the page head say so (see the waiting hook below).
 - **Alerts and reminders**: toasts and desktop notifications for new questions,
   blocked or finished flows and failed deliveries, plus daily reminders at a set time.
 - **Explain**: hover a tinted or underlined word, or select any text, for a short explanation.
@@ -1449,6 +1451,52 @@ dashboard:
 
 Use only `SubagentStop` to hold subagents to it and leave your own sessions alone. To try it without a hook:
 `echo '{"transcript_path":"<a session .jsonl>","stop_hook_active":false}' | node tools/flow-gate.mjs`.
+
+### Sessions waiting on you (the waiting hook)
+
+The dashboard only sees a question an agent writes down (`flow ask`). A session that simply stopped, for a
+permission prompt or for your reply in its terminal, was invisible. `tools/waiting-hook.mjs` is a small script
+for Claude Code **Notification**, **PermissionRequest** and **Stop** hooks that fixes that (the VS Code extension sends
+no Notification, so the other two carry it there: a permission dialog, and a reply that ends with a question): each time a session stops to wait on you, it records
+the session, why and when in `data/waiting.json` (`waiting.mjs`). The dashboard then shows it:
+
+- the session's card (Home and the Agents page) gets an amber edge and a line above its Now line:
+  **Needs your OK:** (a permission prompt) or **Asked you:** (its last reply ended with a question);
+- **Human review** gets a row of kind **Session** (a **Sessions** chip filters them); its title opens that
+  session's live view, where you can see what it asked;
+- the page head's `N waiting on you`, the rail's Agents count and Home's line count it;
+- a NEW wait raises a sticky toast, and a desktop notification when the window is not in focus.
+
+**Reply from the dashboard.** A session that asked a question gets a reply box, on its Human review row and above
+Live activity on its own page. **Send** (or Enter; Shift+Enter adds a line) delivers your text to that session as ONE
+message, on the relay's path (`session-replies.mjs`, `POST /api/sessions/<id>/reply`, a short paid turn that uses
+SendMessage). The row then says Sending, Sent, or Not delivered with **Retry**. Only the dashboard page may send it: a
+call without the page's Origin (an agent, say) is refused, so no agent can answer as you. A permission prompt has no
+box: a message cannot press Approve or Deny, so it says to answer in VS Code.
+
+A wait clears by itself: once the session's transcript gets a real user line after it (your typed reply, or the
+tool result that follows an approved or denied permission), it no longer stands. Hook notes and meta lines do not
+count. A closed session's wait never shows, and the hook drops waits older than a week.
+
+An idle session counts only when its last reply ends with a question mark, the same rule the Ask chat uses, so a
+session that finished its work and went quiet is not "waiting". A question phrased without one is missed: for
+decisions an agent needs while it keeps working, it should still record a `flow ask`.
+
+Add it to your user settings (`~/.claude/settings.json`), next to any hooks you already have on those events:
+
+```json
+{
+  "hooks": {
+    "Notification": [{ "hooks": [{ "type": "command", "command": "node <path to this clone>/tools/waiting-hook.mjs" }] }],
+    "PermissionRequest": [{ "hooks": [{ "type": "command", "command": "node <path to this clone>/tools/waiting-hook.mjs" }] }],
+    "Stop": [{ "hooks": [{ "type": "command", "command": "node <path to this clone>/tools/waiting-hook.mjs" }] }]
+  }
+}
+```
+
+It fails open: bad input, an unreadable transcript or any error exits 0 with no output, so it never gets in a
+session's way. To try it without a hook:
+`echo '{"session_id":"x","transcript_path":"<a session .jsonl>","notification_type":"permission_prompt","message":"Claude needs your permission to use Bash"}' | node tools/waiting-hook.mjs`.
 
 ### Collections by kind
 

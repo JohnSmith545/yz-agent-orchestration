@@ -77,3 +77,8 @@ test('wired: a click on the box shows the list; the box is redrawn when the list
   for (const f of ['public/pipeline-human.js', 'public/pipeline-labels.js', 'pipeline-hand.mjs']) assert.ok(check.includes(`node --check ${f}`), f)
   assert.match(read('pipeline.css'), /\.pl-node\.r-human \{ border-left: 3px solid var\(--warn\); \}/)
 })
+
+test('countText: sessions waiting on you come first, so the Human task box never says nothing waits while one does', () => {
+  assert.equal(H.countText({ session: 1, ask: 0, hand: 0 }), '1 session waiting')
+  assert.equal(H.countText({ session: 2, ask: 1 }), '2 sessions waiting · 1 question')
+})
