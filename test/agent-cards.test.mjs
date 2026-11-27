@@ -173,12 +173,12 @@ test('no page decides who coordinates by a hard-coded session name', () => {
 
 // ═══ a session waiting on the user (waiting.mjs) ═══
 
-test('a session waiting for your OK shows it above its Now line, on compact and full cards, with the amber edge', () => {
+test('a session waiting for your OK shows its reason alone (it already says what it needs) above its Now line, with the amber edge', () => {
   const w = { kind: 'permission', reason: 'Claude needs your permission to use <Bash>', at: new Date().toISOString() }
   for (const compact of [true, false]) {
     const html = card(agent({ waitingOnYou: w }), { compact, worktrees })
     assert.match(html, /class="ac[^"]* is-waiting"/)
-    assert.match(html, /<div class="ac-needs" title="Claude needs your permission to use &lt;Bash&gt;">Needs your OK: Claude needs your permission to use &lt;Bash&gt;<\/div>/)
+    assert.match(html, /<div class="ac-needs" title="Claude needs your permission to use &lt;Bash&gt;">Claude needs your permission to use &lt;Bash&gt;<\/div>/)
     assert.ok(html.indexOf('ac-needs') < html.indexOf('ac-now'), 'above what it is doing')
   }
 })

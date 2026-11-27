@@ -58,7 +58,7 @@
     const now = doing(a)
     // stopped for your permission or reply (waiting.mjs, the server's waitingOnYou)
     const w = a.waitingOnYou
-    const needs = w ? `<div class="ac-needs" title="${esc(w.reason)}">${w.kind === 'question' ? 'Asked you' : 'Needs your OK'}: ${esc(w.reason)}</div>` : ''
+    const needs = w ? `<div class="ac-needs" title="${esc(w.reason)}">${w.kind === 'question' ? `Asked you: ${esc(w.reason)}` : esc(w.reason)}</div>` : ''
     const waitCls = w ? ' is-waiting' : ''
     const nowLine = needs + (now ? `<div class="ac-now" title="${esc(now)}">${esc(now)}</div>` : '')
     if (compact) {
