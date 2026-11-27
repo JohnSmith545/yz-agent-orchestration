@@ -50,7 +50,7 @@ test('Human review: a flow Senior sent back says why; all ticked says Senior rev
   // every step ticked: it waits on Senior, not on you, so it is no row and no count (QA B-2)
   const waiting = humanItems({ flows: [flow()], senior: 'Senior' })
   assert.deepEqual(waiting.items, [])
-  assert.deepEqual(waiting.counts, { total: 0, ask: 0, hand: 0, blocked: 0, ticket: 0 })
+  assert.deepEqual(waiting.counts, { total: 0, ask: 0, hand: 0, blocked: 0, ticket: 0, session: 0 })
   for (const status of ['asked', 'reviewing']) assert.equal(humanItems({ flows: [flow({ hand: undefined, senior: { status, by: 'Senior', at: '2026-11-25T11:00:00Z' } })], senior: 'Senior' }).counts.total, 0, status)
   assert.equal(humanItems({ flows: [flow({ status: 'blocked', senior: { status: 'senior-failed', by: 'Senior', at: '2026-11-25T11:00:00Z' } })], senior: 'Senior' }).counts.hand, 1, 'stopped by Senior: the user decides')
   assert.equal(humanItems({ flows: [flow({ qa: { status: 'testing', attempt: 1 } })], senior: 'Senior' }).counts.hand, 1, 'a code flow is not Senior work')

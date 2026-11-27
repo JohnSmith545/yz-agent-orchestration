@@ -17,7 +17,7 @@ test('an open ask is a row: the flow, its agent, when it was asked, its reason, 
     key: 'ask:dark:n1', kind: 'ask', flowId: 'dark', title: 'Flow dark', agent: 'Agent 1', tickets: [], nodeId: 'n1', since: '2026-11-21T09:00:00Z',
     reason: 'The test passes; dev is where QA can try it', ask: { title: 'Question n1?', kind: 'yesno', yes: 'Go', no: 'Stop' },
   }])
-  assert.deepEqual(r.counts, { total: 1, ask: 1, hand: 0, blocked: 0, ticket: 0 })
+  assert.deepEqual(r.counts, { total: 1, ask: 1, hand: 0, blocked: 0, ticket: 0, session: 0 })
 })
 
 test('an answered ask, a dropped, archived, deleted or done flow is not waiting on anyone', () => {
@@ -91,6 +91,18 @@ test('newest first by when it started waiting; a long reason is cut to one line 
 })
 
 test('nothing in, nothing out: an empty list with zero counts', () => {
-  assert.deepEqual(humanItems(), { items: [], counts: { total: 0, ask: 0, hand: 0, blocked: 0, ticket: 0 } })
+  assert.deepEqual(humanItems(), { items: [], counts: { total: 0, ask: 0, hand: 0, blocked: 0, ticket: 0, session: 0 } })
   assert.deepEqual(humanItems({ flows: [null, undefined], marks: null }).items, [])
+})
+
+test('a session waiting on the user is a row of kind session: its label, why, since when, and the session to open', () => {
+  const r = humanItems({ sessions: [{ sessionId: 'abc', label: 'Coordinator', kind: 'question', reason: 'Shall I start?', at: '2026-11-26T10:00:00.000Z' }] })
+  assert.deepEqual(r.items, [{ key: 'session:abc', kind: 'session', sessionId: 'abc', title: 'Coordinator', agent: 'Coordinator', since: '2026-11-26T10:00:00.000Z', reason: 'Asked you: Shall I start?', wait: 'question' }])
+  assert.deepEqual(r.counts, { total: 1, ask: 0, hand: 0, blocked: 0, ticket: 0, session: 1 })
+})
+
+test('a session waiting for permission says so in its reason', () => {
+  const r = humanItems({ sessions: [{ sessionId: 'x', label: 'Retesting', kind: 'permission', reason: 'Claude needs your permission to use Bash', at: '2026-11-26T10:00:00.000Z' }] })
+  assert.equal(r.items[0].reason, 'Claude needs your permission to use Bash')
+  assert.equal(r.items[0].wait, 'permission')
 })

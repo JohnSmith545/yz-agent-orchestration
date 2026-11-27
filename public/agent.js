@@ -228,6 +228,25 @@
 
   // ─── open / close ───────────────────────────────────────────────────────────
 
+  /** This session waiting on the user (Human review's row for it): what it asked and the reply box, above Live activity. */
+  function paintReply() {
+    const el = document.getElementById('agentReply')
+    if (!el || !view) return
+    const row = view.sub ? null : window.HumanReview?.data?.items?.find(i => i.kind === 'session' && i.sessionId === view.sid)
+    const sig = row ? JSON.stringify(row) : ''
+    if (sig === view.replySig) return // unchanged: leave what is being typed alone
+    view.replySig = sig
+    el.hidden = !row
+    // keep a reply being typed (and its focus) across the redraw
+    const draft = el.querySelector('textarea')?.value || ''
+    const typing = el.contains(document.activeElement)
+    el.innerHTML = row ? `<p class="agent-reply-q"><b>${row.wait === 'question' ? 'Waiting on your reply' : 'Waiting on your OK'}</b> · ${esc(row.reason)}</p>${window.HumanReview.replyHtml(row)}` : ''
+    const area = el.querySelector('textarea')
+    if (area && draft) area.value = draft
+    if (area && typing) area.focus()
+  }
+  if (typeof document !== 'undefined') document.addEventListener?.('humanreview:change', paintReply)
+
   function close() {
     if (!view) return
     view.timers.forEach(clearInterval)
@@ -246,6 +265,7 @@
         <span id="agentTitle"><span class="nm">Loading…</span></span>
         <button id="draftReport" class="primary" style="margin-left:auto">Draft report</button>
       </div>
+      <div id="agentReply" class="agent-reply" hidden></div>
       <div class="agent-grid">
         <div class="card">
           <div class="card-head"><h3>Live activity</h3></div>
@@ -266,6 +286,7 @@
       document.getElementById('changes').innerHTML = '<div class="small">Loading…</div>'
       pollDiff()
     })
+    paintReply()
     pollFeed().then(pollDiff)
     view.timers.push(setInterval(pollFeed, FEED_MS), setInterval(pollDiff, DIFF_MS))
   }

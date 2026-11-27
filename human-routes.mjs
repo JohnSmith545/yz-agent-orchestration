@@ -1,9 +1,11 @@
 // The Human review routes and the by-hand step routes (factory-routes.mjs mounts them; every POST has passed its
 // same-origin check there). Each handler returns { status, body } like glossary-routes.mjs.
 //
-//   GET  /api/human                  { items, counts: { total, ask, hand, blocked, ticket }, builtAt }: what waits on
+//   GET  /api/human                  { items, counts: { total, ask, hand, blocked, ticket, session }, builtAt }: what waits on
 //                                    the user, and why (human.mjs), newest first. The Agents page box, the rail's
 //                                    count and Home's line all read this one answer.
+//   POST /api/sessions/<id>/reply   { text } or { retry: true }: the user's reply to a waiting session, sent as ONE message
+//                                    (session-replies.mjs); only from the dashboard page: { ok, reply }
 //   POST /api/flows/<id>/hand        { step, done: true|false }: the user's tick on one by-hand step (hand-steps.mjs
 //                                    applyHandTick), written through writeFlow like every page change: { ok, step }
 //   POST /api/flows/<id>/request-hand  { note? ≤ 500 }: Ask the agent for steps, on the SAME relay path as Request
@@ -54,9 +56,64 @@ function ticketsOf() {
   return map
 }
 
+let sessionReplies = null // the server's reply store (session-replies.mjs); null until the server sets it
+let sessionName = () => null // a running session's name by id, or null when it is closed
+// Sets the reply store and how to name a running session: { replies, nameOf(sessionId) }.
+export function useSessionReplies({ replies, nameOf }) {
+  sessionReplies = replies || null
+  sessionName = typeof nameOf === 'function' ? nameOf : () => null
+}
+
+// POST /api/sessions/<id>/reply { text } or { retry: true }: the user's reply goes to that session (page only, factory-routes.mjs).
+export function sessionReplyRoute(sessionId, body) {
+  if (!sessionReplies) return no(503, 'Replies are not set up on this dashboard. Reply in VS Code instead.')
+  const name = sessionName(sessionId)
+  if (!name) return no(404, 'That session is closed or not running. Reply in VS Code instead.')
+  // only a session waiting on a question takes a reply: never one at work, or at a permission prompt
+  const wait = rawSessions().find(w => w.sessionId === sessionId)
+  if (wait?.kind !== 'question') return no(409, 'That session is not waiting on a question now. Check its page for what it needs.')
+  // Retry resends only a reply to THIS question, never one written for an earlier question
+  const last = sessionReplies.get(sessionId)
+  if (body?.retry === true && !(last && String(last.at) >= String(wait.at))) return no(400, 'Nothing to send again: write a reply.')
+  try {
+    const { record } = body?.retry === true ? sessionReplies.retry(sessionId, name) : sessionReplies.send(sessionId, name, body?.text)
+    return ok({ ok: true, reply: record })
+  } catch (e) {
+    return no(400, e.message)
+  }
+}
+
+let waitingSessions = () => [] // the server's live sessions that wait on the user (server.mjs, waiting.mjs)
+// Sets where GET /api/human gets the sessions waiting on the user: a function returning [{ sessionId, label, kind, reason, at }].
+export function useWaitingSessions(fn) {
+  waitingSessions = typeof fn === 'function' ? fn : () => []
+}
+
+/** The waiting sessions, or none when the source fails: a broken source never breaks Human review. */
+/** The waiting sessions as the server sees them, or none when the source fails. */
+function rawSessions() {
+  try {
+    return waitingSessions() || []
+  } catch {
+    return []
+  }
+}
+
+function sessionsNow() {
+  try {
+    return rawSessions().map(w => {
+      // a reply shows only on the question it answered: one written before this wait began belongs to an earlier one
+      const reply = sessionReplies?.get(w.sessionId)
+      return reply && String(reply.at) >= String(w.at) ? { ...w, reply } : w
+    })
+  } catch {
+    return []
+  }
+}
+
 export function humanGet({ now = Date.now(), kinds = ticketKinds() } = {}) {
   // `kinds`: ticket intake's sure sorts (routing-intake-store.mjs), so the Tickets list leaves out tickets sorted as code
-  const { items, counts } = humanItems({ flows: listFlows().flows, marks: readState().marks, tickets: ticketsOf(), senior: gateLabels(CONFIG).senior, kinds })
+  const { items, counts } = humanItems({ flows: listFlows().flows, marks: readState().marks, tickets: ticketsOf(), senior: gateLabels(CONFIG).senior, kinds, sessions: sessionsNow() })
   return ok({ items, counts, builtAt: new Date(now).toISOString() })
 }
 

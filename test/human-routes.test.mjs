@@ -16,6 +16,7 @@ const S = await import('../factory-state.mjs')
 const { factoryRoute } = await import('../factory-routes.mjs')
 const { makeRelay, buildPrompt, handText } = await import('../relay.mjs')
 const { CONFIG } = await import('../config.mjs')
+const { useWaitingSessions } = await import('../human-routes.mjs')
 
 const calls = []
 const relay = { queueHandRequest: (...a) => calls.push(['queueHandRequest', ...a]), queue: () => {}, drop: () => {} }
@@ -54,7 +55,7 @@ test('GET /api/human: the rows and the counts, from the flows and the ticket mar
   const j = await (await get('/api/human')).json()
   assert.deepEqual(Object.keys(j), ['items', 'counts', 'builtAt'])
   assert.deepEqual(j.items.map(i => [i.kind, i.flowId || i.ticketId]), [['ticket', 'FLA-820'], ['hand', 'ci']])
-  assert.deepEqual(j.counts, { total: 2, ask: 0, hand: 1, blocked: 0, ticket: 1 })
+  assert.deepEqual(j.counts, { total: 2, ask: 0, hand: 1, blocked: 0, ticket: 1, session: 0 })
   assert.equal(j.items[0].reason, 'Link the billing account.')
 })
 
@@ -239,4 +240,114 @@ test('a request for by-hand steps to an agent with no session open runs no paid 
   await new Promise(r => setTimeout(r, 60))
   assert.equal(prompts.length, 0)
   assert.match(F.readFlow('ci').hand.requestError, /has no session open/)
+})
+
+test('GET /api/human: a waiting session from the server is a row, and the count includes it', async () => {
+  useWaitingSessions(() => [{ sessionId: 's1', label: 'Coordinator', kind: 'question', reason: 'Go?', at: '2099-01-01T00:00:00.000Z' }])
+  try {
+    const j = await (await get('/api/human')).json()
+    assert.deepEqual(j.items[0], { key: 'session:s1', kind: 'session', sessionId: 's1', title: 'Coordinator', agent: 'Coordinator', since: '2099-01-01T00:00:00.000Z', reason: 'Asked you: Go?', wait: 'question' })
+    assert.equal(j.counts.session, 1)
+  } finally {
+    useWaitingSessions(() => [])
+  }
+})
+
+test('GET /api/human: a broken waiting-session source leaves the sessions out, never an error', async () => {
+  useWaitingSessions(() => { throw new Error('boom') })
+  try {
+    const r = await get('/api/human')
+    assert.equal(r.status, 200)
+    assert.equal((await r.json()).counts.session, 0)
+  } finally {
+    useWaitingSessions(() => [])
+  }
+})
+
+// ═══ replying to a waiting session (session-replies.mjs) ═══
+
+test('POST /api/sessions/<id>/reply from the page sends the reply, and Human review shows how it went', async () => {
+  const { useSessionReplies } = await import('../human-routes.mjs')
+  const { makeSessionReplies } = await import('../session-replies.mjs')
+  const prompts = []
+  const replies = makeSessionReplies({ run: async p => (prompts.push(p), { ok: true, out: 'SENT' }) })
+  useSessionReplies({ replies, nameOf: id => (id === 's1' ? 'agent-3' : null) })
+  useWaitingSessions(() => [{ sessionId: 's1', label: 'agent-3', kind: 'question', reason: 'Go?', at: '2000-01-01T00:00:00.000Z' }])
+  try {
+    const r = await post('/api/sessions/s1/reply', { text: 'Yes, go' })
+    assert.equal(r.status, 200)
+    assert.equal((await r.json()).reply.status, 'sending')
+    await new Promise(res => setTimeout(res, 20))
+    assert.match(prompts[0], /"agent-3"/)
+    const row = (await (await get('/api/human')).json()).items.find(i => i.kind === 'session')
+    assert.equal(row.reply.status, 'sent')
+    assert.equal(row.reply.text, 'Yes, go')
+  } finally {
+    useWaitingSessions(() => [])
+  }
+})
+
+test('a reply needs the dashboard page: an agent calling the route (no Origin) is refused and nothing is sent', async () => {
+  const { useSessionReplies } = await import('../human-routes.mjs')
+  const { makeSessionReplies } = await import('../session-replies.mjs')
+  let runs = 0
+  useSessionReplies({ replies: makeSessionReplies({ run: async () => (runs++, { ok: true, out: 'SENT' }) }), nameOf: () => 'agent-3' })
+  const r = await fetch(base + '/api/sessions/s1/reply', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: 'Yes' }) })
+  assert.equal(r.status, 403)
+  assert.equal(runs, 0)
+})
+
+test('a reply to a closed session, or an empty one, is refused in plain words', async () => {
+  const { useSessionReplies } = await import('../human-routes.mjs')
+  const { makeSessionReplies } = await import('../session-replies.mjs')
+  useSessionReplies({ replies: makeSessionReplies({ run: async () => ({ ok: true, out: 'SENT' }) }), nameOf: id => (id === 'live' ? 'agent-3' : null) })
+  useWaitingSessions(() => [{ sessionId: 'live', label: 'agent-3', kind: 'question', reason: 'Go?', at: '2099-01-01T00:00:00.000Z' }])
+  const closed = await post('/api/sessions/gone/reply', { text: 'Yes' })
+  assert.equal(closed.status, 404)
+  assert.match((await closed.json()).error, /closed or not running.*VS Code/)
+  const empty = await post('/api/sessions/live/reply', { text: '  ' })
+  assert.equal(empty.status, 400)
+  assert.equal((await empty.json()).error, 'Write a reply first.')
+})
+
+// review: the route sent to any running session, so a stale Retry could drop "the user replies" into busy work
+test('a reply goes only to a session waiting on a question: busy, or waiting for a permission, is refused', async () => {
+  const { useSessionReplies } = await import('../human-routes.mjs')
+  const { makeSessionReplies } = await import('../session-replies.mjs')
+  let runs = 0
+  useSessionReplies({ replies: makeSessionReplies({ run: async () => (runs++, { ok: true, out: 'SENT' }) }), nameOf: () => 'agent-3' })
+  try {
+    useWaitingSessions(() => [])
+    const busy = await post('/api/sessions/s1/reply', { text: 'Yes' })
+    assert.equal(busy.status, 409)
+    assert.match((await busy.json()).error, /not waiting on a question/)
+    useWaitingSessions(() => [{ sessionId: 's1', label: 'agent-3', kind: 'permission', reason: 'Needs your OK to use Bash', at: '2099-01-01T00:00:00.000Z' }])
+    assert.equal((await post('/api/sessions/s1/reply', { text: 'Yes' })).status, 409)
+    assert.equal(runs, 0)
+  } finally {
+    useWaitingSessions(() => [])
+  }
+})
+
+// review: a reply to an earlier question showed on the next one ("Sent 1 hour ago"), and Retry resent the old answer
+test('a reply to an earlier question is not shown on a newer one, and cannot be sent again to it', async () => {
+  const { useSessionReplies } = await import('../human-routes.mjs')
+  const { makeSessionReplies } = await import('../session-replies.mjs')
+  let n = 0
+  const replies = makeSessionReplies({ run: async () => (++n, { ok: true, out: 'FAILED: busy' }), now: () => '2026-11-26T09:05:00.000Z' })
+  useSessionReplies({ replies, nameOf: () => 'agent-3' })
+  try {
+    useWaitingSessions(() => [{ sessionId: 's1', label: 'agent-3', kind: 'question', reason: 'Q1?', at: '2026-11-26T09:00:00.000Z' }])
+    await post('/api/sessions/s1/reply', { text: 'Answer to Q1' })
+    await new Promise(r => setTimeout(r, 20))
+    useWaitingSessions(() => [{ sessionId: 's1', label: 'agent-3', kind: 'question', reason: 'Q2?', at: '2026-11-26T10:00:00.000Z' }])
+    const row = (await (await get('/api/human')).json()).items.find(i => i.kind === 'session')
+    assert.equal(row.reply, undefined, 'Q2 shows no reply yet')
+    const retry = await post('/api/sessions/s1/reply', { retry: true })
+    assert.equal(retry.status, 400)
+    assert.match((await retry.json()).error, /Nothing to send again/)
+    assert.equal(n, 1)
+  } finally {
+    useWaitingSessions(() => [])
+  }
 })

@@ -257,6 +257,15 @@ function judge(r) {
  */
 export const relayOutcome = (r, kind = 'relay') => judge(unwrap(r, kind))
 
+/** One relay turn sending `agent` these lines (session-replies.mjs); resolves { ok, error? } and never rejects. */
+export async function sendMessageTurn(run, agent, lines) {
+  try {
+    return relayOutcome(await run(messagePrompt(agent, lines)))
+  } catch (err) {
+    return relayOutcome({ ok: false, out: '', err: err?.message || String(err) })
+  }
+}
+
 /** The flow and its answered ask, read fresh; throws a one-line reason when either is gone or unanswered. */
 function lookup(flowId, nodeId) {
   const flow = readFlow(flowId)
